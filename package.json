@@ -1,0 +1,63 @@
+{
+  "name": "@rocketlang/aegis",
+  "version": "0.1.0",
+  "description": "AEGIS — The kill-switch between your AI agents and your credit card. Agentic spend governance for Claude Code, OpenAI Codex, and any JSONL-logging agent.",
+  "license": "MIT",
+  "type": "module",
+  "author": "Capt. Anil Sharma <capt.anil.sharma@powerpbox.org>",
+  "homepage": "https://github.com/rocketlang/aegis",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/rocketlang/aegis.git"
+  },
+  "bugs": {
+    "url": "https://github.com/rocketlang/aegis/issues"
+  },
+  "keywords": [
+    "ai",
+    "agent",
+    "governance",
+    "budget",
+    "cost-control",
+    "claude-code",
+    "openai-codex",
+    "finops",
+    "ai-spend",
+    "agentic",
+    "kill-switch",
+    "anthropic",
+    "openai"
+  ],
+  "bin": {
+    "aegis": "./bin/aegis.js",
+    "aegis-monitor": "./bin/aegis-monitor.js",
+    "aegis-dashboard": "./bin/aegis-dashboard.js"
+  },
+  "files": [
+    "bin/",
+    "src/",
+    "docs/",
+    "README.md",
+    "LICENSE",
+    "CHANGELOG.md"
+  ],
+  "engines": {
+    "bun": ">=1.0.0",
+    "node": ">=18.0.0"
+  },
+  "scripts": {
+    "monitor": "bun run src/monitor/index.ts",
+    "dashboard": "bun run src/dashboard/server.ts",
+    "cli": "bun run src/cli/index.ts",
+    "start": "bun run src/monitor/index.ts & bun run src/dashboard/server.ts",
+    "prepublishOnly": "echo 'Run tests manually before publishing'"
+  },
+  "dependencies": {
+    "fastify": "^4.29.1",
+    "@fastify/cors": "^9.0.1",
+    "@fastify/static": "^7.0.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

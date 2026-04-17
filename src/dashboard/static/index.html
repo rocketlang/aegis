@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AEGIS — Agentic Spend Governance</title>
+  <link rel="stylesheet" href="/aegis.css">
+</head>
+<body>
+  <header>
+    <div class="logo">AEGIS</div>
+    <div class="subtitle">Agentic Execution Governance & Intelligence System</div>
+    <div class="plan-badge" id="plan-badge">—</div>
+    <div id="connection-status" class="status-dot disconnected"></div>
+  </header>
+
+  <main>
+    <!-- Max Plan view -->
+    <section class="budget-section" id="maxplan-view" style="display:none">
+      <h2>Usage</h2>
+      <div class="budget-row">
+        <div class="budget-card" id="window-5h-card">
+          <div class="budget-label">5-Hour Window</div>
+          <div class="budget-amount">
+            <span id="w5h-msg-used">0</span> / <span id="w5h-msg-limit">225</span> msgs
+          </div>
+          <div class="budget-bar-container">
+            <div class="budget-bar" id="w5h-bar" style="width: 0%"></div>
+          </div>
+          <div class="budget-details">
+            <span id="w5h-tokens">0 tokens</span>
+            <span class="reset-time">Resets in <span id="w5h-reset">—</span></span>
+          </div>
+          <div class="budget-percent" id="w5h-percent">0%</div>
+        </div>
+        <div class="budget-card" id="window-weekly-card">
+          <div class="budget-label">Weekly</div>
+          <div class="budget-amount">
+            <span id="wk-msg-used">0</span> / <span id="wk-msg-limit">3150</span> msgs
+          </div>
+          <div class="budget-bar-container">
+            <div class="budget-bar" id="wk-bar" style="width: 0%"></div>
+          </div>
+          <div class="budget-details">
+            <span id="wk-tokens">0 tokens</span>
+          </div>
+          <div class="budget-percent" id="wk-percent">0%</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- API Plan view -->
+    <section class="budget-section" id="apiplan-view" style="display:none">
+      <h2>Budget</h2>
+      <div class="budget-row">
+        <div class="budget-card" id="daily-card">
+          <div class="budget-label">Today</div>
+          <div class="budget-amount"><span id="daily-spent">$0.00</span> / <span id="daily-limit">$100</span></div>
+          <div class="budget-bar-container"><div class="budget-bar" id="daily-bar" style="width: 0%"></div></div>
+          <div class="budget-percent" id="daily-percent">0%</div>
+        </div>
+        <div class="budget-card" id="weekly-card">
+          <div class="budget-label">This Week</div>
+          <div class="budget-amount"><span id="weekly-spent">$0.00</span> / <span id="weekly-limit">$400</span></div>
+          <div class="budget-bar-container"><div class="budget-bar" id="weekly-bar" style="width: 0%"></div></div>
+          <div class="budget-percent" id="weekly-percent">0%</div>
+        </div>
+        <div class="budget-card" id="monthly-card">
+          <div class="budget-label">This Month</div>
+          <div class="budget-amount"><span id="monthly-spent">$0.00</span> / <span id="monthly-limit">$1200</span></div>
+          <div class="budget-bar-container"><div class="budget-bar" id="monthly-bar" style="width: 0%"></div></div>
+          <div class="budget-percent" id="monthly-percent">0%</div>
+        </div>
+      </div>
+    </section>
+
+    <section class="actions-section">
+      <h2>Controls</h2>
+      <div class="actions-row">
+        <button id="btn-pause" class="btn btn-warning" onclick="pauseAll()">PAUSE ALL</button>
+        <button id="btn-kill" class="btn btn-danger" onclick="killAll()">KILL ALL</button>
+        <button id="btn-resume" class="btn btn-success" onclick="resumeAll()">RESUME</button>
+      </div>
+    </section>
+
+    <section class="sessions-section">
+      <h2>Active Sessions <span id="session-count" class="badge">0</span></h2>
+      <div id="sessions-list" class="sessions-list">
+        <div class="empty-state">No active sessions</div>
+      </div>
+    </section>
+
+    <section class="alerts-section">
+      <h2>Alerts</h2>
+      <div id="alerts-list" class="alerts-list">
+        <div class="empty-state">No alerts</div>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <span>AEGIS v0.1.0</span>
+    <span>The kill-switch between your AI agents and your credit card</span>
+  </footer>
+
+  <script src="/aegis.js"></script>
+</body>
+</html>

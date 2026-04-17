@@ -1,0 +1,8 @@
+node_modules/
+*.log
+/tmp/
+aegis.db
+.aegis/
+.DS_Store
+dist/
+bun.lockb

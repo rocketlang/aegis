@@ -1,0 +1,13 @@
+node_modules/
+.git/
+.env
+.env.local
+*.log
+/tmp/
+aegis.db
+.aegis/
+.DS_Store
+.github/
+dist/
+test/
+*.test.ts
