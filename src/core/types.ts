@@ -29,6 +29,11 @@ export interface AegisConfig {
   max_plan_discount: number; // multiplier, e.g. 0.2 means 20% of API price
   dashboard: {
     port: number;
+    auth: {
+      enabled: boolean;
+      username: string;
+      password: string; // plaintext in local config — hosted only, not committed
+    };
   };
   monitor: {
     health_port: number;
@@ -43,6 +48,9 @@ export interface AegisConfig {
     mode: "alert" | "enforce";     // alert = warn only (SAFE DEFAULT); enforce = auto-kill/pause
     excluded_pids: number[];       // PIDs to never kill (e.g. user's active session)
     excluded_ppids: number[];      // parent PIDs to never kill (protects child claude processes)
+    // @rule:NHI-008 — AEGIS wires to registry on budget kill
+    registry_url: string | null;   // e.g. "http://localhost:4586" — if set, revoke is called on kill
+    registry_admin_key: string | null; // X-Admin-Key for registry revoke endpoint
   };
 }
 

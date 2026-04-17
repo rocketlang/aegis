@@ -29,6 +29,11 @@ const DEFAULT_CONFIG: AegisConfig = {
   max_plan_discount: 0.2,
   dashboard: {
     port: 4850,
+    auth: {
+      enabled: false,
+      username: "aegis",
+      password: "changeme",
+    },
   },
   monitor: {
     health_port: 4851,
@@ -43,6 +48,8 @@ const DEFAULT_CONFIG: AegisConfig = {
     mode: "alert",        // SAFE DEFAULT — never auto-kill. User must opt-in via config.
     excluded_pids: [],
     excluded_ppids: [],
+    registry_url: "http://localhost:4586",  // @rule:NHI-008 — agent registry endpoint
+    registry_admin_key: "ankr-registry-dev-key",
   },
 };
 

@@ -155,12 +155,37 @@ export class BudgetEnforcer {
     // Default mode is "alert" — warn loudly but never touch processes.
     if (this.config.enforcement.mode === "enforce") {
       this.killClaudeProcesses("SIGSTOP");
+      // @rule:NHI-008 — AEGIS budget kill → registry global pause
+      this.notifyRegistry("budget_kill_all", "AEGIS budget exhausted — global kill").catch(() => {});
     } else {
       // In alert mode, just log it very loudly
       console.error(`\n\x1b[31m[AEGIS] BUDGET BREACH — would pause all agents, but enforcement.mode = "alert".\x1b[0m`);
       console.error(`\x1b[31m[AEGIS] To enable auto-enforcement: aegis config enforcement enforce\x1b[0m\n`);
     }
     this.emit({ type: "pause", data: { all: true, mode: this.config.enforcement.mode } });
+  }
+
+  // @rule:NHI-008 — notify agent registry on budget kill so it can sleep/revoke agents
+  private async notifyRegistry(event: string, reason: string): Promise<void> {
+    const { registry_url, registry_admin_key } = this.config.enforcement;
+    if (!registry_url) return;
+    try {
+      // Fire a SENSE event to the registry — it will act on it based on its own rules
+      await fetch(`${registry_url}/api/v2/forja/sense/emit`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Admin-Key": registry_admin_key ?? "",
+        },
+        body: JSON.stringify({
+          event_type: "agent.slept",
+          before_state: "active",
+          after_state: "sleeping",
+          payload: { source: "aegis", event, reason },
+          source: "aegis-enforcer",
+        }),
+      });
+    } catch { /* registry may not be running — non-fatal */ }
   }
 
   private killClaudeProcesses(signal: "SIGSTOP" | "SIGKILL" | "SIGCONT"): void {
