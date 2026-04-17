@@ -87,18 +87,20 @@ export class BudgetEnforcer {
       this.pauseAll();
     }
 
-    // Anomaly detection — spend rate spike
+    // Anomaly detection — spend burst (3x average, $0.10 minimum to avoid noise)
     if (this.spendRateWindow.length >= 10) {
       const avg = this.spendRateWindow.reduce((a, b) => a + b, 0) / this.spendRateWindow.length;
-      if (record.estimated_cost_usd > avg * 5 && record.estimated_cost_usd > 1) {
+      if (record.estimated_cost_usd > avg * 3 && record.estimated_cost_usd > 0.10) {
         this.triggerAlert({
           type: "anomaly",
-          severity: "warning",
-          message: `Spend spike: $${record.estimated_cost_usd.toFixed(2)} (5x above avg $${avg.toFixed(2)})`,
+          severity: "critical",   // burst = critical, not just warning — triggers kill in enforce mode
+          message: `Spend burst: $${record.estimated_cost_usd.toFixed(4)} (${(record.estimated_cost_usd/avg).toFixed(1)}x above avg $${avg.toFixed(4)})`,
           session_id: record.session_id,
           timestamp: new Date().toISOString(),
           acknowledged: false,
         });
+        // Burst is a kill trigger in enforce mode, same as budget breach
+        this.pauseAll();
       }
     }
 
@@ -143,26 +145,41 @@ export class BudgetEnforcer {
 
   private pauseSession(session_id: string): void {
     setSessionStatus(session_id, "paused");
-    // Only actually kill if mode is "enforce" — alert mode just logs
     if (this.config.enforcement.mode === "enforce") {
-      this.killClaudeProcesses("SIGSTOP");
+      // Session budget breach → kill the specific session's processes
+      this.killAllAgentProcesses("budget_session", `session ${session_id} exceeded limit`);
     }
-    this.emit({ type: "pause", data: { session_id, mode: this.config.enforcement.mode } });
+    this.emit({ type: "kill", data: { session_id, mode: this.config.enforcement.mode, reason: "session_budget_exceeded" } });
   }
 
   private pauseAll(): void {
-    // CRITICAL SAFETY: only auto-kill if user explicitly opted in to enforce mode.
-    // Default mode is "alert" — warn loudly but never touch processes.
     if (this.config.enforcement.mode === "enforce") {
-      this.killClaudeProcesses("SIGSTOP");
-      // @rule:NHI-008 — AEGIS budget kill → registry global pause
+      // Budget exhausted or burst → hard kill everything
+      this.killAllAgentProcesses("budget_global", "daily/weekly budget exhausted or spend burst detected");
       this.notifyRegistry("budget_kill_all", "AEGIS budget exhausted — global kill").catch(() => {});
     } else {
-      // In alert mode, just log it very loudly
-      console.error(`\n\x1b[31m[AEGIS] BUDGET BREACH — would pause all agents, but enforcement.mode = "alert".\x1b[0m`);
-      console.error(`\x1b[31m[AEGIS] To enable auto-enforcement: aegis config enforcement enforce\x1b[0m\n`);
+      console.error(`\n\x1b[31m[AEGIS] BUDGET BREACH — enforcement.mode = "alert", no kill.\x1b[0m`);
+      console.error(`\x1b[31m[AEGIS] To enable auto-kill: set enforcement.mode = "enforce" in ~/.aegis/config.json\x1b[0m\n`);
     }
-    this.emit({ type: "pause", data: { all: true, mode: this.config.enforcement.mode } });
+    this.emit({ type: "kill", data: { all: true, mode: this.config.enforcement.mode } });
+  }
+
+  // Hard kill all Claude Code agents + subagents (budget breach or burst)
+  // Kills: claude process tree + bun subagents spawned by Agent tool
+  private killAllAgentProcesses(trigger: string, reason: string): void {
+    console.error(`\n\x1b[31m[AEGIS] KILL — trigger: ${trigger} — ${reason}\x1b[0m`);
+
+    // Pattern 1: claude CLI process and all children
+    this.killByPattern("claude", "SIGKILL");
+
+    // Pattern 2: bun processes running ankr subagents (spawned by Agent tool)
+    this.killByPattern("ankr-agent-registry", "SIGKILL");
+
+    // Pattern 3: any bun/node process running as a claude subagent
+    // These are identified by being children of the claude process group
+    this.killOrphanedSubagents();
+
+    console.error(`\x1b[31m[AEGIS] All agent processes killed. Session terminated.\x1b[0m\n`);
   }
 
   // @rule:NHI-008 — notify agent registry on budget kill so it can sleep/revoke agents
@@ -188,36 +205,55 @@ export class BudgetEnforcer {
     } catch { /* registry may not be running — non-fatal */ }
   }
 
-  private killClaudeProcesses(signal: "SIGSTOP" | "SIGKILL" | "SIGCONT"): void {
+  private killByPattern(pattern: string, signal: "SIGKILL" | "SIGTERM"): void {
     try {
-      const result = Bun.spawnSync(["pgrep", "-f", "claude"]);
+      const result = Bun.spawnSync(["pgrep", "-f", pattern]);
       const pids = result.stdout.toString().trim().split("\n").filter(Boolean);
-      const myPid = process.pid;
-      const myPpid = process.ppid;
-      const excluded = new Set([
-        myPid,
-        myPpid,
-        ...this.config.enforcement.excluded_pids,
-        ...this.config.enforcement.excluded_ppids,
-      ]);
+      const excluded = this.buildExcludedSet();
+      const sig = signal === "SIGKILL" ? 9 : 15;
 
       for (const pidStr of pids) {
         const pid = parseInt(pidStr);
-        if (isNaN(pid)) continue;
-        if (excluded.has(pid)) continue;
-
-        // Also exclude processes whose parent is in excluded list
+        if (isNaN(pid) || excluded.has(pid)) continue;
         try {
-          const ppidResult = Bun.spawnSync(["ps", "-o", "ppid=", "-p", pidStr]);
-          const ppid = parseInt(ppidResult.stdout.toString().trim());
-          if (excluded.has(ppid)) continue;
-        } catch { /* fall through */ }
-
-        try {
-          const sig = signal === "SIGSTOP" ? 19 : signal === "SIGKILL" ? 9 : 18;
-          process.kill(pid, sig);
-        } catch { /* process already gone */ }
+          // Kill entire process group — catches all children/subagents
+          process.kill(-pid, sig);
+        } catch {
+          // Fallback: kill just the process if group kill fails
+          try { process.kill(pid, sig); } catch { /* already gone */ }
+        }
       }
-    } catch { /* pgrep not found */ }
+    } catch { /* pgrep not available */ }
+  }
+
+  // Kill bun/node processes that are children of claude but not in registry
+  // These are subagents spawned by the Agent tool mid-session
+  private killOrphanedSubagents(): void {
+    try {
+      // Find all bun/node processes whose parent is a claude process
+      const claudePids = Bun.spawnSync(["pgrep", "-f", "claude"])
+        .stdout.toString().trim().split("\n").filter(Boolean);
+
+      for (const cpid of claudePids) {
+        // Get all children of this claude process
+        const children = Bun.spawnSync(["pgrep", "-P", cpid])
+          .stdout.toString().trim().split("\n").filter(Boolean);
+        const excluded = this.buildExcludedSet();
+        for (const child of children) {
+          const pid = parseInt(child);
+          if (isNaN(pid) || excluded.has(pid)) continue;
+          try { process.kill(pid, 9); } catch { /* already gone */ }
+        }
+      }
+    } catch { /* non-fatal */ }
+  }
+
+  private buildExcludedSet(): Set<number> {
+    return new Set([
+      process.pid,
+      process.ppid,
+      ...this.config.enforcement.excluded_pids,
+      ...this.config.enforcement.excluded_ppids,
+    ]);
   }
 }

@@ -77,6 +77,11 @@ const healthServer = Bun.serve({
         uptime_s: Math.floor((Date.now() - startTime) / 1000),
         files_watched: watcher.getWatchedFileCount(),
         active_sessions: lastUserActivity.size,
+        enforcement_mode: config.enforcement.mode,
+        kill_on_budget_breach: config.enforcement.mode === "enforce",
+        kill_on_burst: config.enforcement.mode === "enforce",
+        burst_multiplier: 3,
+        registry_wired: !!config.enforcement.registry_url,
       });
     }
     return new Response("AEGIS Monitor", { status: 200 });
