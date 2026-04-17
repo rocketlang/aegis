@@ -19,28 +19,84 @@ function formatDuration(s) {
 
 async function fetchStatus() {
   try {
-    const res = await fetch(`${API}/api/status`);
-    const data = await res.json();
+    const [statusRes, sysRes, providersRes, trendRes] = await Promise.all([
+      fetch(`${API}/api/status`),
+      fetch(`${API}/api/system`),
+      fetch(`${API}/api/providers`),
+      fetch(`${API}/api/trend`),
+    ]);
+    const data = await statusRes.json();
+    const sys = await sysRes.json();
+    const providers = await providersRes.json();
+    const trend = await trendRes.json();
 
-    // Plan badge
     document.getElementById('plan-badge').textContent = data.plan || 'api';
 
-    // Toggle views
     const isMax = data.is_max_plan;
     document.getElementById('maxplan-view').style.display = isMax ? '' : 'none';
     document.getElementById('apiplan-view').style.display = isMax ? 'none' : '';
 
-    if (isMax) {
-      renderMaxPlan(data);
-    } else {
-      renderApiPlan(data);
-    }
+    if (isMax) renderMaxPlan(data);
+    else renderApiPlan(data);
 
+    renderSystem(sys, providers);
+    renderTrend(trend);
     renderSessions(data.sessions || [], isMax);
     renderAlerts(data.alerts || []);
   } catch (e) {
     console.error('Failed to fetch status:', e);
   }
+}
+
+function renderSystem(sys, providers) {
+  document.getElementById('process-count').textContent = sys.process_count || 0;
+  document.getElementById('total-cpu').textContent = sys.total_cpu || '0';
+  document.getElementById('total-mem').textContent = sys.total_mem_mb || 0;
+  document.getElementById('tokens-per-min').textContent = formatTokens(sys.velocity_5m?.tokens_per_min || 0);
+  document.getElementById('msgs-per-min').textContent = sys.velocity_5m?.messages ? (sys.velocity_5m.messages / 5).toFixed(1) : '0';
+  document.getElementById('cost-per-hour').textContent = '$' + (sys.velocity_5m?.cost_per_hour || '0.00');
+
+  const p = providers.providers || {};
+  document.getElementById('provider-claude').textContent = p['claude-code']?.sessions || 0;
+  document.getElementById('provider-codex').textContent = p['openai-codex']?.sessions || 0;
+
+  // Process list
+  const procList = document.getElementById('processes-list');
+  document.getElementById('proc-count-badge').textContent = sys.process_count || 0;
+  if (!sys.processes || sys.processes.length === 0) {
+    procList.innerHTML = '<div class="empty-state">No agent processes running</div>';
+  } else {
+    procList.innerHTML = sys.processes.slice(0, 20).map(p => `
+      <div class="process-card ${p.name}">
+        <span class="proc-name">${p.name}</span>
+        <span class="proc-pid">${p.pid}</span>
+        <span class="proc-cpu">${p.cpu.toFixed(1)}%</span>
+        <span class="proc-mem">${p.mem_mb}MB</span>
+        <span class="proc-time">${p.elapsed}</span>
+        <span class="proc-cmd" title="${p.cmd}">${p.cmd}</span>
+      </div>
+    `).join('');
+  }
+}
+
+function renderTrend(trend) {
+  const bars = document.getElementById('trend-bars');
+  const days = trend.days || [];
+  if (days.length === 0) {
+    bars.innerHTML = '<div class="empty-state" style="width:100%">No data yet</div>';
+    return;
+  }
+  const max = Math.max(...days.map(d => d.msgs || 0));
+  bars.innerHTML = days.map(d => {
+    const h = max > 0 ? Math.max(4, (d.msgs / max) * 100) : 4;
+    const label = d.day.slice(5); // MM-DD
+    return `
+      <div class="trend-bar" style="height: ${h}%" title="${d.day}: ${d.msgs} msgs, ${formatTokens(d.tokens)} tokens">
+        <div class="trend-bar-value">${d.msgs}</div>
+        <div class="trend-bar-label">${label}</div>
+      </div>
+    `;
+  }).join('');
 }
 
 function renderMaxPlan(data) {

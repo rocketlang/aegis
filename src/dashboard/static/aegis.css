@@ -155,6 +155,130 @@ h2 {
   margin-right: 12px;
 }
 
+/* Live Intelligence grid */
+.intel-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+}
+
+.intel-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 16px;
+  text-align: center;
+  transition: border-color 0.3s;
+}
+
+.intel-card:hover { border-color: var(--accent); }
+
+.intel-label {
+  font-size: 10px;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin-bottom: 6px;
+}
+
+.intel-value {
+  font-size: 32px;
+  font-weight: 700;
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+}
+
+.intel-sub {
+  font-size: 11px;
+  color: var(--text-dim);
+  margin-top: 4px;
+}
+
+/* Processes table */
+.processes-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.process-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--accent);
+  border-radius: 4px;
+  padding: 8px 12px;
+  display: grid;
+  grid-template-columns: 80px 60px 80px 80px 100px 1fr;
+  gap: 12px;
+  align-items: center;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.process-card.claude { border-left-color: #d97706; }
+.process-card.codex { border-left-color: #10b981; }
+
+.proc-name {
+  font-weight: 700;
+  text-transform: uppercase;
+  font-size: 10px;
+  letter-spacing: 1px;
+}
+
+.proc-pid { color: var(--text-dim); }
+.proc-cpu, .proc-mem { color: var(--accent); font-weight: 700; }
+.proc-time { color: var(--text-dim); }
+.proc-cmd {
+  color: var(--text-dim);
+  font-family: monospace;
+  font-size: 11px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Trend bars */
+.trend-bars {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  height: 120px;
+  padding: 8px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.trend-bar {
+  flex: 1;
+  background: linear-gradient(to top, var(--accent), #22d3ee);
+  border-radius: 2px 2px 0 0;
+  position: relative;
+  min-height: 4px;
+  transition: all 0.3s;
+}
+
+.trend-bar:hover { transform: scaleY(1.05); filter: brightness(1.2); }
+
+.trend-bar-label {
+  position: absolute;
+  bottom: -20px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 9px;
+  color: var(--text-dim);
+}
+
+.trend-bar-value {
+  position: absolute;
+  top: -18px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 10px;
+  color: var(--text);
+  font-weight: 700;
+}
+
 /* Action Buttons */
 .actions-row {
   display: flex;

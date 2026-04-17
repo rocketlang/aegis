@@ -74,6 +74,49 @@
       </div>
     </section>
 
+    <!-- Live Intel — processes, velocity, projections -->
+    <section class="intel-section">
+      <h2>Live Intelligence</h2>
+      <div class="intel-grid">
+        <div class="intel-card">
+          <div class="intel-label">Active Processes</div>
+          <div class="intel-value" id="process-count">0</div>
+          <div class="intel-sub"><span id="total-cpu">0</span>% CPU · <span id="total-mem">0</span>MB</div>
+        </div>
+        <div class="intel-card">
+          <div class="intel-label">Velocity (5min)</div>
+          <div class="intel-value" id="tokens-per-min">0</div>
+          <div class="intel-sub">tokens/min · <span id="msgs-per-min">0</span> msgs/min</div>
+        </div>
+        <div class="intel-card">
+          <div class="intel-label">Projected Rate</div>
+          <div class="intel-value" id="cost-per-hour">$0</div>
+          <div class="intel-sub">/ hour if sustained</div>
+        </div>
+        <div class="intel-card">
+          <div class="intel-label">Providers Today</div>
+          <div class="intel-value"><span id="provider-claude">0</span>+<span id="provider-codex">0</span></div>
+          <div class="intel-sub">Claude + Codex sessions</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Process table -->
+    <section class="processes-section">
+      <h2>Agent Processes <span id="proc-count-badge" class="badge">0</span></h2>
+      <div id="processes-list" class="processes-list">
+        <div class="empty-state">No agent processes running</div>
+      </div>
+    </section>
+
+    <!-- Trend sparkline -->
+    <section class="trend-section">
+      <h2>7-Day Trend</h2>
+      <div class="trend-row">
+        <div class="trend-bars" id="trend-bars"></div>
+      </div>
+    </section>
+
     <section class="actions-section">
       <h2>Controls</h2>
       <div class="actions-row">

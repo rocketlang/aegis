@@ -8,6 +8,7 @@ import { join } from "path";
 import { loadConfig } from "../core/config";
 import { getBudgetState, listActiveSessions, getRecentAlerts, setSessionStatus, addAlert, getWindowBudget } from "../core/db";
 import { sseSubscribers } from "../core/events";
+import { registerSystemRoutes } from "./routes/system";
 
 const config = loadConfig();
 const app = Fastify({ logger: false });
@@ -17,6 +18,7 @@ app.register(fastifyStatic, {
   root: join(import.meta.dir, "static"),
   prefix: "/",
 });
+registerSystemRoutes(app);
 
 // --- API Routes ---
 
