@@ -4,6 +4,7 @@
 
 [![npm version](https://img.shields.io/npm/v/@rocketlang/aegis.svg)](https://www.npmjs.com/package/@rocketlang/aegis)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.19625473.svg)](https://doi.org/10.5281/zenodo.19625473)
 
 **AEGIS** — Agentic Execution Governance & Intelligence System. A vendor-neutral governance layer for agentic AI tools like Claude Code, OpenAI Codex, Cursor, and any framework that writes session logs or makes API calls.
 
