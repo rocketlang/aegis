@@ -48,8 +48,16 @@ const DEFAULT_CONFIG: AegisConfig = {
     mode: "alert",        // SAFE DEFAULT — never auto-kill. User must opt-in via config.
     excluded_pids: [],
     excluded_ppids: [],
-    registry_url: "http://localhost:4586",  // @rule:NHI-008 — agent registry endpoint
+    registry_url: "http://localhost:4586",
     registry_admin_key: "ankr-registry-dev-key",
+    // Infrastructure that must survive a budget kill — restarted automatically after SIGKILL
+    auto_restart_services: [
+      "ankr-agent-registry",   // agent identity + NHI lifecycle
+      "ai-proxy",              // all LLM calls route here — must stay up
+      "ankr-aegis",            // AEGIS itself (monitor restarts, dashboard stays live)
+      "ankr-event-bus",        // SENSE events — backbone
+    ],
+    auto_restart_delay_ms: 3000,  // 3s after kill to let processes clear
   },
 };
 

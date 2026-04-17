@@ -82,6 +82,8 @@ const healthServer = Bun.serve({
         kill_on_burst: config.enforcement.mode === "enforce",
         burst_multiplier: 3,
         registry_wired: !!config.enforcement.registry_url,
+        auto_restart_services: config.enforcement.auto_restart_services ?? [],
+        auto_restart_delay_ms: config.enforcement.auto_restart_delay_ms ?? 3000,
       });
     }
     return new Response("AEGIS Monitor", { status: 200 });

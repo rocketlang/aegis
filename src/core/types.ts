@@ -49,8 +49,11 @@ export interface AegisConfig {
     excluded_pids: number[];       // PIDs to never kill (e.g. user's active session)
     excluded_ppids: number[];      // parent PIDs to never kill (protects child claude processes)
     // @rule:NHI-008 — AEGIS wires to registry on budget kill
-    registry_url: string | null;   // e.g. "http://localhost:4586" — if set, revoke is called on kill
-    registry_admin_key: string | null; // X-Admin-Key for registry revoke endpoint
+    registry_url: string | null;
+    registry_admin_key: string | null;
+    // Services to auto-restart via ankr-ctl after a kill — infrastructure must survive budget kills
+    auto_restart_services: string[];
+    auto_restart_delay_ms: number;  // grace period before restart (let kill complete)
   };
 }
 

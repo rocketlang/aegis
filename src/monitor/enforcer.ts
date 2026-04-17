@@ -164,22 +164,36 @@ export class BudgetEnforcer {
     this.emit({ type: "kill", data: { all: true, mode: this.config.enforcement.mode } });
   }
 
-  // Hard kill all Claude Code agents + subagents (budget breach or burst)
-  // Kills: claude process tree + bun subagents spawned by Agent tool
+  // Hard kill all Claude Code agents + subagents, then restart infrastructure
   private killAllAgentProcesses(trigger: string, reason: string): void {
     console.error(`\n\x1b[31m[AEGIS] KILL — trigger: ${trigger} — ${reason}\x1b[0m`);
 
-    // Pattern 1: claude CLI process and all children
+    // Kill claude process tree + spawned subagents
     this.killByPattern("claude", "SIGKILL");
-
-    // Pattern 2: bun processes running ankr subagents (spawned by Agent tool)
-    this.killByPattern("ankr-agent-registry", "SIGKILL");
-
-    // Pattern 3: any bun/node process running as a claude subagent
-    // These are identified by being children of the claude process group
     this.killOrphanedSubagents();
 
-    console.error(`\x1b[31m[AEGIS] All agent processes killed. Session terminated.\x1b[0m\n`);
+    console.error(`\x1b[31m[AEGIS] All Claude Code processes killed.\x1b[0m`);
+
+    // Restart infrastructure services after grace period
+    const services = this.config.enforcement.auto_restart_services ?? [];
+    if (services.length > 0) {
+      const delay = this.config.enforcement.auto_restart_delay_ms ?? 3000;
+      console.error(`\x1b[33m[AEGIS] Restarting infrastructure in ${delay}ms: ${services.join(", ")}\x1b[0m`);
+      setTimeout(() => this.restartInfraServices(services), delay);
+    }
+  }
+
+  private restartInfraServices(services: string[]): void {
+    for (const svc of services) {
+      try {
+        const result = Bun.spawnSync(["ankr-ctl", "start", svc], { stderr: "pipe" });
+        const ok = result.exitCode === 0;
+        console.error(`\x1b[${ok ? "32" : "31"}m[AEGIS] ankr-ctl start ${svc} → ${ok ? "ok" : "failed"}\x1b[0m`);
+      } catch {
+        console.error(`\x1b[31m[AEGIS] ankr-ctl not found — cannot restart ${svc}\x1b[0m`);
+      }
+    }
+    console.error(`\x1b[32m[AEGIS] Infrastructure restart complete.\x1b[0m\n`);
   }
 
   // @rule:NHI-008 — notify agent registry on budget kill so it can sleep/revoke agents
