@@ -5,6 +5,7 @@
 [![npm version](https://img.shields.io/npm/v/@rocketlang/aegis.svg)](https://www.npmjs.com/package/@rocketlang/aegis)
 [![License: AGPL-3.0](https://img.shields.io/badge/License-AGPL%20v3-blue.svg)](LICENSE)
 [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.19625473.svg)](https://doi.org/10.5281/zenodo.19625473)
+[![CI](https://github.com/rocketlang/aegis/actions/workflows/ci.yml/badge.svg)](https://github.com/rocketlang/aegis/actions/workflows/ci.yml)
 [![Security](https://img.shields.io/badge/trust-audit%20us-green)](SECURITY.md)
 
 **AEGIS** (Agentic Execution Governance & Intelligence System) is a vendor-neutral kill-switch for AI agents. Works with Claude Code, OpenAI Codex, Cursor, and any tool that writes session logs or makes API calls.
@@ -475,6 +476,34 @@ This prevents the "own-goal" problem where AEGIS kills its own user's active ses
 - **Dashboard** (`aegis-dashboard`) — Fastify server + SSE + static HTML
 - **CLI** (`aegis`) — status, kill-switch, budget config, hook integration
 - **Hook script** (`~/.aegis/pre-tool-use.sh`) — Claude Code PreToolUse integration
+
+---
+
+## Testing — AEGIS on AEGIS
+
+AEGIS validates its own governance engine by running as a **real registered agent** inside itself. The test runner registers in the production `~/.aegis/aegis.db`, executes all 10 scenario probes (each against an isolated HOME directory), then closes itself as `FORCE_CLOSED` (clean) or `FAILED`.
+
+```bash
+bun src/test-agents/runner.ts           # run all 10 scenarios
+bun src/test-agents/runner.ts 04 09    # run specific scenarios
+```
+
+| # | Scenario | What it proves |
+|---|----------|----------------|
+| 01 | Budget Overflow | `check-budget` exits 2 when daily cap exceeded; exits 0 in alert mode |
+| 02 | KAVACH DAN Classify | `classifyCommand()` returns correct L1–L4 level; HIGH rule exits 2 immediately |
+| 03 | Injection Block | `check-shield` quarantines "ignore all previous instructions" prompt injection |
+| 04 | Spawn Depth Limit | Agent at `max_depth` cannot spawn children — exit 2 with "depth" in stderr |
+| 05 | L1 Soft Stop | Agent with `stop_requested=1` is blocked by `check-shield` |
+| 06 | Budget Inheritance | Child budget capped by parent's remaining pool; over-allocation rejected |
+| 07 | Zombie State | Watchdog transitions stale agent (>5 min heartbeat gap) to ZOMBIE |
+| 08 | Orphan Detection | FORCE_CLOSED parent → RUNNING child transitions to ORPHAN (INF-KAV-007) |
+| 09 | Credential Read Block | Read of `~/.ssh/id_rsa` → `check-shield` exits 2 (LakshmanRekha credential path) |
+| 10 | Loop Count Quarantine | `loop_count > 50` → `check-spawn` quarantines agent (INF-KAV-014) |
+
+Each test scenario is fully isolated: it creates its own `HOME=/tmp/aegis-test-{name}`, its own SQLite DB, its own config, and cleans up after itself. No test can contaminate another or the production database.
+
+This pattern — governance infrastructure testing itself under its own governance — is described in: [DOI 10.5281/zenodo.19625473](https://doi.org/10.5281/zenodo.19625473)
 
 ---
 

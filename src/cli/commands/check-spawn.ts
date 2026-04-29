@@ -63,6 +63,39 @@ export default async function checkSpawn(_args: string[]): Promise<void> {
       }
     }
 
+    // --- Phase 1b: Loop count quarantine (V2-038, INF-KAV-014) ---
+    // Checked before HanumanG: a runaway agent is quarantined regardless of spawn intent validity.
+    // @rule:KAV-068 — >30 tool calls without completing → warn; >50 → QUARANTINE immediately
+    {
+      const agentId = process.env.CLAUDE_AGENT_ID || sessionId;
+      const agentRecord = loadAgent(agentId);
+      if (agentRecord) {
+        const loopCount = agentRecord.loop_count ?? 0;
+        if (loopCount > 50) {
+          if (enforce) {
+            const result = transitionState(agentId, "QUARANTINED", {
+              reason: `loop_count=${loopCount} > 50 — runaway agent detected`,
+              rule: "INF-KAV-014",
+            });
+            if (result.success) {
+              process.stderr.write(
+                `\n[KAVACH:loop] QUARANTINE: ${agentId} loop_count=${loopCount} — INF-KAV-014\n\n`
+              );
+              process.exit(2);
+            }
+          } else {
+            process.stderr.write(
+              `[KAVACH:loop] WARN: ${agentId} loop_count=${loopCount} > 50 — possible runaway agent — INF-KAV-014\n`
+            );
+          }
+        } else if (loopCount > 30) {
+          process.stderr.write(
+            `[KAVACH:loop] WARN: ${agentId} loop_count=${loopCount} > 30 — monitoring for runaway behavior — KAV-YK-014\n`
+          );
+        }
+      }
+    }
+
     // --- HanumanG 7-axis check (KAV-015) ---
     if (stdin) {
       let toolInput: { tool_input?: { subagent_type?: string; prompt?: string; description?: string } } = {};
@@ -120,38 +153,6 @@ export default async function checkSpawn(_args: string[]): Promise<void> {
               `[KAVACH:MVT] TIGHTEN: identity_confidence=${agentRecord.identity_confidence} + max surface → violation_threshold forced to 1 — INF-KAV-012\n`
             );
           }
-        }
-      }
-    }
-
-    // --- Phase 1b: Loop count escalation (V2-038) ---
-    // @rule:KAV-068 — if agent has made >30 tool calls without completing, warn; >50 → QUARANTINE
-    {
-      const agentId = process.env.CLAUDE_AGENT_ID || sessionId;
-      const agentRecord = loadAgent(agentId);
-      if (agentRecord) {
-        const loopCount = agentRecord.loop_count ?? 0;
-        if (loopCount > 50) {
-          if (enforce) {
-            const result = transitionState(agentId, "QUARANTINED", {
-              reason: `loop_count=${loopCount} > 50 — runaway agent detected`,
-              rule: "INF-KAV-014",
-            });
-            if (result.success) {
-              process.stderr.write(
-                `\n[KAVACH:loop] QUARANTINE: ${agentId} loop_count=${loopCount} — INF-KAV-014\n\n`
-              );
-              process.exit(2);
-            }
-          } else {
-            process.stderr.write(
-              `[KAVACH:loop] WARN: ${agentId} loop_count=${loopCount} > 50 — possible runaway agent — INF-KAV-014\n`
-            );
-          }
-        } else if (loopCount > 30) {
-          process.stderr.write(
-            `[KAVACH:loop] WARN: ${agentId} loop_count=${loopCount} > 30 — monitoring for runaway behavior — KAV-YK-014\n`
-          );
         }
       }
     }

@@ -20,8 +20,13 @@ jobs:
       - name: Install dependencies
         run: bun install
 
-      - name: Run tests
+      - name: Run unit tests
         run: bun test src/
+
+      - name: Run agent governance scenarios (AEGIS on AEGIS)
+        run: bun src/test-agents/runner.ts
+        env:
+          HOME: /tmp/aegis-ci-home
 
       - name: Build CLI
         run: bun build src/cli/index.ts --target=bun --outdir=dist/

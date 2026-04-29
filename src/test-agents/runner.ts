@@ -67,6 +67,9 @@ const SCENARIOS = [
   { id: "05", name: "L1 Soft Stop",            loader: () => import("./scenarios/05-soft-stop.ts") },
   { id: "06", name: "Budget Inheritance",      loader: () => import("./scenarios/06-budget-inheritance.ts") },
   { id: "07", name: "Zombie State Transition", loader: () => import("./scenarios/07-zombie-state.ts") },
+  { id: "08", name: "Orphan Detection",        loader: () => import("./scenarios/08-orphan-detection.ts") },
+  { id: "09", name: "Credential Read Block",   loader: () => import("./scenarios/09-credential-block.ts") },
+  { id: "10", name: "Loop Count Quarantine",   loader: () => import("./scenarios/10-loop-quarantine.ts") },
 ];
 
 // ── Runner ───────────────────────────────────────────────────────────────────
