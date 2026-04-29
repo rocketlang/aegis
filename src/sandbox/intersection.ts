@@ -1,3 +1,7 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Capt. Anil Sharma (rocketlang). All rights reserved.
+// See LICENSE for details.
+
 // AEGIS Sandbox — Parent-wins Policy Intersection (V2-028)
 // At spawn time, compute the effective policy as INTERSECT(parent, child).
 // Parent always wins on restrictions — a child cannot grant itself more scope.

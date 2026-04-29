@@ -1,3 +1,7 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Capt. Anil Sharma (rocketlang). All rights reserved.
+// See LICENSE for details.
+
 // AEGIS Cost — cost attribution tree for current session (V2-067)
 // @rule:KAV-009 Projected cost alerts
 // @rule:KAV-017 Per-agent cost attribution

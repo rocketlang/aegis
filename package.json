@@ -1,7 +1,7 @@
 {
   "name": "@rocketlang/aegis",
-  "version": "0.2.0",
-  "description": "AEGIS — The kill-switch between your AI agents and your credit card. Agentic spend governance for Claude Code, OpenAI Codex, and any JSONL-logging agent.",
+  "version": "1.0.0",
+  "description": "AEGIS \u2014 The kill-switch between your AI agents and your credit card. Agentic spend governance for Claude Code, OpenAI Codex, and any JSONL-logging agent.",
   "license": "AGPL-3.0",
   "type": "module",
   "author": "Capt. Anil Sharma <capt.anil.sharma@powerpbox.org>",

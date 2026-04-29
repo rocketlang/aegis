@@ -1,9 +1,14 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Capt. Anil Sharma (rocketlang). All rights reserved.
+// See LICENSE for details.
+
 import { ensureAegisDir, loadConfig, getAegisDir, getDbPath } from "../../core/config";
 import { getDb } from "../../core/db";
 import { existsSync, writeFileSync, readFileSync } from "fs";
 import { join } from "path";
+import { spawn } from "child_process";
 
-const KAVACH_VERSION = "0.2.0";
+const KAVACH_VERSION = "1.0.0";
 const BEACON_URL = "https://kavach.xshieldai.com/install";  // telemetry endpoint (anonymised)
 const NOTIFY_FILE = join(process.env.HOME || "/root", ".aegis", "notify.json");
 
@@ -151,25 +156,41 @@ exit $?
     console.log(`  [+] Destructive rules: ${targetDestructive}`);
   }
 
+  // @rule:KAV-002 — V2-090: auto-start watchdog + monitor as detached background processes
+  const autoStarted: string[] = [];
+  const tryAutoStart = (name: string, cmd: string, args: string[]): void => {
+    try {
+      const child = spawn(cmd, args, {
+        detached: true,
+        stdio: "ignore",
+        env: { ...process.env },
+      });
+      child.unref();
+      autoStarted.push(name);
+    } catch { /* non-fatal — user can start manually */ }
+  };
+
+  // Start watchdog + monitor if aegis-watchdog / aegis-monitor are in PATH
+  tryAutoStart("watchdog", "aegis-watchdog", []);
+  tryAutoStart("monitor", "aegis-monitor", []);
+  tryAutoStart("dashboard", "aegis-dashboard", []);
+
+  if (autoStarted.length) {
+    console.log(`  [+] Auto-started: ${autoStarted.join(", ")} (background)`);
+  }
+
   console.log(`
 ${"─".repeat(60)}
 \x1b[1mNext steps:\x1b[0m
 
-1. \x1b[33mStart the monitor (in background):\x1b[0m
-   aegis-monitor &
-
-2. \x1b[33mStart the dashboard:\x1b[0m
-   aegis-dashboard &
-   Then open: http://localhost:${config.dashboard.port}
-
-3. \x1b[33mSet your plan:\x1b[0m
+1. \x1b[33mSet your plan:\x1b[0m
    # Edit ${getAegisDir()}/config.json
    # Change "plan" to one of: api, max_5x, max_20x, pro, team
 
-4. \x1b[33mCheck status anytime:\x1b[0m
+2. \x1b[33mCheck status:\x1b[0m
    aegis status
 
-5. \x1b[33mEmergency kill-switch:\x1b[0m
+3. \x1b[33mEmergency kill-switch:\x1b[0m
    aegis kill          # SIGKILL (hard stop)
    aegis kill --stop   # SIGSTOP (pause, resumable)
    aegis resume        # resume paused processes

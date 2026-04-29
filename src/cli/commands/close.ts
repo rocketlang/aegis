@@ -1,3 +1,7 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Capt. Anil Sharma (rocketlang). All rights reserved.
+// See LICENSE for details.
+
 // AEGIS Close — Check Out protocol (V2-032)
 // Transitions agent to COMPLETED, writes final manifest, returns unused budget to parent.
 // @rule:KAV-010 Agent check-out at session end

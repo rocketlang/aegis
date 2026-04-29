@@ -1,3 +1,7 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Capt. Anil Sharma (rocketlang). All rights reserved.
+// See LICENSE for details.
+
 // KAVACH Gate — Dangerous Action Notification + Human Approval
 // @rule:KAV-052 Pre-execution intercept for destructive actions
 // @rule:KAV-053 Blast radius assessment ≤ 3 seconds

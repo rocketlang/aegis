@@ -1,3 +1,7 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Capt. Anil Sharma (rocketlang). All rights reserved.
+// See LICENSE for details.
+
 import { Database } from "bun:sqlite";
 import { getDbPath, ensureAegisDir } from "./config";
 import type { UsageRecord, SessionInfo, BudgetState, AlertEvent, WindowBudget, KavachApproval, KavachDecision } from "./types";
@@ -112,6 +116,17 @@ function initSchema(db: Database): void {
     CREATE INDEX IF NOT EXISTS idx_agents_state ON agents(state);
     CREATE INDEX IF NOT EXISTS idx_agents_session ON agents(session_id);
     CREATE INDEX IF NOT EXISTS idx_agents_last_seen ON agents(last_seen);
+
+    -- @rule:KAV-066 — hosted-service detection (V2-101)
+    -- Logs each unique IP that accesses the dashboard; watchdog checks distinct IP count
+    CREATE TABLE IF NOT EXISTS dashboard_access (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      ip TEXT NOT NULL,
+      timestamp TEXT NOT NULL,
+      path TEXT
+    );
+    CREATE INDEX IF NOT EXISTS idx_dashboard_access_ip ON dashboard_access(ip);
+    CREATE INDEX IF NOT EXISTS idx_dashboard_access_ts ON dashboard_access(timestamp);
   `);
 
   // Additive migrations for existing databases
@@ -120,6 +135,23 @@ function initSchema(db: Database): void {
   try { db.exec(`ALTER TABLE agents ADD COLUMN tools_declared INTEGER DEFAULT 0`); } catch {}
   try { db.exec(`ALTER TABLE agents ADD COLUMN stop_requested INTEGER DEFAULT 0`); } catch {}
   try { db.exec(`ALTER TABLE agents ADD COLUMN budget_pool_reserved REAL DEFAULT 0`); } catch {}
+}
+
+// --- Dashboard access (KAV-066 — hosted-service detection) ---
+
+export function recordDashboardAccess(ip: string, path: string): void {
+  const db = getDb();
+  db.run("INSERT INTO dashboard_access (ip, timestamp, path) VALUES (?, ?, ?)",
+    [ip, new Date().toISOString(), path]);
+}
+
+export function getDistinctDashboardIpCount(sinceHours = 24 * 7): number {
+  const db = getDb();
+  const since = new Date(Date.now() - sinceHours * 60 * 60 * 1000).toISOString();
+  const row = db.query(
+    "SELECT COUNT(DISTINCT ip) as cnt FROM dashboard_access WHERE timestamp >= ?"
+  ).get(since) as any;
+  return row?.cnt ?? 0;
 }
 
 // --- Usage ---

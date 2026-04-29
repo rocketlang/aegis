@@ -1,3 +1,7 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Capt. Anil Sharma (rocketlang). All rights reserved.
+// See LICENSE for details.
+
 // AEGIS CLI — valve: inspect and control gate valve state per agent
 // @rule:KAV-063 Gate valve: OPEN → THROTTLED → CRACKED → CLOSED → LOCKED
 // @rule:KAV-066 LOCKED requires human release

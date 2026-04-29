@@ -1,3 +1,7 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Capt. Anil Sharma (rocketlang). All rights reserved.
+// See LICENSE for details.
+
 // AEGIS Sandbox — Agent State Machine (V2-029)
 // States: RUNNING | QUARANTINED | ORPHAN | ZOMBIE | FORCE_CLOSED | KILLED | COMPLETED
 // File-backed registry: ~/.aegis/agents/{agent-id}.state.json

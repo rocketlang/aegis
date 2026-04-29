@@ -1,3 +1,7 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Capt. Anil Sharma (rocketlang). All rights reserved.
+// See LICENSE for details.
+
 // KAVACH Gate — check-destructive
 // PreToolUse hook for Bash, Write, Edit, Read tools.
 // Exit 0 = allow. Exit 2 = block (Claude Code will not execute the tool).

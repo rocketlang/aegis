@@ -1,3 +1,7 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Capt. Anil Sharma (rocketlang). All rights reserved.
+// See LICENSE for details.
+
 // System intelligence endpoint — process count, resource usage, velocity, projections
 import type { FastifyInstance } from "fastify";
 import { getDb } from "../../core/db";

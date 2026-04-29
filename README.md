@@ -1,15 +1,67 @@
 # AEGIS
 
-> The kill-switch between your AI agents and your credit card.
+> **Stops your AI agent from destroying your database without asking.**
 
 [![npm version](https://img.shields.io/npm/v/@rocketlang/aegis.svg)](https://www.npmjs.com/package/@rocketlang/aegis)
 [![License: AGPL-3.0](https://img.shields.io/badge/License-AGPL%20v3-blue.svg)](LICENSE)
 [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.19625473.svg)](https://doi.org/10.5281/zenodo.19625473)
 [![Security](https://img.shields.io/badge/trust-audit%20us-green)](SECURITY.md)
 
-**AEGIS** — Agentic Execution Governance & Intelligence System. A vendor-neutral governance layer for agentic AI tools like Claude Code, OpenAI Codex, Cursor, and any framework that writes session logs or makes API calls.
+**AEGIS** (Agentic Execution Governance & Intelligence System) is a vendor-neutral kill-switch for AI agents. Works with Claude Code, OpenAI Codex, Cursor, and any tool that writes session logs or makes API calls.
 
-Born from a real $200 incident: a user stopped using Claude Code, walked away, came back to find weekly Max Plan usage fully exhausted with no visibility into what executed.
+Born from a real $200 incident: a user stopped using Claude Code, walked away, came back to find their weekly Max Plan fully exhausted with no visibility into what ran.
+
+---
+
+## Install in 3 steps
+
+```bash
+# 1. Install
+npm install -g @rocketlang/aegis
+
+# 2. Initialize (wires hooks into Claude Code automatically)
+aegis init
+
+# 3. Check status
+aegis status
+```
+
+That's it. AEGIS is now watching every tool call.
+
+---
+
+## What it does — the KAVACH DAN Gate
+
+Before any destructive command runs, AEGIS intercepts it and asks you:
+
+```
+🔴 KAVACH — Action Requires Approval
+
+  Agent wants to run:
+  `prisma migrate reset --force`
+
+  Consequence:
+  This will permanently destroy an entire database or critical system
+  directory. All data will be unrecoverable. Blast radius: CRITICAL.
+
+  Level: L4 — Irreversible + High blast radius
+
+  Reply with one word:
+    STOP  — block this action
+    ALLOW — permit this action
+
+  Approval ID: KAVACH-3F9A1C4B
+  Expires: 1 min  (silence = STOP)
+  Dashboard: http://localhost:4850
+```
+
+The message lands on your Telegram or WhatsApp. Reply `STOP` or `ALLOW`. If you ignore it, the action is **blocked by default**. The agent waits. Nothing runs until you decide.
+
+Four severity levels:
+- **L1** — Recoverable with effort (DELETE FROM, git reset --hard)
+- **L2** — Hard to recover (DROP TABLE, rm -rf)
+- **L3** — Irreversible (DROP SCHEMA, docker compose down -v, git push --force main)
+- **L4** — Irreversible + catastrophic blast (DROP DATABASE, prisma migrate reset)
 
 ---
 
@@ -88,21 +140,7 @@ Multiple surfaces (CLI + web + mobile + API) all consume from the same budget. N
 
 ## Quick Start
 
-### Install
-
-```bash
-npm install -g @rocketlang/aegis
-```
-
-Requires [Bun](https://bun.sh/) or Node 22+.
-
-### Initialize
-
-```bash
-aegis init
-```
-
-Creates `~/.aegis/` with default config and SQLite database.
+Requires [Bun](https://bun.sh/) or Node 22+. See [Install in 3 steps](#install-in-3-steps) above.
 
 ### Configure your plan
 

@@ -1,3 +1,7 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Capt. Anil Sharma (rocketlang). All rights reserved.
+// See LICENSE for details.
+
 // AEGIS Shield — HanumanG 7-Axis Agent Delegation Check
 // Validates every Agent tool spawn against 7 trust axes.
 // An agent that fails any axis is blocked at spawn time.

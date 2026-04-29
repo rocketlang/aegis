@@ -1,3 +1,7 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Capt. Anil Sharma (rocketlang). All rights reserved.
+// See LICENSE for details.
+
 // KAVACH — Gate Valve: runtime capability narrowing without agent kill
 // @rule:KAV-063 Gate valve narrows effective_perm_mask without killing process
 // @rule:KAV-064 declared_perm_mask is immutable after spawn

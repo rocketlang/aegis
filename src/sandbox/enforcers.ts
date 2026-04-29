@@ -1,3 +1,7 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Capt. Anil Sharma (rocketlang). All rights reserved.
+// See LICENSE for details.
+
 // AEGIS Sandbox — Policy Enforcers
 // Four enforcers: path scope, tool allowlist, bash command, DB scope.
 // Deny-first precedence throughout (KAV-006).

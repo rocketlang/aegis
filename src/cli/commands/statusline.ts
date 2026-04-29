@@ -1,3 +1,7 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Capt. Anil Sharma (rocketlang). All rights reserved.
+// See LICENSE for details.
+
 // AEGIS — statusline output for Claude Code
 // Produces a single-line status string suitable for Claude Code's statusLine hook
 // Fast path: reads SQLite only, returns in <50ms

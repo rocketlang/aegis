@@ -1,3 +1,7 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Capt. Anil Sharma (rocketlang). All rights reserved.
+// See LICENSE for details.
+
 // AEGIS Watchdog — Phase 2 daemon for time-based enforcement
 // Polls aegis.db every 30 seconds.
 // Detects: zombies (idle > timeout), orphans (parent dead), velocity spikes
@@ -10,7 +14,7 @@
 // @rule:INF-KAV-002 Velocity throttle
 // @rule:INF-KAV-007 Orphan state machine transitions
 
-import { getDb, listAgentRows, setAgentState, requestStop, type AgentRow } from "../core/db";
+import { getDb, listAgentRows, setAgentState, requestStop, getDistinctDashboardIpCount, type AgentRow } from "../core/db";
 import { loadConfig } from "../core/config";
 import { writeManifest } from "./manifest-writer";
 
@@ -183,6 +187,30 @@ function checkCostAnomalies(agents: AgentRow[]): void {
   }
 }
 
+// ── Hosted-service detection (@rule:KAV-066, V2-101) ─────────────────────────
+// Non-blocking: if distinct IPs accessing dashboard > 2 within 7 days, emit a
+// one-time warning. AEGIS is designed for local use — multiple external IPs are
+// a signal it may be exposed as a hosted service (AGPL requires source publication).
+
+let _hostedWarningEmitted = false;
+
+function checkHostedServiceSignal(): void {
+  if (_hostedWarningEmitted) return;
+  try {
+    const ipCount = getDistinctDashboardIpCount(24 * 7); // last 7 days
+    if (ipCount > 2) {
+      _hostedWarningEmitted = true;
+      const msg = [
+        `[AEGIS:KAV-066] HOSTED-SERVICE SIGNAL — ${ipCount} distinct IPs accessed the dashboard in the last 7 days.`,
+        `[AEGIS:KAV-066] AEGIS is AGPL-3.0: if you run it as a service for others, you must publish your modified source.`,
+        `[AEGIS:KAV-066] See: https://github.com/rocketlang/aegis/blob/main/LICENSE`,
+        `[AEGIS:KAV-066] This warning is non-blocking. No action taken.`,
+      ].join("\n");
+      process.stderr.write(msg + "\n");
+    }
+  } catch { /* non-fatal */ }
+}
+
 // ── Main poll loop ───────────────────────────────────────────────────────────
 
 async function poll(): Promise<void> {
@@ -192,6 +220,7 @@ async function poll(): Promise<void> {
     checkOrphans(agents);
     checkVelocity(agents);
     checkCostAnomalies(agents);
+    checkHostedServiceSignal();
   } catch (err) {
     process.stderr.write(`[AEGIS:watchdog] poll error: ${(err as Error).message}\n`);
   }

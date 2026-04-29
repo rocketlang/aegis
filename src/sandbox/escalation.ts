@@ -1,3 +1,7 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Capt. Anil Sharma (rocketlang). All rights reserved.
+// See LICENSE for details.
+
 // AEGIS Sandbox — Escalation Ladder (V2-030)
 // Maps violation severity × repeat count → enforcement action.
 // Direct-to-QUARANTINE for persistence attacks and PIV signatures.

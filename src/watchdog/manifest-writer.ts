@@ -1,3 +1,7 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Capt. Anil Sharma (rocketlang). All rights reserved.
+// See LICENSE for details.
+
 // AEGIS Resume Manifest Writer (V2-049)
 // Constructs a resume manifest from the agent's ring buffer of tool calls.
 // Written to ~/.aegis/manifests/{agent_id}.manifest.json

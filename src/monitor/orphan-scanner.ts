@@ -1,3 +1,7 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Capt. Anil Sharma (rocketlang). All rights reserved.
+// See LICENSE for details.
+
 // AEGIS — NHI Orphan Scanner
 // @rule:NHI-009 — daily cron: finds agents with no owner, expired TTL, or 90+ days idle
 // @rule:INF-NHI-001 — no owner + active → SENSE alert → 48h grace → auto-retire

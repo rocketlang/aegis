@@ -1,3 +1,7 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Capt. Anil Sharma (rocketlang). All rights reserved.
+// See LICENSE for details.
+
 // AEGIS Shield — LakshmanRekha Injection Detector
 // Detects prompt injection, persistence attacks, credential reads, and exfiltration sequences.
 // Generic patterns only — no ANKR domain signatures in OSS module.

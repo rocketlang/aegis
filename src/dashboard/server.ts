@@ -1,4 +1,7 @@
 #!/usr/bin/env bun
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Capt. Anil Sharma (rocketlang). All rights reserved.
+// See LICENSE for details.
 // AEGIS Dashboard — Fastify server with real-time SSE
 
 import Fastify from "fastify";
@@ -6,7 +9,7 @@ import fastifyStatic from "@fastify/static";
 import fastifyCors from "@fastify/cors";
 import { join } from "path";
 import { loadConfig, saveConfig } from "../core/config";
-import { getBudgetState, listActiveSessions, getRecentAlerts, setSessionStatus, addAlert, getWindowBudget, getPendingApprovals, decideKavachApproval, getRecentApprovals, recordAgentUsage, getCostTree, listAgentRows } from "../core/db";
+import { getBudgetState, listActiveSessions, getRecentAlerts, setSessionStatus, addAlert, getWindowBudget, getPendingApprovals, decideKavachApproval, getRecentApprovals, recordAgentUsage, getCostTree, listAgentRows, recordDashboardAccess } from "../core/db";
 import { sseSubscribers } from "../core/events";
 import { registerSystemRoutes } from "./routes/system";
 import { registerForjaRoutes, emitSense } from "./routes/forja";
@@ -37,6 +40,14 @@ if (config.dashboard.auth?.enabled) {
     }
   });
 }
+
+// @rule:KAV-066 — log every dashboard request IP for hosted-service detection (V2-101)
+app.addHook("onRequest", async (req) => {
+  const ip = (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim()
+    || req.socket?.remoteAddress
+    || "unknown";
+  try { recordDashboardAccess(ip, req.url ?? ""); } catch { /* non-fatal */ }
+});
 
 // Simple health check (no auth)
 app.get("/health", async () => ({ status: "ok", service: "aegis-dashboard" }));

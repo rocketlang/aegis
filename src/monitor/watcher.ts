@@ -1,3 +1,7 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Capt. Anil Sharma (rocketlang). All rights reserved.
+// See LICENSE for details.
+
 // AEGIS Monitor — File Watcher (Polling-Only, Active-Session-Focused)
 // Watches ONLY recently-modified JSONL files — skips historical sessions
 

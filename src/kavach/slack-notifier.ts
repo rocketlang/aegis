@@ -1,3 +1,7 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Capt. Anil Sharma (rocketlang). All rights reserved.
+// See LICENSE for details.
+
 // [EE] AEGIS — Slack notification channel
 // Sends Block Kit messages for KAVACH DAN gate interceptions and budget alerts.
 // Slack is read-only: responses must come via the primary channel (Telegram/WhatsApp).

@@ -1,3 +1,7 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Capt. Anil Sharma (rocketlang). All rights reserved.
+// See LICENSE for details.
+
 // KAVACH — perm_mask: 32-bit agent capability bitmask
 // @rule:KAV-061 Level 0 enforcement gate — (perm_mask & required_bit) !== 0
 // @rule:KAV-065 Child perm_mask = parent.effective & requested (AND invariant)

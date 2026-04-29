@@ -1,3 +1,7 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Capt. Anil Sharma (rocketlang). All rights reserved.
+// See LICENSE for details.
+
 // AEGIS Resume — display resume manifest for a force-closed agent (V2-050)
 // @rule:KAV-010 Resume manifest captures session state for graceful continuation
 // @rule:KAV-YK-006 resume_prompt is for direct paste into a new agent session

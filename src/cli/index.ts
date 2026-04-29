@@ -1,4 +1,7 @@
 #!/usr/bin/env bun
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Capt. Anil Sharma (rocketlang). All rights reserved.
+// See LICENSE for details.
 // AEGIS CLI — aegis status | kill | pause | resume [agent-id] | budget | check-budget | check-spawn | check-destructive | check-shield | register | close | quarantine | valve | init
 
 const command = Bun.argv[2] || "status";

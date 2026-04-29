@@ -1,3 +1,7 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Capt. Anil Sharma (rocketlang). All rights reserved.
+// See LICENSE for details.
+
 // AEGIS Register — Check In protocol (V2-031)
 // Creates policy file from template, registers agent in session-agent registry.
 // @rule:KAV-002 Agent check-in at session start

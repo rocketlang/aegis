@@ -1,3 +1,7 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Capt. Anil Sharma (rocketlang). All rights reserved.
+// See LICENSE for details.
+
 // KAVACH — class_mask: 9-bit resource class bitmask
 // @rule:KAV-062 Level 1 enforcement gate — (class_mask & resource_class_bits) !== 0
 // @rule:KAV-YK-011 Resource-to-class mapping

@@ -1,3 +1,7 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Capt. Anil Sharma (rocketlang). All rights reserved.
+// See LICENSE for details.
+
 // AEGIS Hook — check-budget
 // Called by Claude Code PreToolUse hook before every tool use.
 // Default mode (alert): NEVER blocks — only warns to stderr.

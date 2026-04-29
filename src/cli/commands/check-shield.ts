@@ -1,3 +1,7 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Capt. Anil Sharma (rocketlang). All rights reserved.
+// See LICENSE for details.
+
 // AEGIS Shield — check-shield
 // PreToolUse hook for Bash, Read, Write, Edit, and any MCP tool call.
 // Exit 0 = allow. Exit 2 = block. Never fails open (always exits 0 on AEGIS errors).

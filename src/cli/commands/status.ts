@@ -1,3 +1,7 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Capt. Anil Sharma (rocketlang). All rights reserved.
+// See LICENSE for details.
+
 import { loadConfig } from "../../core/config";
 import { getBudgetState, listActiveSessions, getRecentAlerts, getWindowBudget } from "../../core/db";
 

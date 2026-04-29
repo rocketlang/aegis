@@ -1,3 +1,7 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Capt. Anil Sharma (rocketlang). All rights reserved.
+// See LICENSE for details.
+
 // AEGIS Shield — CA-006 Role Integrity (inlined, no HTTP to ai-gateway)
 // @rule:CA-006 Reframes client-supplied assistant-role turns as quoted user text.
 // Defeats the sockpuppet prefill jailbreak (Trend Micro 2026-04-10).

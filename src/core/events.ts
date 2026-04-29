@@ -1,3 +1,7 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Capt. Anil Sharma (rocketlang). All rights reserved.
+// See LICENSE for details.
+
 // Shared event bus — SSE subscribers for dashboard
 // Separated from monitor entry point so dashboard can import without triggering monitor startup
 

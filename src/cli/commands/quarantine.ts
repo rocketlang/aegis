@@ -1,3 +1,7 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Capt. Anil Sharma (rocketlang). All rights reserved.
+// See LICENSE for details.
+
 // AEGIS Quarantine — list + release (V2-033, V2-034)
 // aegis quarantine list          — show all QUARANTINED/ORPHAN agents
 // aegis quarantine release <id>  — human-in-the-loop release from quarantine

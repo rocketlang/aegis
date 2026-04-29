@@ -1,3 +1,7 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Capt. Anil Sharma (rocketlang). All rights reserved.
+// See LICENSE for details.
+
 // Forja Protocol v2.0 — KAVACH four-endpoint implementation
 // @rule:KAV-002 Agent lifecycle registry — STATE reflects live registry state
 // @rule:KAV-001 Pre-execution intercept — PROOF verifies @rule annotation coverage
