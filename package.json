@@ -53,6 +53,7 @@
     "dashboard": "bun run src/dashboard/server.ts",
     "cli": "bun run src/cli/index.ts",
     "start": "bun run src/monitor/index.ts & bun run src/dashboard/server.ts",
+    "test:agents": "bun src/test-agents/runner.ts",
     "prepublishOnly": "echo 'Run tests manually before publishing'"
   },
   "dependencies": {
