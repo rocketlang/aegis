@@ -6,9 +6,10 @@ import fastifyStatic from "@fastify/static";
 import fastifyCors from "@fastify/cors";
 import { join } from "path";
 import { loadConfig, saveConfig } from "../core/config";
-import { getBudgetState, listActiveSessions, getRecentAlerts, setSessionStatus, addAlert, getWindowBudget } from "../core/db";
+import { getBudgetState, listActiveSessions, getRecentAlerts, setSessionStatus, addAlert, getWindowBudget, getPendingApprovals, decideKavachApproval, getRecentApprovals, recordAgentUsage, getCostTree, listAgentRows } from "../core/db";
 import { sseSubscribers } from "../core/events";
 import { registerSystemRoutes } from "./routes/system";
+import { registerForjaRoutes, emitSense } from "./routes/forja";
 
 const config = loadConfig();
 const app = Fastify({ logger: false });
@@ -22,8 +23,13 @@ if (config.dashboard.auth?.enabled) {
   const expected = "Basic " + Buffer.from(`${username}:${password}`).toString("base64");
 
   app.addHook("onRequest", async (req, reply) => {
-    // Allow health + commands without auth (read-only, no sensitive data)
-    if (req.url === "/health" || req.url === "/commands") return;
+    // Allow health, commands, and internal KAVACH routes without auth
+    if (
+      req.url === "/health" ||
+      req.url === "/commands" ||
+      req.url === "/api/approvals/webhook" ||
+      (req.url === "/api/approvals" && req.method === "GET")
+    ) return;
     const auth = req.headers["authorization"];
     if (auth !== expected) {
       reply.header("WWW-Authenticate", 'Basic realm="AEGIS"');
@@ -40,6 +46,7 @@ app.register(fastifyStatic, {
   prefix: "/",
 });
 registerSystemRoutes(app);
+registerForjaRoutes(app);
 
 // --- API Routes ---
 
@@ -129,6 +136,85 @@ app.post("/api/resume", async () => {
   return { success: true, resumed };
 });
 
+// --- V2-060: KAVACH Usage Ingest (from AI Proxy intercept) ---
+app.post("/api/v1/agent-usage", async (req) => {
+  const body = req.body as {
+    agent_id: string;
+    model: string;
+    input_tokens: number;
+    output_tokens: number;
+    cache_read_tokens?: number;
+    cache_creation_tokens?: number;
+    cost_usd: number;
+  };
+  if (!body?.agent_id || typeof body.cost_usd !== "number") {
+    return { ok: false, error: "agent_id and cost_usd required" };
+  }
+  try {
+    recordAgentUsage({
+      agent_id: body.agent_id,
+      model: body.model || "unknown",
+      input_tokens: body.input_tokens || 0,
+      output_tokens: body.output_tokens || 0,
+      cache_read_tokens: body.cache_read_tokens,
+      cache_creation_tokens: body.cache_creation_tokens,
+      cost_usd: body.cost_usd,
+    });
+    return { ok: true };
+  } catch (err: any) {
+    return { ok: false, error: err.message };
+  }
+});
+
+// --- V2-066: Cost attribution tree ---
+app.get("/api/v1/cost-tree", async (req) => {
+  const sessionId = (req.query as any).session_id;
+  return { tree: getCostTree(sessionId), agents: listAgentRows() };
+});
+
+// --- Gate Valve API (KAV-1C-010) ---
+import {
+  readValve, throttleValve, crackValve, closeValve, lockValve, openValve,
+} from "../kavach/gate-valve";
+import { existsSync, readdirSync, readFileSync } from "fs";
+import { getAegisDir } from "../core/config";
+
+function listValveFiles() {
+  const dir = join(getAegisDir(), "agents");
+  if (!existsSync(dir)) return [];
+  return readdirSync(dir)
+    .filter((f) => f.endsWith(".valve.json"))
+    .map((f) => {
+      try { return JSON.parse(readFileSync(join(dir, f), "utf-8")); } catch { return null; }
+    })
+    .filter(Boolean);
+}
+
+app.get("/api/v2/valves", async () => listValveFiles());
+
+app.get("/api/v2/valve/:agentId", async (req) => {
+  const { agentId } = req.params as { agentId: string };
+  return readValve(agentId);
+});
+
+app.post("/api/v2/valve/:agentId/:action", async (req) => {
+  const { agentId, action } = req.params as { agentId: string; action: string };
+  const body = (req.body as any) ?? {};
+  const reason = body.reason ?? "dashboard action";
+  const by = body.by ?? "dashboard";
+  switch (action) {
+    case "throttle": return throttleValve(agentId, reason);
+    case "crack":    return crackValve(agentId, reason);
+    case "close":    return closeValve(agentId, reason);
+    case "lock":     return lockValve(agentId, reason, by);
+    case "open": {
+      try { return openValve(agentId, by); }
+      catch (e: any) { return (req as any).server.httpErrors?.createBadRequest(e.message) ?? { error: e.message }; }
+    }
+    default:         return { error: `Unknown action: ${action}` };
+  }
+});
+
 // --- Enforcement mode toggle ---
 app.get("/api/enforcement", async () => {
   const cfg = loadConfig();
@@ -176,6 +262,46 @@ app.get("/api/events", async (req, reply) => {
   });
 });
 
+// --- KAVACH Approval Routes (@rule:KAV-052) ---
+
+// List pending + recent approvals
+app.get("/api/approvals", async () => {
+  return {
+    pending: getPendingApprovals(),
+    recent: getRecentApprovals(10),
+  };
+});
+
+// Dashboard STOP/ALLOW/EXPLAIN button
+app.post("/api/approvals/:id/decide", async (req, reply) => {
+  const { id } = req.params as { id: string };
+  const { decision } = req.body as { decision?: string };
+  const valid = ["ALLOW", "STOP", "EXPLAIN"];
+  if (!valid.includes(decision ?? "")) {
+    return reply.code(400).send({ error: "decision must be ALLOW, STOP, or EXPLAIN" });
+  }
+  const opts = { dual_control: config.kavach?.dual_control_enabled ?? false, require_different_approvers: config.kavach?.dual_control_require_different_approvers ?? false };
+  const updated = decideKavachApproval(id, decision as any, "dashboard", opts);
+  if (!updated) return reply.code(404).send({ error: "approval not found or already decided" });
+  return { ok: true, id, decision };
+});
+
+// Webhook receiver — AnkrClaw calls this when user replies via WhatsApp (@rule:KAV-055)
+app.post("/api/approvals/webhook", async (req, reply) => {
+  const body = req.body as { approval_id?: string; decision?: string; from?: string };
+  const { approval_id, decision, from } = body;
+  if (!approval_id || !decision) {
+    return reply.code(400).send({ error: "approval_id and decision required" });
+  }
+  const valid = ["ALLOW", "STOP", "EXPLAIN"];
+  if (!valid.includes(decision.toUpperCase())) {
+    return reply.send({ ok: false, reason: "not a KAVACH decision" });
+  }
+  const opts = { dual_control: config.kavach?.dual_control_enabled ?? false, require_different_approvers: config.kavach?.dual_control_require_different_approvers ?? false };
+  const updated = decideKavachApproval(approval_id, decision.toUpperCase() as any, from ?? "webhook", opts);
+  return { ok: updated, id: approval_id, decision: decision.toUpperCase() };
+});
+
 // Start
 // ── GET /commands — command reference page ────────────────────────────────────
 app.get("/commands", async (_req, reply) => {
@@ -217,18 +343,17 @@ app.get("/commands", async (_req, reply) => {
 <div class="kill-box">
   <div class="kill-title">🔴 After Budget Kill — Recovery</div>
   <table>
-    <tr><td>recover</td><td>Restart core infra (alias)</td></tr>
-    <tr><td>nhi-up</td><td>agent-registry + ai-proxy + aegis + event-bus</td></tr>
-    <tr><td>ankr-ctl status</td><td>See what's down</td></tr>
-    <tr><td>acs</td><td>Short: ankr-ctl status</td></tr>
-    <tr><td>aegis-status</td><td>Check enforcement mode + auto-restart list</td></tr>
+    <tr><td>aegis status</td><td>Check enforcement mode + budget state</td></tr>
+    <tr><td>aegis-monitor &amp;</td><td>Restart monitor (if stopped)</td></tr>
+    <tr><td>aegis-dashboard &amp;</td><td>Restart dashboard (if stopped)</td></tr>
+    <tr><td>aegis resume</td><td>Resume paused session</td></tr>
   </table>
 </div>
 
 <div class="restart-box">
   <div class="restart-title">✅ Auto-Restart (configured)</div>
   <table>
-    ${cfg.enforcement.auto_restart_services?.map(s => `<tr><td style="color:var(--green)">${s}</td><td>auto-restarted after kill (${cfg.enforcement.auto_restart_delay_ms ?? 3000}ms delay)</td></tr>`).join("") ?? ""}
+    ${cfg.enforcement.auto_restart_services?.map(s => `<tr><td style="color:var(--green)">${s}</td><td>auto-restarted after kill (${cfg.enforcement.auto_restart_delay_ms ?? 3000}ms delay)</td></tr>`).join("") || "<tr><td colspan='2' class='comment'>None configured — add services to enforcement.auto_restart_services in config.json</td></tr>"}
   </table>
 </div>
 
@@ -236,42 +361,36 @@ app.get("/commands", async (_req, reply) => {
 
 <div class="grid">
   <div class="card">
-    <div class="card-title" style="color:var(--blue)">ankr-ctl Short Aliases</div>
+    <div class="card-title" style="color:var(--blue)">AEGIS CLI Quick Reference</div>
     <table>
-      <tr><td>ac</td><td>ankr-ctl</td></tr>
-      <tr><td>acs</td><td>ankr-ctl status</td></tr>
-      <tr><td>acr &lt;svc&gt;</td><td>ankr-ctl restart &lt;svc&gt;</td></tr>
-      <tr><td>astart &lt;svc&gt;</td><td>ankr-ctl start &lt;svc&gt;</td></tr>
-      <tr><td>astop &lt;svc&gt;</td><td>ankr-ctl stop &lt;svc&gt;</td></tr>
-      <tr><td>alogs &lt;svc&gt;</td><td>ankr-ctl logs &lt;svc&gt;</td></tr>
-      <tr><td>ahealth</td><td>ankr-ctl health</td></tr>
+      <tr><td>aegis status</td><td>Budget + enforcement state</td></tr>
+      <tr><td>aegis cost</td><td>Cost attribution tree</td></tr>
+      <tr><td>aegis mask-log &lt;id&gt;</td><td>Gate valve history for agent</td></tr>
+      <tr><td>aegis kill</td><td>Emergency SIGKILL</td></tr>
+      <tr><td>aegis pause</td><td>SIGSTOP — pauses all processes</td></tr>
+      <tr><td>aegis resume</td><td>Resume paused processes</td></tr>
+      <tr><td>aegis register</td><td>Check in an agent</td></tr>
     </table>
   </div>
 
   <div class="card">
-    <div class="card-title" style="color:var(--purple)">Stack Aliases (fire full stack)</div>
+    <div class="card-title" style="color:var(--purple)">Quarantine Management</div>
     <table>
-      <tr><td>mari8x</td><td>ankr-ctl activate mari8x</td></tr>
-      <tr><td>ankr-core</td><td>ai-proxy → eon-api → ai360-gateway</td></tr>
-      <tr><td>xshield</td><td>ai-proxy → ankrshield-api</td></tr>
-      <tr><td>complymitra</td><td>compliance stack</td></tr>
-      <tr><td>officers</td><td>all AI360 officer services</td></tr>
-      <tr><td>super</td><td>supergraph + superdomain + stackpilot</td></tr>
-      <tr><td>anvil</td><td>anvil-backend + router + ui</td></tr>
-      <tr><td>herald</td><td>ai360-gateway + herald-telehub</td></tr>
+      <tr><td>aegis quarantine list</td><td>List quarantined / orphan agents</td></tr>
+      <tr><td style="font-size:11px">aegis quarantine release &lt;id&gt; --reason "…"</td><td>Human release (logged)</td></tr>
+      <tr><td>aegis restore-mask &lt;id&gt;</td><td>Restore narrowed permissions</td></tr>
+      <tr><td>aegis close &lt;id&gt;</td><td>Check out agent (COMPLETED)</td></tr>
     </table>
   </div>
 
   <div class="card">
-    <div class="card-title" style="color:var(--teal)">NHI Agent Lifecycle</div>
+    <div class="card-title" style="color:var(--teal)">Agent Management</div>
     <table>
-      <tr><td>nhi-up</td><td>Start core NHI infra</td></tr>
-      <tr><td>nhi-status</td><td>Registry + AEGIS status</td></tr>
-      <tr><td colspan="2" class="comment" style="padding-top:8px">Registry API (port 4586):</td></tr>
-      <tr><td style="font-size:11px">GET /api/v2/agents</td><td>List active agents</td></tr>
-      <tr><td style="font-size:11px">GET /api/v2/agents/orphans</td><td>Orphan scan</td></tr>
-      <tr><td style="font-size:11px">POST /agents/:id/sleep</td><td>Sleep agent</td></tr>
-      <tr><td style="font-size:11px">POST /agents/:id/revoke</td><td>Hard revoke (trust_mask=0)</td></tr>
+      <tr><td>aegis register</td><td>Check in: create policy, register agent</td></tr>
+      <tr><td>aegis close &lt;id&gt;</td><td>Check out: COMPLETED + final manifest</td></tr>
+      <tr><td>aegis resume &lt;id&gt;</td><td>Show resume manifest after force-close</td></tr>
+      <tr><td style="font-size:11px">GET /api/v1/agents</td><td>List active agents (AEGIS API)</td></tr>
+      <tr><td style="font-size:11px">GET /api/v1/agents/orphans</td><td>Orphan scan (AEGIS API)</td></tr>
     </table>
   </div>
 
@@ -290,15 +409,15 @@ app.get("/commands", async (_req, reply) => {
   </div>
 
   <div class="card">
-    <div class="card-title" style="color:var(--green)">ankr-ctl Key Commands</div>
+    <div class="card-title" style="color:var(--green)">KAVACH DAN Gate</div>
     <table>
-      <tr><td>ankr-ctl activate &lt;stack&gt;</td><td>Start full stack with deps</td></tr>
-      <tr><td>ankr-ctl activate --list</td><td>Show all named stacks</td></tr>
-      <tr><td>ankr-ctl always-on</td><td>Check + restart always-on services</td></tr>
-      <tr><td>ankr-ctl doctor</td><td>Full system health check</td></tr>
-      <tr><td>ankr-ctl resurrect</td><td>Restore from last save snapshot</td></tr>
-      <tr><td>ankr-ctl save</td><td>Snapshot running services</td></tr>
-      <tr><td>ankr-ctl scan secrets</td><td>Scan for plaintext credentials</td></tr>
+      <tr><td style="font-size:11px">GET /api/v1/kavach/approvals</td><td>Pending DAN approvals</td></tr>
+      <tr><td style="font-size:11px">POST /api/v1/kavach/decide</td><td>ALLOW / STOP / EXPLAIN</td></tr>
+      <tr><td style="font-size:11px">GET /api/v2/forja/state</td><td>Capability manifest + trust_mask</td></tr>
+      <tr><td style="font-size:11px">GET /api/v2/forja/proof</td><td>Rule annotation coverage</td></tr>
+      <tr><td colspan="2" class="comment" style="padding-top:8px">Config (~/.aegis/config.json):</td></tr>
+      <tr><td style="font-size:11px">kavach.enabled</td><td>Toggle DAN gate on/off</td></tr>
+      <tr><td style="font-size:11px">kavach.notify_channel</td><td>telegram | whatsapp</td></tr>
     </table>
   </div>
 
@@ -316,7 +435,7 @@ app.get("/commands", async (_req, reply) => {
 </div>
 
 <div style="color:var(--muted);font-size:10px;text-align:center;margin-top:8px">
-  AEGIS · ankr.in/aegis · aegis.ankr.in · Jai Guru Ji | PowerBox IT Solutions Pvt Ltd
+  AEGIS · github.com/rocketlang/aegis
 </div>
 </body></html>`;
   return reply.type("text/html").send(html);

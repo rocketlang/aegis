@@ -1,0 +1,19 @@
+[Unit]
+Description=AEGIS Watchdog — agent lifecycle enforcement daemon
+Documentation=https://github.com/rocketlang/ankr-ai-gateway
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/root/aegis
+ExecStart=/usr/bin/bun /root/aegis/src/watchdog/index.ts
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=aegis-watchdog
+Environment=HOME=/root
+
+[Install]
+WantedBy=multi-user.target

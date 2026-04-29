@@ -1,0 +1,42 @@
+{
+  "version": "1.0",
+  "description": "AEGIS LakshmanRekha — default injection and exfiltration detection rules. Generic set: no domain-specific signatures. Extend in ~/.aegis/rules/shield-rules.json",
+  "injection_patterns": [
+    { "id": "INJ-001", "pattern": "ignore\\s+(all\\s+)?previous\\s+instructions", "flags": "i", "severity": "QUARANTINE", "reason": "Direct prompt injection — instruction override attempt" },
+    { "id": "INJ-002", "pattern": "forget\\s+(all\\s+)?your\\s+instructions", "flags": "i", "severity": "QUARANTINE", "reason": "Direct prompt injection — memory wipe attempt" },
+    { "id": "INJ-003", "pattern": "disregard\\s+(all\\s+)?previous", "flags": "i", "severity": "QUARANTINE", "reason": "Direct prompt injection — override attempt" },
+    { "id": "INJ-004", "pattern": "your\\s+new\\s+(system\\s+)?instructions?\\s+are", "flags": "i", "severity": "QUARANTINE", "reason": "System prompt replacement attempt" },
+    { "id": "INJ-005", "pattern": "override\\s+your\\s+(safety|security|instructions|rules)", "flags": "i", "severity": "QUARANTINE", "reason": "Safety override attempt" },
+    { "id": "INJ-010", "pattern": "do\\s+anything\\s+now|DAN\\b.*\\bno\\s+longer\\s+bound", "flags": "i", "severity": "QUARANTINE", "reason": "DAN jailbreak pattern" },
+    { "id": "INJ-008", "pattern": "\\[\\[\\s*SYSTEM\\s*\\]\\]|\\<\\<SYSTEM\\>\\>|\\{\\{SYSTEM\\}\\}", "flags": "i", "severity": "BLOCK", "reason": "Synthetic system prompt tag injection" },
+    { "id": "INJ-009", "pattern": "jailbreak|dan\\s+mode|developer\\s+mode\\s+enabled|ChatGPT\\s+with\\s+Developer", "flags": "i", "severity": "BLOCK", "reason": "Known jailbreak pattern" },
+    { "id": "INJ-012", "pattern": "summarize\\s+.*following.*instructions?.*then\\s+execute", "flags": "i", "severity": "BLOCK", "reason": "Summarize-then-execute injection pattern" },
+    { "id": "INJ-006", "pattern": "pretend\\s+(you\\s+are|to\\s+be)\\s+(?!a\\s+(?:senior|junior|software))", "flags": "i", "severity": "WARN", "reason": "Persona hijack attempt" },
+    { "id": "INJ-007", "pattern": "you\\s+are\\s+now\\s+(?!a\\s+(?:senior|junior|software|backend|frontend))", "flags": "i", "severity": "WARN", "reason": "Persona reassignment attempt" },
+    { "id": "INJ-011", "pattern": "translate\\s+.*following.*instructions?", "flags": "i", "severity": "WARN", "reason": "Indirect instruction injection via translation" },
+    { "id": "PIV-001", "pattern": "\\b(eval|exec|execSync)\\s*\\(.*\\breq\\.body\\b", "flags": "i", "severity": "QUARANTINE", "reason": "Server-side injection pivot — eval on user input" }
+  ],
+  "persistence_targets": [
+    "/.bashrc", "/.bash_profile", "/.profile", "/.zshrc", "/.zprofile",
+    "/etc/cron", "/var/spool/cron",
+    "/etc/systemd/system/", "/lib/systemd/system/",
+    "/.claude/settings.json", "/.claude/CLAUDE.md",
+    "/etc/profile.d/",
+    "/.ssh/authorized_keys", "/.ssh/config"
+  ],
+  "credential_paths": [
+    "/.ssh/id_rsa", "/.ssh/id_ed25519", "/.ssh/id_ecdsa", "/.ssh/id_dsa",
+    "/.aws/credentials", "/.aws/config",
+    "/.env", "/credentials", "/secrets",
+    "/.npmrc", "/.pypirc",
+    "/.claude/settings.json",
+    "/etc/passwd", "/etc/shadow", "/etc/sudoers"
+  ],
+  "exfil_commands": [
+    "curl", "wget", "nc", "ncat", "netcat",
+    "openssl s_client",
+    "python3 -c.*socket", "python -c.*socket"
+  ],
+  "large_read_threshold_bytes": 102400,
+  "exfil_window_tool_calls": 5
+}

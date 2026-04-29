@@ -1,0 +1,18 @@
+{
+  "schema_version": "aegis-agent-policy-v1",
+  "agent_id": "worker-001",
+  "_comment": "Standard worker agent: can read, write, and run Bash. No spawning, no secrets, no schema ops.",
+  "perm_mask": 599,
+  "class_mask": 1,
+  "tools_allowed": ["Read", "Write", "Edit", "Bash"],
+  "tools_denied": ["Agent", "WebFetch", "WebSearch"],
+  "path_scope": ["/repo"],
+  "path_deny": ["/etc", "/root/.ssh", "/root/.aws"],
+  "bash_allowlist": ["git", "bun", "node", "npm", "grep", "find", "cat", "echo"],
+  "bash_denylist": ["rm -rf", "sudo", "curl", "wget"],
+  "db_scope": ["app_dev"],
+  "network_allowed": false,
+  "budget_cap_usd": 1.00,
+  "max_depth": 0,
+  "violation_threshold": 3
+}

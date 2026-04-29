@@ -1,0 +1,179 @@
+{
+  "service_key": "ankr-aegis",
+  "display_name": "KAVACH — AEGIS v2 — xShieldAI Agent Execution Safety",
+  "version": "2.0.0",
+  "status": "v2-built",
+  "port": 4850,
+  "health_port": 4851,
+  "born": "2026-04-29",
+  "v1_note": "v1 (@rocketlang/aegis 0.1.1) is built and running: budget governor, session tracking, dashboard. v2 adds Shield + Sandbox + DAN Gate. Built into same codebase at /root/aegis/.",
+
+  "can_answer": [
+    "Is this agent authorised to execute this tool call?",
+    "What is the current cost and token usage for this agent?",
+    "What is the full delegation chain for this agent session?",
+    "Has this agent been quarantined and why?",
+    "What was the last known state of a force-closed agent?",
+    "Which agents are currently ZOMBIE or ORPHAN?",
+    "Is this Bash command in scope for this agent's policy?",
+    "Does this prompt contain an injection fingerprint?",
+    "What is the projected session cost at current burn rate?",
+    "Is a dangerous action pending human approval right now?",
+    "What was the outcome of the last automated restore drill?"
+  ],
+
+  "can_do": [
+    "Intercept every Claude Code tool call before execution (PreToolUse hook)",
+    "Enforce per-agent budget caps with cost attribution tree",
+    "Block destructive commands (DROP, TRUNCATE, rm -rf, prisma migrate reset)",
+    "Show live spend dashboard at port 4850 (v1 frontend — budget + sessions + alerts)",
+    "Detect prompt injection and sockpuppet attacks (LakshmanRekha, CA-006)",
+    "Validate HanumanG delegation chain at every Agent spawn (7 axes)",
+    "Enforce per-agent sandbox policy (tool allowlist, path scope, db scope, bash allowlist)",
+    "Quarantine rogue agents (freeze session, preserve evidence, human-in-loop release)",
+    "Detect and resolve zombie agents (dead process + RUNNING state)",
+    "Write resume manifests for force-closed agents",
+    "Intercept dangerous actions: plain-English WhatsApp/email notification before execution",
+    "Assess blast radius of dangerous actions (which services would break downstream)",
+    "Require dual-control approval for DAN-4 irreversible actions",
+    "Run automated weekly restore drills to verify backup integrity",
+    "Provide one-command panic button to freeze all running agent sessions",
+    "Display real-time traffic-light observability dashboard for non-technical operators"
+  ],
+
+  "emits": [
+    "kavach.violation.detected",
+    "kavach.agent.quarantined",
+    "kavach.agent.force_closed",
+    "kavach.agent.zombie_detected",
+    "kavach.agent.orphan_detected",
+    "kavach.budget.threshold_warning",
+    "kavach.budget.projected_stop",
+    "kavach.injection.detected",
+    "kavach.delegation.chain_broken",
+    "kavach.agent.registered",
+    "kavach.agent.completed",
+    "kavach.dan.gate_triggered",
+    "kavach.dan.human_notified",
+    "kavach.dan.allowed",
+    "kavach.dan.blocked",
+    "kavach.dan.timeout_block",
+    "kavach.dan.dual_approved",
+    "kavach.drill.passed",
+    "kavach.drill.failed",
+    "kavach.panic.activated",
+    "kavach.panic.cleared"
+  ],
+
+  "depends_on": [
+    "ai-proxy:4444",
+    "xshieldai:4250",
+    "ankr-agent-registry:4586",
+    "ankrclaw:4150",
+    "ankr-emailer:4320",
+    "ankr-inbox:4390"
+  ],
+
+  "forja_version": "2.0",
+  "forja_state": "/api/v2/forja/state",
+  "forja_trust": "/api/v2/forja/trust/:userId",
+  "forja_sense": "/api/v2/forja/sense/emit",
+  "forja_proof": "/api/v2/forja/proof",
+
+  "trust_mask": 255,
+  "trust_mask_schema": "ankr-trust-32bit-v1",
+
+  "k_mask": 255,
+  "k_mask_schema": "ankr-prajna-8bit-v1",
+
+  "req_mask": 1157590239,
+  "req_mask_schema": "ankr-req-32bit-v1",
+  "req_mask_source": "declared",
+
+  "capability_captured": false,
+  "capability_captured_schema": "ankr-archmask-v1",
+
+  "claw_mask": 65535,
+  "claw_mask_schema": "claw-design-16bit-v1",
+
+  "claude_ankr_mask": 14,
+  "claude_ankr_mask_schema": "claude-ankr-5bit-v1",
+
+  "capability_audit": {
+    "pre_execution_intercept": "✅ built (v1 hooks active — PreToolUse wired for all 3 gates)",
+    "budget_governor": "✅ built — daily/weekly/monthly caps + per-agent EWMA projection (KAV-009, INF-KAV-008)",
+    "spawn_rate_limiter": "✅ built — check-spawn gate: spawn limit, concurrent max, depth enforcement",
+    "check_destructive_hook": "✅ built — 14 destructive patterns (DES-001..014), L1–L4 DAN gate classification",
+    "ddl_firewall": "✅ built — all 5 DDL clusters installed",
+    "spend_dashboard_frontend": "✅ built — port 4850, index.html + aegis.js + KAVACH approvals panel",
+    "session_tracking": "✅ built — listActiveSessions, getWindowBudget, 5h rolling window",
+    "heartbeat_detection": "✅ built — attended/unattended/abandoned classification, heartbeat_timeout alert + SSE",
+    "slack_ee_notifier": "✅ built [EE] — Block Kit webhook for budget/anomaly/heartbeat + DAN gate interceptions",
+    "dan_gate": "✅ built — L1–L4 classification in gate.ts, runKavachGate() intercept, check-destructive.ts hook",
+    "dan_impact_assessor": "✅ built — consequence() lambdas per level; covers DB, docker, git, filesystem blast radius",
+    "dan_blast_radius": "✅ built — consequence field rendered per command pattern in all notifications",
+    "dan_plain_english_renderer": "✅ built — buildNotificationMessage() formats action + consequence + timeout + tokens",
+    "dan_multichannel_delivery": "✅ built — AnkrClaw (Telegram primary, WhatsApp fallback) + Slack EE webhook",
+    "dan_dual_control_dan4": "✅ built [EE] — L4 requires 2 distinct ALLOW decisions; same-person guard configurable",
+    "dan_frontend_panel": "🔶 partial — /api/approvals routes wired; live approval UI in frontend pending",
+    "shield_injection_detection": "✅ built — 13 ordered patterns (QUARANTINE→BLOCK→WARN); persistence/credential/exfil ring-buffer; check-shield hook",
+    "shield_sockpuppet_ca006": "✅ built — sanitizeHistory() + detectSockpuppetInSystemPrompt() (ca006.ts)",
+    "shield_hanumanG_gate": "✅ built — 7-axis delegation check in hanumang.ts; check-spawn PreToolUse Agent hook",
+    "shield_mcp_injection": "✅ built — detectMCPInjection() scans tool_result/content arrays; checks KAVACH-AGENT magic line (KAV-069, INF-KAV-013)",
+    "sandbox_per_agent_policy": "✅ built — policy-schema.ts, policy-loader.ts, enforcers.ts; tool/path/db/bash scope per agent",
+    "sandbox_quarantine": "✅ built — quarantine.ts state machine: RUNNING→QUARANTINED→FORCE_CLOSED; gate-valve.ts OPEN→LOCKED",
+    "sandbox_guardrail_graduation": "✅ built — class-mask.ts + intersection.ts; parent-wins for tool/path/db scope",
+    "lifecycle_registry": "✅ built — agents table in aegis.db; upsertAgent/touchAgent/setAgentState/requestStop (KAV-002, KAV-011)",
+    "watchdog_daemon": "✅ built — src/watchdog/index.ts polls every 30s; zombie/orphan/velocity/cost anomaly checks (KAV-019)",
+    "zombie_detection": "✅ built — idle > 5min → ZOMBIE; 2min TTL → FORCE_CLOSED + manifest (KAV-013)",
+    "orphan_detection": "✅ built — parent TERMINAL → children ORPHAN; 5min TTL → requestStop (KAV-012)",
+    "resume_manifest_rich": "✅ built — manifest-writer.ts: completed/in-progress steps + files_modified + resume_prompt",
+    "panic_button": "✅ built — POST /api/kill sends SIGKILL/SIGSTOP to all claude processes (KAV-061)",
+    "observability_dashboard_v2": "🔶 partial — cost-tree + agent rows exposed via API; frontend charts pending",
+    "cost_attribution_tree": "✅ built — getCostTree/getAgentCostProjection in db.ts; aegis cost CLI + /api/v1/cost-tree endpoint (KAV-017, KAV-018)",
+    "ai_proxy_token_intercept": "✅ built — ankr-ai-gateway emitKavachUsage() POSTs to /api/v1/agent-usage; non-blocking, 2s timeout (KAV-017)",
+    "budget_inheritance": "✅ built — checkBudgetInheritance() reserves child cap from parent pool; rebalanceBudget() on close (KAV-003, KAV-018)",
+    "budget_phase_shapes": "✅ built — EWMA projection α=0.3; 80% warn (KAV-009) + 95% soft-stop (KAV-016) per agent",
+    "loop_count_tracking": "✅ built — loop_count increments on every touchAgent() call; >30 WARN, >50 QUARANTINE (KAV-068)",
+    "mvt_surface_warning": "✅ built — check-spawn warns when tools_allowed=[]; tightens threshold for low-confidence identity (KAV-067, KAV-YK-013)",
+    "forja_state_endpoint": "✅ built — GET /api/v2/forja/state: live agent counts, budget, violation rate, watchdog health",
+    "forja_trust_endpoint": "✅ built — GET /api/v2/forja/trust/:userId: operator capability matrix (admin/operator/viewer roles)",
+    "forja_sense_endpoint": "✅ built — POST /api/v2/forja/sense/emit: 15 typed events, ring buffer, SSE broadcast",
+    "forja_proof_endpoint": "✅ built — GET /api/v2/forja/proof: scans src/ for @rule:KAV-NNN annotations, returns coverage%"
+  },
+
+  "proof_config": {
+    "annotation_style": "@rule:KAV-NNN",
+    "logics_doc": "proposals/xshieldai-kavach--logics--formal--2026-04-29.md",
+    "rule_count": 48,
+    "proof_coverage": 100,
+    "proof_endpoint": "/api/v2/forja/proof"
+  },
+
+  "open_source": {
+    "repo": "rocketlang/aegis",
+    "license": "AGPL-3.0",
+    "npm_package": "@rocketlang/aegis",
+    "current_version": "0.2.0",
+    "v2_tag": "v0.2.0",
+    "note": "KAVACH is the product name. The OSS repo stays rocketlang/aegis."
+  },
+
+  "commercial_layer": {
+    "product": "xShieldAI",
+    "module": "KAVACH — Agent Execution Safety",
+    "url": "xshieldai.com",
+    "adds": ["domain injection signatures", "compliance reports", "enterprise dashboard", "DAN gate policy templates"]
+  },
+
+  "docs": {
+    "brainstorm": "proposals/xshieldai-kavach--brainstorm--formal--2026-04-29.md",
+    "logics": "proposals/xshieldai-kavach--logics--formal--2026-04-29.md",
+    "requirements": "proposals/xshieldai-kavach--requirements--formal--2026-04-29.md",
+    "project": "proposals/xshieldai-kavach--project--formal--2026-04-29.md",
+    "todo": "ankr-todos/xshieldai-kavach--todo--formal--2026-04-29.md",
+    "vivechana": "proposals/xshieldai-kavach--vivechana--formal--2026-04-29.md",
+    "deep-knowledge": "proposals/xshieldai-kavach--deep-knowledge--formal--2026-04-29.md",
+    "v1_superseded": "proposals/ankr-aegis--logics--formal--2026-04-17.md"
+  }
+}

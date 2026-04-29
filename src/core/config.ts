@@ -6,7 +6,7 @@ const AEGIS_DIR = join(process.env.HOME || "/root", ".aegis");
 const CONFIG_PATH = join(AEGIS_DIR, "config.json");
 
 const DEFAULT_CONFIG: AegisConfig = {
-  plan: "max_5x",      // default assumption for ANKR founder
+  plan: "max_5x",
   budget: {
     daily_limit_usd: 100,
     weekly_limit_usd: 400,
@@ -20,6 +20,7 @@ const DEFAULT_CONFIG: AegisConfig = {
     spawn_limit_per_session: 50,
     spawn_concurrent_max: 20,
     cost_estimate_threshold_usd: 10,
+    max_depth: 5,
   },
   heartbeat: {
     timeout_seconds: 300,
@@ -44,19 +45,38 @@ const DEFAULT_CONFIG: AegisConfig = {
     terminal_bell: true,
     webhook_url: null,
   },
+  kavach: {
+    enabled: true,
+    notify_channel: "telegram" as const,
+    notify_telegram_chat_id: process.env.KAVACH_TG_CHAT_ID || "",
+    notify_phone: process.env.KAVACH_NOTIFY_PHONE || "",
+    notify_email: process.env.KAVACH_NOTIFY_EMAIL || "",
+    notify_via_webhook: false,
+    webhook_url: "",
+    timeout_level1_s: 600,
+    timeout_level2_s: 300,
+    timeout_level3_s: 120,
+    timeout_level4_s: 60,
+    // [EE] Dual-control for L4 — two humans must ALLOW
+    dual_control_enabled: false,                      // EE: set true to require two approvers for L4
+    dual_control_second_chat_id: "",                  // EE: second approver's Telegram chat_id
+    dual_control_second_channel: "telegram" as const,
+    dual_control_require_different_approvers: false,  // EE: true = same person can't approve twice
+    // [EE] Slack notification channel
+    slack_enabled: false,
+    slack_webhook_url: process.env.KAVACH_SLACK_WEBHOOK_URL || null,
+    slack_channel: process.env.KAVACH_SLACK_CHANNEL || null,
+    slack_username: "AEGIS",
+    slack_icon_emoji: ":shield:",
+  },
   enforcement: {
     mode: "alert",        // SAFE DEFAULT — never auto-kill. User must opt-in via config.
     excluded_pids: [],
     excluded_ppids: [],
-    registry_url: "http://localhost:4586",
-    registry_admin_key: "ankr-registry-dev-key",
-    // Infrastructure that must survive a budget kill — restarted automatically after SIGKILL
-    auto_restart_services: [
-      "ankr-agent-registry",   // agent identity + NHI lifecycle
-      "ai-proxy",              // all LLM calls route here — must stay up
-      "ankr-aegis",            // AEGIS itself (monitor restarts, dashboard stays live)
-      "ankr-event-bus",        // SENSE events — backbone
-    ],
+    registry_url: null,
+    registry_admin_key: null,
+    // Services to auto-restart after a budget kill — add your own infra here
+    auto_restart_services: [],
     auto_restart_delay_ms: 3000,  // 3s after kill to let processes clear
   },
 };

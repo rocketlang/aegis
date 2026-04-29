@@ -1,0 +1,18 @@
+{
+  "schema_version": "aegis-agent-policy-v1",
+  "agent_id": "unknown-agent",
+  "_comment": "Default policy for agents with unknown identity confidence. Minimal surface — warn-only mode. No blocking until identity is established.",
+  "perm_mask": 1,
+  "class_mask": 1,
+  "tools_allowed": ["Read"],
+  "tools_denied": ["Write", "Edit", "Agent", "Bash", "WebFetch", "WebSearch"],
+  "path_scope": [],
+  "path_deny": ["/etc", "/root/.ssh", "/root/.aws"],
+  "bash_allowlist": [],
+  "bash_denylist": ["rm", "sudo", "curl", "wget"],
+  "db_scope": [],
+  "network_allowed": false,
+  "budget_cap_usd": 0.10,
+  "max_depth": 0,
+  "violation_threshold": 1
+}

@@ -4,6 +4,7 @@
 import { loadConfig } from "../core/config";
 import { getBudgetState, addAlert, getDailySpend, getSession, setSessionStatus } from "../core/db";
 import type { UsageRecord, AlertEvent, AegisConfig } from "../core/types";
+import { sendSlackAlert } from "../kavach/slack-notifier";
 
 export type EnforcerEvent = {
   type: "usage" | "alert" | "kill" | "pause";
@@ -141,6 +142,9 @@ export class BudgetEnforcer {
         body: JSON.stringify(alert),
       }).catch(() => { /* webhook failed silently */ });
     }
+
+    // [EE] Slack alert
+    sendSlackAlert(this.config, alert).catch(() => {});
   }
 
   private pauseSession(session_id: string): void {

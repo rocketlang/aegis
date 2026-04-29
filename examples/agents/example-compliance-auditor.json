@@ -1,0 +1,18 @@
+{
+  "schema_version": "aegis-agent-policy-v1",
+  "agent_id": "compliance-auditor",
+  "_comment": "Read-only compliance auditor: can read files and query DBs, cannot write anything.",
+  "perm_mask": 65,
+  "class_mask": 1,
+  "tools_allowed": ["Read", "Bash"],
+  "tools_denied": ["Write", "Edit", "Agent", "WebFetch"],
+  "path_scope": [],
+  "path_deny": ["/root/.ssh", "/root/.aws", "/etc/shadow"],
+  "bash_allowlist": ["grep", "find", "cat", "ls", "wc", "diff", "git log", "git diff", "git status"],
+  "bash_denylist": ["rm", "mv", "cp", "sudo", "curl", "wget", "git commit", "git push"],
+  "db_scope": [],
+  "network_allowed": false,
+  "budget_cap_usd": 0.50,
+  "max_depth": 0,
+  "violation_threshold": 1
+}

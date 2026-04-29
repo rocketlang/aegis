@@ -111,11 +111,11 @@ Pull requests for:
 
 ---
 
-## ANKR Ecosystem
+## Custom Frameworks on Claude
 
-AEGIS also recognizes ANKR-native agent frameworks:
+Any agent framework that logs in Claude Code's JSONL format is automatically supported:
 
-- **AnvilOS** — `source: "anvilos"` or `provider: "anvilos"`
-- **TraitOS** — `source: "traitos"` or `provider: "traitos"`
+- **AnvilOS / TraitOS** — use `source: "anvilos"` or `provider: "traitos"` in session logs
+- **Custom Claude-based agents** — any tool that produces `.jsonl` session logs with `role`/`content` fields
 
-These use the same JSONL format as Claude Code (they run on Claude), so they're parsed identically.
+These are parsed identically to native Claude Code sessions.

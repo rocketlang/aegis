@@ -19,11 +19,14 @@ function formatDuration(s) {
 
 async function fetchStatus() {
   try {
-    const [statusRes, sysRes, providersRes, trendRes] = await Promise.all([
-      fetch(`${API}/api/status`),
-      fetch(`${API}/api/system`),
-      fetch(`${API}/api/providers`),
-      fetch(`${API}/api/trend`),
+    const [[statusRes, sysRes, providersRes, trendRes]] = await Promise.all([
+      Promise.all([
+        fetch(`${API}/api/status`),
+        fetch(`${API}/api/system`),
+        fetch(`${API}/api/providers`),
+        fetch(`${API}/api/trend`),
+      ]),
+      loadValves(),
     ]);
     const data = await statusRes.json();
     const sys = await sysRes.json();
@@ -138,6 +141,47 @@ function renderApiPlan(data) {
   }
 }
 
+const VALVE_EMOJI = { OPEN:'🟢', THROTTLED:'🟡', CRACKED:'🟠', CLOSED:'🔴', LOCKED:'🛑' };
+let valveCache = {};
+
+const PERM_NAMES = [
+  'READ','WRITE','EXEC','SPAWN','NET','DB_W','DB_R','DB_SCH',
+  'FS_C','FS_D','SVC','SECRET','CFG_W','GIT_W','EXT_API','PRIV',
+  'POL_ADM','MASK_ADM','AUD_W','CROSS','PROD',
+];
+
+function renderPermDiff(valve) {
+  if (!valve) return '';
+  const dec = valve.declared_perm_mask;
+  const eff = valve.effective_perm_mask;
+  const decHex = `0x${dec.toString(16)}`;
+  const effHex = `0x${eff.toString(16)}`;
+  if (dec === eff) return `<span class="perm-ok" title="perm_mask">${effHex}</span>`;
+  const clearedBits = dec & ~eff;
+  const clearedNames = PERM_NAMES.filter((_, i) => clearedBits & (1 << i)).join(',');
+  return `<span class="perm-narrowed" title="declared ${decHex} → effective ${effHex} | cleared: ${clearedNames}">${decHex}<span class="perm-arrow">→</span><span class="perm-eff">${effHex}</span></span>`;
+}
+
+async function loadValves() {
+  try {
+    const r = await fetch('/api/v2/valves');
+    const valves = await r.json();
+    valveCache = {};
+    for (const v of (Array.isArray(valves) ? valves : [])) valveCache[v.agent_id] = v;
+  } catch { /* best-effort */ }
+}
+
+async function valveAction(agentId, action) {
+  if (!confirm(`${action.toUpperCase()} valve for agent ${agentId.slice(0,8)}?`)) return;
+  await fetch(`/api/v2/valve/${encodeURIComponent(agentId)}/${action}`, {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({ reason: 'dashboard action', by: 'operator' })
+  });
+  await loadValves();
+  refreshDashboard();
+}
+
 function renderSessions(sessions, isMax) {
   const list = document.getElementById('sessions-list');
   document.getElementById('session-count').textContent = sessions.length;
@@ -149,11 +193,22 @@ function renderSessions(sessions, isMax) {
     const costDisplay = isMax
       ? `${s.message_count} msgs`
       : `$${s.total_cost_usd.toFixed(2)}`;
+    const valve = valveCache[s.session_id];
+    const valveEmoji = valve ? (VALVE_EMOJI[valve.state] || '⚪') : '⚪';
+    const valveState = valve ? valve.state : '';
+    const permDiff = renderPermDiff(valve);
+    const narrowBtn = valve && valve.state === 'OPEN'
+      ? `<button class="btn-xs" onclick="valveAction('${s.session_id}','throttle')" title="Throttle">⬇</button>`
+      : valve && (valve.state === 'THROTTLED' || valve.state === 'CRACKED')
+      ? `<button class="btn-xs" onclick="valveAction('${s.session_id}','open')" title="Restore">↑</button>`
+      : '';
     return `
     <div class="session-card">
       <span class="session-id">${s.session_id.slice(0, 8)}</span>
       <span class="session-cost">${costDisplay}</span>
       <span class="session-meta">${s.agent_spawns} spawns</span>
+      ${valveState ? `<span class="session-meta">${valveEmoji} ${valveState} ${permDiff}</span>` : ''}
+      ${narrowBtn}
       <span class="session-status ${s.status}">${s.status}</span>
     </div>`;
   }).join('');
@@ -172,6 +227,49 @@ function renderAlerts(alerts) {
       <span>${a.message}</span>
     </div>
   `).join('');
+}
+
+// --- Enforce Mode Toggle ---
+
+async function loadEnforceState() {
+  try {
+    const res = await fetch(`${API}/api/enforcement`);
+    const data = await res.json();
+    const isEnforce = data.mode === 'enforce';
+    document.getElementById('enforce-toggle').checked = isEnforce;
+    updateEnforceBadge(isEnforce);
+  } catch {}
+}
+
+function updateEnforceBadge(isEnforce) {
+  const badge = document.getElementById('enforce-status');
+  if (isEnforce) {
+    badge.textContent = 'ON — Hard Stop Active';
+    badge.className = 'enforce-badge on';
+  } else {
+    badge.textContent = 'OFF — Alert Only';
+    badge.className = 'enforce-badge off';
+  }
+}
+
+async function toggleEnforce(checked) {
+  const mode = checked ? 'enforce' : 'alert';
+  if (checked) {
+    if (!confirm('Enable Enforce Mode?\n\nWhen ON: AEGIS will send SIGSTOP to ALL agent processes when budget is exhausted. Agents will be paused until you resume them.\n\nRecommended: only enable when you want hard budget control.')) {
+      document.getElementById('enforce-toggle').checked = false;
+      return;
+    }
+  }
+  try {
+    await fetch(`${API}/api/enforcement`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ mode }),
+    });
+    updateEnforceBadge(checked);
+  } catch (e) {
+    alert('Failed to update enforcement mode');
+  }
 }
 
 async function pauseAll() {
@@ -215,4 +313,82 @@ function connectSSE() {
 
 fetchStatus();
 connectSSE();
+loadEnforceState();
 setInterval(fetchStatus, 10000);
+
+// KAVACH Approvals Panel
+const LEVEL_LABELS = { 1: 'L1 Recoverable', 2: 'L2 Hard to Recover', 3: 'L3 Irreversible', 4: 'L4 CRITICAL' };
+const LEVEL_EMOJI  = { 1: '⚠️', 2: '🔴', 3: '🚨', 4: '🛑' };
+
+async function fetchApprovals() {
+  try {
+    const res = await fetch(`${API}/api/approvals`);
+    const data = await res.json();
+    renderApprovals(data.pending || []);
+  } catch {}
+}
+
+function renderApprovals(pending) {
+  const list = document.getElementById('kavach-list');
+  const badge = document.getElementById('kavach-count');
+  if (!pending.length) {
+    list.innerHTML = '<div class="empty-state">No pending approvals</div>';
+    badge.style.display = 'none';
+    return;
+  }
+  badge.textContent = pending.length;
+  badge.style.display = 'inline';
+  list.innerHTML = pending.map(a => {
+    const lvl = a.level;
+    const elapsed = Math.floor((Date.now() - new Date(a.created_at).getTime()) / 1000);
+    const remaining = Math.max(0, Math.floor(a.timeout_ms / 1000) - elapsed);
+    const mins = Math.floor(remaining / 60);
+    const secs = remaining % 60;
+    const timerStr = remaining > 0 ? `${mins}:${secs.toString().padStart(2,'0')} remaining` : 'EXPIRED';
+    const isDualControl = a.status === 'pending_second';
+    const dualBadge = isDualControl
+      ? `<span class="kavach-dual-badge">🔐 AWAITING 2ND APPROVAL — 1st: ${escHtml(a.first_approver || '?')}</span>`
+      : '';
+    const explainBtn = !isDualControl
+      ? `<button class="kavach-btn explain" onclick="decide('${a.id}','EXPLAIN')">💬 EXPLAIN</button>`
+      : '';
+    return `
+      <div class="kavach-card level-${lvl}${isDualControl ? ' dual-control' : ''}" id="kavach-${a.id}">
+        <div class="kavach-header">
+          <span class="kavach-level l${lvl}">${LEVEL_EMOJI[lvl]} ${LEVEL_LABELS[lvl]}</span>
+          <span class="kavach-timer">${timerStr}</span>
+          <span class="kavach-id">${a.id}</span>
+        </div>
+        ${dualBadge}
+        <div class="kavach-command">${escHtml(a.command)}</div>
+        <div class="kavach-consequence">${escHtml(a.consequence)}</div>
+        <div class="kavach-actions">
+          <button class="kavach-btn stop"  onclick="decide('${a.id}','STOP')">🛑 STOP</button>
+          <button class="kavach-btn allow" onclick="decide('${a.id}','ALLOW')">✅ ${isDualControl ? '2ND ALLOW' : 'ALLOW'}</button>
+          ${explainBtn}
+        </div>
+      </div>`;
+  }).join('');
+}
+
+async function decide(id, decision) {
+  const card = document.getElementById(`kavach-${id}`);
+  if (card) card.style.opacity = '0.5';
+  try {
+    await fetch(`${API}/api/approvals/${id}/decide`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ decision }),
+    });
+    setTimeout(fetchApprovals, 500);
+  } catch {
+    if (card) card.style.opacity = '1';
+  }
+}
+
+function escHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+fetchApprovals();
+setInterval(fetchApprovals, 3000);  // poll every 3s for new approvals

@@ -1,8 +1,8 @@
 {
   "name": "@rocketlang/aegis",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "description": "AEGIS — The kill-switch between your AI agents and your credit card. Agentic spend governance for Claude Code, OpenAI Codex, and any JSONL-logging agent.",
-  "license": "MIT",
+  "license": "AGPL-3.0",
   "type": "module",
   "author": "Capt. Anil Sharma <capt.anil.sharma@powerpbox.org>",
   "homepage": "https://github.com/rocketlang/aegis",
@@ -37,9 +37,12 @@
     "bin/",
     "src/",
     "docs/",
+    "rules/",
+    "examples/",
     "README.md",
     "LICENSE",
-    "CHANGELOG.md"
+    "CHANGELOG.md",
+    "SECURITY.md"
   ],
   "engines": {
     "bun": ">=1.0.0",

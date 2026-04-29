@@ -3,10 +3,11 @@
 // Watches session logs, accumulates spend, enforces budgets
 
 import { loadConfig, resolveWatchPaths } from "../core/config";
-import { addUsage, upsertSession, addToBudget } from "../core/db";
+import { addUsage, upsertSession, addToBudget, addAlert, setSessionStatus } from "../core/db";
 import { broadcast } from "../core/events";
 import { SessionWatcher } from "./watcher";
 import { BudgetEnforcer } from "./enforcer";
+import { sendSlackAlert } from "../kavach/slack-notifier";
 import type { UsageRecord } from "../core/types";
 
 const config = loadConfig();
@@ -15,6 +16,8 @@ const startTime = Date.now();
 
 // Track last user activity per session (for heartbeat)
 const lastUserActivity = new Map<string, number>();
+// Track sessions already alerted as abandoned (avoid re-alerting every 30s)
+const abandonedAlerted = new Set<string>();
 
 // Forward enforcer events to SSE subscribers (dashboard, if connected)
 enforcer.on((event) => {
@@ -39,21 +42,79 @@ function onUsage(record: UsageRecord, projectPath: string): void {
   broadcast("usage_update", record);
 }
 
-// User activity handler — for heartbeat tracking
+// User activity handler — resets heartbeat clock for the session
 function onUserActivity(session_id: string): void {
+  const wasAbandoned = abandonedAlerted.has(session_id);
   lastUserActivity.set(session_id, Date.now());
+  if (wasAbandoned) {
+    // User came back — clear abandoned state
+    abandonedAlerted.delete(session_id);
+    broadcast("heartbeat_resumed", { session_id, timestamp: new Date().toISOString() });
+  }
+}
+
+// Heartbeat mode classification
+// attended   = last user input < timeout/6 ago
+// unattended = last user input ≥ timeout/6 but < timeout ago
+// abandoned  = last user input ≥ timeout ago
+function classifyHeartbeat(idleMs: number, timeoutMs: number): "attended" | "unattended" | "abandoned" {
+  if (idleMs >= timeoutMs) return "abandoned";
+  if (idleMs >= timeoutMs / 6) return "unattended";
+  return "attended";
 }
 
 // Heartbeat checker — runs every 30s
+// @rule:KAV-019 (watchdog: detect stale sessions from session logs)
 function checkHeartbeats(): void {
   if (config.heartbeat.timeout_seconds <= 0) return;
-  const timeout = config.heartbeat.timeout_seconds * 1000;
+  const timeoutMs = config.heartbeat.timeout_seconds * 1000;
   const now = Date.now();
+  const cfg = loadConfig(); // hot reload
 
   for (const [session_id, lastActive] of lastUserActivity) {
-    if (now - lastActive > timeout) {
-      console.log(`[AEGIS] Heartbeat timeout for session ${session_id.slice(0, 8)}`);
-      // Could trigger pause here based on config.heartbeat.action
+    const idleMs = now - lastActive;
+    const mode = classifyHeartbeat(idleMs, timeoutMs);
+    const idleMin = Math.round(idleMs / 60000);
+
+    broadcast("heartbeat_update", { session_id, mode, idle_ms: idleMs, timestamp: new Date().toISOString() });
+
+    if (mode === "abandoned" && !abandonedAlerted.has(session_id)) {
+      abandonedAlerted.add(session_id);
+
+      const alert = {
+        type: "heartbeat_timeout" as const,
+        severity: "warning" as const,
+        message: `Session ${session_id.slice(0, 8)} abandoned — no user input for ${idleMin} min (threshold: ${cfg.heartbeat.timeout_seconds / 60} min)`,
+        session_id,
+        timestamp: new Date().toISOString(),
+        acknowledged: false,
+      };
+
+      addAlert(alert);
+      broadcast("heartbeat_timeout", { session_id, idle_ms: idleMs, mode, timestamp: alert.timestamp });
+      process.stderr.write(`[AEGIS] Heartbeat timeout — session ${session_id.slice(0, 8)} idle ${idleMin}m\n`);
+
+      // [EE] Slack heartbeat alert
+      sendSlackAlert(cfg, alert).catch(() => {});
+
+      // Act on config.heartbeat.action
+      if (cfg.heartbeat.action === "pause") {
+        setSessionStatus(session_id, "paused");
+        process.stderr.write(`[AEGIS] Session ${session_id.slice(0, 8)} paused (heartbeat.action=pause)\n`);
+      } else if (cfg.heartbeat.action === "kill") {
+        setSessionStatus(session_id, "killed");
+        process.stderr.write(`[AEGIS] Session ${session_id.slice(0, 8)} marked killed (heartbeat.action=kill)\n`);
+      }
+      // "alert" = default — alert only, no state change
+    }
+  }
+
+  // Evict sessions that haven't been seen in 4× the timeout (cleanup)
+  const evictThreshold = timeoutMs * 4;
+  for (const [session_id, lastActive] of lastUserActivity) {
+    if (now - lastActive > evictThreshold) {
+      lastUserActivity.delete(session_id);
+      abandonedAlerted.delete(session_id);
     }
   }
 }
@@ -72,11 +133,23 @@ const healthServer = Bun.serve({
   fetch(req) {
     const url = new URL(req.url);
     if (url.pathname === "/health") {
+      const now = Date.now();
+      const timeoutMs = config.heartbeat.timeout_seconds * 1000;
+      const sessions = [...lastUserActivity.entries()].map(([id, ts]) => ({
+        session_id: id.slice(0, 8),
+        idle_ms: now - ts,
+        mode: classifyHeartbeat(now - ts, timeoutMs),
+      }));
       return Response.json({
         status: "ok",
         uptime_s: Math.floor((Date.now() - startTime) / 1000),
         files_watched: watcher.getWatchedFileCount(),
         active_sessions: lastUserActivity.size,
+        heartbeat: {
+          timeout_s: config.heartbeat.timeout_seconds,
+          action: config.heartbeat.action,
+          sessions,
+        },
         enforcement_mode: config.enforcement.mode,
         kill_on_budget_breach: config.enforcement.mode === "enforce",
         kill_on_burst: config.enforcement.mode === "enforce",
@@ -94,3 +167,4 @@ console.log(`[AEGIS] Monitor started`);
 console.log(`[AEGIS] Watching: ${watchPaths.join(", ")}`);
 console.log(`[AEGIS] Health endpoint: http://localhost:${config.monitor.health_port}/health`);
 console.log(`[AEGIS] Budget: $${config.budget.daily_limit_usd}/day, $${config.budget.weekly_limit_usd}/week`);
+console.log(`[AEGIS] Heartbeat: ${config.heartbeat.timeout_seconds}s timeout, action=${config.heartbeat.action}`);

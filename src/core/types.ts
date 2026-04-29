@@ -20,6 +20,7 @@ export interface AegisConfig {
     spawn_limit_per_session: number;
     spawn_concurrent_max: number;
     cost_estimate_threshold_usd: number;
+    max_depth: number;          // maximum delegation chain depth (V2-052, KAV-008)
   };
   heartbeat: {
     timeout_seconds: number;
@@ -44,6 +45,31 @@ export interface AegisConfig {
     terminal_bell: boolean;
     webhook_url: string | null;
   };
+  kavach: {
+    enabled: boolean;
+    notify_channel: "telegram" | "whatsapp";
+    notify_telegram_chat_id: string;
+    notify_phone: string;
+    notify_email: string;
+    notify_via_webhook: boolean;
+    webhook_url: string;
+    // Per-level timeout in seconds (silence = BLOCK)
+    timeout_level1_s: number;
+    timeout_level2_s: number;
+    timeout_level3_s: number;
+    timeout_level4_s: number;
+    // [EE] Dual-control for L4 — two humans must ALLOW
+    dual_control_enabled: boolean;
+    dual_control_second_chat_id: string;   // second approver Telegram chat_id
+    dual_control_second_channel: "telegram" | "whatsapp";
+    dual_control_require_different_approvers: boolean; // [EE] enforce two distinct identities
+    // [EE] Slack notification channel
+    slack_enabled: boolean;
+    slack_webhook_url: string | null;
+    slack_channel: string | null;       // optional override — webhook URL usually encodes channel
+    slack_username: string;
+    slack_icon_emoji: string;
+  };
   enforcement: {
     mode: "alert" | "enforce";     // alert = warn only (SAFE DEFAULT); enforce = auto-kill/pause
     excluded_pids: number[];       // PIDs to never kill (e.g. user's active session)
@@ -51,7 +77,7 @@ export interface AegisConfig {
     // @rule:NHI-008 — AEGIS wires to registry on budget kill
     registry_url: string | null;
     registry_admin_key: string | null;
-    // Services to auto-restart via ankr-ctl after a kill — infrastructure must survive budget kills
+    // Services to auto-restart after a kill — infrastructure must survive budget kills
     auto_restart_services: string[];
     auto_restart_delay_ms: number;  // grace period before restart (let kill complete)
   };
@@ -110,6 +136,26 @@ export interface AlertEvent {
   session_id?: string;
   timestamp: string;
   acknowledged: boolean;
+}
+
+// @rule:KAV-052 — DAN Gate: dangerous action intercepted pre-execution
+export type KavachLevel = 1 | 2 | 3 | 4;
+export type KavachDecision = "ALLOW" | "STOP" | "EXPLAIN" | "TIMEOUT";
+
+export interface KavachApproval {
+  id: string;               // KAVACH-<random8>
+  created_at: string;
+  command: string;
+  tool_name: string;
+  level: KavachLevel;       // 1=recoverable → 4=irreversible+high blast
+  consequence: string;      // plain-English blast radius
+  session_id: string;
+  status: "pending" | "pending_second" | "allowed" | "stopped" | "explained" | "timed_out";
+  first_approver: string | null;   // who gave first ALLOW (L4 dual-control)
+  decided_at: string | null;
+  decided_by: string | null;
+  notified: boolean;
+  timeout_ms: number;
 }
 
 export interface AegisStatus {

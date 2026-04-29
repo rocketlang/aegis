@@ -279,6 +279,82 @@ h2 {
   font-weight: 700;
 }
 
+/* Enforce toggle row */
+.enforce-row {
+  margin-top: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
+.enforce-label {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.enforce-label span:first-child {
+  font-weight: 700;
+  font-size: 13px;
+}
+
+.enforce-desc {
+  font-size: 11px;
+  color: var(--text-dim);
+}
+
+.enforce-toggle-wrap {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.enforce-toggle-wrap input[type="checkbox"] { display: none; }
+
+.toggle-switch {
+  width: 44px;
+  height: 24px;
+  background: var(--border);
+  border-radius: 12px;
+  cursor: pointer;
+  position: relative;
+  transition: background 0.3s;
+  display: block;
+}
+
+.toggle-switch::after {
+  content: '';
+  position: absolute;
+  width: 18px;
+  height: 18px;
+  background: white;
+  border-radius: 50%;
+  top: 3px;
+  left: 3px;
+  transition: left 0.3s;
+}
+
+input:checked + .toggle-switch { background: var(--red); }
+input:checked + .toggle-switch::after { left: 23px; }
+
+.enforce-badge {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 10px;
+  border-radius: 4px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  min-width: 120px;
+  text-align: center;
+}
+
+.enforce-badge.off { background: rgba(16,185,129,0.2); color: var(--green); }
+.enforce-badge.on { background: rgba(239,68,68,0.2); color: var(--red); }
+
 /* Action Buttons */
 .actions-row {
   display: flex;
@@ -412,4 +488,108 @@ footer {
   .budget-row { grid-template-columns: 1fr; }
   .actions-row { flex-wrap: wrap; }
   .session-card { flex-wrap: wrap; }
+}
+
+/* KAVACH Approval Panel */
+.kavach-badge {
+  background: var(--red);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 10px;
+  margin-left: 8px;
+  vertical-align: middle;
+  animation: pulse 1.5s infinite;
+}
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}
+
+.kavach-list { display: flex; flex-direction: column; gap: 12px; }
+
+.kavach-card {
+  background: rgba(248,113,113,.06);
+  border: 1px solid rgba(248,113,113,.3);
+  border-radius: 8px;
+  padding: 14px 16px;
+}
+.kavach-card.level-4 { border-color: rgba(248,113,113,.6); background: rgba(248,113,113,.1); }
+.kavach-card.level-3 { border-color: rgba(251,146,60,.5); background: rgba(251,146,60,.07); }
+.kavach-card.level-2 { border-color: rgba(251,191,36,.4); background: rgba(251,191,36,.05); }
+.kavach-card.level-1 { border-color: rgba(99,102,241,.4); background: rgba(99,102,241,.05); }
+
+.kavach-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+.kavach-level { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .8px; }
+.kavach-level.l4 { color: var(--red); }
+.kavach-level.l3 { color: #fb923c; }
+.kavach-level.l2 { color: var(--amber); }
+.kavach-level.l1 { color: #818cf8; }
+.kavach-id { font-size: 10px; color: var(--text-dim); font-family: monospace; }
+.kavach-timer { font-size: 11px; color: var(--amber); font-weight: 600; }
+
+.kavach-command {
+  font-family: monospace;
+  font-size: 12px;
+  background: rgba(0,0,0,.3);
+  padding: 8px 10px;
+  border-radius: 4px;
+  margin-bottom: 8px;
+  word-break: break-all;
+  color: #e2e8f0;
+}
+
+.kavach-consequence { font-size: 12px; color: var(--text-dim); margin-bottom: 12px; line-height: 1.5; }
+
+.kavach-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+
+.kavach-btn {
+  padding: 6px 16px;
+  border: none;
+  border-radius: 5px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  letter-spacing: .5px;
+  text-transform: uppercase;
+  transition: opacity .15s;
+}
+.kavach-btn:hover { opacity: .85; }
+.kavach-btn.stop { background: var(--red); color: #fff; }
+.kavach-btn.allow { background: var(--green); color: #0a0e1a; }
+.kavach-btn.explain { background: var(--amber); color: #0a0e1a; }
+
+/* Gate valve narrow button */
+.btn-xs {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text-dim);
+  cursor: pointer;
+  font-size: 11px;
+  padding: 2px 7px;
+  transition: border-color .15s;
+}
+.btn-xs:hover { border-color: var(--accent); color: var(--accent); }
+
+/* perm_mask diff display */
+.perm-ok { color: var(--text-dim); font-size: 11px; font-family: monospace; }
+.perm-narrowed { font-size: 11px; font-family: monospace; color: var(--amber); }
+.perm-arrow { margin: 0 3px; color: var(--text-dim); }
+.perm-eff { color: var(--red); }
+
+/* Dual-control L4 */
+.kavach-card.dual-control { border-color: var(--purple); box-shadow: 0 0 12px rgba(167,139,250,.25); }
+.kavach-dual-badge {
+  display: inline-block;
+  background: rgba(167,139,250,.15);
+  color: var(--purple);
+  border: 1px solid rgba(167,139,250,.4);
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 10px;
+  margin-bottom: 10px;
+  letter-spacing: .4px;
 }

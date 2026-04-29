@@ -1,0 +1,27 @@
+{
+  "version": "1.0",
+  "description": "AEGIS destructive-command rule set. Patterns that require human confirmation before executing. Extend in ~/.aegis/rules/destructive-rules.json",
+  "rules": [
+    { "id": "DES-001", "pattern": "^\\s*(DROP|drop)\\s+(TABLE|DATABASE|SCHEMA|INDEX|VIEW)", "flags": "i", "consequence": "Drops a database table or schema — data loss", "level": 3 },
+    { "id": "DES-002", "pattern": "^\\s*TRUNCATE\\s+TABLE", "flags": "i", "consequence": "Removes all rows from a table — data loss", "level": 2 },
+    { "id": "DES-003", "pattern": "^\\s*DELETE\\s+FROM\\s+\\S+\\s*;?\\s*$", "flags": "i", "consequence": "Deletes all rows from a table — data loss", "level": 3 },
+    { "id": "DES-004", "pattern": "\\brm\\s+(-rf|-fr|--recursive|--force)\\b", "flags": "i", "consequence": "Recursive file delete — filesystem data loss", "level": 3 },
+    { "id": "DES-005", "pattern": "\\bgit\\s+reset\\s+--hard\\b", "flags": "i", "consequence": "Discards all uncommitted changes — irreversible", "level": 2 },
+    { "id": "DES-006", "pattern": "\\bgit\\s+clean\\s+(-f|-fd|--force)\\b", "flags": "i", "consequence": "Removes untracked files from working tree", "level": 2 },
+    { "id": "DES-007", "pattern": "\\bgit\\s+push\\s+.*--force\\b|\\bgit\\s+push\\s+-f\\b", "flags": "i", "consequence": "Force-pushes to remote — overwrites shared history", "level": 4 },
+    { "id": "DES-008", "pattern": "\\bprisma\\s+db\\s+push\\b|\\bprisma\\s+migrate\\s+reset\\b", "flags": "i", "consequence": "Schema push may drop tables with data", "level": 3 },
+    { "id": "DES-009", "pattern": "\\bdropdb\\b|\\bdropdatabase\\b", "flags": "i", "consequence": "Drops entire database — full data loss", "level": 4 },
+    { "id": "DES-010", "pattern": ">\\s*/dev/null|:\\s*>\\s*\\S+|truncate\\s+-s\\s+0", "flags": "i", "consequence": "Truncates file to zero bytes — data loss", "level": 2 },
+    { "id": "DES-011", "pattern": "\\bkill\\s+-9\\b|\\bkillall\\b", "flags": "i", "consequence": "Force-kills processes — possible service interruption", "level": 1 },
+    { "id": "DES-012", "pattern": "\\bchmod\\s+-R\\s+777\\b|\\bchmod\\s+777\\b", "flags": "i", "consequence": "World-writable permissions — security risk", "level": 2 },
+    { "id": "DES-013", "pattern": "\\bchown\\s+-R\\s+.*:\\/", "flags": "i", "consequence": "Recursive ownership change on / — possible system damage", "level": 3 },
+    { "id": "DES-014", "pattern": "\\bsudo\\s+rm\\s+-rf\\s+\\/\\b|rm\\s+-rf\\s+\\/\\s", "flags": "i", "consequence": "rm -rf / — catastrophic filesystem wipe", "level": 4 }
+  ],
+  "default_level": 2,
+  "level_descriptions": {
+    "1": "WARN — low risk, logged only",
+    "2": "BLOCK in enforce mode, WARN in alert mode",
+    "3": "BLOCK always — confirm via KAVACH gate",
+    "4": "QUARANTINE — requires dual human approval"
+  }
+}

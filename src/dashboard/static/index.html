@@ -124,12 +124,31 @@
         <button id="btn-kill" class="btn btn-danger" onclick="killAll()">KILL ALL</button>
         <button id="btn-resume" class="btn btn-success" onclick="resumeAll()">RESUME</button>
       </div>
+      <div class="enforce-row">
+        <label class="enforce-label">
+          <span>Enforce Mode</span>
+          <span class="enforce-desc">When ON: agents are hard-stopped at budget limit. When OFF: warnings only.</span>
+        </label>
+        <div class="enforce-toggle-wrap">
+          <input type="checkbox" id="enforce-toggle" onchange="toggleEnforce(this.checked)">
+          <label for="enforce-toggle" class="toggle-switch"></label>
+          <span id="enforce-status" class="enforce-badge off">OFF — Alert Only</span>
+        </div>
+      </div>
     </section>
 
     <section class="sessions-section">
       <h2>Active Sessions <span id="session-count" class="badge">0</span></h2>
       <div id="sessions-list" class="sessions-list">
         <div class="empty-state">No active sessions</div>
+      </div>
+    </section>
+
+    <!-- KAVACH Approvals Panel -->
+    <section class="alerts-section" id="kavach-section">
+      <h2>KAVACH — Pending Approvals <span id="kavach-count" class="kavach-badge" style="display:none"></span></h2>
+      <div id="kavach-list" class="kavach-list">
+        <div class="empty-state">No pending approvals</div>
       </div>
     </section>
 

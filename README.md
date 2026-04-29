@@ -3,12 +3,37 @@
 > The kill-switch between your AI agents and your credit card.
 
 [![npm version](https://img.shields.io/npm/v/@rocketlang/aegis.svg)](https://www.npmjs.com/package/@rocketlang/aegis)
-[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+[![License: AGPL-3.0](https://img.shields.io/badge/License-AGPL%20v3-blue.svg)](LICENSE)
 [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.19625473.svg)](https://doi.org/10.5281/zenodo.19625473)
+[![Security](https://img.shields.io/badge/trust-audit%20us-green)](SECURITY.md)
 
 **AEGIS** — Agentic Execution Governance & Intelligence System. A vendor-neutral governance layer for agentic AI tools like Claude Code, OpenAI Codex, Cursor, and any framework that writes session logs or makes API calls.
 
 Born from a real $200 incident: a user stopped using Claude Code, walked away, came back to find weekly Max Plan usage fully exhausted with no visibility into what executed.
+
+---
+
+## Trust
+
+> KAVACH sits between your AI agent and your infrastructure. You should not trust it blindly — including this build.
+
+| What KAVACH does | What KAVACH does NOT do |
+|---|---|
+| Stores approval records in **local SQLite** (`~/.aegis/`) | Send your commands to any remote server |
+| Sends the intercepted command to **your** Telegram/WhatsApp | Phone home on every gate check |
+| Serves a dashboard on **localhost** only | Include analytics SDKs or background beacons |
+| Fires one opt-in beacon on `aegis init --send-stats` | Make any network call without your consent |
+
+**Verify it yourself:**
+```bash
+grep -rn "fetch(" src/              # every outbound call — all documented in SECURITY.md
+grep -rn "kavach.xshieldai" src/    # beacon — only in init.ts, only on --send-stats
+grep -rn "webhook_url\|registry_url" src/  # all user-configured endpoints
+```
+
+**AGPL-3.0:** Any modified version run as a service must publish source. A backdoor would be visible in the diff.
+
+→ Full trust documentation: [SECURITY.md](SECURITY.md)
 
 ---
 
@@ -35,15 +60,16 @@ Multiple surfaces (CLI + web + mobile + API) all consume from the same budget. N
 
 ## What AEGIS Provides
 
-### Five capabilities
+### Six capabilities
 
 | # | Capability | What it does |
 |---|------------|--------------|
-| 1 | **Unified Usage Dashboard** | All surfaces, all sessions, all spend — one real-time view |
-| 2 | **Hard Budget Caps** | Per session, per 5h window, per day/week — tiered warnings at 80%/90%/100% |
-| 3 | **Kill-Switch** | `aegis kill` sends SIGKILL/SIGSTOP to all agent processes in under 1 second |
-| 4 | **Agent Spawn Governance** | Block subagent spawns above a configurable limit per session |
-| 5 | **Anomaly Detection** | Alert on spend spikes, night-time activity, runaway sessions |
+| 1 | **KAVACH Gate** | PreToolUse hook intercepts destructive commands before execution — human approves via Telegram/WhatsApp or dashboard |
+| 2 | **Unified Usage Dashboard** | All surfaces, all sessions, all spend — one real-time view with KAVACH approvals panel |
+| 3 | **Hard Budget Caps** | Per session, per 5h window, per day/week — tiered warnings at 80%/90%/100% |
+| 4 | **Kill-Switch** | `aegis kill` sends SIGKILL/SIGSTOP to all agent processes in under 1 second |
+| 5 | **Agent Spawn Governance** | Block subagent spawns above a configurable limit per session |
+| 6 | **Anomaly Detection** | Alert on spend spikes, night-time activity, runaway sessions |
 
 ### Plans supported
 
@@ -146,7 +172,16 @@ aegis status
 | `aegis resume` | SIGCONT paused processes |
 | `aegis pause` | Same as `kill --stop` |
 | `aegis check-budget` | Hook: exit 0 = allow, exit 2 = block (used by Claude Code hooks) |
-| `aegis check-spawn` | Hook: check agent spawn limit |
+| `aegis check-spawn` | Hook: agent spawn limit + HanumanG delegation check |
+| `aegis check-shield` | Hook: LakshmanRekha injection/credential/exfil detection |
+| `aegis register --id <id>` | Check-in: create policy, register agent in state machine |
+| `aegis close --id <id>` | Check-out: mark COMPLETED, rebalance parent budget pool |
+| `aegis resume <agent-id>` | Display resume manifest for a force-closed agent |
+| `aegis cost [session-id]` | Cost attribution tree — per-agent spend + overspend risk |
+| `aegis quarantine list` | List all QUARANTINED/ORPHAN agents |
+| `aegis quarantine release <id>` | Human-in-the-loop release (requires --reason) |
+| `aegis valve list` | List all gate valve records |
+| `aegis valve status <id>` | Show perm_mask, class_mask for an agent |
 
 ---
 
@@ -194,8 +229,11 @@ Add to `~/.claude/settings.json`:
 ```
 
 The hook runs before every tool call:
-- Normal tool calls → `aegis check-budget` (exit 2 blocks if over budget)
-- `Agent` tool → `aegis check-spawn` (exit 2 blocks if over spawn limit)
+- Budget gate → `aegis check-budget` (warns at 80%, blocks at 100%)
+- Agent spawn → `aegis check-spawn` (HanumanG delegation check, loop detection, depth limit)
+- All other tools → `aegis check-shield` (LakshmanRekha injection, credential, exfil detection)
+
+`aegis init` generates the hook script automatically at `~/.aegis/pre-tool-use.sh`.
 
 Hook latency: ~30-50ms (Bun cold start + SQLite read).
 
@@ -234,15 +272,30 @@ Codex sessions appear with `codex-` prefix in the sessions list.
 
 ## Dashboard
 
-![AEGIS Dashboard](https://via.placeholder.com/800x500?text=AEGIS+Dashboard)
+The full dashboard ships in this repo and runs locally. Start it with:
 
-- **5-hour window** card with messages + tokens + reset countdown
-- **Weekly cap** card
-- **Active sessions** list (unified across providers)
-- **Alerts feed** — budget warnings, anomalies, spawn limits
-- **Action buttons** — PAUSE ALL, KILL ALL, RESUME
-- **Real-time updates** via Server-Sent Events
-- **Plan badge** shows your configured tier
+```bash
+aegis-dashboard &
+# → http://localhost:4850
+```
+
+**What's in the dashboard:**
+
+| Panel | Description |
+|---|---|
+| Budget / Usage | 5-hour window, weekly cap, daily/monthly spend — live bars |
+| Live Intelligence | Active processes, token velocity, projected burn rate |
+| Agent Processes | Per-PID view with CPU/mem, PAUSE/KILL per process |
+| 7-Day Trend | Spend sparklines |
+| Controls | PAUSE ALL · KILL ALL · RESUME · Enforce Mode toggle |
+| Active Sessions | Per-session cost, message count, agent spawns |
+| **KAVACH Approvals** | Pending approvals with STOP / ALLOW / EXPLAIN buttons |
+| Alerts | Budget warnings, anomalies, spawn limit events |
+
+**KAVACH panel** — when an agent tries a destructive command, the approval appears here in real time. You can decide from the dashboard or reply to the Telegram/WhatsApp notification. The panel shows:
+- Command, blast radius consequence, level (L1–L4)
+- Time remaining before default-safe timeout (silence = STOP)
+- For L4 dual-control: `🔐 AWAITING 2ND APPROVAL` badge with first approver identity
 
 Default port: `4850`. Configurable in `config.json`.
 
@@ -427,7 +480,9 @@ Especially wanted:
 
 ## License
 
-MIT © Capt. Anil Sharma / ANKR Labs
+[AGPL-3.0](LICENSE) © Capt. Anil Sharma
+
+OSS under AGPL-3.0 — copyleft applies to network deployments. Commercial license (SaaS, enterprise) available via [captain@ankr.in](mailto:captain@ankr.in).
 
 ---
 
