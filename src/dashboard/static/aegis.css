@@ -593,3 +593,33 @@ footer {
   margin-bottom: 10px;
   letter-spacing: .4px;
 }
+
+/* Cost Attribution Tree */
+.cost-tree-section { margin-bottom: 24px; }
+.ct-node { margin-bottom: 6px; }
+.ct-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding: 6px 10px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 12px;
+}
+.ct-branch { color: var(--text-dim); font-family: monospace; margin-right: 2px; }
+.ct-id { font-family: monospace; color: var(--accent); font-weight: 600; }
+.ct-state { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .6px; }
+.ct-depth { font-size: 10px; color: var(--text-dim); background: rgba(255,255,255,.06); padding: 1px 5px; border-radius: 3px; }
+.ct-tools { font-size: 11px; color: var(--text-dim); }
+.ct-violations { font-size: 10px; font-weight: 700; color: var(--red); background: rgba(248,113,113,.12); padding: 1px 6px; border-radius: 3px; }
+.ct-budget-text { font-size: 11px; color: var(--text-dim); margin-left: auto; font-family: monospace; }
+.ct-bar-wrap {
+  height: 3px;
+  background: rgba(255,255,255,.06);
+  border-radius: 0 0 4px 4px;
+  overflow: hidden;
+  margin-bottom: 2px;
+}
+.ct-bar { height: 3px; border-radius: 0; transition: width .3s; }

@@ -392,3 +392,57 @@ function escHtml(s) {
 
 fetchApprovals();
 setInterval(fetchApprovals, 3000);  // poll every 3s for new approvals
+
+// Cost Attribution Tree
+const STATE_COLOR = { RUNNING:'var(--green)', COMPLETED:'var(--text-dim)', QUARANTINED:'var(--red)', FORCE_CLOSED:'var(--red)', ZOMBIE:'var(--amber)', ORPHAN:'#fb923c', REGISTERED:'var(--blue)' };
+
+async function fetchCostTree() {
+  try {
+    const res = await fetch(`${API}/api/v1/cost-tree`);
+    const data = await res.json();
+    renderCostTree(data.tree || []);
+  } catch {}
+}
+
+function renderCostNode(node, depth) {
+  const pct = node.budget_cap_usd > 0 ? Math.min(100, (node.budget_used_usd / node.budget_cap_usd) * 100) : 0;
+  const barClass = pct >= 90 ? 'danger' : pct >= 70 ? 'warning' : '';
+  const stateColor = STATE_COLOR[node.state] || 'var(--text-dim)';
+  const indent = depth * 20;
+  const childRows = (node.children || []).map(c => renderCostNode(c, depth + 1)).join('');
+  return `
+    <div class="ct-node" style="margin-left:${indent}px">
+      <div class="ct-header">
+        ${depth > 0 ? '<span class="ct-branch">└─</span>' : ''}
+        <span class="ct-id" title="${node.agent_id}">${node.agent_id.slice(0,8)}</span>
+        <span class="ct-state" style="color:${stateColor}">${node.state}</span>
+        <span class="ct-depth">d${node.depth}</span>
+        <span class="ct-tools">${node.tool_calls} calls</span>
+        ${node.violation_count > 0 ? `<span class="ct-violations">${node.violation_count} violations</span>` : ''}
+        <span class="ct-budget-text">$${node.budget_used_usd.toFixed(3)} / $${node.budget_cap_usd.toFixed(2)}</span>
+      </div>
+      <div class="ct-bar-wrap">
+        <div class="ct-bar budget-bar ${barClass}" style="width:${pct}%"></div>
+      </div>
+      ${childRows}
+    </div>`;
+}
+
+function renderCostTree(roots) {
+  const container = document.getElementById('cost-tree-container');
+  const badge = document.getElementById('cost-tree-badge');
+  const total = countNodes(roots);
+  badge.textContent = total;
+  if (!roots.length) {
+    container.innerHTML = '<div class="empty-state">No agents tracked yet</div>';
+    return;
+  }
+  container.innerHTML = roots.map(r => renderCostNode(r, 0)).join('');
+}
+
+function countNodes(nodes) {
+  return nodes.reduce((acc, n) => acc + 1 + countNodes(n.children || []), 0);
+}
+
+fetchCostTree();
+setInterval(fetchCostTree, 15000);

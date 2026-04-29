@@ -13,6 +13,7 @@ import { getBudgetState, listActiveSessions, getRecentAlerts, setSessionStatus, 
 import { sseSubscribers } from "../core/events";
 import { registerSystemRoutes } from "./routes/system";
 import { registerForjaRoutes, emitSense } from "./routes/forja";
+import { listTenants, getTenantConfig, saveTenantConfig, deleteTenant, ensureTenant, extractTenantId } from "../core/tenant";
 
 const config = loadConfig();
 const app = Fastify({ logger: false });
@@ -311,6 +312,72 @@ app.post("/api/approvals/webhook", async (req, reply) => {
   const opts = { dual_control: config.kavach?.dual_control_enabled ?? false, require_different_approvers: config.kavach?.dual_control_require_different_approvers ?? false };
   const updated = decideKavachApproval(approval_id, decision.toUpperCase() as any, from ?? "webhook", opts);
   return { ok: updated, id: approval_id, decision: decision.toUpperCase() };
+});
+
+// --- [EE] Multi-Tenant API (@rule:KAV-071, KAV-072, KAV-073) ---
+
+app.get("/api/v1/tenants", async () => ({ tenants: listTenants() }));
+
+app.get("/api/v1/tenants/:id", async (req, reply) => {
+  const { id } = req.params as { id: string };
+  try { return getTenantConfig(id); }
+  catch { return reply.code(404).send({ error: "tenant not found" }); }
+});
+
+app.post("/api/v1/tenants", async (req, reply) => {
+  const body = req.body as { tenant_id?: string; display_name?: string } & Record<string, unknown>;
+  const tid = (body?.tenant_id || "").replace(/[^a-zA-Z0-9\-_]/g, "").slice(0, 64);
+  if (!tid) return reply.code(400).send({ error: "tenant_id required (alphanumeric, hyphen, underscore)" });
+  const cfg = ensureTenant(tid);
+  if (body.display_name) { cfg.display_name = String(body.display_name).slice(0, 100); saveTenantConfig(cfg); }
+  return { ok: true, tenant: cfg };
+});
+
+app.put("/api/v1/tenants/:id", async (req, reply) => {
+  const { id } = req.params as { id: string };
+  const body = req.body as Partial<ReturnType<typeof getTenantConfig>>;
+  try {
+    const cfg = getTenantConfig(id);
+    const updated = { ...cfg, ...body, tenant_id: id }; // prevent tenant_id override
+    saveTenantConfig(updated);
+    return { ok: true, tenant: updated };
+  } catch { return reply.code(404).send({ error: "tenant not found" }); }
+});
+
+app.delete("/api/v1/tenants/:id", async (req, reply) => {
+  const { id } = req.params as { id: string };
+  const ok = deleteTenant(id);
+  if (!ok) return reply.code(400).send({ error: "Cannot delete default tenant or tenant not found" });
+  return { ok: true };
+});
+
+// [EE] PRAMANA receipts API (@rule:KAV-046)
+import { listReceipts, verifyReceipt, getChainIntegrity } from "../kavach/pramana-receipts";
+
+app.get("/api/v1/pramana/:sessionId/receipts", async (req) => {
+  const { sessionId } = req.params as { sessionId: string };
+  return { receipts: listReceipts(sessionId) };
+});
+
+app.get("/api/v1/pramana/:sessionId/integrity", async (req) => {
+  const { sessionId } = req.params as { sessionId: string };
+  return getChainIntegrity(sessionId);
+});
+
+app.post("/api/v1/pramana/verify", async (req, reply) => {
+  const receipt = req.body as Parameters<typeof verifyReceipt>[0];
+  if (!receipt?.receipt_id) return reply.code(400).send({ error: "receipt body required" });
+  return verifyReceipt(receipt);
+});
+
+// [EE] HanumanG posture report API (@rule:KAV-015)
+import { getSessionPosture } from "../shield/hanumang-ee";
+
+app.get("/api/v1/hanumang/:sessionId/posture", async (req) => {
+  const { sessionId } = req.params as { sessionId: string };
+  const posture = getSessionPosture(sessionId);
+  if (!posture) return { posture_level: "GREEN", score: 100, total_spawns: 0, message: "No spawn history for session" };
+  return posture;
 });
 
 // Start

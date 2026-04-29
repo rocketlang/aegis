@@ -135,6 +135,14 @@ function initSchema(db: Database): void {
   try { db.exec(`ALTER TABLE agents ADD COLUMN tools_declared INTEGER DEFAULT 0`); } catch {}
   try { db.exec(`ALTER TABLE agents ADD COLUMN stop_requested INTEGER DEFAULT 0`); } catch {}
   try { db.exec(`ALTER TABLE agents ADD COLUMN budget_pool_reserved REAL DEFAULT 0`); } catch {}
+  // @rule:KAV-071 multi-tenant isolation — add tenant_id to all scoped tables
+  try { db.exec(`ALTER TABLE agents ADD COLUMN tenant_id TEXT NOT NULL DEFAULT 'default'`); } catch {}
+  try { db.exec(`ALTER TABLE kavach_approvals ADD COLUMN tenant_id TEXT NOT NULL DEFAULT 'default'`); } catch {}
+  try { db.exec(`ALTER TABLE alerts ADD COLUMN tenant_id TEXT NOT NULL DEFAULT 'default'`); } catch {}
+  try { db.exec(`ALTER TABLE sessions ADD COLUMN tenant_id TEXT NOT NULL DEFAULT 'default'`); } catch {}
+  try { db.exec(`CREATE INDEX IF NOT EXISTS idx_agents_tenant ON agents(tenant_id)`); } catch {}
+  try { db.exec(`CREATE INDEX IF NOT EXISTS idx_approvals_tenant ON kavach_approvals(tenant_id)`); } catch {}
+  try { db.exec(`CREATE INDEX IF NOT EXISTS idx_alerts_tenant ON alerts(tenant_id)`); } catch {}
 }
 
 // --- Dashboard access (KAV-066 — hosted-service detection) ---
