@@ -115,6 +115,20 @@ export function getProfile(sessionId: string): StoredProfile | null {
   ).get(sessionId) ?? null;
 }
 
+// @rule:KOS-031 profile show — look up by agent_id (most recent session) or session_id
+export function getProfileForAgent(agentId: string, sessionId: string | null): StoredProfile | null {
+  ensureKernelSchema();
+  const db = getDb();
+  if (sessionId) {
+    return db.query<StoredProfile, [string, string]>(
+      "SELECT * FROM kernel_profiles WHERE agent_id = ? AND session_id = ? ORDER BY stored_at DESC LIMIT 1",
+    ).get(agentId, sessionId) ?? null;
+  }
+  return db.query<StoredProfile, [string]>(
+    "SELECT * FROM kernel_profiles WHERE agent_id = ? ORDER BY stored_at DESC LIMIT 1",
+  ).get(agentId) ?? null;
+}
+
 // @rule:KOS-012 drift detection — stored hash vs recomputed hash
 export function checkProfileDrift(sessionId: string): ProfileDriftEvent | null {
   const stored = getProfile(sessionId);
@@ -147,7 +161,7 @@ export function recordKernelReceipt(
   receiptId: string,
   sessionId: string,
   agentId: string | null,
-  eventType: "SECCOMP_BLOCK" | "FALCO_ALERT" | "PROFILE_DRIFT",
+  eventType: "SECCOMP_BLOCK" | "FALCO_ALERT" | "PROFILE_DRIFT" | "RATE_EXCEEDED",
   details: {
     syscall?: string;
     falco_rule?: string;

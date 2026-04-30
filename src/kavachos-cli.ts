@@ -6,13 +6,16 @@
 // kavachos <command> [options]
 //
 // Commands:
-//   run <agent> [args]     Launch agent under seccomp + Falco governance
-//   generate               Generate profile only (no exec)
-//   audit [session-id]     Verify profile hash + receipt chain
-//   rules                  Print Falco rules for a domain
-//   version                Print version
+//   run <agent> [args]           Launch agent under seccomp + Falco governance
+//   generate                     Generate profile only (no exec)
+//   profile show <agent-id>      Display active seccomp profile + gate valve state
+//   audit [session-id]           Verify profile hash + receipt chain
+//   rules                        Print Falco rules for a domain
+//   init                         Write .kavachos.json config in project root
+//   version                      Print version
 
 const command = Bun.argv[2] || "help";
+const subCommand = Bun.argv[3];
 const args = Bun.argv.slice(3);
 
 async function main() {
@@ -22,14 +25,21 @@ async function main() {
     case "generate":
     case "gen":
       return cmdGenerate(args);
+    case "profile":
+      if (subCommand === "show") return cmdProfileShow(Bun.argv.slice(4));
+      console.error(`Unknown profile sub-command: ${subCommand}. Try: kavachos profile show <agent-id>`);
+      process.exit(1);
+      break;
     case "audit":
       return cmdAudit(args);
     case "rules":
       return cmdRules(args);
+    case "init":
+      return cmdInit(args);
     case "version":
     case "--version":
     case "-v":
-      console.log("kavachos 1.0.0 (KavachOS KERNEL — Phase 1)");
+      console.log("kavachos 2.0.0 (KavachOS KERNEL — xShieldAI Posture Suite)");
       console.log("AGPL-3.0 · DOI 10.5281/zenodo.19908430");
       break;
     case "help":
@@ -149,6 +159,128 @@ async function cmdRules(args: string[]) {
   }
 }
 
+// kavachos profile show <agent-id> [--session <session-id>] [--json]
+// @rule:KOS-031 display active seccomp profile + current gate valve state
+async function cmdProfileShow(args: string[]) {
+  const { getProfileForAgent } = await import("./kernel/profile-store");
+  const { listSessions } = await import("./kernel/audit");
+
+  const jsonFlag = args.includes("--json");
+  const sessionFlag = args.find((a) => a.startsWith("--session="))?.split("=")[1]
+    ?? args[args.indexOf("--session") + 1];
+  const agentId = args.find((a) => !a.startsWith("--")) ?? null;
+
+  if (!agentId) {
+    // No agent-id: list all sessions with profile hashes
+    const sessions = listSessions();
+    if (sessions.length === 0) {
+      console.log("No governed sessions found in aegis.db");
+      return;
+    }
+    if (jsonFlag) {
+      console.log(JSON.stringify(sessions, null, 2));
+    } else {
+      console.log(`\nKavachOS profiles (${sessions.length} sessions):\n`);
+      for (const s of sessions) {
+        console.log(
+          `  ${s.session_id.padEnd(28)}  domain=${s.domain.padEnd(12)}` +
+          `  trust=0x${s.trust_mask.toString(16).padStart(8, "0")}` +
+          `  syscalls=${s.syscall_count}  hash=${s.profile_hash?.slice(0, 12) ?? "n/a"}...`
+        );
+      }
+    }
+    return;
+  }
+
+  const profile = getProfileForAgent(agentId, sessionFlag ?? null);
+  if (!profile) {
+    console.error(`No profile found for agent-id="${agentId}"${sessionFlag ? ` session="${sessionFlag}"` : ""}`);
+    process.exit(1);
+  }
+
+  // Gate valve state from aegis.db — readValve returns a default OPEN record if not found
+  const { readValve } = await import("./kavach/gate-valve");
+  const valveState = readValve(agentId);
+
+  if (jsonFlag) {
+    console.log(JSON.stringify({ profile, valve_state: valveState }, null, 2));
+    return;
+  }
+
+  const kv = profile._kavachos ?? {};
+  console.log(`\nKavachOS Profile — agent: ${agentId}`);
+  console.log(`  session_id:   ${profile._session_id ?? sessionFlag ?? "n/a"}`);
+  console.log(`  domain:       ${kv.domain ?? "n/a"}`);
+  console.log(`  trust_mask:   0x${(kv.trust_mask ?? 0).toString(16).padStart(8, "0")}`);
+  console.log(`  syscalls:     ${profile.syscalls?.[0]?.names?.length ?? 0}`);
+  console.log(`  k_seal:       ${kv.k_seal ?? "n/a"}`);
+  console.log(`  generated_at: ${kv.generated_at ?? "n/a"}`);
+  console.log(`  default:      ${profile.defaultAction}`);
+  console.log(`\nGate valve state:`);
+  const icon = valveState.state === "OPEN" ? "✅" : valveState.state === "THROTTLED" ? "⚠️" : valveState.state === "CRACKED" ? "🟠" : "🔴";
+  console.log(`  ${icon} ${valveState.state}  violations=${valveState.violation_count}  reason="${valveState.narrowed_reason ?? "none"}"`);
+  if (valveState.state !== "OPEN") {
+    console.log(`  narrowed_at: ${valveState.narrowed_at ?? "n/a"}  locked_by: ${valveState.locked_by ?? "n/a"}`);
+  }
+}
+
+// kavachos init [--domain=<d>] [--trust-mask=<N>] [--agent-type=<t>] [--force]
+// @rule:KOS-033 write .kavachos.json in project root, register agent types + domains
+async function cmdInit(args: string[]) {
+  const { existsSync, writeFileSync } = await import("fs");
+  const { resolve } = await import("path");
+
+  const configPath = resolve(process.cwd(), ".kavachos.json");
+  const force = args.includes("--force");
+
+  if (existsSync(configPath) && !force) {
+    console.error(`.kavachos.json already exists (use --force to overwrite): ${configPath}`);
+    process.exit(1);
+  }
+
+  const domain = parseDomain(args);
+  const trustMask = parseTrustMask(args);
+  const agentType = args.find((a) => a.startsWith("--agent-type="))?.split("=")[1] ?? "claude-code";
+
+  const config = {
+    kavachos_version: "2.0.0",
+    schema: "kavachos-config-v1",
+    project: {
+      name: resolve(process.cwd()).split("/").pop() ?? "unnamed",
+      domain,
+    },
+    agents: [
+      {
+        id: agentType,
+        type: agentType,
+        trust_mask: trustMask,
+        domain,
+        description: `Default agent for ${domain} domain`,
+      },
+    ],
+    enforcement: {
+      default_action: "SCMP_ACT_ERRNO",
+      falco_enabled: false,
+      verbose: false,
+    },
+    xshieldai: {
+      posture_suite: "KavachOS",
+      homepage: "https://kavachos.xshieldai.com",
+      license: "AGPL-3.0",
+    },
+    _generated_at: new Date().toISOString(),
+    _rule_ref: "KOS-033",
+  };
+
+  writeFileSync(configPath, JSON.stringify(config, null, 2));
+  console.log(`\nKavachOS initialized: ${configPath}`);
+  console.log(`  domain:     ${domain}`);
+  console.log(`  trust_mask: 0x${trustMask.toString(16).padStart(8, "0")}`);
+  console.log(`  agent_type: ${agentType}`);
+  console.log(`\nNext: kavachos run <your-agent> --domain=${domain} --trust-mask=0x${trustMask.toString(16)}`);
+  console.log(`      kavachos profile show  (after first run)`);
+}
+
 // --- option parsers ---
 
 function parseRunOpts(args: string[]) {
@@ -185,37 +317,47 @@ function outFile(base: string, ext: string): string {
 function printHelp() {
   console.log(`
 kavachos — KavachOS kernel enforcement CLI
-Version 1.0.0 | AGPL-3.0 | DOI 10.5281/zenodo.19908430
+Part of the xShieldAI Posture Suite · kavachos.xshieldai.com
+Version 2.0.0 | AGPL-3.0 | DOI 10.5281/zenodo.19908430
 
 Usage: kavachos <command> [options]
 
 Commands:
-  run <binary> [args]    Launch agent under seccomp-bpf governance (KOS-011)
-  generate               Generate seccomp profile + Falco rules without exec
-  audit [session-id]     Verify profile hash + PRAMANA receipt chain (KOS-012)
-  rules                  Print domain-specific Falco rules
-  version                Print version
+  run <binary> [args]        Launch agent under seccomp-bpf governance (KOS-011)
+  generate                   Generate seccomp profile + Falco rules without exec
+  profile show [agent-id]    Show active seccomp profile + gate valve state (KOS-031)
+  audit [session-id]         Verify profile hash + PRAMANA receipt chain (KOS-012)
+  rules                      Print domain-specific Falco rules
+  init                       Write .kavachos.json config in project root (KOS-033)
+  version                    Print version
 
 Options for run / generate:
-  --trust-mask=<N>       trust_mask value (hex or decimal, default: 1)
-  --domain=<name>        Domain: general|maritime|logistics|ot|finance (default: general)
-  --agent-type=<name>    Agent type label (default: claude-code)
-  --session-id=<id>      Override session ID
-  --agent-id=<id>        Agent ID for receipt chain linkage
-  --falco                Write Falco rules file alongside seccomp profile
-  --dry-run              Generate profile only, do not exec
-  --verbose / -v         Verbose kernel messages on stderr
-  --json                 Output JSON (generate/rules/audit)
-  --out=<path>           Write profile + rules to files (generate only)
+  --trust-mask=<N>           trust_mask value (hex or decimal, default: 1)
+  --domain=<name>            Domain: general|maritime|logistics|ot|finance (default: general)
+  --agent-type=<name>        Agent type label (default: claude-code)
+  --session-id=<id>          Override session ID
+  --agent-id=<id>            Agent ID for receipt chain linkage
+  --falco                    Write Falco rules file alongside seccomp profile
+  --dry-run                  Generate profile only, do not exec
+  --verbose / -v             Verbose kernel messages on stderr
+  --json                     Output JSON (generate/rules/audit/profile)
+  --out=<path>               Write profile + rules to files (generate only)
 
-Options for audit:
-  --all                  List all sessions with their audit status
+Options for audit / profile show:
+  --all                      List all sessions (audit) / all profiles (profile show)
+  --session=<id>             Filter profile show by session ID
+
+Options for init:
+  --force                    Overwrite existing .kavachos.json
 
 Examples:
+  kavachos init --domain=maritime --trust-mask=0xFF
   kavachos run claude --trust-mask=0xFF --domain=general --verbose
-  kavachos run bun src/my-agent.ts --trust-mask=0x00FF0000 --domain=maritime
+  kavachos run bun src/my-agent.ts --trust-mask=0x00FF0000 --domain=maritime --falco
   kavachos generate --trust-mask=255 --domain=logistics --json
   kavachos generate --trust-mask=0 --domain=general --out=/tmp/minimal
+  kavachos profile show agent-123
+  kavachos profile show
   kavachos audit KOS-A1B2C3
   kavachos audit --all
   kavachos rules --domain=maritime --trust-mask=0x0000FF00
@@ -224,6 +366,8 @@ Rules:
   KOS-011: This CLI is the only approved path for governed agent launch
   KOS-010: Profiles are generated deterministically — never hand-written
   KOS-012: Profile drift = security incident
+  KOS-031: profile show = live posture view for any governed agent
+  KOS-033: init = project-level config, registers agent types + domains
   INF-KOS-001: trust_mask=0 → read-only minimal profile
   INF-KOS-007: --domain absent → trust_mask=1 → minimal safe profile
 `);
