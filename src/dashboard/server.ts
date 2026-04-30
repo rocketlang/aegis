@@ -13,7 +13,44 @@ import { getBudgetState, listActiveSessions, getRecentAlerts, setSessionStatus, 
 import { sseSubscribers } from "../core/events";
 import { registerSystemRoutes } from "./routes/system";
 import { registerForjaRoutes, emitSense } from "./routes/forja";
-import { listTenants, getTenantConfig, saveTenantConfig, deleteTenant, ensureTenant, extractTenantId } from "../core/tenant";
+// [EE] Multi-tenant — graceful degradation when EE not licensed
+import { isEE, eeStatus } from "../../ee/license";
+type _TenantMod = typeof import("../../ee/core/tenant");
+let _listTenants: _TenantMod["listTenants"] = () => [];
+let _getTenantConfig: _TenantMod["getTenantConfig"] | null = null;
+let _saveTenantConfig: _TenantMod["saveTenantConfig"] = () => {};
+let _deleteTenant: _TenantMod["deleteTenant"] = () => false;
+let _ensureTenant: _TenantMod["ensureTenant"] | null = null;
+let _extractTenantId: _TenantMod["extractTenantId"] = () => "default";
+try {
+  const tm = require("../../ee/core/tenant") as _TenantMod;
+  _listTenants = tm.listTenants;
+  _getTenantConfig = tm.getTenantConfig;
+  _saveTenantConfig = tm.saveTenantConfig;
+  _deleteTenant = tm.deleteTenant;
+  _ensureTenant = tm.ensureTenant;
+  _extractTenantId = tm.extractTenantId;
+} catch { /* EE not available — OSS stubs active */ }
+
+// [EE] PRAMANA receipts — graceful degradation when EE not licensed
+type _PramanaMod = typeof import("../../ee/kavach/pramana-receipts");
+let _listReceipts: _PramanaMod["listReceipts"] = () => [];
+let _verifyReceipt: _PramanaMod["verifyReceipt"] = () => ({ valid: false, reason: "EE_NOT_LICENSED" });
+let _getChainIntegrity: _PramanaMod["getChainIntegrity"] = () => ({ intact: false, receipt_count: 0, broken_at: "EE_NOT_LICENSED" });
+try {
+  const pm = require("../../ee/kavach/pramana-receipts") as _PramanaMod;
+  _listReceipts = pm.listReceipts;
+  _verifyReceipt = pm.verifyReceipt;
+  _getChainIntegrity = pm.getChainIntegrity;
+} catch { /* EE not available */ }
+
+// [EE] HanumanG EE posture — graceful degradation when EE not licensed
+type _HanumanGMod = typeof import("../../ee/shield/hanumang-ee");
+let _getSessionPosture: _HanumanGMod["getSessionPosture"] = () => null;
+try {
+  const hm = require("../../ee/shield/hanumang-ee") as _HanumanGMod;
+  _getSessionPosture = hm.getSessionPosture;
+} catch { /* EE not available */ }
 
 const config = loadConfig();
 const app = Fastify({ logger: false });
@@ -51,7 +88,7 @@ app.addHook("onRequest", async (req) => {
 });
 
 // Simple health check (no auth)
-app.get("/health", async () => ({ status: "ok", service: "aegis-dashboard" }));
+app.get("/health", async () => ({ status: "ok", service: "aegis-dashboard", ee: eeStatus() }));
 
 app.register(fastifyStatic, {
   root: join(import.meta.dir, "static"),
@@ -316,66 +353,75 @@ app.post("/api/approvals/webhook", async (req, reply) => {
 
 // --- [EE] Multi-Tenant API (@rule:KAV-071, KAV-072, KAV-073) ---
 
-app.get("/api/v1/tenants", async () => ({ tenants: listTenants() }));
+app.get("/api/v1/tenants", async (_, reply) => {
+  if (!isEE()) return reply.code(402).send({ error: "EE_NOT_LICENSED", feature: "multi-tenant" });
+  return { tenants: _listTenants() };
+});
 
 app.get("/api/v1/tenants/:id", async (req, reply) => {
+  if (!isEE() || !_getTenantConfig) return reply.code(402).send({ error: "EE_NOT_LICENSED", feature: "multi-tenant" });
   const { id } = req.params as { id: string };
-  try { return getTenantConfig(id); }
+  try { return _getTenantConfig(id); }
   catch { return reply.code(404).send({ error: "tenant not found" }); }
 });
 
 app.post("/api/v1/tenants", async (req, reply) => {
+  if (!isEE() || !_ensureTenant) return reply.code(402).send({ error: "EE_NOT_LICENSED", feature: "multi-tenant" });
   const body = req.body as { tenant_id?: string; display_name?: string } & Record<string, unknown>;
   const tid = (body?.tenant_id || "").replace(/[^a-zA-Z0-9\-_]/g, "").slice(0, 64);
   if (!tid) return reply.code(400).send({ error: "tenant_id required (alphanumeric, hyphen, underscore)" });
-  const cfg = ensureTenant(tid);
-  if (body.display_name) { cfg.display_name = String(body.display_name).slice(0, 100); saveTenantConfig(cfg); }
+  const cfg = _ensureTenant(tid);
+  if (body.display_name) { cfg.display_name = String(body.display_name).slice(0, 100); _saveTenantConfig(cfg); }
   return { ok: true, tenant: cfg };
 });
 
 app.put("/api/v1/tenants/:id", async (req, reply) => {
+  if (!isEE() || !_getTenantConfig) return reply.code(402).send({ error: "EE_NOT_LICENSED", feature: "multi-tenant" });
   const { id } = req.params as { id: string };
-  const body = req.body as Partial<ReturnType<typeof getTenantConfig>>;
+  const body = req.body as Record<string, unknown>;
   try {
-    const cfg = getTenantConfig(id);
-    const updated = { ...cfg, ...body, tenant_id: id }; // prevent tenant_id override
-    saveTenantConfig(updated);
+    const cfg = _getTenantConfig(id);
+    const updated = { ...cfg, ...body, tenant_id: id };
+    _saveTenantConfig(updated);
     return { ok: true, tenant: updated };
   } catch { return reply.code(404).send({ error: "tenant not found" }); }
 });
 
 app.delete("/api/v1/tenants/:id", async (req, reply) => {
+  if (!isEE()) return reply.code(402).send({ error: "EE_NOT_LICENSED", feature: "multi-tenant" });
   const { id } = req.params as { id: string };
-  const ok = deleteTenant(id);
+  const ok = _deleteTenant(id);
   if (!ok) return reply.code(400).send({ error: "Cannot delete default tenant or tenant not found" });
   return { ok: true };
 });
 
 // [EE] PRAMANA receipts API (@rule:KAV-046)
-import { listReceipts, verifyReceipt, getChainIntegrity } from "../kavach/pramana-receipts";
 
-app.get("/api/v1/pramana/:sessionId/receipts", async (req) => {
+app.get("/api/v1/pramana/:sessionId/receipts", async (req, reply) => {
+  if (!isEE()) return reply.code(402).send({ error: "EE_NOT_LICENSED", feature: "pramana-receipts" });
   const { sessionId } = req.params as { sessionId: string };
-  return { receipts: listReceipts(sessionId) };
+  return { receipts: _listReceipts(sessionId) };
 });
 
-app.get("/api/v1/pramana/:sessionId/integrity", async (req) => {
+app.get("/api/v1/pramana/:sessionId/integrity", async (req, reply) => {
+  if (!isEE()) return reply.code(402).send({ error: "EE_NOT_LICENSED", feature: "pramana-receipts" });
   const { sessionId } = req.params as { sessionId: string };
-  return getChainIntegrity(sessionId);
+  return _getChainIntegrity(sessionId);
 });
 
 app.post("/api/v1/pramana/verify", async (req, reply) => {
-  const receipt = req.body as Parameters<typeof verifyReceipt>[0];
+  if (!isEE()) return reply.code(402).send({ error: "EE_NOT_LICENSED", feature: "pramana-receipts" });
+  const receipt = req.body as any;
   if (!receipt?.receipt_id) return reply.code(400).send({ error: "receipt body required" });
-  return verifyReceipt(receipt);
+  return _verifyReceipt(receipt);
 });
 
 // [EE] HanumanG posture report API (@rule:KAV-015)
-import { getSessionPosture } from "../shield/hanumang-ee";
 
-app.get("/api/v1/hanumang/:sessionId/posture", async (req) => {
+app.get("/api/v1/hanumang/:sessionId/posture", async (req, reply) => {
+  if (!isEE()) return reply.code(402).send({ error: "EE_NOT_LICENSED", feature: "hanumang-ee" });
   const { sessionId } = req.params as { sessionId: string };
-  const posture = getSessionPosture(sessionId);
+  const posture = _getSessionPosture(sessionId);
   if (!posture) return { posture_level: "GREEN", score: 100, total_spawns: 0, message: "No spawn history for session" };
   return posture;
 });

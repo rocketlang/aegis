@@ -62,17 +62,17 @@ export interface AegisConfig {
     timeout_level2_s: number;
     timeout_level3_s: number;
     timeout_level4_s: number;
-    // [EE] Dual-control for L4 — two humans must ALLOW
-    dual_control_enabled: boolean;
-    dual_control_second_chat_id: string;   // second approver Telegram chat_id
-    dual_control_second_channel: "telegram" | "whatsapp";
-    dual_control_require_different_approvers: boolean; // [EE] enforce two distinct identities
-    // [EE] Slack notification channel
-    slack_enabled: boolean;
-    slack_webhook_url: string | null;
-    slack_channel: string | null;       // optional override — webhook URL usually encodes channel
-    slack_username: string;
-    slack_icon_emoji: string;
+    // [EE] Dual-control for L4 — two humans must ALLOW (ee/core/config-ee.ts)
+    dual_control_enabled?: boolean;
+    dual_control_second_chat_id?: string;
+    dual_control_second_channel?: "telegram" | "whatsapp";
+    dual_control_require_different_approvers?: boolean;
+    // [EE] Slack notification channel (ee/core/config-ee.ts)
+    slack_enabled?: boolean;
+    slack_webhook_url?: string | null;
+    slack_channel?: string | null;
+    slack_username?: string;
+    slack_icon_emoji?: string;
   };
   enforcement: {
     mode: "alert" | "enforce";     // alert = warn only (SAFE DEFAULT); enforce = auto-kill/pause

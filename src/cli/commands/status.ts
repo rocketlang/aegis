@@ -4,6 +4,7 @@
 
 import { loadConfig } from "../../core/config";
 import { getBudgetState, listActiveSessions, getRecentAlerts, getWindowBudget } from "../../core/db";
+import { eeStatus } from "../../../ee/license";
 
 function bar(percent: number, width: number = 30): string {
   const filled = Math.round((percent / 100) * width);
@@ -100,5 +101,6 @@ export default function status(_args: string[]): void {
     }
   }
 
+  console.log(`  \x1b[1mEE:\x1b[0m ${eeStatus()}`);
   console.log();
 }

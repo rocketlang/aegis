@@ -1,13 +1,13 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: BSL-1.1
 // Copyright (c) 2026 Capt. Anil Sharma (rocketlang). All rights reserved.
-// See LICENSE for details.
+// See ee/LICENSE-EE for terms.
 
 // [EE] AEGIS — Slack notification channel
 // Sends Block Kit messages for KAVACH DAN gate interceptions and budget alerts.
 // Slack is read-only: responses must come via the primary channel (Telegram/WhatsApp).
 // @rule:KAV-055 multi-channel delivery
 
-import type { AlertEvent, KavachApproval, AegisConfig } from "../core/types";
+import type { AlertEvent, KavachApproval, AegisConfig } from "../../src/core/types";
 
 const LEVEL_EMOJI: Record<number, string> = { 1: "⚠️", 2: "🔴", 3: "🚨", 4: "☠️" };
 

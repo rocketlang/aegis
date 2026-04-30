@@ -1,6 +1,6 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: BSL-1.1
 // Copyright (c) 2026 Capt. Anil Sharma (rocketlang). All rights reserved.
-// See LICENSE for details.
+// See ee/LICENSE-EE for terms.
 
 // [EE] AEGIS — Multi-Tenant Isolation
 // Scopes all budget, audit, and policy records by tenant_id.
@@ -12,7 +12,7 @@
 
 import { existsSync, mkdirSync, writeFileSync, readFileSync } from "fs";
 import { join } from "path";
-import { getAegisDir } from "./config";
+import { getAegisDir } from "../../src/core/config";
 
 export const DEFAULT_TENANT = "default";
 

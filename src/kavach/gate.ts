@@ -17,7 +17,13 @@ import {
   markKavachNotified, addAlert, getPendingApprovals,
 } from "../core/db";
 import type { KavachLevel, KavachDecision, KavachApproval } from "../core/types";
-import { sendSlackKavach } from "./slack-notifier";
+// [EE] Slack gate notification — no-op when EE not licensed
+type _SendSlackKavachFn = (config: ReturnType<typeof loadConfig>, approval: KavachApproval) => Promise<void>;
+let _sendSlackKavach: _SendSlackKavachFn | null = null;
+try { _sendSlackKavach = (require("../../ee/kavach/slack-notifier") as any).sendSlackKavach; } catch {}
+function sendSlackKavach(config: ReturnType<typeof loadConfig>, approval: KavachApproval): Promise<void> {
+  return _sendSlackKavach?.(config, approval) ?? Promise.resolve();
+}
 
 // --- DAN Level classification (@rule:KAV-052) ---
 

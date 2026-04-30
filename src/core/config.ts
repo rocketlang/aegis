@@ -61,17 +61,7 @@ const DEFAULT_CONFIG: AegisConfig = {
     timeout_level2_s: 300,
     timeout_level3_s: 120,
     timeout_level4_s: 60,
-    // [EE] Dual-control for L4 — two humans must ALLOW
-    dual_control_enabled: false,                      // EE: set true to require two approvers for L4
-    dual_control_second_chat_id: "",                  // EE: second approver's Telegram chat_id
-    dual_control_second_channel: "telegram" as const,
-    dual_control_require_different_approvers: false,  // EE: true = same person can't approve twice
-    // [EE] Slack notification channel
-    slack_enabled: false,
-    slack_webhook_url: process.env.KAVACH_SLACK_WEBHOOK_URL || null,
-    slack_channel: process.env.KAVACH_SLACK_CHANNEL || null,
-    slack_username: "AEGIS",
-    slack_icon_emoji: ":shield:",
+    // [EE] dual_control + slack fields — defaults in ee/core/config-ee.ts
   },
   enforcement: {
     mode: "alert",        // SAFE DEFAULT — never auto-kill. User must opt-in via config.

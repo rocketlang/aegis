@@ -10,7 +10,13 @@ import { addUsage, upsertSession, addToBudget, addAlert, setSessionStatus } from
 import { broadcast } from "../core/events";
 import { SessionWatcher } from "./watcher";
 import { BudgetEnforcer } from "./enforcer";
-import { sendSlackAlert } from "../kavach/slack-notifier";
+// [EE] Slack alerts — no-op when EE not licensed
+type _SendSlackAlertFn = (config: ReturnType<typeof loadConfig>, alert: any) => Promise<void>;
+let _sendSlackAlert: _SendSlackAlertFn | null = null;
+try { _sendSlackAlert = (require("../../ee/kavach/slack-notifier") as any).sendSlackAlert; } catch {}
+function sendSlackAlert(config: ReturnType<typeof loadConfig>, alert: any): Promise<void> {
+  return _sendSlackAlert?.(config, alert) ?? Promise.resolve();
+}
 import type { UsageRecord } from "../core/types";
 
 const config = loadConfig();

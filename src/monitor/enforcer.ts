@@ -8,7 +8,13 @@
 import { loadConfig } from "../core/config";
 import { getBudgetState, addAlert, getDailySpend, getSession, setSessionStatus } from "../core/db";
 import type { UsageRecord, AlertEvent, AegisConfig } from "../core/types";
-import { sendSlackAlert } from "../kavach/slack-notifier";
+// [EE] Slack alerts — no-op when EE not licensed
+type _SendSlackAlertFn = (config: AegisConfig, alert: AlertEvent) => Promise<void>;
+let _sendSlackAlert: _SendSlackAlertFn | null = null;
+try { _sendSlackAlert = (require("../../ee/kavach/slack-notifier") as any).sendSlackAlert; } catch {}
+function sendSlackAlert(config: AegisConfig, alert: AlertEvent): Promise<void> {
+  return _sendSlackAlert?.(config, alert) ?? Promise.resolve();
+}
 
 export type EnforcerEvent = {
   type: "usage" | "alert" | "kill" | "pause";

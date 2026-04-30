@@ -1,6 +1,6 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: BSL-1.1
 // Copyright (c) 2026 Capt. Anil Sharma (rocketlang). All rights reserved.
-// See LICENSE for details.
+// See ee/LICENSE-EE for terms.
 
 // [EE] AEGIS — PRAMANA Audit Receipts
 // Generates tamper-evident audit receipts for every KAVACH governance decision.
@@ -11,7 +11,7 @@
 import { createHash } from "crypto";
 import { existsSync, mkdirSync, writeFileSync, readFileSync } from "fs";
 import { join } from "path";
-import { getAegisDir } from "../core/config";
+import { getAegisDir } from "../../src/core/config";
 
 export type ReceiptVerdict = "ALLOWED" | "BLOCKED" | "QUARANTINED" | "TIMEOUT_BLOCKED" | "DUAL_APPROVED";
 export type ReceiptCategory = "DAN_GATE" | "INJECTION_SHIELD" | "HANUMANG" | "BUDGET_STOP" | "WATCHDOG";

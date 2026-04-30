@@ -1,6 +1,6 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: BSL-1.1
 // Copyright (c) 2026 Capt. Anil Sharma (rocketlang). All rights reserved.
-// See LICENSE for details.
+// See ee/LICENSE-EE for terms.
 
 // [EE] AEGIS Shield — HanumanG Enterprise Edition
 // Extends the 7-axis OSS check with domain registry validation,
@@ -8,8 +8,8 @@
 // @rule:KAV-015 HanumanG delegation chain validation
 // @rule:KAV-YK-008 Domain registry check is EE — validates agent type against known registry
 
-import type { SpawnContext, HanumanGResult } from "./hanumang";
-import { checkHanumanG } from "./hanumang";
+import type { SpawnContext, HanumanGResult } from "../../src/shield/hanumang";
+import { checkHanumanG } from "../../src/shield/hanumang";
 
 export interface AgentRegistryEntry {
   agent_type: string;       // e.g. "data-pipeline", "code-reviewer", "file-manager"
@@ -78,18 +78,15 @@ function checkRegistry(ctx: SpawnContext): HanumanGEEResult["registry_check"] {
 
   const violations: string[] = [];
 
-  // Budget check against registry cap
   if (ctx.child_budget_cap_usd !== undefined && ctx.child_budget_cap_usd > entry.max_budget_usd) {
     violations.push(`Budget $${ctx.child_budget_cap_usd} exceeds registry max $${entry.max_budget_usd} for type '${agent_type}'`);
   }
 
-  // Depth check against registry
   const childDepth = (ctx.parent_depth ?? 0) + 1;
   if (childDepth > entry.max_depth) {
     violations.push(`Depth ${childDepth} exceeds registry max ${entry.max_depth} for type '${agent_type}'`);
   }
 
-  // Tool scope check
   if (ctx.child_tools_requested && ctx.child_tools_requested.length > 0 && !entry.allowed_tools.includes("*")) {
     const excess = ctx.child_tools_requested.filter(t => !entry.allowed_tools.includes(t));
     if (excess.length > 0) {
@@ -105,13 +102,9 @@ export function checkHanumanGEE(
   sessionId: string = "unknown",
   registry?: AgentRegistryEntry[],
 ): HanumanGEEResult {
-  // Run base 7-axis check
   const base = checkHanumanG(ctx);
-
-  // Registry check (EE)
   const registry_check = checkRegistry(ctx);
 
-  // Accumulate posture history
   const hist = sessionHistory.get(sessionId) ?? { passed: 0, blocked: 0, failures: [] };
   const registryFailed = registry_check.registry_violations.length > 0;
   const blocked = !base.passed || registryFailed;
@@ -124,12 +117,10 @@ export function checkHanumanGEE(
   }
   sessionHistory.set(sessionId, hist);
 
-  // Posture score
   const total = hist.passed + hist.blocked;
   const score = total === 0 ? 100 : Math.round((hist.passed / total) * 100);
   const posture_level: HanumanGPostureScore["posture_level"] = score >= 80 ? "GREEN" : score >= 50 ? "AMBER" : "RED";
 
-  // Dominant failure
   const failCounts = hist.failures.reduce((acc, f) => { acc[f] = (acc[f] ?? 0) + 1; return acc; }, {} as Record<string, number>);
   const dominant_failure = Object.keys(failCounts).sort((a, b) => failCounts[b] - failCounts[a])[0] ?? null;
 
@@ -144,7 +135,6 @@ export function checkHanumanGEE(
     report_generated_at: new Date().toISOString(),
   };
 
-  // If registry fails, override passed to false and merge reason
   const finalPassed = base.passed && !registryFailed;
   const finalReason = finalPassed
     ? base.reason

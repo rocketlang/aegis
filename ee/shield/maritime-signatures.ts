@@ -1,13 +1,13 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: BSL-1.1
 // Copyright (c) 2026 Capt. Anil Sharma (rocketlang). All rights reserved.
-// See LICENSE for details.
+// See ee/LICENSE-EE for terms.
 
 // [EE] AEGIS Shield — Maritime Domain Injection Signatures
 // Extends DEFAULT_RULES with OT/maritime-specific attack patterns.
 // Covers NMEA, AIS, Modbus, serial port manipulation, and vessel system attacks.
 // @rule:KAV-020 Domain signatures are EE-only — not in OSS DEFAULT_RULES
 
-import type { ShieldRules } from "./injection-detector";
+import type { ShieldRules } from "../../src/shield/injection-detector";
 
 // Maritime-specific path prefixes for serial/OT access
 export const MARITIME_SENSITIVE_PATHS = [
