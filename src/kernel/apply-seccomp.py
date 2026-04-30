@@ -338,87 +338,88 @@ def run_supervisor(notify_fd: int, agent_pid: int,
                    session_id: str, agent_id: str, domain: str) -> int:
     """
     @rule:KOS-028 supervisor loop — runs in parent process, no seccomp filter.
-    Polls notify_fd for gated syscalls, escalates to Telegram, responds to kernel.
+    Uses poll() so POLLHUP (child exited) is detected cleanly without racing
+    against waitpid(WNOHANG) — the root cause of the POLLHUP infinite-loop bug.
     Returns child exit code.
     """
+    import random, string
+
     config = _read_aegis_config()
     db_path = _aegis_db_path()
-    import random, string
 
     sys.stderr.write(
         f"[kavachos:supervisor] Phase 1D active — agent_pid={agent_pid} "
         f"session={session_id} domain={domain}\n"
     )
 
-    # pending_notifs: notif_id → (pid, nr) — notifications waiting for approval
-    # We process them sequentially to keep Telegram readable
-    pending: dict = {}
+    poller = select.poll()
+    poller.register(notify_fd, select.POLLIN | select.POLLHUP | select.POLLERR)
 
     while True:
-        # poll(notify_fd, 200ms) — interleave with child liveness check
         try:
-            r, _, _ = select.select([notify_fd], [], [], 0.2)
+            events = poller.poll(200)  # 200 ms
         except (ValueError, OSError):
-            break  # notify_fd closed — child exited
+            break  # fd closed externally
 
-        if r:
-            result = _notify_recv(notify_fd)
-            if result is None:
-                # Check if child is still alive
+        for _fd, event in events:
+            if event & (select.POLLHUP | select.POLLERR):
+                # Child exited — collect it (blocking is safe; it's already gone)
                 try:
-                    wpid, wstatus = os.waitpid(agent_pid, os.WNOHANG)
-                    if wpid == agent_pid:
-                        return os.WEXITSTATUS(wstatus)
+                    _, wstatus = os.waitpid(agent_pid, 0)
+                    code = os.WEXITSTATUS(wstatus) if os.WIFEXITED(wstatus) else 1
                 except ChildProcessError:
-                    return 0
-                continue
-
-            notif_id, pid, nr = result
-            syscall = syscall_name(nr)
-            approval_id = "KOS-" + "".join(random.choices(string.hexdigits.upper(), k=8))
-
-            sys.stderr.write(
-                f"[kavachos:supervisor] GATED syscall={syscall} pid={pid} "
-                f"approval={approval_id}\n"
-            )
-
-            # Register + notify (fire-and-forget spawn so supervisor stays responsive)
-            def _escalate(aid=approval_id, sc=syscall, p=pid, nid=notif_id):
-                _create_approval(db_path, aid, session_id, sc, p, domain)
-                msg = _build_notify_message(sc, agent_id, session_id, domain, p, aid)
-                _send_telegram(config, msg, aid)
-                allow = _poll_approval(db_path, aid)
-                verb = "ALLOW" if allow else "DENY"
-                sys.stderr.write(f"[kavachos:supervisor] {verb} {aid} — syscall={sc}\n")
-                _notify_send(notify_fd, nid, allow)
-
-            t = threading.Thread(target=_escalate, daemon=True)
-            t.start()
-
-        # Check if child exited
-        try:
-            wpid, wstatus = os.waitpid(agent_pid, os.WNOHANG)
-            if wpid == agent_pid:
+                    code = 0
                 os.close(notify_fd)
-                return os.WEXITSTATUS(wstatus)
-        except ChildProcessError:
-            os.close(notify_fd)
-            return 0
+                return code
 
-    # Drain remaining notifs as DENY before exit (@rule:KOS-026)
+            if event & select.POLLIN:
+                result = _notify_recv(notify_fd)
+                if result is None:
+                    continue  # ioctl failed (e.g. EINTR) — retry
+
+                notif_id, pid, nr = result
+                syscall = syscall_name(nr)
+                approval_id = "KOS-" + "".join(random.choices(string.hexdigits.upper(), k=8))
+
+                sys.stderr.write(
+                    f"[kavachos:supervisor] GATED syscall={syscall} pid={pid} "
+                    f"approval={approval_id}\n"
+                )
+
+                # Escalate in a daemon thread so the main loop stays responsive
+                # to further notifications or POLLHUP.
+                def _escalate(aid=approval_id, sc=syscall, p=pid, nid=notif_id):
+                    _create_approval(db_path, aid, session_id, sc, p, domain)
+                    msg = _build_notify_message(sc, agent_id, session_id, domain, p, aid)
+                    _send_telegram(config, msg, aid)
+                    allow = _poll_approval(db_path, aid)
+                    verb = "ALLOW" if allow else "DENY"
+                    sys.stderr.write(f"[kavachos:supervisor] {verb} {aid} — syscall={sc}\n")
+                    _notify_send(notify_fd, nid, allow)
+
+                threading.Thread(target=_escalate, daemon=True).start()
+
+        if not events:
+            # Timeout — backup liveness check in case POLLHUP was missed
+            try:
+                wpid, wstatus = os.waitpid(agent_pid, os.WNOHANG)
+                if wpid == agent_pid:
+                    os.close(notify_fd)
+                    return os.WEXITSTATUS(wstatus) if os.WIFEXITED(wstatus) else 1
+            except ChildProcessError:
+                os.close(notify_fd)
+                return 0
+
+    # Unreachable in normal operation — belt-and-suspenders cleanup
     try:
-        r, _, _ = select.select([notify_fd], [], [], 0.0)
-        if r:
-            result = _notify_recv(notify_fd)
-            if result:
-                notif_id, _, _ = result
-                _notify_send(notify_fd, notif_id, False)
-    except Exception:
+        os.close(notify_fd)
+    except OSError:
         pass
-
-    os.close(notify_fd)
-    _, wstatus = os.waitpid(agent_pid, 0)
-    return os.WEXITSTATUS(wstatus)
+    try:
+        _, wstatus = os.waitpid(agent_pid, os.WNOHANG)
+        return os.WEXITSTATUS(wstatus) if os.WIFEXITED(wstatus) else 1
+    except ChildProcessError:
+        return 0
 
 # ── Profile context builder ────────────────────────────────────────────────────
 

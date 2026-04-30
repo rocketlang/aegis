@@ -40,9 +40,12 @@ export function generateSeccompProfile(
 ): ProfileGenerationResult {
   const syscalls = buildSyscallSet(trustMask, domain);
 
-  // @rule:KOS-028 NOTIFY tier: syscalls not already ALLOWed that the supervisor will gate
+  // @rule:KOS-028 NOTIFY tier: only for trust_mask > 0 (read-only agents cannot expand)
+  // Filter to syscalls not already in the ALLOW set for this trust_mask.
   const allowSet = new Set(syscalls);
-  const notifySyscalls = NOTIFY_SYSCALLS.filter((s) => !allowSet.has(s));
+  const notifySyscalls = trustMask > 0
+    ? NOTIFY_SYSCALLS.filter((s) => !allowSet.has(s))
+    : [];
 
   // K-seal: SHA-256 of the sorted syscall list (the canonical policy fingerprint)
   const kSeal = createHash("sha256").update(syscalls.sort().join(",")).digest("hex");
