@@ -9,6 +9,7 @@ import { parseFalcoEvent, sealKernelViolation, checkViolationRate } from "./kern
 import { getReceiptChain } from "./profile-store";
 import { broadcast } from "../core/events";
 import { recordViolation } from "../kavach/gate-valve";
+import { requestKernelApproval, notifyAutoBlock, syscallToPlain } from "./kernel-notifier";
 
 export interface FalcoWatchOptions {
   rulesPath: string;
@@ -102,23 +103,53 @@ export function startFalcoWatch(opts: FalcoWatchOptions): FalcoWatcher {
       if (opts.agentId) {
         const reason = `Falco: ${violation.falco_rule ?? "unknown rule"}`;
         if (violation.severity === "CRITICAL") {
-          // Critical Falco alert (e.g. unexpected shell exec) → hard lock
-          const { lockValve } = require("../kavach/gate-valve");
-          lockValve(opts.agentId, reason, "kavachos-falco");
-          broadcast("kavach.kernel.agent_locked", {
-            agent_id: opts.agentId,
-            reason,
+          // Tier 3: ALLOW/STOP via Telegram, agent waits — then lock if STOP
+          // @rule:KOS-025 Tier 3 — CRITICAL Falco = human must decide
+          const syscallPlain = violation.syscall
+            ? `The agent tried to ${syscallToPlain(violation.syscall)}.`
+            : `The agent triggered a suspicious kernel action.`;
+          requestKernelApproval({
+            tier: 3,
             session_id: opts.sessionId,
+            agent_id: opts.agentId ?? null,
+            domain: "unknown",
+            trigger: "falco_critical",
+            plain_summary: `${syscallPlain} This is outside expected behaviour for this agent.`,
+            technical_detail: `Falco rule: "${violation.falco_rule ?? "unknown"}" | syscall: ${violation.syscall ?? "n/a"} | details: ${violation.violation_details ?? "n/a"}`,
+            falco_rule: violation.falco_rule ?? undefined,
+            syscall: violation.syscall ?? undefined,
+            severity: violation.severity,
+          }).then((decision) => {
+            if (decision === "STOP") {
+              const { lockValve } = require("../kavach/gate-valve");
+              lockValve(opts.agentId, reason, "kavachos-falco");
+              broadcast("kavach.kernel.agent_locked", {
+                agent_id: opts.agentId,
+                reason,
+                session_id: opts.sessionId,
+              });
+            }
+            // ALLOW: gate valve stays open, incident is logged
+            broadcast("kavach.kernel.critical_decision", {
+              agent_id: opts.agentId,
+              decision,
+              reason,
+              session_id: opts.sessionId,
+            });
+          }).catch(() => {
+            // Notification delivery failed — fail safe: lock the agent
+            const { lockValve } = require("../kavach/gate-valve");
+            lockValve(opts.agentId, `${reason} (notify failed — auto-lock)`, "kavachos-falco");
           });
           if (opts.verbose) {
-            process.stderr.write(`[kavachos:falco] CRITICAL → agent ${opts.agentId} LOCKED\n`);
+            process.stderr.write(`[kavachos:falco] CRITICAL → Telegram ALLOW/STOP sent for ${opts.agentId}\n`);
           }
         } else {
           recordViolation(opts.agentId, reason);
         }
       }
 
-      // @rule:INF-KOS-002 rate exceeded → emit critical event
+      // @rule:INF-KOS-002 rate exceeded → Tier 3 ALLOW/STOP (possible exfil)
       const chain = getReceiptChain(opts.sessionId);
       if (checkViolationRate(chain)) {
         sealKernelViolation({
@@ -133,8 +164,24 @@ export function startFalcoWatch(opts: FalcoWatchOptions): FalcoWatcher {
           session_id: opts.sessionId,
           agent_id: opts.agentId ?? null,
         });
+        // @rule:KOS-025 Tier 3 — rate spike is an anomaly, human decides
+        requestKernelApproval({
+          tier: 3,
+          session_id: opts.sessionId,
+          agent_id: opts.agentId ?? null,
+          domain: "unknown",
+          trigger: "rate_exceeded",
+          plain_summary: "The agent triggered more than 5 security violations in one minute. This pattern can indicate a slow data leak attempt.",
+          technical_detail: `Violation rate >5/min for session ${opts.sessionId}. Receipt chain: ${chain.length} events.`,
+          severity: "CRITICAL",
+        }).then((decision) => {
+          if (decision === "STOP" && opts.agentId) {
+            const { lockValve } = require("../kavach/gate-valve");
+            lockValve(opts.agentId, "Violation rate exceeded — human STOP", "kavachos-falco");
+          }
+        }).catch(() => {});
         if (opts.verbose) {
-          process.stderr.write(`[kavachos:falco] RATE_EXCEEDED for session ${opts.sessionId}\n`);
+          process.stderr.write(`[kavachos:falco] RATE_EXCEEDED → Telegram ALLOW/STOP sent\n`);
         }
       }
 

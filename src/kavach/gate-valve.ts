@@ -184,6 +184,25 @@ export function crackValve(agentId: string, reason: string): GateValveRecord {
   record.narrowed_reason = reason;
   writeValve(record);
   process.stderr.write(`[KAVACH:valve] ${agentId} → CRACKED — ${reason}\n`);
+
+  // @rule:KOS-025 Tier 3 — CRACKED = 3+ violations, human decides ALLOW (continue) or STOP
+  import("../kernel/kernel-notifier").then(({ requestKernelApproval }) => {
+    requestKernelApproval({
+      tier: 3,
+      session_id: agentId,
+      agent_id: agentId,
+      domain: "unknown",
+      trigger: "valve_cracked",
+      plain_summary: `Agent ${agentId} has triggered 3 or more violations. It is now running in restricted mode (no new processes, no shell commands). Decide whether to let it continue or stop it.`,
+      technical_detail: `Gate valve → CRACKED. Reason: ${reason}. SPAWN_AGENTS + EXEC_BASH bits cleared from effective_perm_mask.`,
+    }).then((decision) => {
+      if (decision === "STOP") {
+        closeValve(agentId, "Human STOP after CRACKED notification");
+      }
+      // ALLOW: agent continues in CRACKED mode (restricted but running)
+    });
+  }).catch(() => {});
+
   return record;
 }
 
@@ -221,6 +240,19 @@ export function lockValve(agentId: string, reason: string, lockedBy = "system"):
   record.quarantine_flag = true;
   writeValve(record);
   process.stderr.write(`[KAVACH:valve] ${agentId} → LOCKED by ${lockedBy} — ${reason}\n`);
+
+  // @rule:KOS-025 Tier 4 — auto-block notify (fire-and-forget, no reply needed)
+  import("../kernel/kernel-notifier").then(({ notifyAutoBlock }) => {
+    notifyAutoBlock({
+      tier: 4,
+      session_id: agentId,
+      agent_id: agentId,
+      domain: "unknown",
+      trigger: "valve_locked",
+      plain_summary: `Agent ${agentId} has been fully stopped and quarantined. It cannot perform any actions until a human releases it.`,
+      technical_detail: `Gate valve → LOCKED by ${lockedBy}. Reason: ${reason}. effective_perm_mask=0.`,
+    });
+  }).catch(() => {});
 
   // @rule:KAV-YK-016 — LOCKED valve auto-transitions agent state machine to QUARANTINED
   try {
