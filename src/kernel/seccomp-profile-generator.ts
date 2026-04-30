@@ -3,7 +3,7 @@
 // @rule:KOS-010 Profiles generated deterministically — never hand-written
 
 import { createHash } from "crypto";
-import { buildSyscallSet } from "./syscall-profiles";
+import { buildSyscallSet, NOTIFY_SYSCALLS } from "./syscall-profiles";
 
 // Docker/OCI seccomp profile format
 export interface SeccompProfile {
@@ -11,7 +11,7 @@ export interface SeccompProfile {
   architectures: string[];
   syscalls: Array<{
     names: string[];
-    action: "SCMP_ACT_ALLOW";
+    action: "SCMP_ACT_ALLOW" | "SCMP_ACT_NOTIFY";
   }>;
   // KavachOS metadata — not part of OCI spec but preserved in stored profiles
   _kavachos: {
@@ -22,6 +22,7 @@ export interface SeccompProfile {
     generated_at: string;
     k_seal: string;  // SHA-256 of canonical syscall list (sorted, joined)
     rule_ref: "KOS-010";
+    notify_syscalls: string[];  // @rule:KOS-028 — supervisor asks before DENY
   };
 }
 
@@ -39,18 +40,24 @@ export function generateSeccompProfile(
 ): ProfileGenerationResult {
   const syscalls = buildSyscallSet(trustMask, domain);
 
+  // @rule:KOS-028 NOTIFY tier: syscalls not already ALLOWed that the supervisor will gate
+  const allowSet = new Set(syscalls);
+  const notifySyscalls = NOTIFY_SYSCALLS.filter((s) => !allowSet.has(s));
+
   // K-seal: SHA-256 of the sorted syscall list (the canonical policy fingerprint)
   const kSeal = createHash("sha256").update(syscalls.sort().join(",")).digest("hex");
+
+  const syscallEntries: SeccompProfile["syscalls"] = [
+    { names: syscalls, action: "SCMP_ACT_ALLOW" },
+  ];
+  if (notifySyscalls.length > 0) {
+    syscallEntries.push({ names: notifySyscalls, action: "SCMP_ACT_NOTIFY" });
+  }
 
   const profile: SeccompProfile = {
     defaultAction: "SCMP_ACT_ERRNO",
     architectures: ["SCMP_ARCH_X86_64", "SCMP_ARCH_X86", "SCMP_ARCH_X32"],
-    syscalls: [
-      {
-        names: syscalls,
-        action: "SCMP_ACT_ALLOW",
-      },
-    ],
+    syscalls: syscallEntries,
     _kavachos: {
       version: "1.0",
       trust_mask: trustMask,
@@ -59,6 +66,7 @@ export function generateSeccompProfile(
       generated_at: new Date().toISOString(),
       k_seal: kSeal,
       rule_ref: "KOS-010",
+      notify_syscalls: notifySyscalls,
     },
   };
 
@@ -88,6 +96,7 @@ export function profileSummary(result: ProfileGenerationResult): string {
     `  domain:        ${profile._kavachos.domain}`,
     `  agent_type:    ${profile._kavachos.agent_type}`,
     `  syscalls:      ${syscall_count}`,
+    `  notify:        ${profile._kavachos.notify_syscalls.length} syscalls (supervisor gates)`,
     `  default:       ERRNO (deny-all unmatched)`,
     `  k_seal:        ${profile._kavachos.k_seal.slice(0, 16)}...`,
     `  profile_hash:  ${hash.slice(0, 16)}...`,

@@ -3,31 +3,54 @@
 # Copyright (c) 2026 Capt. Anil Sharma (rocketlang). All rights reserved.
 # @rule:KOS-011 kavachos run — only approved agent launch path
 # @rule:KOS-006 seccomp filter applied before exec — inherited by children, immutable after
+# @rule:KOS-028 NOTIFY supervisor — kernel pauses syscall, operator decides before ALLOW/DENY
 
 """
-apply-seccomp.py — KavachOS libseccomp launcher
+apply-seccomp.py — KavachOS libseccomp launcher + NOTIFY supervisor
 
-Reads a KavachOS seccomp profile JSON, builds a libseccomp filter,
-applies it via prctl(PR_SET_SECCOMP), then exec()s the agent command.
+Phase 1A (stable): load profile, exec agent under SCMP_ACT_ERRNO default.
+Phase 1D (this):   notify_syscalls in profile → supervisor forks, kernel pauses
+                   those syscalls, Telegram ALLOW/DENY before proceeding.
 
-Usage: python3 apply-seccomp.py <profile.json> -- <agent_command> [args...]
+Architecture (Phase 1D):
+  1. Build libseccomp context with ALLOW + NOTIFY rules (before fork).
+  2. socketpair() for fd transfer.
+  3. fork():
+       CHILD  → seccomp_load(ctx) → seccomp_notify_fd(ctx) → send fd to parent
+              → exec(agent)           [seccomp filter now active on agent]
+       PARENT → receive notify_fd from child
+              → run supervisor loop (no seccomp filter — unrestricted)
+              → waitpid(child) → exit with child's status
 
-The profile must be in Docker/OCI seccomp format with a KavachOS _kavachos metadata block.
-Unknown syscalls are resolved via seccomp_syscall_resolve_name() — no hardcoded numbers.
+Usage:
+  python3 apply-seccomp.py <profile.json> -- <agent_command> [args...]
+
+Backward compatible: profiles without notify_syscalls run exactly as before
+(no fork, exec directly).
 """
 
+import array
 import ctypes
 import ctypes.util
+import fcntl
 import json
 import os
+import select
+import socket
+import sqlite3
+import struct
 import sys
-from typing import List
+import time
+import threading
+import urllib.request
+import urllib.error
+from typing import List, Optional, Tuple
 
-# --- libseccomp bindings ---
+# ── libseccomp bindings ────────────────────────────────────────────────────────
 
 _LIB_PATH = ctypes.util.find_library("seccomp")
 if not _LIB_PATH:
-    _LIB_PATH = "libseccomp.so.2"  # fallback direct path
+    _LIB_PATH = "libseccomp.so.2"
 
 try:
     _lib = ctypes.CDLL(_LIB_PATH)
@@ -35,128 +58,471 @@ except OSError as e:
     sys.stderr.write(f"[kavachos] FATAL: cannot load libseccomp: {e}\n")
     sys.exit(1)
 
-# Action constants (from seccomp.h)
+# Action constants
 SCMP_ACT_KILL   = ctypes.c_uint32(0x00000000)
+SCMP_ACT_NOTIFY = ctypes.c_uint32(0x7fc00000)
 SCMP_ACT_ERRNO  = ctypes.c_uint32(0x00050001)  # ERRNO(EPERM=1)
 SCMP_ACT_ALLOW  = ctypes.c_uint32(0x7fff0000)
 
-# seccomp_init(uint32_t def_action) -> scmp_filter_ctx (void*)
 _lib.seccomp_init.restype  = ctypes.c_void_p
 _lib.seccomp_init.argtypes = [ctypes.c_uint32]
 
-# seccomp_rule_add(ctx, action, syscall_nr, arg_cnt) -> int
 _lib.seccomp_rule_add.restype  = ctypes.c_int
 _lib.seccomp_rule_add.argtypes = [ctypes.c_void_p, ctypes.c_uint32, ctypes.c_int, ctypes.c_uint]
 
-# seccomp_load(ctx) -> int
 _lib.seccomp_load.restype  = ctypes.c_int
 _lib.seccomp_load.argtypes = [ctypes.c_void_p]
 
-# seccomp_release(ctx) -> void
 _lib.seccomp_release.restype  = None
 _lib.seccomp_release.argtypes = [ctypes.c_void_p]
 
-# seccomp_syscall_resolve_name(name) -> int (syscall number, -1 if unknown)
 _lib.seccomp_syscall_resolve_name.restype  = ctypes.c_int
 _lib.seccomp_syscall_resolve_name.argtypes = [ctypes.c_char_p]
 
-# prctl(PR_SET_NO_NEW_PRIVS, ...) via libc
+# @rule:KOS-028 seccomp_notify_fd — get notify fd after seccomp_load
+_lib.seccomp_notify_fd.restype  = ctypes.c_int
+_lib.seccomp_notify_fd.argtypes = [ctypes.c_void_p]
+
 _libc_path = ctypes.util.find_library("c") or "libc.so.6"
 _libc = ctypes.CDLL(_libc_path)
 _libc.prctl.restype  = ctypes.c_int
 _libc.prctl.argtypes = [ctypes.c_int, ctypes.c_ulong, ctypes.c_ulong, ctypes.c_ulong, ctypes.c_ulong]
+
+# ioctl via libc for unsigned request codes > 2^31
+_libc.ioctl.restype  = ctypes.c_int
+_libc.ioctl.argtypes = [ctypes.c_int, ctypes.c_ulong, ctypes.c_void_p]
+
 PR_SET_NO_NEW_PRIVS = 38
 
+# ── NOTIFY supervisor constants ────────────────────────────────────────────────
+
+# IOWR('!', nr, size) on x86_64
+# = (3 << 30) | (ord('!') << 8) | nr | (size << 16)
+_SECCOMP_IOC_MAGIC = ord('!')
+
+def _IOWR(nr: int, size: int) -> int:
+    return (3 << 30) | (_SECCOMP_IOC_MAGIC << 8) | nr | (size << 16)
+
+# struct seccomp_notif  — 80 bytes:  id(Q) pid(I) flags(I) nr(i) arch(I) ip(Q) args(6Q)
+# struct seccomp_notif_resp — 24 bytes: id(Q) val(q) error(i) flags(I)
+_NOTIF_PACK = "=QIIiIQ6Q"
+_RESP_PACK  = "=QqiI"
+_NOTIF_SIZE = struct.calcsize(_NOTIF_PACK)   # 80
+_RESP_SIZE  = struct.calcsize(_RESP_PACK)    # 24
+
+SECCOMP_IOCTL_NOTIF_RECV = _IOWR(0, _NOTIF_SIZE)  # 0xC0502100
+SECCOMP_IOCTL_NOTIF_SEND = _IOWR(1, _RESP_SIZE)   # 0xC0182101
+SECCOMP_USER_NOTIF_FLAG_CONTINUE = 1               # allow syscall to proceed
+
+# ── Syscall name lookup ────────────────────────────────────────────────────────
+
+# Build a reverse map: syscall_nr → name from /usr/include (fallback: libseccomp)
+def _build_nr_to_name() -> dict:
+    mapping: dict = {}
+    try:
+        import os as _os
+        path = "/usr/include/x86_64-linux-gnu/asm/unistd_64.h"
+        if not _os.path.exists(path):
+            path = "/usr/include/asm/unistd_64.h"
+        if _os.path.exists(path):
+            with open(path) as f:
+                for line in f:
+                    if line.startswith("#define __NR_"):
+                        parts = line.split()
+                        if len(parts) >= 3:
+                            name = parts[1].replace("__NR_", "")
+                            try:
+                                nr = int(parts[2])
+                                mapping[nr] = name
+                            except ValueError:
+                                pass
+    except Exception:
+        pass
+    return mapping
+
+_NR_TO_NAME = _build_nr_to_name()
+
+def syscall_name(nr: int) -> str:
+    return _NR_TO_NAME.get(nr, f"syscall#{nr}")
+
+# ── fd passing via SCM_RIGHTS ──────────────────────────────────────────────────
+
+def _send_fd(sock: socket.socket, fd: int) -> None:
+    """Send a file descriptor over a Unix socket using SCM_RIGHTS."""
+    fds = array.array("i", [fd])
+    sock.sendmsg([b"\x00"], [(socket.SOL_SOCKET, socket.SCM_RIGHTS, fds)])
+
+
+def _recv_fd(sock: socket.socket, timeout: float = 5.0) -> int:
+    """Receive a file descriptor from a Unix socket."""
+    sock.settimeout(timeout)
+    msg, ancdata, _flags, _addr = sock.recvmsg(1, socket.CMSG_LEN(array.array("i", [0]).itemsize))
+    for cmsg_level, cmsg_type, cmsg_data in ancdata:
+        if cmsg_level == socket.SOL_SOCKET and cmsg_type == socket.SCM_RIGHTS:
+            fds = array.array("i")
+            fds.frombytes(cmsg_data[: fds.itemsize])
+            return fds[0]
+    raise RuntimeError("[kavachos] No fd received from child")
+
+# ── Notify supervisor loop ─────────────────────────────────────────────────────
+
+def _read_aegis_config() -> dict:
+    """Load ~/.aegis/config.json — returns {} if absent."""
+    config_path = os.path.join(os.environ.get("HOME", "/root"), ".aegis", "config.json")
+    try:
+        with open(config_path) as f:
+            return json.load(f)
+    except Exception:
+        return {}
+
+
+def _aegis_db_path() -> str:
+    return os.path.join(os.environ.get("HOME", "/root"), ".aegis", "aegis.db")
+
+
+def _create_approval(db_path: str, approval_id: str, session_id: str,
+                     syscall: str, pid: int, domain: str) -> None:
+    """Insert a pending approval record into aegis.db."""
+    try:
+        conn = sqlite3.connect(db_path, timeout=5)
+        conn.execute("""
+            INSERT OR IGNORE INTO kavach_approvals
+              (id, created_at, command, tool_name, level, consequence, session_id, timeout_ms, status)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending')
+        """, (
+            approval_id,
+            time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+            f"syscall:{syscall} pid:{pid}",
+            f"kavachos:supervisor_ambiguous",
+            3,
+            f"Agent syscall {syscall} requires operator approval (KOS-028)",
+            session_id,
+            600_000,
+        ))
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        sys.stderr.write(f"[kavachos:supervisor] DB write failed: {e}\n")
+
+
+def _poll_approval(db_path: str, approval_id: str,
+                   timeout_s: float = 600.0) -> bool:
+    """
+    Poll aegis.db until the approval is decided. Returns True=ALLOW, False=DENY.
+    @rule:KOS-026 silence = STOP (DENY)
+    """
+    deadline = time.time() + timeout_s
+    while time.time() < deadline:
+        try:
+            conn = sqlite3.connect(db_path, timeout=5)
+            row = conn.execute(
+                "SELECT status FROM kavach_approvals WHERE id = ?", (approval_id,)
+            ).fetchone()
+            conn.close()
+            if row and row[0] == "allowed":
+                return True
+            if row and row[0] in ("stopped", "timed_out"):
+                return False
+        except Exception:
+            pass
+        time.sleep(2)
+    sys.stderr.write(f"[kavachos:supervisor] Approval {approval_id} timed out → DENY\n")
+    return False
+
+
+def _send_telegram(config: dict, message: str, approval_id: Optional[str]) -> None:
+    """
+    POST message to AnkrClaw /api/notify (same as kernel-notifier.ts sendViaAnkrClaw).
+    Silent on failure — Telegram is best-effort; the DB poll is authoritative.
+    """
+    kc = config.get("kavach", {})
+    if not kc.get("enabled"):
+        return
+    url = kc.get("webhook_url") or kc.get("ankrclaw_url", "")
+    if not url:
+        return
+    channel = kc.get("notify_channel", "telegram")
+    to = kc.get("notify_telegram_chat_id") if channel == "telegram" else kc.get("notify_phone", "")
+    if not to:
+        return
+    payload = json.dumps({
+        "to": to,
+        "message": message,
+        "service": "KAVACHOS",
+        "channel": channel,
+        "approval_id": approval_id,
+    }).encode()
+    try:
+        req = urllib.request.Request(
+            f"{url.rstrip('/')}/api/notify",
+            data=payload,
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        urllib.request.urlopen(req, timeout=10)
+    except Exception as e:
+        sys.stderr.write(f"[kavachos:supervisor] Telegram send failed: {e}\n")
+
+
+def _build_notify_message(syscall: str, agent_id: str, session_id: str,
+                          domain: str, pid: int, approval_id: str) -> str:
+    plain_map = {
+        "ptrace": "attach to and control another process (debugger)",
+        "bpf": "load a BPF kernel program",
+        "mount": "mount a filesystem",
+        "umount2": "unmount a filesystem",
+        "userfaultfd": "register a userspace page-fault handler",
+        "perf_event_open": "open a performance monitoring counter",
+        "setns": "join a Linux namespace",
+        "capset": "modify Linux capability flags",
+    }
+    plain = plain_map.get(syscall, f'call restricted syscall "{syscall}"')
+    return "\n".join([
+        "🟠 KavachOS — Syscall Gated (Action Required)",
+        "",
+        f"Agent: {agent_id}  |  Domain: {domain}",
+        f"Session: {session_id}  |  Agent PID: {pid}",
+        "",
+        "What happened:",
+        f"The agent tried to {plain}.",
+        "This syscall is in the supervised (NOTIFY) tier. The kernel has paused it.",
+        "",
+        "Technical detail:",
+        f"syscall: {syscall}  |  rule: KOS-028 SCMP_ACT_NOTIFY tier",
+        "",
+        "Reply with one word:",
+        f"  ALLOW {approval_id} — permit this call, agent continues",
+        f"  STOP {approval_id}  — deny, agent receives EPERM",
+        "",
+        "Expires: 10 min (silence = STOP)",
+    ])
+
+
+def _notify_recv(notify_fd: int) -> Optional[Tuple[int, int, int]]:
+    """
+    Read one pending seccomp notification.
+    Returns (notif_id, pid, syscall_nr) or None on error.
+    Blocks until a notification arrives (caller should poll first).
+    """
+    buf = bytearray(_NOTIF_SIZE)
+    arr = (ctypes.c_uint8 * _NOTIF_SIZE).from_buffer(buf)
+    ret = _libc.ioctl(notify_fd, ctypes.c_ulong(SECCOMP_IOCTL_NOTIF_RECV), arr)
+    if ret != 0:
+        errno = ctypes.get_errno()
+        sys.stderr.write(f"[kavachos:supervisor] NOTIF_RECV failed: errno={errno}\n")
+        return None
+    fields = struct.unpack(_NOTIF_PACK, bytes(buf))
+    notif_id, _pid, _flags, nr, _arch, _ip = fields[0], fields[1], fields[2], fields[3], fields[4], fields[5]
+    return notif_id, _pid, nr
+
+
+def _notify_send(notify_fd: int, notif_id: int, allow: bool) -> None:
+    """
+    Respond to kernel: ALLOW (continue) or DENY (EPERM).
+    @rule:KOS-026 silence = STOP — caller must call this; never let it time out silently.
+    """
+    if allow:
+        resp = struct.pack(_RESP_PACK, notif_id, 0, 0, SECCOMP_USER_NOTIF_FLAG_CONTINUE)
+    else:
+        resp = struct.pack(_RESP_PACK, notif_id, 0, -1, 0)  # error=-EPERM
+    arr = (ctypes.c_uint8 * _RESP_SIZE).from_buffer(bytearray(resp))
+    ret = _libc.ioctl(notify_fd, ctypes.c_ulong(SECCOMP_IOCTL_NOTIF_SEND), arr)
+    if ret != 0:
+        errno = ctypes.get_errno()
+        # ENOENT means the tracee already died — not an error
+        if errno != 2:
+            sys.stderr.write(f"[kavachos:supervisor] NOTIF_SEND failed: errno={errno}\n")
+
+
+def run_supervisor(notify_fd: int, agent_pid: int,
+                   session_id: str, agent_id: str, domain: str) -> int:
+    """
+    @rule:KOS-028 supervisor loop — runs in parent process, no seccomp filter.
+    Polls notify_fd for gated syscalls, escalates to Telegram, responds to kernel.
+    Returns child exit code.
+    """
+    config = _read_aegis_config()
+    db_path = _aegis_db_path()
+    import random, string
+
+    sys.stderr.write(
+        f"[kavachos:supervisor] Phase 1D active — agent_pid={agent_pid} "
+        f"session={session_id} domain={domain}\n"
+    )
+
+    # pending_notifs: notif_id → (pid, nr) — notifications waiting for approval
+    # We process them sequentially to keep Telegram readable
+    pending: dict = {}
+
+    while True:
+        # poll(notify_fd, 200ms) — interleave with child liveness check
+        try:
+            r, _, _ = select.select([notify_fd], [], [], 0.2)
+        except (ValueError, OSError):
+            break  # notify_fd closed — child exited
+
+        if r:
+            result = _notify_recv(notify_fd)
+            if result is None:
+                # Check if child is still alive
+                try:
+                    wpid, wstatus = os.waitpid(agent_pid, os.WNOHANG)
+                    if wpid == agent_pid:
+                        return os.WEXITSTATUS(wstatus)
+                except ChildProcessError:
+                    return 0
+                continue
+
+            notif_id, pid, nr = result
+            syscall = syscall_name(nr)
+            approval_id = "KOS-" + "".join(random.choices(string.hexdigits.upper(), k=8))
+
+            sys.stderr.write(
+                f"[kavachos:supervisor] GATED syscall={syscall} pid={pid} "
+                f"approval={approval_id}\n"
+            )
+
+            # Register + notify (fire-and-forget spawn so supervisor stays responsive)
+            def _escalate(aid=approval_id, sc=syscall, p=pid, nid=notif_id):
+                _create_approval(db_path, aid, session_id, sc, p, domain)
+                msg = _build_notify_message(sc, agent_id, session_id, domain, p, aid)
+                _send_telegram(config, msg, aid)
+                allow = _poll_approval(db_path, aid)
+                verb = "ALLOW" if allow else "DENY"
+                sys.stderr.write(f"[kavachos:supervisor] {verb} {aid} — syscall={sc}\n")
+                _notify_send(notify_fd, nid, allow)
+
+            t = threading.Thread(target=_escalate, daemon=True)
+            t.start()
+
+        # Check if child exited
+        try:
+            wpid, wstatus = os.waitpid(agent_pid, os.WNOHANG)
+            if wpid == agent_pid:
+                os.close(notify_fd)
+                return os.WEXITSTATUS(wstatus)
+        except ChildProcessError:
+            os.close(notify_fd)
+            return 0
+
+    # Drain remaining notifs as DENY before exit (@rule:KOS-026)
+    try:
+        r, _, _ = select.select([notify_fd], [], [], 0.0)
+        if r:
+            result = _notify_recv(notify_fd)
+            if result:
+                notif_id, _, _ = result
+                _notify_send(notify_fd, notif_id, False)
+    except Exception:
+        pass
+
+    os.close(notify_fd)
+    _, wstatus = os.waitpid(agent_pid, 0)
+    return os.WEXITSTATUS(wstatus)
+
+# ── Profile context builder ────────────────────────────────────────────────────
 
 def resolve_syscall(name: str) -> int:
-    nr = _lib.seccomp_syscall_resolve_name(name.encode())
-    return nr  # -1 means unknown — caller decides whether to skip or abort
+    return _lib.seccomp_syscall_resolve_name(name.encode())
 
 
-# These syscalls must always be present; a missing one can cause hangs or EINTR storms.
-# Never load a profile that omits them — fail safe with exit(1), not exec.
 _NO_FREEZE_REQUIRED = {"exit_group", "exit", "futex", "rt_sigreturn", "restart_syscall"}
 
 
-def apply_profile(profile_path: str) -> None:
-    with open(profile_path) as f:
-        profile = json.load(f)
-
+def build_ctx(profile: dict):
+    """
+    Build (but do NOT load) a libseccomp context from a KavachOS profile.
+    Returns (ctx, has_notify) — ctx must be loaded in the child after fork.
+    """
     if profile.get("defaultAction") == "SCMP_ACT_KILL":
-        # KILL terminates the process with SIGSYS — no cleanup, no error message.
-        # Refuse to load; use ERRNO instead.
         sys.stderr.write("[kavachos] FATAL: defaultAction SCMP_ACT_KILL is banned — use SCMP_ACT_ERRNO\n")
         sys.exit(1)
 
-    # Collect allowed syscall names from profile
     allowed: List[str] = []
+    notify_names: List[str] = []
+
     for entry in profile.get("syscalls", []):
-        if entry.get("action") == "SCMP_ACT_ALLOW":
-            allowed.extend(entry.get("names", []))
+        action = entry.get("action", "")
+        names  = entry.get("names", [])
+        if action == "SCMP_ACT_ALLOW":
+            allowed.extend(names)
+        elif action == "SCMP_ACT_NOTIFY":
+            notify_names.extend(names)
 
     if not allowed:
         sys.stderr.write("[kavachos] FATAL: profile has no allowed syscalls\n")
         sys.exit(1)
 
-    # Pre-flight: reject profiles that would cause hangs
     allowed_set = set(allowed)
     missing = _NO_FREEZE_REQUIRED - allowed_set
     if missing:
         sys.stderr.write(
             f"[kavachos] FATAL: profile missing no-freeze syscalls: {', '.join(sorted(missing))}\n"
-            f"  These syscalls are required to prevent process hangs. "
-            f"Add them to BASELINE_SYSCALLS or the profile will not be loaded.\n"
         )
         sys.exit(1)
 
     kavachos_meta = profile.get("_kavachos", {})
     sys.stderr.write(
-        f"[kavachos] Applying seccomp profile: trust_mask=0x{kavachos_meta.get('trust_mask', 0):08x} "
+        f"[kavachos] Building seccomp context: trust_mask=0x{kavachos_meta.get('trust_mask', 0):08x} "
         f"domain={kavachos_meta.get('domain', 'unknown')} "
-        f"syscalls={len(allowed)}\n"
+        f"allow={len(allowed)} notify={len(notify_names)}\n"
     )
 
-    # PR_SET_NO_NEW_PRIVS=1 is required before loading a seccomp filter without CAP_SYS_ADMIN
     if _libc.prctl(PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0) != 0:
-        sys.stderr.write("[kavachos] WARNING: PR_SET_NO_NEW_PRIVS failed — may need elevated privileges\n")
+        sys.stderr.write("[kavachos] WARNING: PR_SET_NO_NEW_PRIVS failed\n")
 
-    # Build the seccomp filter with default ERRNO action
     ctx = _lib.seccomp_init(SCMP_ACT_ERRNO)
     if not ctx:
         sys.stderr.write("[kavachos] FATAL: seccomp_init returned NULL\n")
         sys.exit(1)
 
-    unknown = []
+    unknown: List[str] = []
     added = 0
+
     for name in allowed:
         nr = resolve_syscall(name)
         if nr < 0:
             unknown.append(name)
             continue
         ret = _lib.seccomp_rule_add(ctx, SCMP_ACT_ALLOW, nr, 0)
-        if ret != 0:
-            sys.stderr.write(f"[kavachos] WARNING: seccomp_rule_add failed for {name} (syscall {nr}): errno {-ret}\n")
-        else:
+        if ret == 0:
             added += 1
+
+    for name in notify_names:
+        nr = resolve_syscall(name)
+        if nr < 0:
+            continue
+        _lib.seccomp_rule_add(ctx, SCMP_ACT_NOTIFY, nr, 0)
 
     if unknown:
         sys.stderr.write(f"[kavachos] INFO: {len(unknown)} unknown syscalls skipped: {', '.join(unknown[:10])}\n")
 
-    # Load (apply) the filter — after this point the filter is active
-    ret = _lib.seccomp_load(ctx)
-    _lib.seccomp_release(ctx)
+    return ctx, len(notify_names) > 0
 
+
+def load_ctx_and_get_notify_fd(ctx) -> int:
+    """
+    Load the seccomp context (applies filter to calling process).
+    Returns notify_fd if NOTIFY rules were added, else -1.
+    Must be called in the CHILD after fork.
+    """
+    ret = _lib.seccomp_load(ctx)
     if ret != 0:
-        sys.stderr.write(f"[kavachos] FATAL: seccomp_load failed: errno {-ret}\n")
+        sys.stderr.write(f"[kavachos] FATAL: seccomp_load failed: errno={-ret}\n")
+        _lib.seccomp_release(ctx)
         sys.exit(1)
 
-    sys.stderr.write(f"[kavachos] seccomp active: {added} syscalls allowed, {len(unknown)} unknown skipped\n")
+    notify_fd = _lib.seccomp_notify_fd(ctx)
+    _lib.seccomp_release(ctx)
 
+    # notify_fd == -22 (EINVAL) means no NOTIFY rules were added
+    return notify_fd if notify_fd >= 0 else -1
+
+# ── Main ───────────────────────────────────────────────────────────────────────
 
 def main() -> None:
     args = sys.argv[1:]
 
-    # Find the '--' separator
     try:
         sep_idx = args.index("--")
     except ValueError:
@@ -174,19 +540,84 @@ def main() -> None:
         sys.stderr.write(f"[kavachos] FATAL: profile not found: {profile_path}\n")
         sys.exit(1)
 
-    # Apply the seccomp filter
-    apply_profile(profile_path)
+    with open(profile_path) as f:
+        profile = json.load(f)
 
-    # exec() the agent — filter is now active and inherited
-    # @rule:KOS-006 exec replaces this process, filter is inherited by the new image
-    try:
-        os.execvp(exec_args[0], exec_args)
-    except FileNotFoundError:
-        sys.stderr.write(f"[kavachos] FATAL: command not found: {exec_args[0]}\n")
-        sys.exit(1)
-    except PermissionError as e:
-        sys.stderr.write(f"[kavachos] FATAL: permission denied executing {exec_args[0]}: {e}\n")
-        sys.exit(1)
+    # Build context before fork (pre-flight checks + libseccomp ctx allocation)
+    ctx, has_notify = build_ctx(profile)
+
+    session_id = os.environ.get("KAVACHOS_SESSION_ID", "unknown")
+    agent_id   = os.environ.get("KAVACHOS_AGENT_ID",   session_id)
+    domain     = os.environ.get("KAVACHOS_DOMAIN",     "unknown")
+
+    if not has_notify:
+        # ── Phase 1A path (no NOTIFY syscalls) — load and exec directly ──────
+        ret = _lib.seccomp_load(ctx)
+        _lib.seccomp_release(ctx)
+        if ret != 0:
+            sys.stderr.write(f"[kavachos] FATAL: seccomp_load failed: errno={-ret}\n")
+            sys.exit(1)
+        sys.stderr.write(f"[kavachos] seccomp active (no notify tier)\n")
+        try:
+            os.execvp(exec_args[0], exec_args)
+        except FileNotFoundError:
+            sys.stderr.write(f"[kavachos] FATAL: command not found: {exec_args[0]}\n")
+            sys.exit(1)
+        except PermissionError as e:
+            sys.stderr.write(f"[kavachos] FATAL: permission denied: {e}\n")
+            sys.exit(1)
+        return  # unreachable after execvp
+
+    # ── Phase 1D path — fork, child loads+execs, parent supervises ───────────
+    # socketpair for notify_fd transfer (SCM_RIGHTS)
+    sock_recv, sock_send = socket.socketpair(socket.AF_UNIX, socket.SOCK_DGRAM)
+
+    pid = os.fork()
+
+    if pid == 0:
+        # ── CHILD: load seccomp, send notify_fd to parent, exec agent ────────
+        sock_recv.close()
+
+        notify_fd = load_ctx_and_get_notify_fd(ctx)
+
+        if notify_fd >= 0:
+            _send_fd(sock_send, notify_fd)
+            os.close(notify_fd)
+
+        sock_send.close()
+
+        sys.stderr.write(
+            f"[kavachos] seccomp active (Phase 1D — notify tier live, supervisor pid={os.getppid()})\n"
+        )
+
+        try:
+            os.execvp(exec_args[0], exec_args)
+        except FileNotFoundError:
+            sys.stderr.write(f"[kavachos] FATAL: command not found: {exec_args[0]}\n")
+            os._exit(1)
+        except PermissionError as e:
+            sys.stderr.write(f"[kavachos] FATAL: permission denied: {e}\n")
+            os._exit(1)
+        os._exit(1)  # unreachable
+
+    else:
+        # ── PARENT: receive notify_fd, supervise, wait for child ──────────────
+        sock_send.close()
+        _lib.seccomp_release(ctx)
+
+        try:
+            notify_fd = _recv_fd(sock_recv, timeout=10.0)
+        except Exception as e:
+            sys.stderr.write(f"[kavachos:supervisor] Could not receive notify_fd: {e}\n")
+            # Fall back: just wait for child (no notify supervision)
+            sock_recv.close()
+            _, wstatus = os.waitpid(pid, 0)
+            sys.exit(os.WEXITSTATUS(wstatus))
+
+        sock_recv.close()
+
+        exit_code = run_supervisor(notify_fd, pid, session_id, agent_id, domain)
+        sys.exit(exit_code)
 
 
 if __name__ == "__main__":

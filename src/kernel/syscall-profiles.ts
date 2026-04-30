@@ -137,6 +137,22 @@ export const MINIMAL_READONLY_SYSCALLS: string[] = [
   "write",   // stdout/stderr only — Falco monitors for unexpected fds
 ];
 
+// @rule:KOS-028 NOTIFY tier — pause, ask operator, then ALLOW or DENY
+// These syscalls are uncommon but sometimes legitimately needed mid-run.
+// They get SCMP_ACT_NOTIFY instead of SCMP_ACT_ERRNO so the agent waits
+// for a human decision rather than dying with EPERM.
+// Syscalls already in the ALLOW set (baseline + trust_mask extras) take
+// precedence — the profile generator filters duplicates before writing NOTIFY rules.
+export const NOTIFY_SYSCALLS: string[] = [
+  "ptrace",          // process tracing / debugger attach
+  "bpf",             // BPF program loading
+  "mount", "umount2",// filesystem mounting
+  "userfaultfd",     // userspace page-fault handler
+  "perf_event_open", // performance monitoring
+  "setns",           // namespace joining
+  "capset",          // capability modification (also granted by trust bit 1)
+];
+
 export function buildSyscallSet(trustMask: number, domain: string): string[] {
   // trust_mask=0 → absolute minimal (INF-KOS-001)
   if (trustMask === 0) return [...new Set(MINIMAL_READONLY_SYSCALLS)];
