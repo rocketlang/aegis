@@ -73,12 +73,20 @@ def resolve_syscall(name: str) -> int:
     return nr  # -1 means unknown — caller decides whether to skip or abort
 
 
+# These syscalls must always be present; a missing one can cause hangs or EINTR storms.
+# Never load a profile that omits them — fail safe with exit(1), not exec.
+_NO_FREEZE_REQUIRED = {"exit_group", "exit", "futex", "rt_sigreturn", "restart_syscall"}
+
+
 def apply_profile(profile_path: str) -> None:
     with open(profile_path) as f:
         profile = json.load(f)
 
-    if profile.get("defaultAction") != "SCMP_ACT_ERRNO":
-        sys.stderr.write(f"[kavachos] WARNING: profile defaultAction is {profile.get('defaultAction')}, expected SCMP_ACT_ERRNO\n")
+    if profile.get("defaultAction") == "SCMP_ACT_KILL":
+        # KILL terminates the process with SIGSYS — no cleanup, no error message.
+        # Refuse to load; use ERRNO instead.
+        sys.stderr.write("[kavachos] FATAL: defaultAction SCMP_ACT_KILL is banned — use SCMP_ACT_ERRNO\n")
+        sys.exit(1)
 
     # Collect allowed syscall names from profile
     allowed: List[str] = []
@@ -88,6 +96,17 @@ def apply_profile(profile_path: str) -> None:
 
     if not allowed:
         sys.stderr.write("[kavachos] FATAL: profile has no allowed syscalls\n")
+        sys.exit(1)
+
+    # Pre-flight: reject profiles that would cause hangs
+    allowed_set = set(allowed)
+    missing = _NO_FREEZE_REQUIRED - allowed_set
+    if missing:
+        sys.stderr.write(
+            f"[kavachos] FATAL: profile missing no-freeze syscalls: {', '.join(sorted(missing))}\n"
+            f"  These syscalls are required to prevent process hangs. "
+            f"Add them to BASELINE_SYSCALLS or the profile will not be loaded.\n"
+        )
         sys.exit(1)
 
     kavachos_meta = profile.get("_kavachos", {})

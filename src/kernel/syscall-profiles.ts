@@ -3,20 +3,36 @@
 // @rule:KOS-016 Claude Code baseline syscall set — minimum permitted for all agents
 
 // KOS-016 baseline — every agent regardless of trust_mask
+//
+// NO-FREEZE GUARANTEE — these syscalls MUST always be present:
+//   exit_group, exit   — process must always be able to terminate
+//   futex              — blocking primitive; absent = threading deadlock
+//   rt_sigreturn       — signal handlers cannot return without this
+//   restart_syscall    — kernel restarts interrupted syscalls; absent = EINTR storm
+//   clone3             — Bun ≥1.0 and Node ≥18 use this for thread creation
+//
+// defaultAction is SCMP_ACT_ERRNO (EPERM), never SCMP_ACT_KILL.
+// A blocked syscall returns an error; it does not freeze or panic the kernel.
 export const BASELINE_SYSCALLS: string[] = [
   "read", "write", "open", "openat", "close",
   "stat", "fstat", "lstat", "newfstatat",
   "mmap", "munmap", "mprotect", "brk",
-  "exit_group", "exit", "futex", "nanosleep",
+  // --- NO-FREEZE CRITICAL — never remove these ---
+  "exit_group", "exit",
+  "futex",
+  "rt_sigreturn",
+  "restart_syscall",
+  // -----------------------------------------------
+  "nanosleep",
   "getpid", "gettid", "getcwd", "getdents64",
   "socket", "connect", "sendto", "recvfrom",
-  "execve", "wait4", "clone", "fork",
+  "execve", "wait4", "clone", "clone3", "fork",
   // Required by Bun runtime
   "ioctl", "fcntl", "dup", "dup2", "dup3",
   "pipe", "pipe2", "select", "pselect6",
   "poll", "ppoll", "epoll_create1", "epoll_ctl", "epoll_wait", "epoll_pwait",
   "gettimeofday", "clock_gettime", "clock_nanosleep",
-  "sigaltstack", "rt_sigaction", "rt_sigprocmask", "rt_sigreturn",
+  "sigaltstack", "rt_sigaction", "rt_sigprocmask",
   "getrusage", "sysinfo", "times",
   "madvise", "mincore", "msync",
   "getuid", "getgid", "geteuid", "getegid",
@@ -109,14 +125,16 @@ export const DOMAIN_EXTRA_SYSCALLS: Record<string, string[]> = {
 export const MINIMAL_READONLY_SYSCALLS: string[] = [
   "read", "open", "openat", "close", "stat", "fstat", "lstat", "newfstatat",
   "mmap", "munmap", "mprotect", "brk",
-  "exit_group", "exit", "futex",
+  // NO-FREEZE CRITICAL (must match BASELINE_SYSCALLS — never remove)
+  "exit_group", "exit", "futex", "rt_sigreturn", "restart_syscall",
   "getpid", "gettid", "getcwd", "getdents64",
   "readlink", "readlinkat",
   "access", "faccessat",
   "gettimeofday", "clock_gettime",
   "arch_prctl", "set_tid_address", "set_robust_list",
-  "rt_sigaction", "rt_sigprocmask", "rt_sigreturn",
-  "write",  // stdout/stderr only — Falco monitors for unexpected fds
+  "rt_sigaction", "rt_sigprocmask",
+  "clone3",  // Bun/Node thread creation — absent = silent hang on worker_threads
+  "write",   // stdout/stderr only — Falco monitors for unexpected fds
 ];
 
 export function buildSyscallSet(trustMask: number, domain: string): string[] {
