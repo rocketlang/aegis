@@ -1,6 +1,6 @@
 {
   "name": "@rocketlang/kavachos",
-  "version": "2.0.0",
+  "version": "2.0.1",
   "description": "KavachOS — seccomp-bpf + Falco kernel enforcement for AI agents. Part of the xShieldAI Posture Suite.",
   "license": "AGPL-3.0",
   "type": "module",
@@ -43,7 +43,7 @@
     "bun": ">=1.0.0"
   },
   "scripts": {
-    "build": "bun build ../../src/kavachos-cli.ts --target=bun --outfile=dist/kavachos.js",
+    "build": "bun build ../../src/kavachos-cli.ts --target=bun --outfile=dist/kavachos.js && cp ../../src/kernel/cgroup-egress.py dist/cgroup-egress.py && cp ../../src/kernel/apply-seccomp.py dist/apply-seccomp.py",
     "prepublishOnly": "bun run build"
   },
   "publishConfig": {

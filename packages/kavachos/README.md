@@ -14,6 +14,7 @@ Part of the **xShieldAI Posture Suite** · [kavachos.xshieldai.com](https://kava
 KavachOS wraps every AI agent in a seccomp-bpf kernel filter. The agent can only make the syscalls its trust level permits — nothing else reaches the kernel.
 
 - **seccomp-bpf profiles** generated deterministically from a `trust_mask` integer
+- **cgroup BPF egress firewall** — per-session network allowlist enforced at the kernel connect4/connect6 hook; unlisted destinations get `EPERM` before the socket is established
 - **Falco rules** generated per domain (maritime, logistics, OT, finance, general)
 - **PRAMANA receipt chain** — every violation is SHA-256 sealed and chained
 - **Gate valve** — automatic escalation: THROTTLE → CRACK → LOCK on repeated violations
