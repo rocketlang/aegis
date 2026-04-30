@@ -19,10 +19,20 @@
     "Does this prompt contain an injection fingerprint?",
     "What is the projected session cost at current burn rate?",
     "Is a dangerous action pending human approval right now?",
-    "What was the outcome of the last automated restore drill?"
+    "What was the outcome of the last automated restore drill?",
+    "What is the seccomp syscall profile for this trust_mask + domain combination?",
+    "Did this agent's seccomp profile drift from what was sealed at session start?",
+    "What Falco rules govern this domain's agent at runtime?",
+    "Is the receipt chain for this kernel session intact (tamper-evident)?",
+    "How many syscalls is this agent permitted to invoke?"
   ],
 
   "can_do": [
+    "Launch any agent under Linux seccomp-bpf kernel governance (kavachos run)",
+    "Generate deterministic seccomp profile from trust_mask + domain in < 100ms (KOS-010)",
+    "Generate domain-tuned Falco runtime monitoring rules (maritime, freight, general)",
+    "Seal every Falco violation event with PRAMANA SHA-256 receipt chain (KOS-005)",
+    "Audit session profile hash for drift — kernel enforcement evidence for EU AI Act Art. 14",
     "Intercept every Claude Code tool call before execution (PreToolUse hook)",
     "Enforce per-agent budget caps with cost attribution tree",
     "Block destructive commands (DROP, TRUNCATE, rm -rf, prisma migrate reset)",
@@ -100,6 +110,15 @@
   "claude_ankr_mask_schema": "claude-ankr-5bit-v1",
 
   "capability_audit": {
+    "kavachos_kernel_phase1": "✅ built — KavachOS KERNEL Phase 1: seccomp profile generator, Falco rule generator, receipt chain, profile store, runner, CLI (KOS-010 to KOS-017)",
+    "kavachos_seccomp_generator": "✅ built — src/kernel/seccomp-profile-generator.ts: deterministic trust_mask → syscall allowlist; K-seal on every profile; domain-specific additions (KOS-010)",
+    "kavachos_falco_rules": "✅ built — src/kernel/falco-rule-generator.ts: domain-tuned Falco rules (maritime 7 rules, freight, general); KOS-013 compliant",
+    "kavachos_receipt_chain": "✅ built — src/kernel/kernel-receipt.ts: SHA-256 chained PRAMANA receipts; sealKernelViolation; chain integrity verification (KOS-005, KOS-012)",
+    "kavachos_profile_store": "✅ built — src/kernel/profile-store.ts: aegis.db profile storage; hash drift detection; verifyReceiptChain (KOS-012)",
+    "kavachos_runner": "✅ built — src/kernel/runner.ts: python3 apply-seccomp.py launcher; session tracking; governed exec path (KOS-011)",
+    "kavachos_apply_seccomp_py": "✅ built — src/kernel/apply-seccomp.py: libseccomp-based filter application; PR_SET_SECCOMP SECCOMP_MODE_FILTER; KOS-006 inheritance (KOS-006)",
+    "kavachos_cli": "✅ built — src/kavachos-cli.ts: run / generate / audit / rules / version; --trust-mask / --domain / --dry-run / --verbose / --json flags (KOS-011)",
+    "kavachos_audit_cmd": "✅ built — src/kernel/audit.ts: profile hash + receipt chain verification; --all flag; compliance-ready output (KOS-012)",
     "pre_execution_intercept": "✅ built (v1 hooks active — PreToolUse wired for all 3 gates)",
     "budget_governor": "✅ built — daily/weekly/monthly caps + per-agent EWMA projection (KAV-009, INF-KAV-008)",
     "spawn_rate_limiter": "✅ built — check-spawn gate: spawn limit, concurrent max, depth enforcement",
@@ -148,10 +167,13 @@
   },
 
   "proof_config": {
-    "annotation_style": "@rule:KAV-NNN",
-    "logics_doc": "proposals/xshieldai-kavach--logics--formal--2026-04-29.md",
-    "rule_count": 48,
-    "proof_coverage": 100,
+    "annotation_style": "@rule:KAV-NNN or @rule:KOS-NNN",
+    "logics_docs": [
+      "proposals/xshieldai-kavach--logics--formal--2026-04-29.md",
+      "proposals/kavachos--logics--formal--2026-04-30.md"
+    ],
+    "rule_count": 67,
+    "proof_coverage": 95,
     "proof_endpoint": "/api/v2/forja/proof"
   },
 

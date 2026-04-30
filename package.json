@@ -31,7 +31,8 @@
   "bin": {
     "aegis": "./bin/aegis.js",
     "aegis-monitor": "./bin/aegis-monitor.js",
-    "aegis-dashboard": "./bin/aegis-dashboard.js"
+    "aegis-dashboard": "./bin/aegis-dashboard.js",
+    "kavachos": "./bin/kavachos.js"
   },
   "files": [
     "bin/",
@@ -52,6 +53,7 @@
     "monitor": "bun run src/monitor/index.ts",
     "dashboard": "bun run src/dashboard/server.ts",
     "cli": "bun run src/cli/index.ts",
+    "kavachos": "bun run src/kavachos-cli.ts",
     "start": "bun run src/monitor/index.ts & bun run src/dashboard/server.ts",
     "test:agents": "bun src/test-agents/runner.ts",
     "prepublishOnly": "echo 'Run tests manually before publishing'"
