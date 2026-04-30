@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Copyright (c) 2026 Capt. Anil Sharma (rocketlang). All rights reserved.
-// @rule:KOS-025 Kernel anomaly notification — 4-tier escalation via AnkrClaw
+// @rule:KOS-025 Kernel anomaly notification — 4-tier escalation via webhook (opt-in)
 // @rule:KOS-026 Silence = STOP (matches KAV-056 — no unsafe default)
 // @rule:KOS-027 Two-layer message: plain English + technical detail (internal + external use)
 
@@ -145,9 +145,9 @@ function buildMessage(event: KernelNotifyEvent, approvalId: string | null): stri
   return lines.join("\n");
 }
 
-// ── Delivery via AnkrClaw (same pattern as gate.ts KAV-055) ──────────────────
+// ── Delivery via webhook (opt-in — only fires when webhook_url is configured) ──
 
-async function sendViaAnkrClaw(
+async function sendViaWebhook(
   message: string,
   approvalId: string | null,
 ): Promise<boolean> {
@@ -155,21 +155,15 @@ async function sendViaAnkrClaw(
   const kc = config.kavach;
   if (!kc?.enabled) return false;
 
-  const ankrclawUrl = kc.webhook_url || (kc as any).ankrclaw_url || "";
-  if (!ankrclawUrl) {
-    process.stderr.write("[kavachos:notify] No webhook_url configured — notification skipped\n");
-    return false;
-  }
+  const webhookUrl = kc.webhook_url || (kc as any).ankrclaw_url || "";
+  if (!webhookUrl) return false;  // silent skip — notifications are opt-in
 
   const channel = kc.notify_channel || "telegram";
   const to = channel === "telegram" ? kc.notify_telegram_chat_id : kc.notify_phone;
-  if (!to) {
-    process.stderr.write("[kavachos:notify] No notify destination configured — notification skipped\n");
-    return false;
-  }
+  if (!to) return false;
 
   try {
-    const res = await fetch(`${ankrclawUrl}/api/notify`, {
+    const res = await fetch(`${webhookUrl}/api/notify`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -182,7 +176,7 @@ async function sendViaAnkrClaw(
     });
     return res.ok;
   } catch {
-    process.stderr.write("[kavachos:notify] AnkrClaw unreachable — notification skipped\n");
+    process.stderr.write("[kavachos:notify] webhook unreachable — notification skipped\n");
     return false;
   }
 }
@@ -220,7 +214,7 @@ async function pollForKernelDecision(
 export async function notifyAdvisory(event: KernelNotifyEvent): Promise<void> {
   const message = buildMessage(event, null);
   process.stderr.write(`[kavachos:notify] ADVISORY: ${event.plain_summary}\n`);
-  sendViaAnkrClaw(message, null).catch(() => {});
+  sendViaWebhook(message, null).catch(() => {});
 }
 
 /**
@@ -246,7 +240,7 @@ export async function requestKernelApproval(event: KernelNotifyEvent): Promise<K
   const message = buildMessage(event, approvalId);
   process.stderr.write(`[kavachos:notify] TIER-3 alert sent — ${approvalId}: ${event.plain_summary}\n`);
 
-  await sendViaAnkrClaw(message, approvalId);
+  await sendViaWebhook(message, approvalId);
   return pollForKernelDecision(approvalId);
 }
 
@@ -257,5 +251,5 @@ export async function requestKernelApproval(event: KernelNotifyEvent): Promise<K
 export async function notifyAutoBlock(event: KernelNotifyEvent): Promise<void> {
   const message = buildMessage(event, null);
   process.stderr.write(`[kavachos:notify] AUTO-BLOCK: ${event.plain_summary}\n`);
-  sendViaAnkrClaw(message, null).catch(() => {});
+  sendViaWebhook(message, null).catch(() => {});
 }

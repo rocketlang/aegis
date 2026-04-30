@@ -1,6 +1,6 @@
 {
   "name": "@rocketlang/kavachos",
-  "version": "2.0.1",
+  "version": "2.0.2",
   "description": "KavachOS — seccomp-bpf + Falco kernel enforcement for AI agents. Part of the xShieldAI Posture Suite.",
   "license": "AGPL-3.0",
   "type": "module",

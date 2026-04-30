@@ -142,7 +142,7 @@ export async function runKavachGate(
   // @rule:KAV-053 + KAV-054 — assess blast radius and render plain-English message
   const notificationText = buildNotificationMessage(approvalId, command, level, consequence, timeoutMs);
 
-  // @rule:KAV-055 — notify via AnkrClaw (Telegram primary, WhatsApp fallback)
+  // @rule:KAV-055 — notify via webhook (opt-in: Telegram primary, WhatsApp fallback)
   await sendKavachNotification(approvalId, notificationText, config);
 
   // [EE] Slack secondary notification
@@ -225,7 +225,8 @@ async function sendKavachNotification(
   if (!kc?.enabled) return;
 
   // Support legacy ankrclaw_url field name in existing configs
-  const ankrclawUrl = kc.webhook_url || (kc as any).ankrclaw_url || "";
+  const webhookUrl = kc.webhook_url || (kc as any).ankrclaw_url || "";
+  if (!webhookUrl) return;  // silent skip — notifications are opt-in
 
   // Route to first or second approver channel
   const channel = approver === "second"
@@ -246,7 +247,7 @@ async function sendKavachNotification(
   }
 
   try {
-    const res = await fetch(`${ankrclawUrl}/api/notify`, {
+    const res = await fetch(`${webhookUrl}/api/notify`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ to, message: text, service: "KAVACH", channel }),
