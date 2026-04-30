@@ -1,0 +1,52 @@
+{
+  "name": "@rocketlang/kavachos",
+  "version": "2.0.0",
+  "description": "KavachOS — seccomp-bpf + Falco kernel enforcement for AI agents. Part of the xShieldAI Posture Suite.",
+  "license": "AGPL-3.0",
+  "type": "module",
+  "author": "Capt. Anil Sharma <capt.anil.sharma@powerpbox.org>",
+  "homepage": "https://kavachos.xshieldai.com",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/rocketlang/aegis.git",
+    "directory": "packages/kavachos"
+  },
+  "bugs": {
+    "url": "https://github.com/rocketlang/aegis/issues"
+  },
+  "keywords": [
+    "kavachos",
+    "xshieldai",
+    "seccomp",
+    "falco",
+    "ai-agent",
+    "kernel-enforcement",
+    "ebpf",
+    "seccomp-bpf",
+    "agent-governance",
+    "maritime",
+    "pramana",
+    "kavach",
+    "bpf",
+    "ai-security"
+  ],
+  "bin": {
+    "kavachos": "./bin/kavachos"
+  },
+  "files": [
+    "bin/",
+    "dist/",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "bun": ">=1.0.0"
+  },
+  "scripts": {
+    "build": "bun build ../../src/kavachos-cli.ts --target=bun --outfile=dist/kavachos.js",
+    "prepublishOnly": "bun run build"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

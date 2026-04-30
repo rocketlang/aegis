@@ -1,0 +1,5 @@
+#!/usr/bin/env bun
+// SPDX-License-Identifier: AGPL-3.0-only
+// KavachOS CLI — @rocketlang/kavachos v2.0.0
+// Part of the xShieldAI Posture Suite · kavachos.xshieldai.com
+import(new URL("../dist/kavachos.js", import.meta.url).pathname);
