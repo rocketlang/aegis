@@ -337,6 +337,100 @@ app.get("/api/status", async () => {
   };
 });
 
+// Config reader — for Limits panel
+app.get("/api/config", async () => ({
+  plan: config.plan,
+  budget: { ...config.budget },
+  heartbeat: { ...config.heartbeat },
+  pricing_mode: config.pricing_mode,
+}));
+
+// Limits writer — updates in-memory config and persists
+app.post("/api/config/limits", async (req) => {
+  const b = (req.body as Record<string, unknown>) ?? {};
+  const budgetKeys = [
+    "messages_per_5h","tokens_per_5h","weekly_messages","weekly_tokens",
+    "daily_limit_usd","weekly_limit_usd","monthly_limit_usd",
+    "session_limit_usd","spawn_limit_per_session","spawn_concurrent_max",
+    "cost_estimate_threshold_usd","max_depth",
+  ] as const;
+  for (const key of budgetKeys) {
+    if (b[key] !== undefined) {
+      const n = Number(b[key]);
+      if (!isNaN(n) && n >= 0) (config.budget as Record<string,number>)[key] = n;
+    }
+  }
+  if (typeof b.plan === "string" && ["api","max_5x","max_20x","pro","team","custom"].includes(b.plan)) {
+    (config as any).plan = b.plan;
+  }
+  if (b.heartbeat_timeout_seconds !== undefined) {
+    const n = Number(b.heartbeat_timeout_seconds);
+    if (!isNaN(n) && n > 0) config.heartbeat.timeout_seconds = n;
+  }
+  saveConfig(config);
+  return { ok: true, plan: config.plan };
+});
+
+// Digital Twin universe — sessions grouped by service + KAVACH posture + ledger count
+app.get("/api/universe", async () => {
+  const serviceMap: Record<string, string> = {};
+  try {
+    const raw = await Bun.file("/root/.ankr/config/services.json").text();
+    const svcData = JSON.parse(raw) as { services?: Record<string, { path?: string }> };
+    for (const [key, val] of Object.entries(svcData.services ?? {})) {
+      if (val?.path) serviceMap[val.path] = key;
+    }
+  } catch { /* unavailable */ }
+
+  const sessions = listActiveSessions() as Array<Record<string, any>>;
+  const byPath: Record<string, typeof sessions> = {};
+  for (const s of sessions) {
+    const p: string = s.project_path ?? "/root";
+    if (!byPath[p]) byPath[p] = [];
+    byPath[p].push(s);
+  }
+
+  const services = Object.entries(byPath)
+    .map(([path, sess]) => ({
+      path,
+      name: serviceMap[path] ?? (path.split("/").pop() || path),
+      session_count: sess.length,
+      total_messages: sess.reduce((a, s) => a + (s.message_count ?? 0), 0),
+      total_spawns:   sess.reduce((a, s) => a + (s.agent_spawns ?? 0), 0),
+      total_cost_usd: sess.reduce((a, s) => a + (s.total_cost_usd ?? 0), 0),
+      sessions: sess,
+    }))
+    .sort((a, b) => b.session_count - a.session_count);
+
+  const db = getDb();
+  const kStats = db.query(`
+    SELECT COUNT(*) as total,
+      SUM(CASE WHEN status='allowed' THEN 1 ELSE 0 END) as allowed,
+      SUM(CASE WHEN status='stopped' THEN 1 ELSE 0 END) as blocked,
+      SUM(CASE WHEN status='timed_out' THEN 1 ELSE 0 END) as timed_out,
+      SUM(CASE WHEN level=4 THEN 1 ELSE 0 END) as critical
+    FROM kavach_approvals WHERE created_at > datetime('now','-24 hours')
+  `).get() as Record<string, number> | null;
+
+  let ledgerCount = 0;
+  try {
+    ledgerCount = (db.query("SELECT COUNT(*) as n FROM sdt_chain_store").get() as any)?.n ?? 0;
+  } catch { /* table may not exist */ }
+
+  return {
+    services,
+    total_sessions: sessions.length,
+    kavach_24h: {
+      total: kStats?.total ?? 0,
+      allowed: kStats?.allowed ?? 0,
+      blocked: kStats?.blocked ?? 0,
+      timed_out: kStats?.timed_out ?? 0,
+      critical: kStats?.critical ?? 0,
+    },
+    ledger_seals: ledgerCount,
+  };
+});
+
 app.get("/api/sessions", async () => {
   return listActiveSessions();
 });

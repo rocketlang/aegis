@@ -8,26 +8,26 @@
 </head>
 <body>
 
+<!-- HEADER — always sticky -->
 <header>
   <div class="logo">AEGIS</div>
-  <div class="subtitle">COMMAND CENTER</div>
+  <div class="logo-sub">COMMAND CENTER</div>
   <div id="header-clock" class="header-clock">--:--:--</div>
   <div class="ctrl-strip">
-    <button class="btn-hdr btn-hdr-warn" onclick="pauseAll()">⏸ PAUSE</button>
-    <button class="btn-hdr btn-hdr-ok"   onclick="resumeAll()">▶ RESUME</button>
-    <button class="btn-hdr btn-hdr-kill" onclick="killAll()">✕ KILL ALL</button>
+    <button class="btn-hdr btn-hdr-warn" onclick="pauseAll()">&#9646;&#9646; PAUSE</button>
+    <button class="btn-hdr btn-hdr-ok"   onclick="resumeAll()">&#9654; RESUME</button>
+    <button class="btn-hdr btn-hdr-kill" onclick="killAll()">&#10005; KILL ALL</button>
     <div class="enforce-mini-wrap">
       <input type="checkbox" id="enforce-toggle" onchange="toggleEnforce(this.checked)">
       <label for="enforce-toggle" class="toggle-switch"></label>
       <span id="enforce-status" class="enforce-badge off">ALERT</span>
     </div>
   </div>
-  <div id="connection-status" class="status-dot disconnected"></div>
+  <div id="connection-status" class="status-dot disconnected" title="SSE connection"></div>
 </header>
 
-<!-- Instrument Panel — always visible, full-width -->
+<!-- INSTRUMENT PANEL — always visible -->
 <div class="ops-strip">
-
   <div class="ops-card" id="window-5h-card">
     <div class="ops-label">5H WINDOW</div>
     <div class="ops-numbers">
@@ -38,7 +38,7 @@
       <span class="ops-pct" id="w5h-percent"></span>
     </div>
     <div class="budget-bar-container"><div class="budget-bar" id="w5h-bar" style="width:0%"></div></div>
-    <div class="ops-meta"><span id="w5h-tokens">— tokens</span> · resets <span class="reset-time" id="w5h-reset">—</span></div>
+    <div class="ops-meta"><span id="w5h-tokens">— tokens</span> &middot; resets <span class="reset-time" id="w5h-reset">—</span></div>
   </div>
 
   <div class="ops-card" id="window-weekly-card">
@@ -54,7 +54,6 @@
     <div class="ops-meta"><span id="wk-tokens">— tokens</span></div>
   </div>
 
-  <!-- API plan cards (shown only when plan=api) -->
   <div class="ops-card" id="daily-card" style="display:none">
     <div class="ops-label">TODAY</div>
     <div class="ops-numbers">
@@ -65,6 +64,7 @@
     </div>
     <div class="budget-bar-container"><div class="budget-bar" id="daily-bar" style="width:0%"></div></div>
   </div>
+
   <div class="ops-card" id="weekly-card" style="display:none">
     <div class="ops-label">THIS WEEK</div>
     <div class="ops-numbers">
@@ -75,6 +75,7 @@
     </div>
     <div class="budget-bar-container"><div class="budget-bar" id="weekly-bar" style="width:0%"></div></div>
   </div>
+
   <div class="ops-card" id="monthly-card" style="display:none">
     <div class="ops-label">THIS MONTH</div>
     <div class="ops-numbers">
@@ -99,76 +100,495 @@
       <span class="ops-sysbig" id="kpi-sessions">0</span><span class="ops-syslabel">sessions</span>
       <span class="ops-sysbig" id="kpi-processes">0</span><span class="ops-syslabel">procs</span>
     </div>
-    <div class="ops-meta">CPU <span id="total-cpu">—</span>% · RAM <span id="total-mem">—</span> MB</div>
+    <div class="ops-meta">CPU <span id="total-cpu">—</span>% &middot; RAM <span id="total-mem">—</span> MB</div>
     <div class="ops-planbadge" id="plan-badge">—</div>
   </div>
-
 </div>
 
-<!-- KAVACH — full-width alert, shown only when pending -->
-<section class="kavach-strip" id="kavach-section" style="display:none">
-  <h2>⚠ KAVACH — Pending Approvals <span id="kavach-count" class="kavach-badge"></span></h2>
-  <div id="kavach-list" class="kavach-list"></div>
-</section>
+<!-- TAB NAV — sticky below ops-strip -->
+<nav class="tab-nav">
+  <button class="tab-btn active" onclick="switchTab('overview')" id="tab-btn-overview">
+    OVERVIEW
+  </button>
+  <button class="tab-btn" onclick="switchTab('twin')" id="tab-btn-twin">
+    DIGITAL TWIN
+  </button>
+  <button class="tab-btn" onclick="switchTab('agents')" id="tab-btn-agents">
+    AGENTS
+    <span class="tab-badge" id="tab-badge-agents" style="display:none"></span>
+  </button>
+  <button class="tab-btn" onclick="switchTab('limits')" id="tab-btn-limits">
+    LIMITS
+  </button>
+  <button class="tab-btn" onclick="switchTab('posture')" id="tab-btn-posture">
+    POSTURE
+    <span class="tab-badge tab-badge-red" id="tab-badge-posture" style="display:none"></span>
+  </button>
+</nav>
 
-<main>
+<!-- ═══════════════════════════════════════════════════════
+     TAB 1: OVERVIEW
+═══════════════════════════════════════════════════════ -->
+<div class="tab-panel active" id="tab-overview">
 
-  <!-- Processes — full width, top of content -->
-  <section class="card-section processes-section">
-    <h2>Agent Processes <span id="proc-count-badge" class="badge">0</span></h2>
-    <div id="processes-list" class="processes-list">
-      <div class="empty-state">No agent processes detected</div>
-    </div>
+  <!-- KAVACH alert strip — shown only when pending -->
+  <section class="kavach-strip" id="kavach-section" style="display:none">
+    <h2 class="kavach-strip-title">
+      <span class="kavach-pulse-dot"></span>
+      KAVACH — Pending Approvals
+      <span id="kavach-count" class="kavach-badge"></span>
+    </h2>
+    <div id="kavach-list" class="kavach-list"></div>
   </section>
 
-  <!-- Mid grid: Sessions left · Trend + BG Agents right -->
-  <div class="mid-grid">
+  <main class="tab-content">
 
-    <section class="card-section">
-      <h2>Active Sessions <span id="session-count" class="badge">0</span></h2>
-      <div id="sessions-list" class="sessions-list">
-        <div class="empty-state">No active sessions</div>
+    <!-- Processes — full width -->
+    <section class="card-section processes-section">
+      <h2>Agent Processes <span id="proc-count-badge" class="badge">0</span></h2>
+      <div id="processes-list" class="processes-list">
+        <div class="empty-state">No agent processes detected</div>
       </div>
     </section>
 
-    <div class="right-stack">
+    <!-- Mid grid: Sessions (60%) + right stack (40%) -->
+    <div class="mid-grid">
       <section class="card-section">
-        <h2>7-Day Trend</h2>
-        <div class="trend-bars" id="trend-bars"></div>
+        <h2>Active Sessions <span id="session-count" class="badge">0</span></h2>
+        <div id="sessions-list" class="sessions-list">
+          <div class="empty-state">No active sessions</div>
+        </div>
       </section>
-      <section class="card-section" id="bg-agents-section">
-        <h2>Background Agents <span id="bg-agents-badge" class="kavach-badge" style="display:none"></span></h2>
-        <div id="bg-agents-list" class="kavach-list">
-          <div class="empty-state">No background agents in last 24h</div>
+
+      <div class="right-stack">
+        <section class="card-section">
+          <h2>7-Day Trend</h2>
+          <div class="trend-bars" id="trend-bars"></div>
+        </section>
+        <section class="card-section">
+          <h2>Background Agents <span id="bg-agents-badge" class="kavach-badge" style="display:none"></span></h2>
+          <div id="bg-agents-list" class="kavach-list">
+            <div class="empty-state">No background agents in last 24h</div>
+          </div>
+        </section>
+      </div>
+    </div>
+
+    <!-- Bottom: Cost Tree + Alerts -->
+    <div class="bottom-grid">
+      <section class="card-section">
+        <h2>Cost Attribution Tree <span id="cost-tree-badge" class="badge">0</span>
+          <button class="btn-xs" style="margin-left:10px" onclick="fetchCostTree()">&#8635; Refresh</button>
+        </h2>
+        <div id="cost-tree-container">
+          <div class="empty-state">No agents tracked yet</div>
+        </div>
+      </section>
+
+      <section class="card-section alerts-section">
+        <h2>Alerts</h2>
+        <div id="alerts-list" class="alerts-list">
+          <div class="empty-state">No alerts</div>
         </div>
       </section>
     </div>
 
-  </div>
+  </main>
+</div>
 
-  <!-- Bottom: Cost Tree + Alerts -->
-  <div class="bottom-grid">
-    <section class="card-section" id="cost-tree-section">
-      <h2>Cost Attribution Tree <span id="cost-tree-badge" class="badge">0</span>
-        <button class="btn-xs" style="margin-left:10px" onclick="fetchCostTree()">↻ Refresh</button>
+<!-- ═══════════════════════════════════════════════════════
+     TAB 2: DIGITAL TWIN
+═══════════════════════════════════════════════════════ -->
+<div class="tab-panel" id="tab-twin">
+  <main class="tab-content">
+
+    <!-- AEGIS Mesh Pipeline -->
+    <section class="card-section mesh-section">
+      <h2>AEGIS Mesh Pipeline — Live Intercept Flow</h2>
+      <div class="mesh-pipeline" id="mesh-pipeline">
+        <div class="mesh-node" id="mesh-request">
+          <div class="mesh-node-label">REQUEST IN</div>
+          <div class="mesh-node-count" id="mesh-count-request">—</div>
+          <div class="mesh-node-desc">sessions</div>
+        </div>
+        <div class="mesh-arrow">&#10132;</div>
+        <div class="mesh-node" id="mesh-intercept">
+          <div class="mesh-node-label">INTERCEPT</div>
+          <div class="mesh-node-count" id="mesh-count-intercept">—</div>
+          <div class="mesh-node-desc">100% capture</div>
+        </div>
+        <div class="mesh-arrow">&#10132;</div>
+        <div class="mesh-node" id="mesh-policy">
+          <div class="mesh-node-label">POLICY &lt;1ms</div>
+          <div class="mesh-node-count" id="mesh-count-policy">—</div>
+          <div class="mesh-node-desc">allowed</div>
+        </div>
+        <div class="mesh-arrow">&#10132;</div>
+        <div class="mesh-node mesh-node-danger" id="mesh-firewall">
+          <div class="mesh-node-label">FIREWALL T1</div>
+          <div class="mesh-node-count" id="mesh-count-firewall">—</div>
+          <div class="mesh-node-desc">blocked</div>
+        </div>
+        <div class="mesh-arrow">&#10132;</div>
+        <div class="mesh-node" id="mesh-kernel">
+          <div class="mesh-node-label">KERNEL</div>
+          <div class="mesh-node-count" id="mesh-count-kernel">ENFORCE</div>
+          <div class="mesh-node-desc" id="mesh-kernel-mode">mode</div>
+        </div>
+        <div class="mesh-arrow">&#10132;</div>
+        <div class="mesh-node mesh-node-purple" id="mesh-ledger">
+          <div class="mesh-node-label">LEDGER SHA-256</div>
+          <div class="mesh-node-count" id="mesh-count-ledger">—</div>
+          <div class="mesh-node-desc">seals</div>
+        </div>
+        <div class="mesh-arrow">&#10132;</div>
+        <div class="mesh-node mesh-node-output" id="mesh-output">
+          <div class="mesh-node-label">OUTPUT</div>
+          <div class="mesh-node-count" id="mesh-count-output">—</div>
+          <div class="mesh-node-desc">pass rate</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Service Universe Map -->
+    <section class="card-section">
+      <h2>Service Universe Map <span id="universe-total-badge" class="badge">0</span>
+        <span class="h2-sub" id="universe-meta"></span>
       </h2>
-      <div id="cost-tree-container">
-        <div class="empty-state">No agents tracked yet</div>
+      <div id="universe-map" class="universe-map">
+        <div class="empty-state">Loading universe...</div>
       </div>
     </section>
 
-    <section class="card-section alerts-section">
-      <h2>Alerts</h2>
-      <div id="alerts-list" class="alerts-list">
-        <div class="empty-state">No alerts</div>
+    <!-- Agent Position Table -->
+    <section class="card-section">
+      <h2>Agent Position Table — Where Each Agent Is Right Now</h2>
+      <div class="agent-position-table-wrap">
+        <table class="agent-position-table" id="agent-position-table">
+          <thead>
+            <tr>
+              <th>SESSION</th>
+              <th>SERVICE / PROJECT</th>
+              <th>MSGS</th>
+              <th>SPAWNS</th>
+              <th>COST</th>
+              <th>STATUS</th>
+              <th>CONTROLS</th>
+            </tr>
+          </thead>
+          <tbody id="agent-position-tbody">
+            <tr><td colspan="7" class="empty-state">No active agents</td></tr>
+          </tbody>
+        </table>
       </div>
     </section>
-  </div>
 
-</main>
+  </main>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════
+     TAB 3: AGENTS
+═══════════════════════════════════════════════════════ -->
+<div class="tab-panel" id="tab-agents">
+  <main class="tab-content">
+
+    <!-- Summary cards -->
+    <div class="agents-summary-row">
+      <div class="agents-summary-card agents-summary-claude">
+        <div class="asm-label">CLAUDE CODE</div>
+        <div class="asm-big" id="asm-claude-sessions">—</div>
+        <div class="asm-sub">active sessions</div>
+      </div>
+      <div class="agents-summary-card agents-summary-hanuman">
+        <div class="asm-label">HANUMANG PASS RATE</div>
+        <div class="asm-big" id="asm-pass-rate">—</div>
+        <div class="asm-sub">kavach allowed / total</div>
+      </div>
+      <div class="agents-summary-card agents-summary-ledger">
+        <div class="asm-label">LEDGER SEALS</div>
+        <div class="asm-big" id="asm-ledger-seals">—</div>
+        <div class="asm-sub">SHA-256 immutable</div>
+      </div>
+    </div>
+
+    <!-- Full session list -->
+    <section class="card-section">
+      <h2>All Sessions — Extended Detail <span id="agents-session-count" class="badge">0</span></h2>
+      <div id="agents-sessions-list" class="agents-sessions-list">
+        <div class="empty-state">No sessions</div>
+      </div>
+    </section>
+
+    <!-- Process list by type -->
+    <section class="card-section">
+      <h2>Processes by Type</h2>
+      <div id="agents-processes-grouped" class="agents-processes-grouped">
+        <div class="empty-state">No processes</div>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════
+     TAB 4: LIMITS
+═══════════════════════════════════════════════════════ -->
+<div class="tab-panel" id="tab-limits">
+  <main class="tab-content">
+
+    <section class="card-section">
+      <h2>Plan</h2>
+      <div class="plan-selector" id="plan-selector">
+        <button class="plan-pill" onclick="setPlan('api')"     id="plan-pill-api">api</button>
+        <button class="plan-pill" onclick="setPlan('max_5x')"  id="plan-pill-max_5x">max 5x</button>
+        <button class="plan-pill" onclick="setPlan('max_20x')" id="plan-pill-max_20x">max 20x</button>
+        <button class="plan-pill" onclick="setPlan('pro')"     id="plan-pill-pro">pro</button>
+      </div>
+    </section>
+
+    <div class="limits-grid">
+
+      <section class="card-section">
+        <h2>Max Plan Budget</h2>
+        <div class="limits-table">
+          <div class="limit-row">
+            <span class="limit-label">Messages / 5h window</span>
+            <input class="limit-input" id="lim-messages_per_5h" type="number" min="0">
+            <span class="limit-unit">msgs</span>
+            <button class="limit-save-btn" onclick="saveLimitField('messages_per_5h')">SAVE</button>
+            <span class="limit-saved" id="lsaved-messages_per_5h"></span>
+          </div>
+          <div class="limit-row">
+            <span class="limit-label">Tokens / 5h window</span>
+            <input class="limit-input" id="lim-tokens_per_5h" type="number" min="0">
+            <span class="limit-unit">tokens</span>
+            <button class="limit-save-btn" onclick="saveLimitField('tokens_per_5h')">SAVE</button>
+            <span class="limit-saved" id="lsaved-tokens_per_5h"></span>
+          </div>
+          <div class="limit-row">
+            <span class="limit-label">Messages / week</span>
+            <input class="limit-input" id="lim-weekly_messages" type="number" min="0">
+            <span class="limit-unit">msgs</span>
+            <button class="limit-save-btn" onclick="saveLimitField('weekly_messages')">SAVE</button>
+            <span class="limit-saved" id="lsaved-weekly_messages"></span>
+          </div>
+          <div class="limit-row">
+            <span class="limit-label">Tokens / week</span>
+            <input class="limit-input" id="lim-weekly_tokens" type="number" min="0">
+            <span class="limit-unit">tokens</span>
+            <button class="limit-save-btn" onclick="saveLimitField('weekly_tokens')">SAVE</button>
+            <span class="limit-saved" id="lsaved-weekly_tokens"></span>
+          </div>
+        </div>
+      </section>
+
+      <section class="card-section">
+        <h2>API Budget</h2>
+        <div class="limits-table">
+          <div class="limit-row">
+            <span class="limit-label">Daily limit</span>
+            <input class="limit-input" id="lim-daily_limit_usd" type="number" min="0" step="0.01">
+            <span class="limit-unit">USD</span>
+            <button class="limit-save-btn" onclick="saveLimitField('daily_limit_usd')">SAVE</button>
+            <span class="limit-saved" id="lsaved-daily_limit_usd"></span>
+          </div>
+          <div class="limit-row">
+            <span class="limit-label">Weekly limit</span>
+            <input class="limit-input" id="lim-weekly_limit_usd" type="number" min="0" step="0.01">
+            <span class="limit-unit">USD</span>
+            <button class="limit-save-btn" onclick="saveLimitField('weekly_limit_usd')">SAVE</button>
+            <span class="limit-saved" id="lsaved-weekly_limit_usd"></span>
+          </div>
+          <div class="limit-row">
+            <span class="limit-label">Monthly limit</span>
+            <input class="limit-input" id="lim-monthly_limit_usd" type="number" min="0" step="0.01">
+            <span class="limit-unit">USD</span>
+            <button class="limit-save-btn" onclick="saveLimitField('monthly_limit_usd')">SAVE</button>
+            <span class="limit-saved" id="lsaved-monthly_limit_usd"></span>
+          </div>
+          <div class="limit-row">
+            <span class="limit-label">Per-session limit</span>
+            <input class="limit-input" id="lim-session_limit_usd" type="number" min="0" step="0.01">
+            <span class="limit-unit">USD</span>
+            <button class="limit-save-btn" onclick="saveLimitField('session_limit_usd')">SAVE</button>
+            <span class="limit-saved" id="lsaved-session_limit_usd"></span>
+          </div>
+        </div>
+      </section>
+
+      <section class="card-section">
+        <h2>Spawn Controls</h2>
+        <div class="limits-table">
+          <div class="limit-row">
+            <span class="limit-label">Spawns per session</span>
+            <input class="limit-input" id="lim-spawn_limit_per_session" type="number" min="0">
+            <span class="limit-unit">agents</span>
+            <button class="limit-save-btn" onclick="saveLimitField('spawn_limit_per_session')">SAVE</button>
+            <span class="limit-saved" id="lsaved-spawn_limit_per_session"></span>
+          </div>
+          <div class="limit-row">
+            <span class="limit-label">Concurrent max</span>
+            <input class="limit-input" id="lim-spawn_concurrent_max" type="number" min="0">
+            <span class="limit-unit">concurrent</span>
+            <button class="limit-save-btn" onclick="saveLimitField('spawn_concurrent_max')">SAVE</button>
+            <span class="limit-saved" id="lsaved-spawn_concurrent_max"></span>
+          </div>
+          <div class="limit-row">
+            <span class="limit-label">Max spawn depth</span>
+            <input class="limit-input" id="lim-max_depth" type="number" min="0">
+            <span class="limit-unit">levels</span>
+            <button class="limit-save-btn" onclick="saveLimitField('max_depth')">SAVE</button>
+            <span class="limit-saved" id="lsaved-max_depth"></span>
+          </div>
+        </div>
+      </section>
+
+      <section class="card-section">
+        <h2>Heartbeat</h2>
+        <div class="limits-table">
+          <div class="limit-row">
+            <span class="limit-label">Timeout</span>
+            <input class="limit-input" id="lim-timeout_seconds" type="number" min="0">
+            <span class="limit-unit">seconds</span>
+            <button class="limit-save-btn" onclick="saveLimitField('timeout_seconds')">SAVE</button>
+            <span class="limit-saved" id="lsaved-timeout_seconds"></span>
+          </div>
+          <div class="limit-row">
+            <span class="limit-label">On timeout action</span>
+            <div class="action-pills" id="heartbeat-action-pills">
+              <button class="action-pill active" onclick="setHeartbeatAction('pause')" id="hb-pause">pause</button>
+              <button class="action-pill" onclick="setHeartbeatAction('kill')" id="hb-kill">kill</button>
+              <button class="action-pill" onclick="setHeartbeatAction('alert')" id="hb-alert">alert</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+    </div><!-- .limits-grid -->
+  </main>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════
+     TAB 5: POSTURE
+═══════════════════════════════════════════════════════ -->
+<div class="tab-panel" id="tab-posture">
+  <main class="tab-content">
+
+    <!-- HanumanG + KAVACH breakdown -->
+    <div class="posture-top-grid">
+
+      <section class="card-section">
+        <h2>HanumanG — 7-Axis Trust Assessment</h2>
+        <div class="hanuman-grid" id="hanuman-grid">
+          <div class="hanuman-axis" id="haxis-identity">
+            <div class="haxis-label">IDENTITY</div>
+            <div class="haxis-bar-wrap"><div class="haxis-bar" id="haxis-bar-identity"></div></div>
+            <div class="haxis-val" id="haxis-val-identity">—</div>
+          </div>
+          <div class="hanuman-axis" id="haxis-authorization">
+            <div class="haxis-label">AUTHORIZATION</div>
+            <div class="haxis-bar-wrap"><div class="haxis-bar" id="haxis-bar-authorization"></div></div>
+            <div class="haxis-val" id="haxis-val-authorization">—</div>
+          </div>
+          <div class="hanuman-axis" id="haxis-scope">
+            <div class="haxis-label">SCOPE</div>
+            <div class="haxis-bar-wrap"><div class="haxis-bar" id="haxis-bar-scope"></div></div>
+            <div class="haxis-val" id="haxis-val-scope">—</div>
+          </div>
+          <div class="hanuman-axis" id="haxis-budget">
+            <div class="haxis-label">BUDGET</div>
+            <div class="haxis-bar-wrap"><div class="haxis-bar" id="haxis-bar-budget"></div></div>
+            <div class="haxis-val" id="haxis-val-budget">—</div>
+          </div>
+          <div class="hanuman-axis" id="haxis-depth">
+            <div class="haxis-label">DEPTH</div>
+            <div class="haxis-bar-wrap"><div class="haxis-bar" id="haxis-bar-depth"></div></div>
+            <div class="haxis-val" id="haxis-val-depth">—</div>
+          </div>
+          <div class="hanuman-axis" id="haxis-purpose">
+            <div class="haxis-label">PURPOSE</div>
+            <div class="haxis-bar-wrap"><div class="haxis-bar" id="haxis-bar-purpose"></div></div>
+            <div class="haxis-val" id="haxis-val-purpose">—</div>
+          </div>
+          <div class="hanuman-axis" id="haxis-revocability">
+            <div class="haxis-label">REVOCABILITY</div>
+            <div class="haxis-bar-wrap"><div class="haxis-bar" id="haxis-bar-revocability"></div></div>
+            <div class="haxis-val" id="haxis-val-revocability">—</div>
+          </div>
+        </div>
+        <div class="hanuman-meta" id="hanuman-meta">Loading...</div>
+      </section>
+
+      <section class="card-section">
+        <h2>KAVACH Decision Breakdown</h2>
+        <div id="kavach-breakdown" class="kavach-breakdown">
+          <div class="kv-stat-row">
+            <span class="kv-stat-label">ALLOWED</span>
+            <div class="kv-stat-bar-wrap"><div class="kv-stat-bar kv-green" id="kv-bar-allowed"></div></div>
+            <span class="kv-stat-count kv-green-text" id="kv-count-allowed">—</span>
+          </div>
+          <div class="kv-stat-row">
+            <span class="kv-stat-label">BLOCKED</span>
+            <div class="kv-stat-bar-wrap"><div class="kv-stat-bar kv-red" id="kv-bar-blocked"></div></div>
+            <span class="kv-stat-count kv-red-text" id="kv-count-blocked">—</span>
+          </div>
+          <div class="kv-stat-row">
+            <span class="kv-stat-label">TIMED OUT</span>
+            <div class="kv-stat-bar-wrap"><div class="kv-stat-bar kv-amber" id="kv-bar-timed_out"></div></div>
+            <span class="kv-stat-count kv-amber-text" id="kv-count-timed_out">—</span>
+          </div>
+          <div class="kv-stat-row">
+            <span class="kv-stat-label">CRITICAL</span>
+            <div class="kv-stat-bar-wrap"><div class="kv-stat-bar kv-red kv-critical" id="kv-bar-critical"></div></div>
+            <span class="kv-stat-count kv-red-text" id="kv-count-critical">—</span>
+          </div>
+          <div class="kv-total-row">
+            <span>TOTAL 24h</span>
+            <span id="kv-total-count" class="kv-total-num">—</span>
+          </div>
+        </div>
+
+        <div class="ca006-card">
+          <div class="ca006-label">CA-006 SOCKPUPPET DEFENSE</div>
+          <div class="ca006-status">
+            <span class="ca006-dot"></span>
+            <span class="ca006-text">ACTIVE — sanitizeHistory() reframes assistant-role injections</span>
+          </div>
+          <div class="ca006-meta">Ref: DOI 10.5281/zenodo.19508513 &middot; commit 3d4607b</div>
+        </div>
+      </section>
+
+    </div>
+
+    <!-- KAVACH Audit Log -->
+    <section class="card-section">
+      <h2>KAVACH Audit Log — Recent Decisions
+        <button class="btn-xs" style="margin-left:10px" onclick="fetchKavachAudit()">&#8635; Refresh</button>
+      </h2>
+      <div class="audit-table-wrap">
+        <table class="audit-table" id="kavach-audit-table">
+          <thead>
+            <tr>
+              <th>TIME</th>
+              <th>ID</th>
+              <th>LEVEL</th>
+              <th>DECISION</th>
+              <th>COMMAND</th>
+              <th>DURATION</th>
+            </tr>
+          </thead>
+          <tbody id="kavach-audit-tbody">
+            <tr><td colspan="6" class="empty-state">Loading...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+  </main>
+</div>
 
 <footer>
-  <span>AEGIS v0.1.0</span>
+  <span>AEGIS v0.2.0</span>
   <span id="footer-plan"></span>
   <span>The kill-switch between your AI agents and your credit card</span>
 </footer>

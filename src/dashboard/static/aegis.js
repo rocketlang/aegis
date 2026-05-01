@@ -3,6 +3,35 @@
 // Auto-detect base path: works at /dashboard/ and at root (aegis.ankr.in)
 const API = window.location.pathname.startsWith('/dashboard') ? '/dashboard' : '';
 
+// ── Shared state ──────────────────────────────────────────────────────────────
+let lastStatus       = null;
+let lastSessions     = [];
+let lastProcs        = [];
+let lastUniverseData = null;
+
+// ── Utility helpers ───────────────────────────────────────────────────────────
+function setEl(id, val) {
+  const el = document.getElementById(id);
+  if (el) el.textContent = val;
+}
+
+function relTime(ts) {
+  if (!ts) return '—';
+  const diff = Math.round((Date.now() - new Date(ts).getTime()) / 1000);
+  if (diff < 60)   return diff + 's ago';
+  if (diff < 3600) return Math.floor(diff / 60) + 'm ago';
+  return Math.floor(diff / 3600) + 'h ago';
+}
+
+async function fetchUniverse() {
+  try {
+    const res  = await fetch(`${API}/api/universe`);
+    lastUniverseData = await res.json();
+    renderPostureFromData();
+    renderAgentTab();
+  } catch {}
+}
+
 function formatTokens(t) {
   if (t >= 1e9) return (t / 1e9).toFixed(2) + 'B';
   if (t >= 1e6) return (t / 1e6).toFixed(1) + 'M';
@@ -552,5 +581,402 @@ function renderBgAgents(agents) {
   }).join('');
 }
 
+// ── TAB 3: AGENTS ─────────────────────────────────────────────────────────────
+
+function renderAgentPositionTable(sessions) {
+  const tbody = document.getElementById('agent-position-tbody');
+  if (!tbody) return;
+  if (!sessions.length) {
+    tbody.innerHTML = '<tr><td colspan="7" class="empty-state">No active agents</td></tr>';
+    return;
+  }
+  tbody.innerHTML = sessions.map(s => {
+    const valve      = valveCache[s.session_id];
+    const valveState = valve ? valve.state : '';
+    const sid        = s.session_id;
+    return `<tr>
+      <td title="${sid}">${sid.slice(0,8)}</td>
+      <td>${escHtml(s.project || s.cwd || '—')}</td>
+      <td>${s.message_count}</td>
+      <td>${s.agent_spawns}</td>
+      <td>$${s.total_cost_usd.toFixed(3)}</td>
+      <td><span class="session-status ${s.status}">${s.status}</span>${valveState ? ' ' + (VALVE_EMOJI[valveState] || '') : ''}</td>
+      <td>
+        <button class="btn-xs" onclick="valveAction('${sid}','throttle')">THROTTLE</button>
+        <button class="btn-xs btn-xs-kill" onclick="valveAction('${sid}','close')">CLOSE</button>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+function renderAgentTab() {
+  const sessions = lastSessions;
+  const procs    = lastProcs;
+
+  setEl('asm-claude-sessions', sessions.length);
+  setEl('agents-session-count', sessions.length);
+
+  if (lastUniverseData) {
+    const k       = lastUniverseData.kavach_24h || {};
+    const total   = k.total   || 0;
+    const allowed = k.allowed || 0;
+    setEl('asm-pass-rate',    total > 0 ? Math.round((allowed / total) * 100) + '%' : '—');
+    setEl('asm-ledger-seals', lastUniverseData.ledger_seals || 0);
+  }
+
+  const list = document.getElementById('agents-sessions-list');
+  if (list) {
+    if (!sessions.length) {
+      list.innerHTML = '<div class="empty-state">No sessions</div>';
+    } else {
+      list.innerHTML = sessions.map(s => {
+        const valve      = valveCache[s.session_id];
+        const valveEmoji = valve ? (VALVE_EMOJI[valve.state] || '⚪') : '⚪';
+        const permDiff   = renderPermDiff(valve);
+        return `<div class="session-card">
+          <span class="session-id">${s.session_id.slice(0,8)}</span>
+          <span class="session-cost">$${s.total_cost_usd.toFixed(3)}</span>
+          <span class="session-meta">${s.message_count} msgs · ${s.agent_spawns} spawns</span>
+          <span class="session-meta">${valveEmoji} ${valve?.state || ''} ${permDiff}</span>
+          <span class="session-meta">${escHtml(s.project || s.cwd || '—')}</span>
+          <span class="session-status ${s.status}">${s.status}</span>
+        </div>`;
+      }).join('');
+    }
+  }
+
+  const grouped = document.getElementById('agents-processes-grouped');
+  if (grouped) {
+    if (!procs.length) {
+      grouped.innerHTML = '<div class="empty-state">No processes</div>';
+    } else {
+      const byType = {};
+      for (const p of procs) {
+        const t = p.name?.includes('bun')    ? 'bun (agent)' :
+                  p.name?.includes('node')   ? 'node' :
+                  p.name?.includes('python') ? 'python' : p.name || 'other';
+        if (!byType[t]) byType[t] = [];
+        byType[t].push(p);
+      }
+      grouped.innerHTML = Object.entries(byType).map(([type, ps]) => `
+        <div class="proc-group">
+          <div class="proc-group-title">${escHtml(type)} <span class="badge">${ps.length}</span></div>
+          ${ps.map(p => `
+            <div class="process-row">
+              <span class="proc-pid">PID ${p.pid}</span>
+              <span class="proc-state ${p.state === 'T' ? 'state-paused' : 'state-running'}">${p.state === 'T' ? 'PAUSED' : 'RUN'}</span>
+              <span class="proc-cpu">CPU ${p.cpu?.toFixed(1) ?? '—'}%</span>
+              <span class="proc-mem">MEM ${p.mem_mb ? Math.round(p.mem_mb)+'MB' : '—'}</span>
+              <div class="proc-actions">
+                <button class="btn-proc btn-kill" onclick="killPid(${p.pid})">&#10005;</button>
+              </div>
+            </div>`).join('')}
+        </div>`).join('');
+    }
+  }
+}
+
+// ── TAB 4: LIMITS ─────────────────────────────────────────────────────────────
+
+let currentConfig = null;
+
+async function loadLimits() {
+  try {
+    const res  = await fetch(`${API}/api/config`);
+    currentConfig = await res.json();
+    applyConfigToForm(currentConfig);
+  } catch {}
+}
+
+function applyConfigToForm(cfg) {
+  if (!cfg) return;
+  const b = cfg.budget    || {};
+  const h = cfg.heartbeat || {};
+
+  const fields = {
+    messages_per_5h:         b.messages_per_5h,
+    tokens_per_5h:           b.tokens_per_5h,
+    weekly_messages:         b.weekly_messages,
+    weekly_tokens:           b.weekly_tokens,
+    daily_limit_usd:         b.daily_limit_usd,
+    weekly_limit_usd:        b.weekly_limit_usd,
+    monthly_limit_usd:       b.monthly_limit_usd,
+    session_limit_usd:       b.session_limit_usd,
+    spawn_limit_per_session: b.spawn_limit_per_session,
+    spawn_concurrent_max:    b.spawn_concurrent_max,
+    max_depth:               b.max_depth,
+    timeout_seconds:         h.timeout_seconds,
+  };
+
+  for (const [key, val] of Object.entries(fields)) {
+    const el = document.getElementById(`lim-${key}`);
+    if (el && val !== undefined) el.value = val;
+  }
+
+  const plan = cfg.plan || 'api';
+  document.querySelectorAll('.plan-pill').forEach(p => p.classList.remove('active'));
+  const activePill = document.getElementById(`plan-pill-${plan}`);
+  if (activePill) activePill.classList.add('active');
+
+  const hbAction = h.on_timeout || 'pause';
+  document.querySelectorAll('[id^="hb-"]').forEach(p => p.classList.remove('active'));
+  const hbPill = document.getElementById(`hb-${hbAction}`);
+  if (hbPill) hbPill.classList.add('active');
+}
+
+async function saveLimitField(field) {
+  const el    = document.getElementById(`lim-${field}`);
+  const saved = document.getElementById(`lsaved-${field}`);
+  if (!el) return;
+  const val = parseFloat(el.value);
+  if (isNaN(val) || val < 0) { showToast('Invalid value', 'red'); return; }
+
+  const body = {};
+  if (['daily_limit_usd','weekly_limit_usd','monthly_limit_usd','session_limit_usd'].includes(field)) {
+    body[field] = val;
+  } else if (field === 'timeout_seconds') {
+    body.heartbeat_timeout_seconds = val;
+  } else {
+    body[field] = val;
+  }
+
+  try {
+    const res  = await fetch(`${API}/api/config/limits`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    const data = await res.json();
+    if (data.ok) {
+      if (saved) { saved.textContent = '✓ saved'; setTimeout(() => { saved.textContent = ''; }, 2000); }
+      showToast(`${field} saved`, 'green');
+    } else {
+      showToast('Save failed', 'red');
+    }
+  } catch { showToast('Save failed', 'red'); }
+}
+
+async function setPlan(plan) {
+  document.querySelectorAll('.plan-pill').forEach(p => p.classList.remove('active'));
+  const pill = document.getElementById(`plan-pill-${plan}`);
+  if (pill) pill.classList.add('active');
+  try {
+    await fetch(`${API}/api/config/limits`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ plan }),
+    });
+    showToast(`Plan set to ${plan}`, 'green');
+    await loadLimits();
+  } catch { showToast('Save failed', 'red'); }
+}
+
+async function setHeartbeatAction(action) {
+  document.querySelectorAll('[id^="hb-"]').forEach(p => p.classList.remove('active'));
+  const pill = document.getElementById(`hb-${action}`);
+  if (pill) pill.classList.add('active');
+  try {
+    await fetch(`${API}/api/config/limits`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ heartbeat_on_timeout: action }),
+    });
+    showToast(`Heartbeat action: ${action}`, 'green');
+  } catch {}
+}
+
+// ── TAB 5: POSTURE ────────────────────────────────────────────────────────────
+
+async function fetchPosture() {
+  if (!lastUniverseData) await fetchUniverse();
+  renderPostureFromData();
+}
+
+function renderKavachBreakdown(k, ledgerSeals) {
+  const total = k.total || 1;
+  for (const key of ['allowed','blocked','timed_out','critical']) {
+    const val = k[key] || 0;
+    const pct = Math.min(100, (val / total) * 100);
+    const bar = document.getElementById(`kv-bar-${key}`);
+    const cnt = document.getElementById(`kv-count-${key}`);
+    if (bar) bar.style.width = pct + '%';
+    if (cnt) cnt.textContent = val;
+  }
+  setEl('kv-total-count', k.total || 0);
+  renderHanumanAxes(k, ledgerSeals);
+}
+
+function renderHanumanAxes(k, ledgerSeals) {
+  const sessions = lastSessions.length;
+  const total    = k.total    || 0;
+  const allowed  = k.allowed  || 0;
+  const blocked  = k.blocked  || 0;
+  const critical = k.critical || 0;
+
+  const axes = {
+    identity:      sessions > 0 ? 90 : 0,
+    authorization: total > 0 ? Math.round((allowed / total) * 100) : 95,
+    scope:         total > 0 ? Math.max(0, 100 - Math.round((blocked / total) * 100) * 3) : 95,
+    budget:        lastStatus ? Math.max(0, 100 - getWindowPct()) : 80,
+    depth:         95,
+    purpose:       total > 0 ? Math.max(0, 100 - critical * 10) : 95,
+    revocability:  ledgerSeals > 0 ? 90 : 70,
+  };
+
+  for (const [axis, score] of Object.entries(axes)) {
+    const bar = document.getElementById(`haxis-bar-${axis}`);
+    const val = document.getElementById(`haxis-val-${axis}`);
+    const row = document.getElementById(`haxis-${axis}`);
+    if (bar) {
+      bar.style.width = score + '%';
+      bar.className   = `haxis-bar ${score < 50 ? 'haxis-danger' : score < 75 ? 'haxis-warn' : 'haxis-ok'}`;
+    }
+    if (val) val.textContent = score + '%';
+    if (row) row.className   = `hanuman-axis ${score < 50 ? 'axis-danger' : score < 75 ? 'axis-warn' : ''}`;
+  }
+
+  const overall = Math.round(Object.values(axes).reduce((a, b) => a + b, 0) / 7);
+  setEl('hanuman-meta', `Overall trust score: ${overall}% · ${sessions} sessions · ${total} KAVACH decisions`);
+}
+
+function getWindowPct() {
+  if (!lastStatus?.window_5h) return 0;
+  const w = lastStatus.window_5h;
+  return w.messages_limit > 0 ? Math.min(100, (w.messages_used / w.messages_limit) * 100) : 0;
+}
+
+function renderPostureFromData() {
+  if (lastUniverseData) {
+    renderKavachBreakdown(lastUniverseData.kavach_24h || {}, lastUniverseData.ledger_seals || 0);
+  }
+}
+
+async function fetchKavachAudit() {
+  try {
+    const res  = await fetch(`${API}/api/v1/kavach/audit?limit=30`);
+    const data = await res.json();
+    renderKavachAudit(Array.isArray(data) ? data : data.entries || []);
+  } catch {}
+}
+
+function renderKavachAudit(entries) {
+  const tbody = document.getElementById('kavach-audit-tbody');
+  if (!tbody) return;
+  if (!entries.length) {
+    tbody.innerHTML = '<tr><td colspan="6" class="empty-state">No audit entries</td></tr>';
+    return;
+  }
+  tbody.innerHTML = entries.slice(0, 30).map(e => {
+    const decCls = e.decision === 'ALLOW' ? 'dec-allow' : e.decision === 'STOP' ? 'dec-stop' : 'dec-explain';
+    return `<tr>
+      <td>${relTime(e.created_at || e.decided_at)}</td>
+      <td title="${e.id}">${(e.id || '').slice(0, 8)}</td>
+      <td>L${e.level || 1}</td>
+      <td><span class="audit-decision ${decCls}">${escHtml(e.decision || e.status || '—')}</span></td>
+      <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${escHtml(e.command || '')}">
+        ${escHtml((e.command || '').slice(0, 60))}
+      </td>
+      <td>${e.duration_ms ? e.duration_ms + 'ms' : '—'}</td>
+    </tr>`;
+  }).join('');
+}
+
+// ── Toast Notifications ───────────────────────────────────────────────────────
+
+function showToast(msg, type = 'info') {
+  const colors = { green: 'var(--green)', red: 'var(--red)', amber: 'var(--amber)', info: 'var(--accent)' };
+  const toast  = document.createElement('div');
+  toast.style.cssText = `
+    position:fixed;bottom:20px;right:20px;z-index:9999;
+    padding:8px 16px;border-radius:4px;font-size:11px;font-weight:700;
+    background:var(--surface);color:${colors[type] || colors.info};
+    border:1px solid ${colors[type] || colors.info};
+    font-family:inherit;letter-spacing:.5px;
+    box-shadow:0 4px 12px rgba(0,0,0,.5);`;
+  toast.textContent = msg;
+  document.body.appendChild(toast);
+  setTimeout(() => toast.remove(), 2500);
+}
+
+// ── Patch fetchStatus to store lastStatus + lastSessions + lastProcs ──────────
+
+const _origFetchStatus = fetchStatus;
+fetchStatus = async function () {
+  try {
+    const [[statusRes, sysRes, providersRes, trendRes]] = await Promise.all([
+      Promise.all([
+        fetch(`${API}/api/status`),
+        fetch(`${API}/api/system`),
+        fetch(`${API}/api/providers`),
+        fetch(`${API}/api/trend`),
+      ]),
+      loadValves(),
+    ]);
+    const data      = await statusRes.json();
+    const sys       = await sysRes.json();
+    const providers = await providersRes.json();
+    const trend     = await trendRes.json();
+
+    lastStatus   = data;
+    lastSessions = data.sessions || [];
+    lastProcs    = sys.processes || [];
+
+    document.getElementById('plan-badge').textContent = data.plan || 'api';
+
+    const isMax = data.is_max_plan;
+    ['window-5h-card', 'window-weekly-card'].forEach(id => {
+      const el = document.getElementById(id); if (el) el.style.display = isMax ? '' : 'none';
+    });
+    ['daily-card', 'weekly-card', 'monthly-card'].forEach(id => {
+      const el = document.getElementById(id); if (el) el.style.display = isMax ? 'none' : '';
+    });
+
+    if (isMax) renderMaxPlan(data);
+    else renderApiPlan(data);
+
+    renderSystem(sys, providers);
+    renderTrend(trend);
+    renderSessions(data.sessions || [], isMax);
+    renderAlerts(data.alerts || []);
+
+    const postureBadge = document.getElementById('tab-badge-posture');
+    const critCount    = data.alerts?.filter(a => a.severity === 'critical').length || 0;
+    if (postureBadge) {
+      postureBadge.textContent   = critCount || '';
+      postureBadge.style.display = critCount ? '' : 'none';
+    }
+  } catch (e) {
+    console.error('Failed to fetch status:', e);
+  }
+};
+
+// ── Tab switching ─────────────────────────────────────────────────────────────
+
+function switchTab(name) {
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  const panel = document.getElementById(`tab-${name}`);
+  const btn   = document.getElementById(`tab-btn-${name}`);
+  if (panel) panel.classList.add('active');
+  if (btn)   btn.classList.add('active');
+
+  if (name === 'agents')  renderAgentTab();
+  if (name === 'limits')  loadLimits();
+  if (name === 'posture') { fetchPosture(); fetchKavachAudit(); }
+}
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+
+startClock();
+connectSSE();
+loadEnforceState();
+loadValves();
+
+fetchStatus();
+fetchApprovals();
+fetchCostTree();
 fetchBgAgents();
-setInterval(fetchBgAgents, 5000);
+fetchUniverse();
+
+setInterval(fetchStatus,    10000);
+setInterval(fetchApprovals,  3000);
+setInterval(fetchCostTree,  15000);
+setInterval(fetchBgAgents,  20000);
+setInterval(fetchUniverse,  30000);
