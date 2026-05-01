@@ -275,6 +275,11 @@ def _build_notify_message(syscall: str, agent_id: str, session_id: str,
         "perf_event_open": "open a performance monitoring counter",
         "setns": "join a Linux namespace",
         "capset": "modify Linux capability flags",
+        # @rule:KOS-096 depth≥4 write-class gates — human must approve each write
+        "write":    "write data to a file descriptor (depth≥4 HIL gate — approve or deny this write)",
+        "writev":   "scatter-gather write to a file descriptor (depth≥4 HIL gate)",
+        "pwrite64": "positional write to a file (depth≥4 HIL gate)",
+        "clone3":   "spawn a new thread or process (depth≥4 HIL gate — approve or deny thread creation)",
     }
     plain = plain_map.get(syscall, f'call restricted syscall "{syscall}"')
     return "\n".join([
