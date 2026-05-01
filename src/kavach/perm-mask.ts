@@ -48,12 +48,15 @@ export type PermBit = typeof PERM[keyof typeof PERM];
 export const PERM_READ_ONLY =
   PERM.READ | PERM.DB_READ;
 
-/** Standard agent — normal development work, no destructive or admin ops. @rule:KAV-068 */
+/** Standard agent — normal development work, no destructive or admin ops. @rule:KAV-068
+ *  SPAWN_AGENTS included: Claude Code is inherently an orchestrator; blocking spawn by default
+ *  prevents legitimate parallelisation. Gate valve still narrows this on violation. */
 export const PERM_STANDARD =
   PERM.READ | PERM.WRITE | PERM.EXEC_BASH |
   PERM.DB_READ | PERM.DB_WRITE |
   PERM.FS_CREATE | PERM.NETWORK |
-  PERM.GIT_WRITE | PERM.EXTERNAL_API;
+  PERM.GIT_WRITE | PERM.EXTERNAL_API |
+  PERM.SPAWN_AGENTS;
 
 /** Privileged agent — includes schema ops and service management. */
 export const PERM_PRIVILEGED =

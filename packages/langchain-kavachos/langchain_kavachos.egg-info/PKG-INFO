@@ -1,0 +1,113 @@
+Metadata-Version: 2.4
+Name: langchain-kavachos
+Version: 1.0.0
+Summary: KavachOS DAN gate callback for LangChain agents — pre-execution governance via AEGIS
+Author-email: "Capt. Anil Sharma" <capt.anil.sharma@powerpbox.org>
+License: AGPL-3.0
+Project-URL: Homepage, https://kavachos.xshieldai.com
+Project-URL: Repository, https://github.com/rocketlang/aegis/tree/main/packages/langchain-kavachos
+Project-URL: Documentation, https://kavachos.xshieldai.com/docs/langchain
+Keywords: langchain,kavachos,xshieldai,ai-governance,agent-safety
+Classifier: Development Status :: 4 - Beta
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: GNU Affero General Public License v3
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Topic :: Software Development :: Libraries
+Classifier: Topic :: Security
+Requires-Python: >=3.9
+Description-Content-Type: text/markdown
+Provides-Extra: langchain
+Requires-Dist: langchain-core>=0.1.0; extra == "langchain"
+Provides-Extra: dev
+Requires-Dist: pytest>=7; extra == "dev"
+Requires-Dist: langchain-core>=0.1.0; extra == "dev"
+
+# langchain-kavachos
+
+KavachOS DAN gate callback for LangChain agents.
+
+Intercepts every tool call through the AEGIS KAVACH gate before execution.
+Zero agent code changes — add the callback and every tool invocation is governed.
+
+## Install
+
+```bash
+pip install langchain-kavachos
+```
+
+## Quick start
+
+```python
+from langchain_kavachos import KavachGateCallback
+
+callback = KavachGateCallback(
+    base_url="http://localhost:4850",   # AEGIS server
+    on_block="raise",                   # raise KavachGateError on DAN-3/4
+    dry_run=False,
+)
+
+# LangChain agent — pass callback in config
+result = agent.invoke(
+    {"input": "summarise the quarterly report"},
+    config={"callbacks": [callback]},
+)
+
+# Or attach to a single tool:
+result = my_tool.invoke("drop table users", config={"callbacks": [callback]})
+```
+
+## KavachGateCallback parameters
+
+| Parameter | Default | Description |
+|---|---|---|
+| `base_url` | `http://localhost:4850` | AEGIS server URL |
+| `token` | `$AEGIS_TOKEN` | Bearer auth token |
+| `on_block` | `"raise"` | `"raise"` → KavachGateError · `"warn"` → print + continue |
+| `dry_run` | `False` | Classify only — no notification, no human-in-loop polling |
+| `tool_name` | `"langchain"` | Label appearing in audit records |
+| `session_id` | auto-generated | Audit grouping key (one per agent session) |
+
+## Direct client
+
+```python
+from langchain_kavachos import AegisClient
+
+client = AegisClient(base_url="http://localhost:4850")
+
+# Pre-flight budget check
+state = client.state()
+if state["budget"]["breached"]:
+    raise RuntimeError("Daily budget breached — halt")
+
+# Manual gate call
+result = client.gate(command="rm -rf /var/postgres", tool_name="my-agent")
+print(result)  # {"allow": false, "level": 4, "reason": "DAN-4 catastrophic..."}
+
+# Audit query
+records = client.audit(session_id="lc-abc123", status="stop", limit=20)
+```
+
+## How it works
+
+`KavachGateCallback.on_tool_start()` fires before any tool execution.
+It POSTs to `POST /api/v1/kavach/gate` on the AEGIS server.
+
+- **DAN-1/2**: allowed immediately, logged.
+- **DAN-3**: notify approver via Telegram/WhatsApp, wait for ALLOW/STOP.
+- **DAN-4**: blocked immediately, `KavachGateError` raised.
+
+All policy is in AEGIS — the callback is a thin HTTP relay.
+
+## AEGIS server
+
+Run with: `bun /root/aegis/src/dashboard/server.ts`  
+Default port: `4850`  
+Gate endpoint: `POST /api/v1/kavach/gate`
+
+## License
+
+AGPL-3.0 — see [LICENSE](../../LICENSE).

@@ -15,6 +15,7 @@ import { createAgent } from "../../sandbox/quarantine";
 import { resolveAgentId } from "../../sandbox/policy-loader";
 import { initValve } from "../../kavach/gate-valve";
 import { checkBudgetInheritance } from "../../core/db";
+import { issueMudrika } from "../../kernel/mudrika";
 
 function getAgentsDir(): string {
   const dir = join(getAegisDir(), "agents");
@@ -104,6 +105,16 @@ export default function register(args: string[]): void {
     console.log(`[AEGIS] Gate valve initialized: perm=0x${permMask.toString(16)}, class=0x${classMask.toString(16)}`);
   } else {
     console.log(`[AEGIS] Gate valve exists: ${agentId}`);
+  }
+
+  // @rule:KOS-060 issue mudrika credential at spawn — agent carries it for 55 min
+  const mudrikaPath = join(getAgentsDir(), `${agentId}.mudrika.json`);
+  if (!existsSync(mudrikaPath)) {
+    const domain = process.env.KAVACHOS_DOMAIN ?? "general";
+    const cred = issueMudrika(agentId, sessionId, domain);
+    console.log(`[AEGIS] Mudrika issued: ${cred.uri} (expires ${new Date(cred.expires_at).toISOString()})`);
+  } else {
+    console.log(`[AEGIS] Mudrika exists: ${agentId}`);
   }
 
   // Print policy template path for operator reference

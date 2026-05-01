@@ -6,6 +6,27 @@ import { existsSync, mkdirSync, writeFileSync, readFileSync } from "fs";
 import { join } from "path";
 import type { AegisConfig } from "./types";
 
+const PORTS_FILE = "/root/.ankr/config/ports.json";
+
+function readPortsJson(): Record<string, unknown> {
+  try { return JSON.parse(readFileSync(PORTS_FILE, "utf-8")); } catch { return {}; }
+}
+
+// Resolve a dotted path like "security.aegis_dashboard" from ports.json
+function resolvePort(portPath: string, fallback: number): number {
+  // ankr-ctl injects PORT env var — prefer that (highest priority, no file I/O)
+  if (process.env.PORT) return parseInt(process.env.PORT, 10);
+  try {
+    const ports = readPortsJson();
+    const val = portPath.split(".").reduce<unknown>((o, k) => (o as Record<string,unknown>)?.[k], ports);
+    if (typeof val === "number") return val;
+  } catch {}
+  return fallback;
+}
+
+export const DASHBOARD_PORT = resolvePort("security.aegis_dashboard", 4850);
+export const MONITOR_PORT   = resolvePort("security.aegis_monitor",   4851);
+
 const AEGIS_DIR = join(process.env.HOME || "/root", ".aegis");
 const CONFIG_PATH = join(AEGIS_DIR, "config.json");
 
@@ -33,7 +54,7 @@ const DEFAULT_CONFIG: AegisConfig = {
   pricing_mode: "api",
   max_plan_discount: 0.2,
   dashboard: {
-    port: 4850,
+    port: DASHBOARD_PORT,
     auth: {
       enabled: false,
       username: "aegis",
@@ -41,7 +62,7 @@ const DEFAULT_CONFIG: AegisConfig = {
     },
   },
   monitor: {
-    health_port: 4851,
+    health_port: MONITOR_PORT,
     watch_paths: ["~/.claude/projects"],
     poll_interval_ms: 2000,
   },

@@ -1,13 +1,41 @@
 {
   "service_key": "ankr-aegis",
   "display_name": "KAVACH — AEGIS v2 — xShieldAI Agent Execution Safety",
+  "product_family": {
+    "umbrella": "Black Box for AI Agents",
+    "role": "STOP",
+    "role_note": "Active interception before execution. DAN gate (L1–L4). HITL approval via Telegram/WhatsApp. The agent waits — the human decides.",
+    "analogy": "Bridge watch officer (SOLAS) + co-pilot (ICAO): watches radar, can change course, must log every decision — not a passive recorder but an active authority",
+    "siblings": [
+      "kavachos:4855",
+      "pramana:4893"
+    ]
+  },
+  "umbrella_declaration": {
+    "name": "Black Box for AI Agents",
+    "pitch": "Every plane has a CVR and FDR. Every ship has a VDR. There isn't one for AI agents. We are building it.",
+    "aviation_analogy": {
+      "CVR": "Cockpit Voice Recorder (ICAO Annex 6) — captures every word spoken on the flight deck, sealed, survives crashes",
+      "FDR": "Flight Data Recorder (ICAO Annex 6) — logs every flight parameter at 25 samples/sec, tamper-sealed, mandatory since 1967"
+    },
+    "maritime_analogy": {
+      "VDR": "Voyage Data Recorder (SOLAS Chapter V Regulation 20) — captures bridge audio, radar image, AIS, nav state, sealed for 30 days minimum"
+    },
+    "three_layer_stack": {
+      "WATCH": "KavachOS (port 4855) — kernel-level seccomp-bpf filter + Falco anomaly detection. FDR equivalent — logs what the agent actually does at OS level, not what it claims.",
+      "STOP": "AEGIS / KAVACH (port 4850) — DAN gate L1–L4 + HITL interception. Bridge officer equivalent — can intervene before execution, not only after.",
+      "RECORD": "PRAMANA (port 4893) — SHA-256 chained receipt chain, Merkle tree (RFC 6962), Ed25519-signed STH, S3 Object Lock 7yr anchor. CVR/VDR equivalent — tamper-evident, admissible at inquiry."
+    },
+    "key_distinction": "A black box is forensic — it answers questions after the disaster. This stack adds WATCH and STOP before the record layer. By the time anything reaches PRAMANA, KAVACH already saw it and decided. The record proves the watch was kept.",
+    "regulatory_hook": "EU AI Act Article 14 — Human Oversight. Effective 2026-08-02.",
+    "standards": "ICAO Annex 6 Part I (aviation FDR/CVR) · SOLAS Chapter V Regulation 20 (maritime VDR) · RFC 6962 (Certificate Transparency Merkle)"
+  },
   "version": "2.0.0",
   "status": "v2-built",
   "port": 4850,
   "health_port": 4851,
   "born": "2026-04-29",
   "v1_note": "v1 (@rocketlang/aegis 0.1.1) is built and running: budget governor, session tracking, dashboard. v2 adds Shield + Sandbox + DAN Gate. Built into same codebase at /root/aegis/.",
-
   "can_answer": [
     "Is this agent authorised to execute this tool call?",
     "What is the current cost and token usage for this agent?",
@@ -24,9 +52,9 @@
     "Did this agent's seccomp profile drift from what was sealed at session start?",
     "What Falco rules govern this domain's agent at runtime?",
     "Is the receipt chain for this kernel session intact (tamper-evident)?",
-    "How many syscalls is this agent permitted to invoke?"
+    "How many syscalls is this agent permitted to invoke?",
+    "Is service A authorized to call service B for capability X? (BMOS-Authorize)"
   ],
-
   "can_do": [
     "Launch any agent under Linux seccomp-bpf kernel governance (kavachos run)",
     "Generate deterministic seccomp profile from trust_mask + domain in < 100ms (KOS-010)",
@@ -48,9 +76,9 @@
     "Require dual-control approval for DAN-4 irreversible actions",
     "Run automated weekly restore drills to verify backup integrity",
     "Provide one-command panic button to freeze all running agent sessions",
-    "Display real-time traffic-light observability dashboard for non-technical operators"
+    "Display real-time traffic-light observability dashboard for non-technical operators",
+    "Authorize inter-service capability calls via BitMaskOS mask intersection in < 10ms (BMOS-Authorize)"
   ],
-
   "emits": [
     "kavach.violation.detected",
     "kavach.agent.quarantined",
@@ -74,7 +102,6 @@
     "kavach.panic.activated",
     "kavach.panic.cleared"
   ],
-
   "depends_on": [
     "ai-proxy:4444",
     "xshieldai:4250",
@@ -83,32 +110,24 @@
     "ankr-emailer:4320",
     "ankr-inbox:4390"
   ],
-
   "forja_version": "2.0",
   "forja_state": "/api/v2/forja/state",
   "forja_trust": "/api/v2/forja/trust/:userId",
   "forja_sense": "/api/v2/forja/sense/emit",
   "forja_proof": "/api/v2/forja/proof",
-
   "trust_mask": 255,
   "trust_mask_schema": "ankr-trust-32bit-v1",
-
-  "k_mask": 255,
+  "k_mask": 237,
   "k_mask_schema": "ankr-prajna-8bit-v1",
-
   "req_mask": 1157590239,
   "req_mask_schema": "ankr-req-32bit-v1",
   "req_mask_source": "declared",
-
   "capability_captured": false,
   "capability_captured_schema": "ankr-archmask-v1",
-
   "claw_mask": 65535,
   "claw_mask_schema": "claw-design-16bit-v1",
-
   "claude_ankr_mask": 14,
   "claude_ankr_mask_schema": "claude-ankr-5bit-v1",
-
   "capability_audit": {
     "kavachos_kernel_phase1": "✅ built — KavachOS KERNEL Phase 1: seccomp profile generator, Falco rule generator, receipt chain, profile store, runner, CLI (KOS-010 to KOS-017)",
     "kavachos_seccomp_generator": "✅ built — src/kernel/seccomp-profile-generator.ts: deterministic trust_mask → syscall allowlist; K-seal on every profile; domain-specific additions (KOS-010)",
@@ -163,36 +182,48 @@
     "forja_state_endpoint": "✅ built — GET /api/v2/forja/state: live agent counts, budget, violation rate, watchdog health",
     "forja_trust_endpoint": "✅ built — GET /api/v2/forja/trust/:userId: operator capability matrix (admin/operator/viewer roles)",
     "forja_sense_endpoint": "✅ built — POST /api/v2/forja/sense/emit: 15 typed events, ring buffer, SSE broadcast",
-    "forja_proof_endpoint": "✅ built — GET /api/v2/forja/proof: scans src/ for @rule:KAV-NNN annotations, returns coverage%"
+    "forja_proof_endpoint": "✅ built — GET /api/v2/forja/proof: scans src/ for @rule:KAV-NNN annotations, returns coverage%",
+    "merkle_ledger": "✅ built — src/kernel/merkle-ledger.ts: CT-style RFC 6962 Merkle tree over PRAMANA receipt batches; Ed25519-signed STH (SDGE signing pattern); inclusion proof generation + verification (KOS-T040)",
+    "merkle_anchor": "✅ built — src/kernel/merkle-anchor.ts: S3 Object Lock anchor (KAVACHOS_S3_BUCKET env) with local ~/.aegis/merkle/checkpoints/ fallback (KOS-T041)",
+    "verify_chain_cli": "✅ built — kavachos verify-chain [--session <id>] [--all] [--json]: re-walks SHA-256 chain from genesis, reports Merkle inclusion (KOS-T042)",
+    "checkpoint_cli": "✅ built — kavachos checkpoint run|list: creates hourly Merkle STH + anchors; lists with STH signature verification (KOS-T040)"
   },
-
+  "protocol": "bitmask-os-v1",
+  "bitmask_os_layer": 4,
+  "bitmask_os_layer_name": "Agent Runtime (KAVACH)",
+  "bitmask_os_compliant": false,
+  "bitmask_os_authorize_endpoint": "/api/v2/authorize",
   "proof_config": {
-    "annotation_style": "@rule:KAV-NNN or @rule:KOS-NNN",
+    "annotation_style": "@rule:KAV-NNN or @rule:KOS-NNN or @rule:BMOS-NNN",
     "logics_docs": [
       "proposals/xshieldai-kavach--logics--formal--2026-04-29.md",
-      "proposals/kavachos--logics--formal--2026-04-30.md"
+      "proposals/kavachos--logics--formal--2026-04-30.md",
+      "proposals/kavach-bitmaskos--logics--formal--2026-04-30.md",
+      "proposals/bitmaskos--logics--formal--2026-04-29.md"
     ],
     "rule_count": 67,
     "proof_coverage": 95,
     "proof_endpoint": "/api/v2/forja/proof"
   },
-
   "open_source": {
     "repo": "rocketlang/aegis",
     "license": "AGPL-3.0",
     "npm_package": "@rocketlang/aegis",
     "current_version": "0.2.0",
     "v2_tag": "v0.2.0",
-    "note": "KAVACH is the product name. The OSS repo stays rocketlang/aegis."
+    "note": "AEGIS is kept as intentional product name (rocketlang/aegis, first-to-publish on npm). AegisMesh is a competitor in the same category — monitor for trademark conflict. Hedge: KAVACH is the primary external brand and travels independently of AEGIS — if AEGIS name is ever contested, KAVACH + KavachOS carry the product without rebrand. Never lead with AEGIS in external content; lead with KAVACH or KavachOS. AEGIS = the OSS engine. KAVACH = the face."
   },
-
   "commercial_layer": {
     "product": "xShieldAI",
     "module": "KAVACH — Agent Execution Safety",
     "url": "xshieldai.com",
-    "adds": ["domain injection signatures", "compliance reports", "enterprise dashboard", "DAN gate policy templates"]
+    "adds": [
+      "domain injection signatures",
+      "compliance reports",
+      "enterprise dashboard",
+      "DAN gate policy templates"
+    ]
   },
-
   "docs": {
     "brainstorm": "proposals/xshieldai-kavach--brainstorm--formal--2026-04-29.md",
     "logics": "proposals/xshieldai-kavach--logics--formal--2026-04-29.md",

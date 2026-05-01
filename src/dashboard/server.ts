@@ -7,12 +7,18 @@
 import Fastify from "fastify";
 import fastifyStatic from "@fastify/static";
 import fastifyCors from "@fastify/cors";
+import fastifyFormbody from "@fastify/formbody";
 import { join } from "path";
 import { loadConfig, saveConfig } from "../core/config";
-import { getBudgetState, listActiveSessions, getRecentAlerts, setSessionStatus, addAlert, getWindowBudget, getPendingApprovals, decideKavachApproval, getRecentApprovals, recordAgentUsage, getCostTree, listAgentRows, recordDashboardAccess } from "../core/db";
+import { issueSessionCookie, clearSessionCookie, verifySession } from "./session";
+import { loginPage } from "./login-page";
+import { getDb, getBudgetState, listActiveSessions, getRecentAlerts, setSessionStatus, addAlert, getWindowBudget, getPendingApprovals, decideKavachApproval, getRecentApprovals, queryKavachAudit, recordAgentUsage, getCostTree, listAgentRows, recordDashboardAccess, getAllBgAgents, acknowledgeAllBgAgents } from "../core/db";
 import { sseSubscribers } from "../core/events";
 import { registerSystemRoutes } from "./routes/system";
 import { registerForjaRoutes, emitSense } from "./routes/forja";
+import { registerBitMaskOSRoutes } from "./routes/bitmaskos";
+import { registerAuthRoutes } from "../auth/routes";
+import { classifyCommand, runKavachGate } from "../kavach/gate";
 // [EE] Multi-tenant — graceful degradation when EE not licensed
 import { isEE, eeStatus } from "../../ee/license";
 type _TenantMod = typeof import("../../ee/core/tenant");
@@ -56,25 +62,74 @@ const config = loadConfig();
 const app = Fastify({ logger: false });
 
 app.register(fastifyCors, { origin: true });
+app.register(fastifyFormbody);
 
-// Basic Auth — enabled when config.dashboard.auth.enabled = true
-// Covers all routes including static files and API
+// Session auth — cookie-based login replacing Basic Auth browser popup
+// Public routes: /health /metrics /login /logout + internal KAVACH APIs
+// All other routes require a valid aegis_sid session cookie.
 if (config.dashboard.auth?.enabled) {
   const { username, password } = config.dashboard.auth;
-  const expected = "Basic " + Buffer.from(`${username}:${password}`).toString("base64");
 
+  // Login page
+  app.get("/login", async (_req, reply) => {
+    reply.type("text/html").send(loginPage());
+  });
+
+  app.post("/login", async (req, reply) => {
+    const body = req.body as Record<string, string> | undefined;
+    const u = body?.username?.trim();
+    const p = body?.password;
+    if (u === username && p === password) {
+      reply
+        .header("Set-Cookie", issueSessionCookie(u))
+        .redirect(302, req.headers["x-forwarded-prefix"] === "/dashboard" ? "/dashboard" : "/");
+    } else {
+      reply.type("text/html").code(401).send(loginPage("Invalid username or password."));
+    }
+  });
+
+  app.get("/logout", async (_req, reply) => {
+    reply
+      .header("Set-Cookie", clearSessionCookie())
+      .redirect(302, "/login");
+  });
+
+  // Session guard — all other routes
   app.addHook("onRequest", async (req, reply) => {
-    // Allow health, commands, and internal KAVACH routes without auth
+    const url = req.url ?? "";
+    // Public pass-through
     if (
-      req.url === "/health" ||
-      req.url === "/commands" ||
-      req.url === "/api/approvals/webhook" ||
-      (req.url === "/api/approvals" && req.method === "GET")
+      url === "/health" ||
+      url === "/metrics" ||
+      url === "/login" ||
+      url === "/logout" ||
+      url === "/kavachos" ||    // public landing page (KOS-093)
+      url === "/commands" ||
+      url.endsWith(".css") ||
+      url.endsWith(".js") ||
+      url.endsWith(".ico") ||
+      url.endsWith(".png") ||
+      url === "/api/approvals/webhook" ||
+      url === "/api/v1/kavach/health" ||
+      url === "/api/v1/kavach/state" ||
+      url === "/api/v1/kavach/gate" ||
+      url.startsWith("/api/v1/kavach/audit") ||
+      url.startsWith("/api/v2/authorize") ||
+      url.startsWith("/api/v1/aegis/authorize") ||
+      url.startsWith("/api/v1/aegis/sdt") ||
+      url.startsWith("/api/bg-agents") ||
+      (url === "/api/approvals" && req.method === "GET")
     ) return;
-    const auth = req.headers["authorization"];
-    if (auth !== expected) {
-      reply.header("WWW-Authenticate", 'Basic realm="AEGIS"');
-      reply.code(401).send("Unauthorized");
+
+    const { valid } = verifySession(req.headers["cookie"] as string | undefined);
+    if (!valid) {
+      // API requests get 401 JSON; browser requests get redirect to /login
+      const accept = req.headers["accept"] ?? "";
+      if (url.startsWith("/api/") || accept.includes("application/json")) {
+        reply.code(401).send({ error: "session expired" });
+      } else {
+        reply.redirect(302, "/login");
+      }
     }
   });
 }
@@ -90,12 +145,171 @@ app.addHook("onRequest", async (req) => {
 // Simple health check (no auth)
 app.get("/health", async () => ({ status: "ok", service: "aegis-dashboard", ee: eeStatus() }));
 
+// @rule:KOS-093 KavachOS landing page — public, no auth required
+app.get("/kavachos", async (_req, reply) => {
+  reply.type("text/html").send(kavachosLandingPage());
+});
+
+function kavachosLandingPage(): string {
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>KavachOS — Runtime Governance for AI Agents</title>
+<style>
+  :root { --ink: #0d1117; --paper: #f6f8fa; --accent: #e36209; --muted: #57606a; --border: #d0d7de; --code-bg: #161b22; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; background: var(--paper); color: var(--ink); line-height: 1.6; }
+  .hero { background: var(--ink); color: #fff; padding: 80px 24px 60px; text-align: center; }
+  .hero h1 { font-size: 2.8rem; font-weight: 700; letter-spacing: -0.03em; margin-bottom: 12px; }
+  .hero h1 span { color: var(--accent); }
+  .hero p { font-size: 1.2rem; color: #8b949e; max-width: 600px; margin: 0 auto 32px; }
+  .hero .tagline { font-size: 0.9rem; color: #6e7681; font-style: italic; margin-top: 8px; }
+  .cta { display: inline-block; background: var(--accent); color: #fff; padding: 12px 28px; border-radius: 6px; text-decoration: none; font-weight: 600; font-size: 1rem; margin: 8px; }
+  .cta.outline { background: transparent; border: 1px solid #444; color: #ccc; }
+  .section { max-width: 960px; margin: 0 auto; padding: 60px 24px; }
+  .section h2 { font-size: 1.8rem; font-weight: 700; margin-bottom: 8px; }
+  .section .sub { color: var(--muted); margin-bottom: 40px; }
+  .layers { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; }
+  .layer { border: 1px solid var(--border); border-radius: 8px; padding: 24px; background: #fff; }
+  .layer .num { font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: var(--accent); margin-bottom: 8px; }
+  .layer h3 { font-size: 1.1rem; font-weight: 700; margin-bottom: 8px; }
+  .layer p { font-size: 0.9rem; color: var(--muted); }
+  .incident { background: #fff8f0; border-left: 4px solid var(--accent); padding: 24px 28px; border-radius: 0 8px 8px 0; margin: 40px 0; }
+  .incident p { color: var(--ink); }
+  .incident .amount { font-size: 2rem; font-weight: 700; color: var(--accent); }
+  .code-block { background: var(--code-bg); border-radius: 8px; padding: 24px; margin: 24px 0; overflow-x: auto; }
+  .code-block pre { color: #e6edf3; font-family: "SF Mono", Consolas, monospace; font-size: 0.85rem; line-height: 1.7; }
+  .code-block .comment { color: #8b949e; }
+  .code-block .cmd { color: #79c0ff; }
+  .code-block .flag { color: #d2a8ff; }
+  .code-block .val { color: #a5d6ff; }
+  .depth-table { width: 100%; border-collapse: collapse; margin: 24px 0; }
+  .depth-table th { background: var(--ink); color: #fff; padding: 10px 16px; text-align: left; font-size: 0.85rem; }
+  .depth-table td { padding: 10px 16px; border-bottom: 1px solid var(--border); font-size: 0.9rem; }
+  .depth-table tr:nth-child(even) td { background: #f6f8fa; }
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 0.75rem; font-weight: 600; }
+  .badge.green { background: #dafbe1; color: #1a7f37; }
+  .badge.amber { background: #fff3cd; color: #9a6700; }
+  .badge.red { background: #ffd7d5; color: #9a0000; }
+  .stat-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin: 32px 0; }
+  .stat-card { background: #fff; border: 1px solid var(--border); border-radius: 8px; padding: 20px; text-align: center; }
+  .stat-card .value { font-size: 2rem; font-weight: 700; color: var(--accent); }
+  .stat-card .label { font-size: 0.8rem; color: var(--muted); margin-top: 4px; }
+  .footer { background: var(--ink); color: #8b949e; text-align: center; padding: 32px 24px; font-size: 0.85rem; }
+  .footer a { color: #6e7681; }
+  @media (max-width: 768px) { .layers { grid-template-columns: 1fr; } .stat-grid { grid-template-columns: repeat(2, 1fr); } .hero h1 { font-size: 2rem; } }
+</style>
+</head>
+<body>
+
+<div class="hero">
+  <h1><span>Kavach</span>OS</h1>
+  <p>Runtime governance for AI agents — the OS that enforces policy at the kernel, not the prompt.</p>
+  <p class="tagline">Named for Karna's divine armour. The protection is structural, not requested.</p>
+  <br>
+  <a class="cta" href="https://www.npmjs.com/package/@rocketlang/kavachos" target="_blank">npm install @rocketlang/kavachos</a>
+  <a class="cta outline" href="https://github.com/rocketlang/kavachos" target="_blank">View on GitHub</a>
+</div>
+
+<div class="section">
+  <div class="incident">
+    <p style="font-size:0.85rem;color:var(--muted);margin-bottom:8px;">THE INCIDENT THAT BUILT THIS</p>
+    <div class="amount">$200</div>
+    <p style="margin-top:8px;">A single runaway AI agent, 94 days ago. No guardrail. No budget limit. No syscall boundary. It made 847 LLM API calls in 6 minutes before a human noticed. KavachOS was built from that incident — not from a Gartner report.</p>
+  </div>
+
+  <h2>Three-layer enforcement</h2>
+  <p class="sub">Every AI agent runs inside all three layers simultaneously. No single layer is sufficient alone.</p>
+
+  <div class="layers">
+    <div class="layer">
+      <div class="num">Layer 1</div>
+      <h3>Kernel (seccomp + Falco)</h3>
+      <p>A deterministic seccomp profile is generated from the agent's trust_mask, domain, and delegation_depth before first syscall. Deeper delegation = narrower syscall surface. At depth ≥ 4, all writes move to NOTIFY — the kernel suspends the thread until a human approves.</p>
+    </div>
+    <div class="layer">
+      <div class="num">Layer 2</div>
+      <h3>Proxy (budget + DAN gate)</h3>
+      <p>Every LLM call routes through the kavachos-proxy. Budget breaches are blocked before the request leaves the box. The DAN gate (levels 1–4) intercepts dangerous actions pre-execution — before the model sees the tool result.</p>
+    </div>
+    <div class="layer">
+      <div class="num">Layer 3</div>
+      <h3>Ledger (PRAMANA receipts)</h3>
+      <p>Every action produces a SHA-256 chained receipt with delegation_depth embedded. Depth regression between consecutive receipts (within one session) is a tamper indicator — chain is invalidated and DAN-3 fires immediately.</p>
+    </div>
+  </div>
+</div>
+
+<div class="section" style="background:#fff;border-top:1px solid var(--border);border-bottom:1px solid var(--border);max-width:100%;padding:60px 24px;">
+  <div style="max-width:960px;margin:0 auto;">
+    <h2>Delegation depth — the key primitive</h2>
+    <p class="sub">Same trust_mask, same domain, different depth → different syscall surface. Depth is enforced at kernel level, not policy level.</p>
+    <table class="depth-table">
+      <thead><tr><th>Depth</th><th>Who holds this token</th><th>Syscalls (example: trust_mask=0xFF)</th><th>Write syscalls</th><th>HIL gate</th></tr></thead>
+      <tbody>
+        <tr><td><strong>1</strong></td><td>Direct human session</td><td>155 ALLOW</td><td>ALLOW</td><td><span class="badge green">off</span></td></tr>
+        <tr><td><strong>2</strong></td><td>First-level agent delegation</td><td>152 ALLOW (ptrace/mknod removed)</td><td>ALLOW</td><td><span class="badge green">off</span></td></tr>
+        <tr><td><strong>3</strong></td><td>Second-level agent delegation</td><td>149 ALLOW (clone/fork closed)</td><td>ALLOW</td><td><span class="badge green">off</span></td></tr>
+        <tr><td><strong>4+</strong></td><td>Deep delegation (untrusted sub-agent)</td><td>32 ALLOW + 12 NOTIFY</td><td><strong>NOTIFY — kernel-gated</strong></td><td><span class="badge red">ACTIVE</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="section">
+  <h2>Install in 3 commands</h2>
+  <p class="sub">The 5-minute path from nothing to governed agent.</p>
+  <div class="code-block">
+    <pre><span class="comment"># 1. Install</span>
+<span class="cmd">npm install</span> <span class="val">@rocketlang/kavachos</span>
+
+<span class="comment"># 2. Initialise (writes ~/.aegis/config.json)</span>
+<span class="cmd">npx kavachos</span> <span class="flag">init</span>
+
+<span class="comment"># 3. Launch your agent under the kernel</span>
+<span class="cmd">npx kavachos</span> <span class="flag">run</span> <span class="val">--trust-mask=0xFF --domain=general</span> <span class="flag">--</span> <span class="val">claude code</span></pre>
+  </div>
+
+  <div class="stat-grid">
+    <div class="stat-card">
+      <div class="value">225</div>
+      <div class="label">ANKR services as Customer Zero</div>
+    </div>
+    <div class="stat-card">
+      <div class="value">3</div>
+      <div class="label">enforcement layers (kernel/proxy/ledger)</div>
+    </div>
+    <div class="stat-card">
+      <div class="value">94</div>
+      <div class="label">days from $200 incident to v1.0</div>
+    </div>
+    <div class="stat-card">
+      <div class="value">0</div>
+      <div class="label">syscall-level escapes since deployment</div>
+    </div>
+  </div>
+</div>
+
+<div class="footer">
+  <p>Built by <a href="https://ankr.in" target="_blank">ANKR</a> · AGPL-3.0 · Zenodo DOI: 10.5281/zenodo.kavachos-paper · <a href="/api/v2/forja/state" target="_blank">Forja STATE</a></p>
+  <p style="margin-top:8px;">Named for Karna's kavach — the armour that could not be removed by any force from outside.</p>
+</div>
+
+</body>
+</html>`;
+}
+
+
 app.register(fastifyStatic, {
   root: join(import.meta.dir, "static"),
   prefix: "/",
 });
 registerSystemRoutes(app);
 registerForjaRoutes(app);
+registerBitMaskOSRoutes(app);
+registerAuthRoutes(app);
 
 // --- API Routes ---
 
@@ -183,6 +397,20 @@ app.post("/api/resume", async () => {
   }
 
   return { success: true, resumed };
+});
+
+// Per-process signal — dashboard kill/pause/resume individual PIDs
+app.post("/api/signal/:pid", async (req) => {
+  const pid = parseInt((req.params as any).pid, 10);
+  const sig = (req.body as any)?.signal ?? "SIGKILL";
+  const sigNum = sig === "SIGSTOP" ? 19 : sig === "SIGCONT" ? 18 : 9;
+  if (isNaN(pid) || pid < 2) return { ok: false, error: "invalid pid" };
+  try {
+    process.kill(pid, sigNum);
+    return { ok: true, pid, signal: sig };
+  } catch (e: any) {
+    return { ok: false, error: e.message };
+  }
 });
 
 // --- V2-060: KAVACH Usage Ingest (from AI Proxy intercept) ---
@@ -351,6 +579,123 @@ app.post("/api/approvals/webhook", async (req, reply) => {
   return { ok: updated, id: approval_id, decision: decision.toUpperCase() };
 });
 
+// --- V2-130: KAVACH HTTP Gate API — framework-neutral pre-execution gate ---
+// @rule:KAV-001 every dangerous action is intercepted before execution
+// @rule:AEG-011 framework-agnostic: HTTP POST → universal adapter contract
+// @rule:AEG-012 n8n + LangChain + CrewAI call this endpoint; aegis enforces
+
+// POST /api/v1/kavach/gate
+// Body: { command: string, tool_name?: string, session_id?: string, dry_run?: boolean }
+// Returns: { allow: boolean, level?: number, reason: string, approval_id?: string }
+// @rule:KAV-078 HTTP gate returns structured JSON — adapters must never infer from status codes alone
+app.post("/api/v1/kavach/gate", async (req, reply) => {
+  const body = req.body as {
+    command?: string;
+    tool_name?: string;
+    session_id?: string;
+    dry_run?: boolean;
+  };
+
+  if (!body?.command || typeof body.command !== "string") {
+    return reply.code(400).send({ allow: false, reason: "command is required" });
+  }
+
+  const command = body.command.trim();
+  const toolName = body.tool_name || "http-gate";
+  const sessionId = body.session_id || "http-gate-session";
+
+  // @rule:KAV-001 — classify before anything else
+  const classification = classifyCommand(command);
+
+  if (!classification) {
+    return { allow: true, level: 0, reason: "no dangerous patterns found" };
+  }
+
+  // dry_run: classify only, no notification, no polling
+  if (body.dry_run) {
+    return {
+      allow: false,
+      level: classification.level,
+      reason: classification.consequence,
+      dry_run: true,
+    };
+  }
+
+  // @rule:KAV-056 — real gate: send notification, wait for decision
+  const result = await runKavachGate(command, toolName, sessionId);
+
+  const allow = result.decision === "ALLOW";
+  return {
+    allow,
+    level: result.level,
+    reason: result.message,
+    decision: result.decision,
+    approval_id: result.approval_id || undefined,
+    _meta: {
+      computed_at: new Date().toISOString(),
+      trust_mask_applied: 0,
+    },
+  };
+});
+
+// GET /api/v1/kavach/health — liveness probe for adapters
+// @rule:AEG-012 adapters check this before sending gate requests
+app.get("/api/v1/kavach/health", async () => {
+  return {
+    ok: true,
+    service: "aegis-kavach-gate",
+    version: "2.0.0",
+    kavach_enabled: !!(config.kavach?.enabled),
+    dashboard_port: config.dashboard.port,
+    timestamp: new Date().toISOString(),
+  };
+});
+
+// GET /api/v1/kavach/state — budget + valve state summary for adapters
+// @rule:CA-004 _meta with computed_at + duration_ms
+app.get("/api/v1/kavach/state", async () => {
+  const t0 = Date.now();
+  const budget = getBudgetState("daily", config.budget.daily_limit_usd);
+  return {
+    budget: {
+      daily_spent_usd: budget.spent_usd,
+      daily_limit_usd: config.budget.daily_limit_usd,
+      daily_remaining_usd: budget.remaining_usd,
+      breached: budget.spent_usd >= config.budget.daily_limit_usd,
+    },
+    kavach_enabled: !!(config.kavach?.enabled),
+    _meta: {
+      computed_at: new Date().toISOString(),
+      duration_ms: Date.now() - t0,
+      trust_mask_applied: 0,
+    },
+  };
+});
+
+// GET /api/v1/kavach/audit — query DAN gate decisions (n8n KavachAudit + compliance)
+// @rule:KOS-T032 audit replays PRAMANA receipt chain, flags gaps
+// @rule:CA-004 _meta minimum on every response
+// @rule:INF-KAV-024 filter by session_id, status, level, limit
+app.get("/api/v1/kavach/audit", async (req) => {
+  const t0 = Date.now();
+  const q = req.query as Record<string, string>;
+  const { records, total } = queryKavachAudit({
+    session_id: q.session_id?.trim() || null,
+    status: q.status?.trim() || null,
+    level: q.level ? parseInt(q.level, 10) : null,
+    limit: q.limit ? parseInt(q.limit, 10) : 50,
+  });
+  return {
+    records,
+    total,
+    _meta: {
+      computed_at: new Date().toISOString(),
+      duration_ms: Date.now() - t0,
+      trust_mask_applied: 0,
+    },
+  };
+});
+
 // --- [EE] Multi-Tenant API (@rule:KAV-071, KAV-072, KAV-073) ---
 
 app.get("/api/v1/tenants", async (_, reply) => {
@@ -424,6 +769,177 @@ app.get("/api/v1/hanumang/:sessionId/posture", async (req, reply) => {
   const posture = _getSessionPosture(sessionId);
   if (!posture) return { posture_level: "GREEN", score: 100, total_spawns: 0, message: "No spawn history for session" };
   return posture;
+});
+
+// ── GET /metrics — Prometheus text format (@rule:KAV-004 observability) ───────
+app.get("/metrics", async (_req, reply) => {
+  const db = getDb();
+
+  // --- kavach_gate_decisions_total ---
+  // pass = allowed, block = stopped|timed_out, warn = explained|pending|pending_second
+  const gateRows = db.query(
+    `SELECT status, COUNT(*) as cnt FROM kavach_approvals GROUP BY status`
+  ).all() as Array<{ status: string; cnt: number }>;
+
+  let gatePass = 0, gateBlock = 0, gateWarn = 0;
+  for (const r of gateRows) {
+    if (r.status === "allowed") gatePass += r.cnt;
+    else if (r.status === "stopped" || r.status === "timed_out") gateBlock += r.cnt;
+    else gateWarn += r.cnt;
+  }
+
+  // --- kavach_gate_latency_ms — derive from usage_log timestamps vs approvals ---
+  // We approximate latency from time between approval create and decide
+  const latencyRows = db.query(
+    `SELECT (julianday(decided_at) - julianday(created_at)) * 86400000 AS latency_ms
+     FROM kavach_approvals WHERE decided_at IS NOT NULL AND status NOT IN ('pending','pending_second')`
+  ).all() as Array<{ latency_ms: number }>;
+
+  const latBuckets = [0.5, 1, 2, 5, 10, 25, 50];
+  const latCounts = new Array(latBuckets.length).fill(0);
+  let latSum = 0;
+  let latTotal = 0;
+  for (const row of latencyRows) {
+    const ms = row.latency_ms ?? 0;
+    latSum += ms;
+    latTotal++;
+    for (let i = 0; i < latBuckets.length; i++) {
+      if (ms <= latBuckets[i]) latCounts[i]++;
+    }
+  }
+
+  // --- kavach_budget_spent_usd / remaining ---
+  const budget = getBudgetState("daily", config.budget.daily_limit_usd);
+
+  // --- kavach_active_sessions ---
+  const activeSessions = listActiveSessions().length;
+
+  // --- kavach_hanumang_checks_total ---
+  // HanumanG checks correspond to agent spawns. violation_count > 0 = block, else pass
+  const hanumangRows = db.query(
+    `SELECT SUM(CASE WHEN violation_count > 0 THEN 1 ELSE 0 END) as blocks,
+            SUM(CASE WHEN violation_count = 0 THEN 1 ELSE 0 END) as passes
+     FROM agents`
+  ).get() as { blocks: number | null; passes: number | null } | null;
+  const hanumangPass = hanumangRows?.passes ?? 0;
+  const hanumangBlock = hanumangRows?.blocks ?? 0;
+
+  // --- kavach_falco_violations_total ---
+  // Falco violations land in alerts table with type='falco' or severity in critical/warning/info
+  const falcoRows = db.query(
+    `SELECT severity, COUNT(*) as cnt FROM alerts WHERE type = 'falco' GROUP BY severity`
+  ).all() as Array<{ severity: string; cnt: number }>;
+  let falcoCritical = 0, falcoWarning = 0, falcoInfo = 0;
+  for (const r of falcoRows) {
+    if (r.severity === "critical") falcoCritical += r.cnt;
+    else if (r.severity === "warning") falcoWarning += r.cnt;
+    else falcoInfo += r.cnt;
+  }
+
+  // --- kavach_bmos_authorize_total ---
+  const bmosRows = db.query(
+    `SELECT authorized, COUNT(*) as cnt FROM authorize_log GROUP BY authorized`
+  ).all() as Array<{ authorized: number; cnt: number }>;
+  let bmosAuthorized = 0, bmosDenied = 0;
+  for (const r of bmosRows) {
+    if (r.authorized === 1) bmosAuthorized += r.cnt;
+    else bmosDenied += r.cnt;
+  }
+
+  // --- kavach_bmos_authorize_latency_us ---
+  const bmosLatRows = db.query(
+    `SELECT latency_us FROM authorize_log WHERE latency_us IS NOT NULL`
+  ).all() as Array<{ latency_us: number }>;
+  const bmosLatBuckets = [5, 10, 20, 50, 100];
+  const bmosLatCounts = new Array(bmosLatBuckets.length).fill(0);
+  let bmosLatSum = 0;
+  let bmosLatTotal = 0;
+  for (const row of bmosLatRows) {
+    const us = row.latency_us ?? 0;
+    bmosLatSum += us;
+    bmosLatTotal++;
+    for (let i = 0; i < bmosLatBuckets.length; i++) {
+      if (us <= bmosLatBuckets[i]) bmosLatCounts[i]++;
+    }
+  }
+
+  // ── Format Prometheus text ──────────────────────────────────────────────────
+  const lines: string[] = [];
+
+  // Gate decisions
+  lines.push('# HELP kavach_gate_decisions_total Total KAVACH gate decisions by result');
+  lines.push('# TYPE kavach_gate_decisions_total counter');
+  lines.push(`kavach_gate_decisions_total{result="pass"} ${gatePass}`);
+  lines.push(`kavach_gate_decisions_total{result="block"} ${gateBlock}`);
+  lines.push(`kavach_gate_decisions_total{result="warn"} ${gateWarn}`);
+
+  // Gate latency histogram
+  lines.push('# HELP kavach_gate_latency_ms KAVACH gate decision latency in milliseconds');
+  lines.push('# TYPE kavach_gate_latency_ms histogram');
+  for (let i = 0; i < latBuckets.length; i++) {
+    lines.push(`kavach_gate_latency_ms_bucket{le="${latBuckets[i]}"} ${latCounts[i]}`);
+  }
+  lines.push(`kavach_gate_latency_ms_bucket{le="+Inf"} ${latTotal}`);
+  lines.push(`kavach_gate_latency_ms_sum ${latSum.toFixed(3)}`);
+  lines.push(`kavach_gate_latency_ms_count ${latTotal}`);
+
+  // Budget gauges
+  lines.push('# HELP kavach_budget_spent_usd Current daily budget spent in USD');
+  lines.push('# TYPE kavach_budget_spent_usd gauge');
+  lines.push(`kavach_budget_spent_usd ${budget.spent_usd.toFixed(6)}`);
+  lines.push('# HELP kavach_budget_remaining_usd Current daily budget remaining in USD');
+  lines.push('# TYPE kavach_budget_remaining_usd gauge');
+  lines.push(`kavach_budget_remaining_usd ${budget.remaining_usd.toFixed(6)}`);
+
+  // Active sessions
+  lines.push('# HELP kavach_active_sessions Number of currently active AEGIS sessions');
+  lines.push('# TYPE kavach_active_sessions gauge');
+  lines.push(`kavach_active_sessions ${activeSessions}`);
+
+  // HanumanG checks
+  lines.push('# HELP kavach_hanumang_checks_total Total HanumanG delegation checks by result');
+  lines.push('# TYPE kavach_hanumang_checks_total counter');
+  lines.push(`kavach_hanumang_checks_total{result="pass"} ${hanumangPass}`);
+  lines.push(`kavach_hanumang_checks_total{result="block"} ${hanumangBlock}`);
+
+  // Falco violations
+  lines.push('# HELP kavach_falco_violations_total Total Falco kernel violations by severity');
+  lines.push('# TYPE kavach_falco_violations_total counter');
+  lines.push(`kavach_falco_violations_total{severity="critical"} ${falcoCritical}`);
+  lines.push(`kavach_falco_violations_total{severity="warning"} ${falcoWarning}`);
+  lines.push(`kavach_falco_violations_total{severity="info"} ${falcoInfo}`);
+
+  // BMOS authorize totals
+  lines.push('# HELP kavach_bmos_authorize_total Total BMOS-Authorize decisions by result');
+  lines.push('# TYPE kavach_bmos_authorize_total counter');
+  lines.push(`kavach_bmos_authorize_total{result="authorized"} ${bmosAuthorized}`);
+  lines.push(`kavach_bmos_authorize_total{result="denied"} ${bmosDenied}`);
+
+  // BMOS authorize latency histogram
+  lines.push('# HELP kavach_bmos_authorize_latency_us BMOS-Authorize operation latency in microseconds');
+  lines.push('# TYPE kavach_bmos_authorize_latency_us histogram');
+  for (let i = 0; i < bmosLatBuckets.length; i++) {
+    lines.push(`kavach_bmos_authorize_latency_us_bucket{le="${bmosLatBuckets[i]}"} ${bmosLatCounts[i]}`);
+  }
+  lines.push(`kavach_bmos_authorize_latency_us_bucket{le="+Inf"} ${bmosLatTotal}`);
+  lines.push(`kavach_bmos_authorize_latency_us_sum ${bmosLatSum.toFixed(0)}`);
+  lines.push(`kavach_bmos_authorize_latency_us_count ${bmosLatTotal}`);
+
+  lines.push(""); // trailing newline required by Prometheus
+  return reply.type("text/plain; version=0.0.4; charset=utf-8").send(lines.join("\n"));
+});
+
+// ── Background agents API (@rule:KOS-T095) ────────────────────────────────────
+app.get("/api/bg-agents", async (req) => {
+  const hours = parseInt((req.query as Record<string,string>).hours ?? "24", 10);
+  return getAllBgAgents(Math.min(hours, 168));
+});
+
+app.post("/api/bg-agents/ack", async (req) => {
+  const { session_id } = (req.body ?? {}) as { session_id?: string };
+  if (!session_id) return { error: "session_id required" };
+  acknowledgeAllBgAgents(session_id);
+  return { ok: true };
 });
 
 // Start
@@ -519,7 +1035,7 @@ app.get("/commands", async (_req, reply) => {
   </div>
 
   <div class="card">
-    <div class="card-title" style="color:var(--amber)">AEGIS API (port 4850)</div>
+    <div class="card-title" style="color:var(--amber)">AEGIS API (port ${config.dashboard.port})</div>
     <table>
       <tr><td style="font-size:11px">GET /api/status</td><td>Budget state</td></tr>
       <tr><td style="font-size:11px">GET /api/sessions</td><td>Active sessions</td></tr>
@@ -527,14 +1043,17 @@ app.get("/commands", async (_req, reply) => {
       <tr><td style="font-size:11px">POST /api/kill</td><td>Manual kill</td></tr>
       <tr><td style="font-size:11px">POST /api/enforcement</td><td>Toggle enforce/alert mode</td></tr>
       <tr><td style="font-size:11px">GET /commands</td><td>This page</td></tr>
-      <tr><td colspan="2" class="comment" style="padding-top:8px">Monitor (port 4851):</td></tr>
+      <tr><td colspan="2" class="comment" style="padding-top:8px">Monitor (port ${config.monitor.health_port}):</td></tr>
       <tr><td style="font-size:11px">GET /health</td><td>Enforcement mode + auto-restart list</td></tr>
     </table>
   </div>
 
   <div class="card">
-    <div class="card-title" style="color:var(--green)">KAVACH DAN Gate</div>
+    <div class="card-title" style="color:var(--green)">KAVACH Gate API (n8n / LangChain)</div>
     <table>
+      <tr><td style="font-size:11px">POST /api/v1/kavach/gate</td><td>Pre-execution DAN gate — adapters call before agent runs</td></tr>
+      <tr><td style="font-size:11px">GET /api/v1/kavach/health</td><td>Liveness probe for adapters</td></tr>
+      <tr><td style="font-size:11px">GET /api/v1/kavach/state</td><td>Budget + config summary</td></tr>
       <tr><td style="font-size:11px">GET /api/v1/kavach/approvals</td><td>Pending DAN approvals</td></tr>
       <tr><td style="font-size:11px">POST /api/v1/kavach/decide</td><td>ALLOW / STOP / EXPLAIN</td></tr>
       <tr><td style="font-size:11px">GET /api/v2/forja/state</td><td>Capability manifest + trust_mask</td></tr>

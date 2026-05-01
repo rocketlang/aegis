@@ -1,0 +1,835 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AEGIS · KavachOS · PRAMANA — The Agentic Governance Stack</title>
+  <meta name="description" content="Three layers. One coherent governance stack for autonomous AI agents. AEGIS governs spend. KavachOS governs behavior. PRAMANA proves what happened.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:       #07070f;
+      --bg2:      #0d0d1a;
+      --bg3:      #12121f;
+      --border:   rgba(255,255,255,0.07);
+      --text:     #e8e8f0;
+      --muted:    #6b6b88;
+      --aegis:    #f59e0b;
+      --aegis-d:  #78450a;
+      --kavach:   #8b5cf6;
+      --kavach-d: #3b1d7a;
+      --pramana:  #06b6d4;
+      --pramana-d:#064e63;
+      --red:      #ef4444;
+      --green:    #22c55e;
+      --mono:     'JetBrains Mono', monospace;
+      --sans:     'Inter', system-ui, sans-serif;
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      font-family: var(--sans);
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+      overflow-x: hidden;
+    }
+
+    /* ── NAV ─────────────────────────────────────────────────── */
+    nav {
+      position: fixed;
+      top: 0; left: 0; right: 0;
+      z-index: 100;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 2rem;
+      height: 60px;
+      background: rgba(7,7,15,0.85);
+      backdrop-filter: blur(16px);
+      border-bottom: 1px solid var(--border);
+    }
+    .nav-logo {
+      font-weight: 800;
+      font-size: 1.1rem;
+      letter-spacing: 0.05em;
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+    }
+    .nav-logo .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--aegis); animation: pulse 2s infinite; }
+    @keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:0.4; } }
+    .nav-links { display: flex; align-items: center; gap: 1.5rem; }
+    .nav-links a { color: var(--muted); text-decoration: none; font-size: 0.875rem; font-weight: 500; transition: color 0.2s; }
+    .nav-links a:hover { color: var(--text); }
+    .nav-cta {
+      display: flex; align-items: center; gap: 0.5rem;
+      background: var(--aegis);
+      color: #000;
+      font-weight: 700;
+      font-size: 0.8rem;
+      padding: 0.4rem 1rem;
+      border-radius: 6px;
+      text-decoration: none;
+      transition: opacity 0.2s;
+    }
+    .nav-cta:hover { opacity: 0.85; }
+
+    /* ── HERO ─────────────────────────────────────────────────── */
+    .hero {
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 120px 2rem 4rem;
+      text-align: center;
+      position: relative;
+    }
+    .hero::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 50%; transform: translateX(-50%);
+      width: 800px; height: 600px;
+      background: radial-gradient(ellipse at 50% 0%, rgba(139,92,246,0.12) 0%, transparent 70%);
+      pointer-events: none;
+    }
+    .hero-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      background: rgba(245,158,11,0.1);
+      border: 1px solid rgba(245,158,11,0.25);
+      color: var(--aegis);
+      font-size: 0.75rem;
+      font-weight: 600;
+      padding: 0.35rem 0.85rem;
+      border-radius: 100px;
+      margin-bottom: 2rem;
+      letter-spacing: 0.04em;
+    }
+    .hero h1 {
+      font-size: clamp(2.8rem, 6vw, 5.5rem);
+      font-weight: 900;
+      line-height: 1.05;
+      letter-spacing: -0.03em;
+      max-width: 900px;
+      margin-bottom: 1.5rem;
+    }
+    .hero h1 em { font-style: normal; color: var(--aegis); }
+    .hero-sub {
+      font-size: clamp(1rem, 2vw, 1.25rem);
+      color: var(--muted);
+      max-width: 560px;
+      line-height: 1.7;
+      margin-bottom: 2.5rem;
+    }
+    .hero-actions { display: flex; gap: 1rem; flex-wrap: wrap; justify-content: center; margin-bottom: 4rem; }
+    .btn-primary {
+      display: inline-flex; align-items: center; gap: 0.5rem;
+      background: var(--aegis); color: #000;
+      font-weight: 700; font-size: 0.95rem;
+      padding: 0.75rem 1.75rem; border-radius: 8px;
+      text-decoration: none; transition: transform 0.15s, opacity 0.15s;
+    }
+    .btn-primary:hover { transform: translateY(-1px); opacity: 0.9; }
+    .btn-secondary {
+      display: inline-flex; align-items: center; gap: 0.5rem;
+      background: transparent; color: var(--text);
+      font-weight: 600; font-size: 0.95rem;
+      padding: 0.75rem 1.75rem; border-radius: 8px;
+      text-decoration: none; border: 1px solid var(--border);
+      transition: border-color 0.2s, background 0.2s;
+    }
+    .btn-secondary:hover { border-color: rgba(255,255,255,0.2); background: rgba(255,255,255,0.04); }
+
+    /* ── TERMINAL ─────────────────────────────────────────────── */
+    .terminal {
+      width: 100%;
+      max-width: 680px;
+      background: #0c0c18;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      overflow: hidden;
+      text-align: left;
+      box-shadow: 0 32px 80px rgba(0,0,0,0.6), 0 0 0 1px rgba(139,92,246,0.08);
+    }
+    .term-header {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.75rem 1rem;
+      background: rgba(255,255,255,0.03);
+      border-bottom: 1px solid var(--border);
+    }
+    .term-dot { width: 12px; height: 12px; border-radius: 50%; }
+    .term-dot.red { background: #ff5f57; }
+    .term-dot.yellow { background: #febc2e; }
+    .term-dot.green { background: #28c840; }
+    .term-title { color: var(--muted); font-size: 0.75rem; font-family: var(--mono); margin-left: auto; }
+    .term-body { padding: 1.25rem 1.5rem; font-family: var(--mono); font-size: 0.82rem; line-height: 1.7; }
+    .term-line { display: flex; gap: 0.5rem; }
+    .term-prompt { color: var(--kavach); user-select: none; }
+    .term-cmd { color: #a5f3fc; }
+    .term-output { color: var(--muted); }
+    .term-kavach {
+      margin-top: 0.75rem;
+      background: rgba(239,68,68,0.07);
+      border: 1px solid rgba(239,68,68,0.2);
+      border-radius: 8px;
+      padding: 1rem;
+    }
+    .term-kavach .k-header { color: var(--red); font-weight: 600; font-size: 0.85rem; margin-bottom: 0.75rem; }
+    .term-kavach .k-row { display: flex; gap: 1rem; margin-bottom: 0.3rem; font-size: 0.78rem; }
+    .term-kavach .k-label { color: var(--muted); min-width: 100px; }
+    .term-kavach .k-val { color: var(--text); }
+    .term-kavach .k-val.danger { color: var(--red); }
+    .term-kavach .k-level { color: var(--aegis); font-weight: 700; }
+    .term-kavach .k-footer { margin-top: 0.75rem; padding-top: 0.75rem; border-top: 1px solid rgba(255,255,255,0.06); font-size: 0.75rem; }
+    .term-kavach .k-footer .stop { color: var(--red); font-weight: 700; }
+    .term-kavach .k-footer .allow { color: var(--green); font-weight: 700; }
+    .term-cursor { display: inline-block; width: 8px; height: 14px; background: var(--kavach); animation: blink 1s step-end infinite; vertical-align: middle; }
+    @keyframes blink { 0%,100% { opacity:1; } 50% { opacity:0; } }
+
+    /* ── INCIDENT ─────────────────────────────────────────────── */
+    .incident {
+      padding: 5rem 2rem;
+      max-width: 760px;
+      margin: 0 auto;
+      text-align: center;
+    }
+    .incident blockquote {
+      font-size: clamp(1.3rem, 3vw, 1.9rem);
+      font-weight: 600;
+      line-height: 1.45;
+      letter-spacing: -0.02em;
+      color: var(--text);
+      margin-bottom: 1.5rem;
+    }
+    .incident blockquote em { font-style: normal; color: var(--aegis); }
+    .incident .byline {
+      color: var(--muted);
+      font-size: 0.875rem;
+    }
+    .incident .byline strong { color: var(--text); }
+
+    /* ── STACK ────────────────────────────────────────────────── */
+    .stack-section {
+      padding: 5rem 2rem;
+      max-width: 1100px;
+      margin: 0 auto;
+    }
+    .section-label {
+      text-align: center;
+      font-size: 0.75rem;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 1rem;
+    }
+    .section-title {
+      text-align: center;
+      font-size: clamp(1.8rem, 4vw, 2.8rem);
+      font-weight: 800;
+      letter-spacing: -0.03em;
+      margin-bottom: 1rem;
+    }
+    .section-sub {
+      text-align: center;
+      color: var(--muted);
+      font-size: 1.05rem;
+      margin-bottom: 4rem;
+      max-width: 560px;
+      margin-left: auto;
+      margin-right: auto;
+    }
+
+    .stack-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 1.5px;
+      background: var(--border);
+      border-radius: 16px;
+      overflow: hidden;
+      border: 1px solid var(--border);
+    }
+    .stack-card {
+      background: var(--bg2);
+      padding: 2.5rem 2rem;
+      position: relative;
+      overflow: hidden;
+    }
+    .stack-card::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 2px;
+    }
+    .stack-card.aegis::before  { background: var(--aegis); }
+    .stack-card.kavach::before { background: var(--kavach); }
+    .stack-card.pramana::before { background: var(--pramana); }
+    .stack-card .layer-num {
+      font-family: var(--mono);
+      font-size: 0.7rem;
+      font-weight: 600;
+      letter-spacing: 0.1em;
+      margin-bottom: 1rem;
+      opacity: 0.4;
+    }
+    .stack-card .card-name {
+      font-size: 1.5rem;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      margin-bottom: 0.25rem;
+    }
+    .stack-card.aegis  .card-name { color: var(--aegis); }
+    .stack-card.kavach .card-name { color: var(--kavach); }
+    .stack-card.pramana .card-name { color: var(--pramana); }
+    .stack-card .card-pkg {
+      font-family: var(--mono);
+      font-size: 0.75rem;
+      color: var(--muted);
+      margin-bottom: 1.25rem;
+    }
+    .stack-card .card-governs {
+      font-size: 0.8rem;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      margin-bottom: 0.5rem;
+    }
+    .stack-card.aegis  .card-governs { color: var(--aegis); }
+    .stack-card.kavach .card-governs { color: var(--kavach); }
+    .stack-card.pramana .card-governs { color: var(--pramana); }
+    .stack-card .card-desc {
+      color: var(--muted);
+      font-size: 0.9rem;
+      line-height: 1.6;
+      margin-bottom: 1.5rem;
+    }
+    .stack-card .card-features { list-style: none; }
+    .stack-card .card-features li {
+      font-size: 0.85rem;
+      color: var(--muted);
+      padding: 0.3rem 0;
+      display: flex;
+      align-items: flex-start;
+      gap: 0.6rem;
+      border-bottom: 1px solid var(--border);
+    }
+    .stack-card .card-features li:last-child { border-bottom: none; }
+    .stack-card .card-features li .tick { flex-shrink: 0; margin-top: 2px; }
+    .stack-card.aegis  .tick { color: var(--aegis); }
+    .stack-card.kavach .tick { color: var(--kavach); }
+    .stack-card.pramana .tick { color: var(--pramana); }
+
+    /* ── AIRBAG SECTION ───────────────────────────────────────── */
+    .airbag {
+      padding: 5rem 2rem;
+      background: linear-gradient(180deg, var(--bg) 0%, var(--bg2) 100%);
+      border-top: 1px solid var(--border);
+      border-bottom: 1px solid var(--border);
+    }
+    .airbag-inner {
+      max-width: 900px;
+      margin: 0 auto;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 3rem;
+      align-items: center;
+    }
+    .airbag-text .tag {
+      display: inline-block;
+      background: rgba(6,182,212,0.1);
+      border: 1px solid rgba(6,182,212,0.25);
+      color: var(--pramana);
+      font-size: 0.7rem;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      padding: 0.3rem 0.7rem;
+      border-radius: 4px;
+      margin-bottom: 1.25rem;
+    }
+    .airbag-text h2 {
+      font-size: clamp(1.6rem, 3vw, 2.4rem);
+      font-weight: 800;
+      letter-spacing: -0.03em;
+      line-height: 1.2;
+      margin-bottom: 1.25rem;
+    }
+    .airbag-text p {
+      color: var(--muted);
+      font-size: 0.95rem;
+      line-height: 1.75;
+      margin-bottom: 1rem;
+    }
+    .airbag-text p strong { color: var(--text); }
+    .article-card {
+      background: var(--bg3);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 2rem;
+    }
+    .article-card .art-label {
+      font-size: 0.7rem;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--pramana);
+      margin-bottom: 1.25rem;
+    }
+    .article-row {
+      display: flex;
+      gap: 1rem;
+      margin-bottom: 1rem;
+      padding-bottom: 1rem;
+      border-bottom: 1px solid var(--border);
+    }
+    .article-row:last-child { border-bottom: none; margin-bottom: 0; padding-bottom: 0; }
+    .article-icon {
+      width: 36px; height: 36px;
+      border-radius: 8px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.1rem;
+      flex-shrink: 0;
+    }
+    .article-icon.a { background: rgba(139,92,246,0.15); }
+    .article-icon.b { background: rgba(6,182,212,0.15); }
+    .article-icon.c { background: rgba(34,197,94,0.15); }
+    .article-row-text .row-title { font-size: 0.85rem; font-weight: 600; margin-bottom: 0.2rem; }
+    .article-row-text .row-desc { font-size: 0.78rem; color: var(--muted); line-height: 1.5; }
+
+    /* ── INSTALL ──────────────────────────────────────────────── */
+    .install-section {
+      padding: 6rem 2rem;
+      max-width: 800px;
+      margin: 0 auto;
+      text-align: center;
+    }
+    .install-tabs {
+      display: flex;
+      justify-content: center;
+      gap: 0.5rem;
+      margin-bottom: 2rem;
+    }
+    .tab {
+      padding: 0.4rem 1rem;
+      border-radius: 6px;
+      font-size: 0.8rem;
+      font-weight: 600;
+      cursor: pointer;
+      border: 1px solid var(--border);
+      color: var(--muted);
+      background: transparent;
+      transition: all 0.2s;
+    }
+    .tab.active { background: rgba(255,255,255,0.07); color: var(--text); border-color: rgba(255,255,255,0.15); }
+    .code-block {
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      overflow: hidden;
+      text-align: left;
+      margin-bottom: 2rem;
+    }
+    .code-block-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0.75rem 1.25rem;
+      border-bottom: 1px solid var(--border);
+      font-size: 0.75rem;
+      color: var(--muted);
+      font-family: var(--mono);
+    }
+    .code-block pre {
+      padding: 1.25rem 1.5rem;
+      font-family: var(--mono);
+      font-size: 0.82rem;
+      line-height: 1.8;
+      overflow-x: auto;
+      color: #c4c4e0;
+    }
+    .code-block pre .c-comment { color: #4a4a6a; }
+    .code-block pre .c-cmd { color: #a5f3fc; }
+    .code-block pre .c-pkg { color: var(--aegis); }
+    .code-block pre .c-flag { color: var(--kavach); }
+    .code-block pre .c-ok { color: var(--green); }
+
+    /* ── TRUST SIGNALS ────────────────────────────────────────── */
+    .trust-row {
+      display: flex;
+      justify-content: center;
+      flex-wrap: wrap;
+      gap: 2rem;
+      padding: 3rem 2rem;
+      border-top: 1px solid var(--border);
+    }
+    .trust-item {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-size: 0.8rem;
+      color: var(--muted);
+      text-decoration: none;
+    }
+    .trust-item:hover { color: var(--text); }
+    .trust-item .ti-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+    .trust-item .ti-dot.aegis { background: var(--aegis); }
+    .trust-item .ti-dot.kavach { background: var(--kavach); }
+    .trust-item .ti-dot.pramana { background: var(--pramana); }
+
+    /* ── FOOTER ───────────────────────────────────────────────── */
+    footer {
+      border-top: 1px solid var(--border);
+      padding: 2.5rem 2rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 1rem;
+    }
+    footer .f-left { font-size: 0.8rem; color: var(--muted); }
+    footer .f-left strong { color: var(--text); }
+    footer .f-links { display: flex; gap: 1.5rem; }
+    footer .f-links a { color: var(--muted); font-size: 0.8rem; text-decoration: none; }
+    footer .f-links a:hover { color: var(--text); }
+
+    /* ── DIVIDER ──────────────────────────────────────────────── */
+    .divider { height: 1px; background: var(--border); margin: 0; }
+
+    /* ── RESPONSIVE ───────────────────────────────────────────── */
+    @media (max-width: 768px) {
+      .nav-links { display: none; }
+      .stack-grid { grid-template-columns: 1fr; }
+      .airbag-inner { grid-template-columns: 1fr; }
+      footer { flex-direction: column; text-align: center; }
+      .trust-row { gap: 1.25rem; }
+    }
+
+    /* ── GLOW EFFECTS ─────────────────────────────────────────── */
+    .glow-aegis  { text-shadow: 0 0 40px rgba(245,158,11,0.3); }
+    .glow-kavach { text-shadow: 0 0 40px rgba(139,92,246,0.3); }
+    .glow-pramana { text-shadow: 0 0 40px rgba(6,182,212,0.3); }
+
+    /* ── SCROLL FADE ──────────────────────────────────────────── */
+    .fade-in {
+      opacity: 0;
+      transform: translateY(24px);
+      transition: opacity 0.6s ease, transform 0.6s ease;
+    }
+    .fade-in.visible {
+      opacity: 1;
+      transform: none;
+    }
+  </style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav>
+  <div class="nav-logo">
+    <span class="dot"></span>
+    AEGIS&thinsp;/&thinsp;KavachOS
+  </div>
+  <div class="nav-links">
+    <a href="#stack">Stack</a>
+    <a href="#aegis">AEGIS</a>
+    <a href="#kavachos">KavachOS</a>
+    <a href="#pramana">PRAMANA</a>
+    <a href="https://github.com/rocketlang/aegis" target="_blank">GitHub</a>
+  </div>
+  <a class="nav-cta" href="#install">
+    npm install →
+  </a>
+</nav>
+
+<!-- HERO -->
+<section class="hero">
+  <div class="hero-badge">Born 17 April 2026 · AGPL-3.0 · DOI 10.5281/zenodo.19625473</div>
+  <h1>Your agent just ran<br><em>while you slept.</em></h1>
+  <p class="hero-sub">
+    AEGIS governs what it spends.<br>
+    KavachOS governs what it does.<br>
+    PRAMANA proves what happened.
+  </p>
+  <div class="hero-actions">
+    <a class="btn-primary" href="#install">Get started free</a>
+    <a class="btn-secondary" href="https://github.com/rocketlang/aegis" target="_blank">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0 0 24 12c0-6.63-5.37-12-12-12z"/></svg>
+      View on GitHub
+    </a>
+  </div>
+
+  <!-- Terminal -->
+  <div class="terminal fade-in">
+    <div class="term-header">
+      <span class="term-dot red"></span>
+      <span class="term-dot yellow"></span>
+      <span class="term-dot green"></span>
+      <span class="term-title">agent session · kavach active</span>
+    </div>
+    <div class="term-body">
+      <div class="term-line">
+        <span class="term-prompt">$</span>
+        <span class="term-cmd">kavachos run claude --trust-mask=0xFF --domain=general</span>
+      </div>
+      <div class="term-output" style="margin-top:0.5rem;">
+        ✓ seccomp-bpf profile loaded · trust_mask=0xFF<br>
+        ✓ cgroup egress firewall active · 3 allowed destinations<br>
+        ✓ PRAMANA receipt chain initialised · session a4f3c9<br>
+        ✓ AEGIS budget gate armed · 41/225 msgs · 82% remaining
+      </div>
+      <div class="term-kavach" style="margin-top:1rem;">
+        <div class="k-header">🔴 KAVACH — Action Requires Approval</div>
+        <div class="k-row">
+          <span class="k-label">Command</span>
+          <span class="k-val danger">prisma migrate reset --force</span>
+        </div>
+        <div class="k-row">
+          <span class="k-label">Consequence</span>
+          <span class="k-val">Permanently destroys entire database. Unrecoverable.</span>
+        </div>
+        <div class="k-row">
+          <span class="k-label">Blast radius</span>
+          <span class="k-val danger">CRITICAL</span>
+        </div>
+        <div class="k-row">
+          <span class="k-label">Level</span>
+          <span class="k-val k-level">L4 — Irreversible + High blast radius</span>
+        </div>
+        <div class="k-footer">
+          Reply via Telegram/WhatsApp:&nbsp;&nbsp;
+          <span class="stop">STOP</span>&nbsp; to block&nbsp;&nbsp;·&nbsp;&nbsp;
+          <span class="allow">ALLOW</span>&nbsp; to permit&nbsp;&nbsp;·&nbsp;&nbsp;
+          Silence = <span class="stop">STOP</span>&nbsp;(60s)
+        </div>
+      </div>
+      <div class="term-line" style="margin-top:0.75rem;">
+        <span class="term-prompt">$</span>
+        <span class="term-cursor"></span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- INCIDENT -->
+<div class="divider"></div>
+<section class="incident fade-in">
+  <blockquote>
+    "Stopped Claude Code, walked away, came back to find my weekly Max Plan <em>fully exhausted</em> — $200 gone, no visibility into what ran."
+  </blockquote>
+  <p class="byline">
+    The incident that shipped AEGIS, <strong>17 April 2026</strong> — 1,363 subagent sessions, 207 in a day, 120 in a single hour.
+  </p>
+</section>
+<div class="divider"></div>
+
+<!-- STACK -->
+<section class="stack-section fade-in" id="stack">
+  <p class="section-label">The Governance Stack</p>
+  <h2 class="section-title">Three layers. One coherent architecture.</h2>
+  <p class="section-sub">
+    Most AI safety tooling lives where the agent can see it — and route around it. This stack doesn't.
+  </p>
+
+  <div class="stack-grid">
+    <!-- AEGIS -->
+    <div class="stack-card aegis" id="aegis">
+      <div class="layer-num">LAYER 1 · SPEND</div>
+      <div class="card-name">AEGIS</div>
+      <div class="card-pkg">@rocketlang/aegis · npm · AGPL-3.0</div>
+      <div class="card-governs">Governs what the agent spends</div>
+      <p class="card-desc">
+        Vendor-neutral kill-switch for AI agents. Hard budget caps, human heartbeat, unified cross-surface visibility.
+        Born from a real $200 incident.
+      </p>
+      <ul class="card-features">
+        <li><span class="tick">▸</span> Hard budget cap per session / 5h / day / week</li>
+        <li><span class="tick">▸</span> KAVACH DAN Gate — L1–L4 destructive command approval via Telegram / WhatsApp</li>
+        <li><span class="tick">▸</span> Human heartbeat — pauses agents when you leave</li>
+        <li><span class="tick">▸</span> Agent spawn governance — depth + concurrency limits</li>
+        <li><span class="tick">▸</span> Unified dashboard — all surfaces, all sessions, live</li>
+        <li><span class="tick">▸</span> Claude Code + OpenAI Codex + LangChain + n8n</li>
+      </ul>
+    </div>
+
+    <!-- KAVACHOS -->
+    <div class="stack-card kavach" id="kavachos">
+      <div class="layer-num">LAYER 2 · BEHAVIOR</div>
+      <div class="card-name">KavachOS</div>
+      <div class="card-pkg">@rocketlang/kavachos · npm · AGPL-3.0</div>
+      <div class="card-governs">Governs what the agent does</div>
+      <p class="card-desc">
+        seccomp-bpf + cgroup BPF kernel enforcement. The agent can only make the syscalls its trust level permits — nothing else reaches the kernel.
+      </p>
+      <ul class="card-features">
+        <li><span class="tick">▸</span> seccomp-bpf profiles from trust_mask integer</li>
+        <li><span class="tick">▸</span> cgroup BPF egress — per-session network allowlist at connect4/6</li>
+        <li><span class="tick">▸</span> Exec allowlist — first-hop binary whitelist per agent type</li>
+        <li><span class="tick">▸</span> L7 TLS proxy — SQL / PII / EchoLeak firewall, BCC injection detection</li>
+        <li><span class="tick">▸</span> SCMP_ACT_NOTIFY supervisor — live exec path resolution</li>
+        <li><span class="tick">▸</span> Falco rules per domain: maritime · logistics · OT · finance</li>
+      </ul>
+    </div>
+
+    <!-- PRAMANA -->
+    <div class="stack-card pramana" id="pramana">
+      <div class="layer-num">LAYER 3 · PROOF</div>
+      <div class="card-name">PRAMANA</div>
+      <div class="card-pkg">DOI 10.5281/zenodo.19273330 · AGPL-3.0 (EE)</div>
+      <div class="card-governs">Proves what happened</div>
+      <p class="card-desc">
+        Cryptographic attestation of every decision AEGIS and KavachOS made. SHA-256 sealed, chained, tamper-evident. EU AI Act Article 14 evidence package.
+      </p>
+      <ul class="card-features">
+        <li><span class="tick">▸</span> SHA-256 sealed receipt per gate decision</li>
+        <li><span class="tick">▸</span> Chained — each receipt commits the previous hash</li>
+        <li><span class="tick">▸</span> `kavachos audit` verifies chain integrity offline</li>
+        <li><span class="tick">▸</span> S3 anchoring for long-term custody (EE)</li>
+        <li><span class="tick">▸</span> Merkle ledger for multi-session evidence bundles (EE)</li>
+        <li><span class="tick">▸</span> EU AI Act Article 14 evidence package (Phase 5)</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- AIRBAG -->
+<section class="airbag fade-in">
+  <div class="airbag-inner">
+    <div class="airbag-text">
+      <div class="tag">EU AI Act · Article 14</div>
+      <h2>KavachOS is the airbag.<br>PRAMANA is the black box.<br>Article 14 requires both.</h2>
+      <p>
+        <strong>PRAMANA alone is just logging.</strong> It proves what happened but doesn't prevent the next bad thing.
+      </p>
+      <p>
+        <strong>KavachOS alone is just enforcement.</strong> It gates behavior but leaves no verifiable trail.
+      </p>
+      <p>
+        Together: the human can override via the HITL gate, and the override is recorded in a tamper-evident chain. That's the two halves nobody else is pairing.
+      </p>
+      <p>
+        EU AI Act Article 14 requires human oversight with evidence. Not one. Both. The deadline is <strong>2 August 2026.</strong>
+      </p>
+    </div>
+    <div class="article-card">
+      <div class="art-label">How the stack satisfies Article 14</div>
+      <div class="article-row">
+        <div class="article-icon a">🛡️</div>
+        <div class="article-row-text">
+          <div class="row-title">Human can intervene</div>
+          <div class="row-desc">KAVACH DAN Gate — every L3/L4 action pauses and awaits explicit approval. Silence defaults to STOP.</div>
+        </div>
+      </div>
+      <div class="article-row">
+        <div class="article-icon b">🔒</div>
+        <div class="article-row-text">
+          <div class="row-title">Decision is recorded</div>
+          <div class="row-desc">PRAMANA seals every ALLOW/DENY with SHA-256 + chain. The record cannot be altered without breaking the chain.</div>
+        </div>
+      </div>
+      <div class="article-row">
+        <div class="article-icon c">✅</div>
+        <div class="article-row-text">
+          <div class="row-title">Behavior is bounded</div>
+          <div class="row-desc">KavachOS blocks the syscall before it reaches the kernel. Not a log. Not an alert. A hard stop.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- INSTALL -->
+<section class="install-section fade-in" id="install">
+  <p class="section-label">Install</p>
+  <h2 class="section-title">Start in 3 commands.</h2>
+  <p class="section-sub">AEGIS + KavachOS ship as npm packages. AGPL-3.0. No cloud dependency. All data stays local.</p>
+
+  <div class="code-block">
+    <div class="code-block-header">
+      <span>bash</span>
+      <span>Spend governance + kernel enforcement</span>
+    </div>
+    <pre><span class="c-comment"># 1. Spend governance (AEGIS)</span>
+<span class="c-cmd">npm install -g</span> <span class="c-pkg">@rocketlang/aegis</span>
+<span class="c-cmd">aegis init</span>              <span class="c-comment"># wires Claude Code hooks automatically</span>
+<span class="c-ok">✓ KAVACH gate armed · dashboard at localhost:4850</span>
+
+<span class="c-comment"># 2. Kernel enforcement (KavachOS)</span>
+<span class="c-cmd">npm install -g</span> <span class="c-pkg">@rocketlang/kavachos</span>
+<span class="c-cmd">kavachos run</span> <span class="c-flag">claude</span> <span class="c-flag">--trust-mask=0xFF</span> <span class="c-flag">--domain=general</span>
+<span class="c-ok">✓ seccomp-bpf loaded · egress firewall active · PRAMANA chain open</span>
+
+<span class="c-comment"># 3. Audit the receipt chain</span>
+<span class="c-cmd">kavachos audit --all</span>
+<span class="c-ok">✓ 47 receipts · chain intact · last sealed 2s ago</span></pre>
+  </div>
+
+  <div style="display:flex;gap:1rem;justify-content:center;flex-wrap:wrap;">
+    <a class="btn-primary" href="https://www.npmjs.com/package/@rocketlang/aegis" target="_blank">@rocketlang/aegis on npm</a>
+    <a class="btn-secondary" href="https://www.npmjs.com/package/@rocketlang/kavachos" target="_blank">@rocketlang/kavachos on npm</a>
+    <a class="btn-secondary" href="https://doi.org/10.5281/zenodo.19273330" target="_blank">PRAMANA paper (Zenodo)</a>
+  </div>
+</section>
+
+<!-- TRUST SIGNALS -->
+<div class="trust-row">
+  <a class="trust-item" href="https://www.npmjs.com/package/@rocketlang/aegis" target="_blank">
+    <span class="ti-dot aegis"></span>AEGIS · npm · AGPL-3.0
+  </a>
+  <a class="trust-item" href="https://www.npmjs.com/package/@rocketlang/kavachos" target="_blank">
+    <span class="ti-dot kavach"></span>KavachOS · npm · AGPL-3.0
+  </a>
+  <a class="trust-item" href="https://doi.org/10.5281/zenodo.19625473" target="_blank">
+    <span class="ti-dot aegis"></span>AEGIS paper · DOI 10.5281/zenodo.19625473
+  </a>
+  <a class="trust-item" href="https://doi.org/10.5281/zenodo.19273330" target="_blank">
+    <span class="ti-dot pramana"></span>PRAMANA paper · DOI 10.5281/zenodo.19273330
+  </a>
+  <a class="trust-item" href="https://github.com/rocketlang/aegis" target="_blank">
+    <span class="ti-dot kavach"></span>github.com/rocketlang/aegis
+  </a>
+  <span class="trust-item">
+    <span class="ti-dot aegis"></span>Born 17 April 2026
+  </span>
+</div>
+
+<!-- FOOTER -->
+<footer>
+  <div class="f-left">
+    © 2026 <strong>Capt. Anil Sharma</strong> · AGPL-3.0 · <a href="mailto:captain@ankr.in" style="color:var(--muted)">captain@ankr.in</a>
+  </div>
+  <div class="f-links">
+    <a href="https://github.com/rocketlang/aegis" target="_blank">GitHub</a>
+    <a href="https://xshieldai.com" target="_blank">xShieldAI</a>
+    <a href="mailto:captain@ankr.in">Enterprise</a>
+    <a href="SECURITY.md">Security</a>
+  </div>
+</footer>
+
+<script>
+  // Scroll fade-in
+  const observer = new IntersectionObserver(
+    entries => entries.forEach(e => { if (e.isIntersecting) e.target.classList.add('visible'); }),
+    { threshold: 0.1 }
+  );
+  document.querySelectorAll('.fade-in').forEach(el => observer.observe(el));
+
+  // Smooth tab switching (install section — future enhancement hook)
+  document.querySelectorAll('.tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+      document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+      tab.classList.add('active');
+    });
+  });
+</script>
+</body>
+</html>

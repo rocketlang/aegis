@@ -153,7 +153,31 @@ export const NOTIFY_SYSCALLS: string[] = [
   "capset",          // capability modification (also granted by trust bit 1)
 ];
 
-export function buildSyscallSet(trustMask: number, domain: string): string[] {
+// @rule:KOS-096 at depth≥4 these write-class syscalls move from ALLOW → NOTIFY tier
+// The agent's writes are supervised; a kernel notifier must approve each one.
+// read/stat/exit/futex stay in ALLOW so the agent can receive+surface operator instructions.
+export const DEPTH4_SUPERVISED_SYSCALLS: string[] = [
+  "write",     // any fd write — Falco context is lost at depth≥4, so every write is gated
+  "writev",    // scatter-gather write
+  "pwrite64",  // positional write
+  "clone3",    // thread spawn — potential exfil via side-channel
+];
+
+// @rule:KOS-092 seccomp profile derived from (trust_mask, domain, delegation_depth) triplet
+// @rule:KOS-093 depth reduction schedule — deeper delegation → narrower syscall surface
+//   depth 1: full trust_mask set (no reduction)
+//   depth 2: subtract ptrace + mknod* (debug/node-creation vectors closed)
+//   depth 3: subtract clone + fork + clone3 (process spawning closed)
+//   depth 4+: MINIMAL_READONLY_SYSCALLS regardless of trust_mask
+export const DEPTH_REDUCTION_SCHEDULE: Record<number, string[]> = {
+  2: ["ptrace", "mknod", "mknodeat"],
+  3: ["clone", "fork", "clone3"],
+};
+
+export function buildSyscallSet(trustMask: number, domain: string, depth: number = 1): string[] {
+  // depth 4+: absolute read-only regardless of trust_mask (KOS-093)
+  if (depth >= 4) return [...new Set(MINIMAL_READONLY_SYSCALLS)];
+
   // trust_mask=0 → absolute minimal (INF-KOS-001)
   if (trustMask === 0) return [...new Set(MINIMAL_READONLY_SYSCALLS)];
 
@@ -170,6 +194,13 @@ export function buildSyscallSet(trustMask: number, domain: string): string[] {
   // Add domain-specific syscalls
   const domainExtras = DOMAIN_EXTRA_SYSCALLS[domain] ?? DOMAIN_EXTRA_SYSCALLS.general;
   domainExtras.forEach((s) => set.add(s));
+
+  // Apply depth reduction schedule (KOS-093)
+  // depth 2: remove ptrace/mknod; depth 3: also remove clone/fork/clone3
+  for (let d = 2; d <= Math.min(depth, 3); d++) {
+    const toRemove = DEPTH_REDUCTION_SCHEDULE[d] ?? [];
+    toRemove.forEach((s) => set.delete(s));
+  }
 
   return [...set].sort();
 }

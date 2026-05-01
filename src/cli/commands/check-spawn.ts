@@ -17,9 +17,10 @@
 
 import { readFileSync } from "fs";
 import { loadConfig } from "../../core/config";
-import { getSessionSpawnCount, getBudgetState } from "../../core/db";
+import { getSessionSpawnCount, getBudgetState, recordBackgroundAgent } from "../../core/db";
 import { PERM, requiredBitsForTool } from "../../kavach/perm-mask";
 import { checkValve } from "../../kavach/gate-valve";
+import { checkMudrika } from "../../kavach/mudrika-validator";
 import { loadAgent, transitionState } from "../../sandbox/quarantine";
 import { loadPolicy } from "../../sandbox/policy-loader";
 import { isStopRequested } from "../../core/db";
@@ -38,6 +39,16 @@ export default async function checkSpawn(_args: string[]): Promise<void> {
     const config = loadConfig();
     const enforce = config.enforcement?.mode === "enforce";
     const sessionId = process.env.CLAUDE_SESSION_ID || "unknown";
+
+    // --- Mudrika identity check (KOS-062) ---
+    {
+      const agentId = process.env.CLAUDE_AGENT_ID || sessionId;
+      const mudrika = checkMudrika(agentId);
+      if (!mudrika.valid && mudrika.reason !== "no mudrika — agent not registered") {
+        process.stderr.write(`\n[KAVACH:MUDRIKA] IDENTITY DENIED — ${agentId}: ${mudrika.reason}\n\n`);
+        process.exit(2);
+      }
+    }
 
     // --- V2-048: L1 Soft Stop check before any spawn ---
     {
@@ -110,7 +121,7 @@ export default async function checkSpawn(_args: string[]): Promise<void> {
         prompt: toolInput.tool_input?.prompt,
         parent_agent_id: sessionId,
         parent_budget_remaining_usd: daily.remaining_usd,
-        child_budget_cap_usd: config.budget.daily_limit_usd,
+        child_budget_cap_usd: daily.remaining_usd,
         parent_depth: spawns,
         max_depth: config.budget.spawn_limit_per_session,
       });
@@ -129,6 +140,19 @@ export default async function checkSpawn(_args: string[]): Promise<void> {
         process.exit(2);
       } else if (!hResult.passed) {
         process.stderr.write(`[HanumanG] WARN: spawn has delegation issues — ${hResult.failed_axes.join(", ")}\n`);
+      }
+
+      // @rule:KOS-T095 — record background spawns so Stop hook can warn before session kill
+      const isBackground = (toolInput as { tool_input?: { run_in_background?: boolean } })?.tool_input?.run_in_background === true;
+      if (isBackground) {
+        try {
+          recordBackgroundAgent(
+            sessionId,
+            (toolInput as { tool_input?: { description?: string } }).tool_input?.description,
+            (toolInput as { tool_input?: { subagent_type?: string } }).tool_input?.subagent_type,
+          );
+          process.stderr.write(`[KAVACH:bg] background agent recorded — Stop hook will guard until acknowledged\n`);
+        } catch {}
       }
     }
 
@@ -195,6 +219,31 @@ export default async function checkSpawn(_args: string[]): Promise<void> {
         }
       }
     }
+
+    // @rule:AGS-003 Issue SDT for the spawned agent at spawn-time (intra-org, local-signed)
+    // This gives the child agent its delegation envelope before it starts executing.
+    // Failure is non-fatal — the child can still run; it just won't carry an SDT.
+    try {
+      const agentId = process.env.CLAUDE_AGENT_ID || sessionId;
+      const agentDepth = (loadAgent(agentId)?.depth ?? 0) + 1;
+      const parentId = agentId !== sessionId ? agentId : undefined;
+
+      const { issueSdt } = await import("../../auth/sdt");
+      const sdtResult = issueSdt({
+        agent_id: `child-${Date.now()}`,
+        agent_class: "worker",
+        spawner_id: agentId,
+        parent_token_id: parentId ? agentId : undefined,
+        requested_mask: config.budget.spawn_limit_per_session > 0 ? 0xFFFF : 0xFF,
+        task_scope: [],           // unconstrained — policy layer may narrow later
+        max_depth: config.budget.max_depth ?? 5,
+        expiry: "task_end",
+      });
+      process.stderr.write(
+        `[KAVACH:sdt] SDT issued: depth=${sdtResult.token.delegation.depth} ` +
+        `mask=0x${sdtResult.effective_mask.toString(16)} id=${sdtResult.token.token_id.slice(0, 8)}\n`
+      );
+    } catch { /* non-fatal */ }
 
     process.exit(0);
   } catch {

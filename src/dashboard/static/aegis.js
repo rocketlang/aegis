@@ -1,6 +1,7 @@
 // AEGIS Dashboard — Client-side (Max Plan + API Plan)
 
-const API = '';
+// Auto-detect base path: works at /dashboard/ and at root (aegis.ankr.in)
+const API = window.location.pathname.startsWith('/dashboard') ? '/dashboard' : '';
 
 function formatTokens(t) {
   if (t >= 1e9) return (t / 1e9).toFixed(2) + 'B';
@@ -36,8 +37,13 @@ async function fetchStatus() {
     document.getElementById('plan-badge').textContent = data.plan || 'api';
 
     const isMax = data.is_max_plan;
-    document.getElementById('maxplan-view').style.display = isMax ? '' : 'none';
-    document.getElementById('apiplan-view').style.display = isMax ? 'none' : '';
+    // Toggle ops-strip cards: max plan shows 5h+weekly, api plan shows daily+weekly+monthly
+    ['window-5h-card', 'window-weekly-card'].forEach(id => {
+      const el = document.getElementById(id); if (el) el.style.display = isMax ? '' : 'none';
+    });
+    ['daily-card', 'weekly-card', 'monthly-card'].forEach(id => {
+      const el = document.getElementById(id); if (el) el.style.display = isMax ? 'none' : '';
+    });
 
     if (isMax) renderMaxPlan(data);
     else renderApiPlan(data);
@@ -52,18 +58,13 @@ async function fetchStatus() {
 }
 
 function renderSystem(sys, providers) {
-  document.getElementById('process-count').textContent = sys.process_count || 0;
+  document.getElementById('kpi-processes').textContent = sys.process_count || 0;
+  document.getElementById('kpi-velocity').textContent = formatTokens(sys.velocity_5m?.tokens_per_min || 0);
+  document.getElementById('kpi-cost-hr').textContent = '$' + (sys.velocity_5m?.cost_per_hour || '0.00');
   document.getElementById('total-cpu').textContent = sys.total_cpu || '0';
   document.getElementById('total-mem').textContent = sys.total_mem_mb || 0;
-  document.getElementById('tokens-per-min').textContent = formatTokens(sys.velocity_5m?.tokens_per_min || 0);
-  document.getElementById('msgs-per-min').textContent = sys.velocity_5m?.messages ? (sys.velocity_5m.messages / 5).toFixed(1) : '0';
-  document.getElementById('cost-per-hour').textContent = '$' + (sys.velocity_5m?.cost_per_hour || '0.00');
 
-  const p = providers.providers || {};
-  document.getElementById('provider-claude').textContent = p['claude-code']?.sessions || 0;
-  document.getElementById('provider-codex').textContent = p['openai-codex']?.sessions || 0;
-
-  // Process list
+  // Process list with inline kill/pause controls
   const procList = document.getElementById('processes-list');
   document.getElementById('proc-count-badge').textContent = sys.process_count || 0;
   if (!sys.processes || sys.processes.length === 0) {
@@ -77,6 +78,10 @@ function renderSystem(sys, providers) {
         <span class="proc-mem">${p.mem_mb}MB</span>
         <span class="proc-time">${p.elapsed}</span>
         <span class="proc-cmd" title="${p.cmd}">${p.cmd}</span>
+        <span class="proc-actions">
+          <button class="btn-xs" onclick="pausePid(${p.pid})" title="Pause (SIGSTOP)">⏸</button>
+          <button class="btn-xs btn-xs-kill" onclick="killPid(${p.pid})" title="Kill (SIGKILL)">✕</button>
+        </span>
       </div>
     `).join('');
   }
@@ -185,6 +190,7 @@ async function valveAction(agentId, action) {
 function renderSessions(sessions, isMax) {
   const list = document.getElementById('sessions-list');
   document.getElementById('session-count').textContent = sessions.length;
+  document.getElementById('kpi-sessions').textContent = sessions.length;
   if (sessions.length === 0) {
     list.innerHTML = '<div class="empty-state">No active sessions</div>';
     return;
@@ -197,18 +203,28 @@ function renderSessions(sessions, isMax) {
     const valveEmoji = valve ? (VALVE_EMOJI[valve.state] || '⚪') : '⚪';
     const valveState = valve ? valve.state : '';
     const permDiff = renderPermDiff(valve);
-    const narrowBtn = valve && valve.state === 'OPEN'
-      ? `<button class="btn-xs" onclick="valveAction('${s.session_id}','throttle')" title="Throttle">⬇</button>`
-      : valve && (valve.state === 'THROTTLED' || valve.state === 'CRACKED')
-      ? `<button class="btn-xs" onclick="valveAction('${s.session_id}','open')" title="Restore">↑</button>`
-      : '';
+    const sid = s.session_id;
+    let valveCtls = '';
+    if (valve) {
+      if (valve.state === 'OPEN') {
+        valveCtls = `
+          <button class="btn-xs" onclick="valveAction('${sid}','throttle')" title="Throttle — restricts spawn">⬇ THROTTLE</button>
+          <button class="btn-xs btn-xs-kill" onclick="valveAction('${sid}','close')" title="Close — blocks all ops">✕ CLOSE</button>`;
+      } else if (valve.state === 'THROTTLED' || valve.state === 'CRACKED') {
+        valveCtls = `
+          <button class="btn-xs" onclick="valveAction('${sid}','open')" title="Restore full access">↑ OPEN</button>
+          <button class="btn-xs btn-xs-kill" onclick="valveAction('${sid}','close')" title="Close — blocks all ops">✕ CLOSE</button>`;
+      } else if (valve.state === 'CLOSED' || valve.state === 'LOCKED') {
+        valveCtls = `<button class="btn-xs" onclick="valveAction('${sid}','open')" title="Reopen session">↑ OPEN</button>`;
+      }
+    }
     return `
     <div class="session-card">
-      <span class="session-id">${s.session_id.slice(0, 8)}</span>
+      <span class="session-id">${sid.slice(0, 8)}</span>
       <span class="session-cost">${costDisplay}</span>
       <span class="session-meta">${s.agent_spawns} spawns</span>
       ${valveState ? `<span class="session-meta">${valveEmoji} ${valveState} ${permDiff}</span>` : ''}
-      ${narrowBtn}
+      <span class="session-valve-ctls">${valveCtls}</span>
       <span class="session-status ${s.status}">${s.status}</span>
     </div>`;
   }).join('');
@@ -301,6 +317,34 @@ async function resumeAll() {
   fetchStatus();
 }
 
+async function killPid(pid) {
+  if (!confirm(`KILL process ${pid}? (SIGKILL — cannot be undone)`)) return;
+  await fetch(`${API}/api/signal/${pid}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ signal: 'SIGKILL' }),
+  });
+  fetchStatus();
+}
+
+async function pausePid(pid) {
+  await fetch(`${API}/api/signal/${pid}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ signal: 'SIGSTOP' }),
+  });
+  fetchStatus();
+}
+
+async function resumePid(pid) {
+  await fetch(`${API}/api/signal/${pid}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ signal: 'SIGCONT' }),
+  });
+  fetchStatus();
+}
+
 function connectSSE() {
   const dot = document.getElementById('connection-status');
   const es = new EventSource(`${API}/api/events`);
@@ -311,6 +355,19 @@ function connectSSE() {
   es.onerror = () => { dot.className = 'status-dot disconnected'; };
 }
 
+function startClock() {
+  function tick() {
+    const now = new Date();
+    const time = now.toTimeString().slice(0, 8);
+    const date = now.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' });
+    const el = document.getElementById('header-clock');
+    if (el) el.textContent = `${date} ${time}`;
+  }
+  tick();
+  setInterval(tick, 1000);
+}
+
+startClock();
 fetchStatus();
 connectSSE();
 loadEnforceState();
@@ -446,3 +503,54 @@ function countNodes(nodes) {
 
 fetchCostTree();
 setInterval(fetchCostTree, 15000);
+
+// Background Agents Panel (@rule:KOS-T095)
+async function fetchBgAgents() {
+  try {
+    const res = await fetch(`${API}/api/bg-agents?hours=24`);
+    const agents = await res.json();
+    renderBgAgents(Array.isArray(agents) ? agents : []);
+  } catch {}
+}
+
+function renderBgAgents(agents) {
+  const list = document.getElementById('bg-agents-list');
+  const badge = document.getElementById('bg-agents-badge');
+  const running = agents.filter(a => a.status === 'running');
+  if (running.length > 0) {
+    badge.textContent = running.length + ' running';
+    badge.style.display = '';
+    badge.style.background = 'var(--amber)';
+    badge.style.color = '#000';
+  } else if (agents.length > 0) {
+    badge.textContent = agents.length + ' total';
+    badge.style.display = '';
+    badge.style.background = 'var(--muted, #64748b)';
+    badge.style.color = '#fff';
+  } else {
+    badge.style.display = 'none';
+  }
+  if (!agents.length) {
+    list.innerHTML = '<div class="empty-state">No background agents in last 24h</div>';
+    return;
+  }
+  list.innerHTML = agents.map(a => {
+    const age = Math.round((Date.now() - new Date(a.spawned_at).getTime()) / 60000);
+    const statusColor = a.status === 'running' ? 'var(--amber)' : a.status === 'completed' ? 'var(--green)' : 'var(--muted,#64748b)';
+    const desc = a.description || a.subagent_type || 'unnamed';
+    const taskLabel = a.task_id ? `<span style="color:var(--muted,#64748b);font-size:10px">${a.task_id.slice(0,12)}</span>` : '';
+    const doneLabel = a.completed_at ? ` → done in ${Math.round((new Date(a.completed_at).getTime() - new Date(a.spawned_at).getTime()) / 60000)}m` : '';
+    return `<div class="approval-card" style="border-left:3px solid ${statusColor}">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <span style="font-weight:600">${desc}</span>
+        <span style="color:${statusColor};font-size:11px;text-transform:uppercase">${a.status}</span>
+      </div>
+      <div style="color:var(--muted,#64748b);font-size:11px;margin-top:4px">
+        spawned ${age}m ago${doneLabel} ${taskLabel}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+fetchBgAgents();
+setInterval(fetchBgAgents, 5000);

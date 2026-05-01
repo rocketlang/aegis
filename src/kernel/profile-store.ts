@@ -15,6 +15,7 @@ export interface StoredProfile {
   trust_mask: number;
   domain: string;
   agent_type: string;
+  delegation_depth: number;   // @rule:KOS-092
   syscall_count: number;
   profile_json: string;
   stored_at: string;
@@ -40,6 +41,7 @@ export function ensureKernelSchema(): void {
       trust_mask INTEGER NOT NULL,
       domain TEXT NOT NULL,
       agent_type TEXT NOT NULL DEFAULT 'claude-code',
+      delegation_depth INTEGER NOT NULL DEFAULT 1,
       syscall_count INTEGER NOT NULL,
       profile_json TEXT NOT NULL,
       stored_at TEXT NOT NULL,
@@ -60,6 +62,7 @@ export function ensureKernelSchema(): void {
       profile_hash TEXT,
       receipt_hash TEXT NOT NULL,
       prev_receipt_hash TEXT,
+      delegation_depth INTEGER NOT NULL DEFAULT 1,
       sealed_at TEXT NOT NULL
     );
 
@@ -71,6 +74,11 @@ export function ensureKernelSchema(): void {
       detected_at TEXT NOT NULL
     );
   `);
+
+  // Additive migrations — columns added in KOS-092/094 update
+  // SQLite does not support IF NOT EXISTS on ALTER TABLE; try/catch is the safe path.
+  try { db.exec("ALTER TABLE kernel_profiles ADD COLUMN delegation_depth INTEGER NOT NULL DEFAULT 1"); } catch { /* column already exists */ }
+  try { db.exec("ALTER TABLE kernel_receipts ADD COLUMN delegation_depth INTEGER NOT NULL DEFAULT 1"); } catch { /* column already exists */ }
 }
 
 export function storeProfile(
@@ -88,8 +96,8 @@ export function storeProfile(
 
   db.run(
     `INSERT OR REPLACE INTO kernel_profiles
-     (session_id, agent_id, profile_hash, trust_mask, domain, agent_type, syscall_count, profile_json, stored_at, profile_path)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+     (session_id, agent_id, profile_hash, trust_mask, domain, agent_type, delegation_depth, syscall_count, profile_json, stored_at, profile_path)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       sessionId,
       agentId,
@@ -97,6 +105,7 @@ export function storeProfile(
       profile._kavachos.trust_mask,
       profile._kavachos.domain,
       profile._kavachos.agent_type,
+      profile._kavachos.delegation_depth,
       syscallCount,
       profileJson,
       new Date().toISOString(),
@@ -170,6 +179,7 @@ export function recordKernelReceipt(
     profile_hash?: string;
     prev_receipt_hash?: string;
     receipt_hash: string;
+    delegation_depth?: number;
   }
 ): void {
   ensureKernelSchema();
@@ -177,8 +187,8 @@ export function recordKernelReceipt(
   db.run(
     `INSERT OR IGNORE INTO kernel_receipts
      (receipt_id, session_id, agent_id, event_type, syscall, falco_rule, severity,
-      violation_details, profile_hash, receipt_hash, prev_receipt_hash, sealed_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      violation_details, profile_hash, receipt_hash, prev_receipt_hash, delegation_depth, sealed_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       receiptId,
       sessionId,
@@ -191,6 +201,7 @@ export function recordKernelReceipt(
       details.profile_hash ?? null,
       details.receipt_hash,
       details.prev_receipt_hash ?? null,
+      details.delegation_depth ?? 1,
       new Date().toISOString(),
     ]
   );

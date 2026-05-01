@@ -10,7 +10,23 @@
 
 **AEGIS** (Agentic Execution Governance & Intelligence System) is a vendor-neutral kill-switch for AI agents. Works with Claude Code, OpenAI Codex, Cursor, and any tool that writes session logs or makes API calls.
 
-Born from a real $200 incident: a user stopped using Claude Code, walked away, came back to find their weekly Max Plan fully exhausted with no visibility into what ran.
+Born on **17 April 2026** from a real $200 incident: a user stopped using Claude Code, walked away, came back to find their weekly Max Plan fully exhausted with no visibility into what ran.
+
+---
+
+## The AEGIS / KavachOS / PRAMANA stack
+
+Three layers. One coherent governance stack for agentic AI.
+
+| Layer | Package | What it governs |
+|-------|---------|-----------------|
+| **AEGIS** | `@rocketlang/aegis` (this package) | Agent **spend** — budget caps, spawn governance, cross-surface usage visibility, kill-switches |
+| **KavachOS** | [`@rocketlang/kavachos`](https://www.npmjs.com/package/@rocketlang/kavachos) | Agent **behavior** — syscall mediation, exec allowlist, egress firewall, sandboxed runtime |
+| **PRAMANA** | DOI [10.5281/zenodo.19273330](https://doi.org/10.5281/zenodo.19273330) | Cryptographic **attestation** — tamper-evident chain of every decision either layer made |
+
+AEGIS governs what the agent spends. KavachOS governs what the agent does. PRAMANA proves what happened.
+
+For EU AI Act Article 14 (human oversight): PRAMANA alone is just logging — it proves what happened but doesn't prevent the next bad thing. AEGIS + KavachOS alone are just enforcement — they gate behavior but leave no verifiable trail. Together: the human can override (HITL gate), and the override is recorded in a tamper-evident chain. KavachOS is the airbag. PRAMANA is the black box. Article 14 requires both.
 
 ---
 
@@ -520,15 +536,59 @@ Read the incident that spawned this project: [`docs/incident.md`](docs/incident.
 
 ---
 
+## AGPL3 Core vs Enterprise Edition (EE)
+
+KavachOS ships in two tiers. The kernel enforcement layer — the part that actually stops syscalls — is **open source**. You can audit what runs next to your production agents.
+
+> **Kernel enforcement (seccomp-bpf + Falco integration) is AGPL-3.0. You can audit what runs next to your production agents.**
+
+| Capability | Layer | License | Install |
+|---|---|---|---|
+| Budget governor (daily/session/agent) | KAVACH orchestrator | **AGPL-3.0** | `@rocketlang/aegis` |
+| DAN gate — WhatsApp / Telegram human-in-loop | KAVACH orchestrator | **AGPL-3.0** | `@rocketlang/aegis` |
+| `perm_mask` / `class_mask` bitmask policy | KAVACH orchestrator | **AGPL-3.0** | `@rocketlang/aegis` |
+| Gate valve (throttle → crack → close) | KAVACH orchestrator | **AGPL-3.0** | `@rocketlang/aegis` |
+| HTTP Gate API (`/api/v1/kavach/gate`) | KAVACH orchestrator | **AGPL-3.0** | `@rocketlang/aegis` |
+| n8n community nodes (4 nodes) | KAVACH adapters | **AGPL-3.0** | `@rocketlang/n8n-nodes-kavachos` |
+| LangChain callback adapter | KAVACH adapters | **AGPL-3.0** | `langchain-kavachos` |
+| CA-006 LLM injection detection | KAVACH-POSTURE | **AGPL-3.0** | `@rocketlang/aegis` |
+| Basic HanumanG (7 delegation axes) | KAVACH-POSTURE | **AGPL-3.0** | `@rocketlang/aegis` |
+| seccomp-bpf profile generator | KAVACH-KERNEL | **AGPL-3.0** | `@rocketlang/aegis` |
+| Falco rule generator + event watcher | KAVACH-KERNEL | **AGPL-3.0** | `@rocketlang/aegis` |
+| SCMP_ACT_NOTIFY supervisor (no-restart expansion) | KAVACH-KERNEL | **AGPL-3.0** | `@rocketlang/aegis` |
+| KavachOS CLI (`kavachos run/audit/generate/rules`) | KAVACH-KERNEL | **AGPL-3.0** | `@rocketlang/aegis` |
+| PRAMANA Merkle receipt chain + S3 anchoring | KAVACH orchestrator | **BSL-1.1 → AGPL-3.0\*** | contact [captain@ankr.in](mailto:captain@ankr.in) |
+| HanumanG EE — posture registry + report cards | KAVACH-POSTURE | **BSL-1.1 → AGPL-3.0\*** | contact [captain@ankr.in](mailto:captain@ankr.in) |
+| Dual-control L4 approval (two approvers) | KAVACH orchestrator | **BSL-1.1 → AGPL-3.0\*** | contact [captain@ankr.in](mailto:captain@ankr.in) |
+| Slack notification channel | KAVACH orchestrator | **BSL-1.1 → AGPL-3.0\*** | contact [captain@ankr.in](mailto:captain@ankr.in) |
+| Maritime injection signatures (AIS/NMEA/Modbus) | KAVACH-POSTURE | **BSL-1.1 → AGPL-3.0\*** | contact [captain@ankr.in](mailto:captain@ankr.in) |
+| Multi-tenant session isolation | KAVACH orchestrator | **BSL-1.1 → AGPL-3.0\*** | contact [captain@ankr.in](mailto:captain@ankr.in) |
+| Kubernetes sidecar + admission webhook | KAVACH infra | **BSL-1.1 → AGPL-3.0\*** | Phase 6 build |
+| EU AI Act evidence package | KAVACH compliance | **BSL-1.1 → AGPL-3.0\*** | Phase 5 build |
+
+\* BSL-1.1 converts to AGPL-3.0 after 4 years. EE is distributed via private GitHub repo to design partners — not on npm. Contact [captain@ankr.in](mailto:captain@ankr.in).
+
+### Activate EE
+
+```bash
+# EE distributed via private repo — not npm
+# Clone: git clone git@github.com:rocketlang/kavachos-ee.git  (design partner access)
+export AEGIS_EE_LICENSE_KEY=your_signed_key
+aegis status   # EE: active
+```
+
+---
+
 ## Roadmap
 
 - [x] Phase 0 — Monitor + CLI + Dashboard + Max Plan + Codex support
-- [ ] Phase 1 — Heartbeat detection (pause when user walks away)
-- [ ] Phase 2 — Proxy mode (intercept API calls pre-flight)
-- [ ] Phase 3 — Multi-device sync
-- [ ] Phase 4 — Agent Budget Attestation (ABA) protocol spec
-- [ ] Phase 5 — Integrations: Cursor, Copilot, Devin, Windsurf
-- [ ] Phase 6 — Team/enterprise mode with per-user attribution
+- [x] Phase 1 — KAVACH-KERNEL: seccomp-bpf + Falco + SCMP_ACT_NOTIFY supervisor (v2.0.0)
+- [x] Phase 1A — Framework adapters: n8n (4 nodes) + LangChain callback (v2.0.0)
+- [ ] Phase 2 — PRAMANA Merkle ledger + S3 anchoring (EE)
+- [ ] Phase 3 — L7 transparent proxy (TLS-terminating, zero agent code change)
+- [ ] Phase 4 — SPIFFE/mudrika identity (agent SVID, 55-min auto-rotate)
+- [ ] Phase 5 — EU AI Act evidence package (Aug 2, 2026 deadline)
+- [ ] Phase 6 — Kubernetes sidecar + DaemonSet (EE enterprise path)
 
 ---
 

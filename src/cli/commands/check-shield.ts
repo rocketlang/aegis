@@ -22,6 +22,7 @@ import {
   detectMCPInjection,
 } from "../../shield/injection-detector";
 import { touchAgent, isStopRequested } from "../../core/db";
+import { checkMudrika } from "../../kavach/mudrika-validator";
 
 function readStdin(): string {
   try {
@@ -53,6 +54,13 @@ export default async function checkShield(_args: string[]): Promise<void> {
     const toolName = (toolInput.tool_name as string) || "";
     const sessionId = (toolInput.session_id as string) || process.env.CLAUDE_SESSION_ID || "unknown";
     const agentId = process.env.CLAUDE_AGENT_ID || sessionId;
+
+    // @rule:KOS-062 mudrika identity check before shield scan
+    const mudrika = checkMudrika(agentId);
+    if (!mudrika.valid && mudrika.reason !== "no mudrika — agent not registered") {
+      process.stderr.write(`\n[KAVACH:MUDRIKA] IDENTITY DENIED — ${agentId}: ${mudrika.reason}\n\n`);
+      process.exit(2);
+    }
 
     // V2-041 — touch agent in DB (last_seen + tool_calls)
     try { touchAgent(agentId); } catch {}

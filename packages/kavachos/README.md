@@ -27,6 +27,22 @@ exit_group + futex + rt_sigreturn always allowed  ← no-freeze guarantee
 
 ---
 
+## The AEGIS / KavachOS / PRAMANA stack
+
+Three layers. One coherent governance stack for agentic AI.
+
+| Layer | Package | What it governs |
+|-------|---------|-----------------|
+| **AEGIS** | [`@rocketlang/aegis`](https://www.npmjs.com/package/@rocketlang/aegis) | Agent **spend** — budget caps, spawn governance, cross-surface usage visibility, kill-switches |
+| **KavachOS** | `@rocketlang/kavachos` (this package) | Agent **behavior** — syscall mediation, exec allowlist, egress firewall, sandboxed runtime |
+| **PRAMANA** | DOI [10.5281/zenodo.19273330](https://doi.org/10.5281/zenodo.19273330) | Cryptographic **attestation** — tamper-evident chain of every decision either layer made |
+
+AEGIS governs what the agent spends. KavachOS governs what the agent does. PRAMANA proves what happened.
+
+For EU AI Act Article 14 (human oversight): PRAMANA alone is just logging — it proves what happened but doesn't prevent the next bad thing. KavachOS alone is just enforcement — it gates behavior but leaves no verifiable trail. Together: the human can override (HITL gate), and the override is recorded in a tamper-evident chain. KavachOS is the airbag. PRAMANA is the black box. Article 14 requires both.
+
+---
+
 ## Install
 
 ```bash

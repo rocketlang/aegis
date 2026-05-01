@@ -17,9 +17,11 @@
 
 import { readFileSync, existsSync } from "fs";
 import { join } from "path";
+import { DASHBOARD_PORT } from "../../core/config";
 import { requiredBitsForTool } from "../../kavach/perm-mask";
 import { classifyResource, extractResourceFromToolInput } from "../../kavach/class-mask";
 import { checkValve, incrementLoopCount } from "../../kavach/gate-valve";
+import { checkMudrika } from "../../kavach/mudrika-validator";
 
 const AEGIS_DIR = join(process.env.HOME || "/root", ".aegis");
 const RULES_PATH = join(AEGIS_DIR, "destructive-rules.json");
@@ -69,6 +71,18 @@ export default async function checkDestructive(_args: string[]): Promise<void> {
     const agentId = toolInput.agent_id || toolInput.session_id || process.env.CLAUDE_SESSION_ID || "unknown";
     const command = (toolInput.tool_input?.command as string) ?? "";
 
+    // ── Mudrika identity check (KOS-062) — before any enforcement ─────────
+    // Agents registered after Phase 4 always have a mudrika. Agents registered
+    // before Phase 4 (no mudrika file) are allowed through — no mudrika file
+    // means pre-Phase-4 spawn, not a spoofed identity.
+    const mudrika = checkMudrika(agentId);
+    if (!mudrika.valid && mudrika.reason !== "no mudrika — agent not registered") {
+      process.stderr.write(
+        `\n[KAVACH:MUDRIKA] IDENTITY DENIED — ${agentId}: ${mudrika.reason}\n\n`
+      );
+      process.exit(2);
+    }
+
     // ── Level 0 + Level 1: bitmask enforcement (KAV-YK-014) ──────────────
     const requiredBits = requiredBitsForTool(toolName, command);
     const resourcePath = extractResourceFromToolInput(toolName, toolInput.tool_input ?? {});
@@ -111,7 +125,7 @@ export default async function checkDestructive(_args: string[]): Promise<void> {
       if (rule.severity === "CRITICAL") {
         // @rule:KAV-052 — CRITICAL → KAVACH Gate (human approval via WhatsApp + dashboard)
         process.stderr.write(`\n[KAVACH] DANGEROUS ACTION INTERCEPTED — Level ${rule.severity}\n`);
-        process.stderr.write(`[KAVACH] Opening approval gate. Check WhatsApp or http://localhost:4850\n\n`);
+        process.stderr.write(`[KAVACH] Opening approval gate. Check WhatsApp or http://localhost:${DASHBOARD_PORT}\n\n`);
 
         try {
           const { runKavachGate } = await import("../../kavach/gate");
@@ -171,7 +185,7 @@ function buildBlockMessage(
     approvalId ? `  Gate ID  : ${approvalId}` : `  Matched  : ${rule.pattern}`,
     ``,
     approvalId
-      ? `  To approve: reply ALLOW to WhatsApp or visit http://localhost:4850`
+      ? `  To approve: reply ALLOW to WhatsApp or visit http://localhost:${DASHBOARD_PORT}`
       : `  To override: add to command:  # AEGIS-DESTRUCTIVE-CONFIRMED`,
     ``,
   ].join("\n");

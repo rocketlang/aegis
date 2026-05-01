@@ -1,0 +1,69 @@
+{
+  "name": "Governed AI Agent",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "trigger-001",
+      "name": "When clicking 'Test workflow'",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "command": "={{ $json.command || 'echo hello from agent' }}",
+        "toolName": "n8n-governed-agent",
+        "sessionId": "={{ $execution.id }}",
+        "dryRun": false,
+        "onBlock": "throw"
+      },
+      "id": "kavach-gate-001",
+      "name": "Kavach Gate",
+      "type": "@ankr/n8n-nodes-kavachos.kavachGate",
+      "typeVersion": 1,
+      "position": [480, 300],
+      "credentials": {
+        "aegisApi": {
+          "id": "aegis-local",
+          "name": "Aegis Local"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "command": "echo",
+        "arguments": "Agent action approved by KAVACH. Session: {{ $execution.id }}"
+      },
+      "id": "ai-agent-001",
+      "name": "AI Agent Action",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [720, 300]
+    },
+    {
+      "parameters": {
+        "message": "KAVACH audit: command={{ $('Kavach Gate').item.json.kavach.decision }}, level={{ $('Kavach Gate').item.json.kavach.level }}, session={{ $execution.id }}"
+      },
+      "id": "kavach-audit-001",
+      "name": "Log Audit Record",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [960, 300]
+    }
+  ],
+  "connections": {
+    "When clicking 'Test workflow'": {
+      "main": [[{ "node": "Kavach Gate", "type": "main", "index": 0 }]]
+    },
+    "Kavach Gate": {
+      "main": [[{ "node": "AI Agent Action", "type": "main", "index": 0 }]]
+    },
+    "AI Agent Action": {
+      "main": [[{ "node": "Log Audit Record", "type": "main", "index": 0 }]]
+    }
+  },
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "description": "Governed AI Agent — KavachGate intercepts every agent action for DAN classification. STOP or timeout halts the workflow. ALLOW passes the action to the AI Agent node. Audit record logged at end."
+  }
+}

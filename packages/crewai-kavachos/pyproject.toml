@@ -1,0 +1,39 @@
+[build-system]
+requires = ["setuptools>=61", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "crewai-kavachos"
+version = "1.0.0"
+description = "KavachOS DAN gate + budget guard for CrewAI agents — pre-execution governance via AEGIS"
+readme = "README.md"
+license = { text = "AGPL-3.0" }
+authors = [{ name = "Capt. Anil Sharma", email = "capt.anil.sharma@powerpbox.org" }]
+keywords = ["crewai", "kavachos", "xshieldai", "ai-governance", "agent-safety", "langchain"]
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "Intended Audience :: Developers",
+  "License :: OSI Approved :: GNU Affero General Public License v3",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.9",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Topic :: Software Development :: Libraries",
+  "Topic :: Security",
+]
+requires-python = ">=3.9"
+dependencies = ["langchain-kavachos>=1.0.0"]
+
+[project.optional-dependencies]
+crewai = ["crewai>=0.28.0"]
+dev = ["pytest>=7", "crewai>=0.28.0"]
+
+[project.urls]
+Homepage = "https://kavachos.xshieldai.com"
+Repository = "https://github.com/rocketlang/aegis/tree/main/packages/crewai-kavachos"
+Documentation = "https://kavachos.xshieldai.com/docs/crewai"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["crewai_kavachos*"]

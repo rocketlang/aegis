@@ -1,0 +1,64 @@
+{
+  "name": "@rocketlang/kavachos-ee",
+  "version": "1.0.0",
+  "description": "KavachOS Enterprise Edition — PRAMANA Merkle ledger, HanumanG EE posture registry, dual-control approvals, maritime injection signatures, and multi-tenant isolation.",
+  "license": "BSL-1.1",
+  "author": "Capt. Anil Sharma <capt.anil.sharma@powerpbox.org>",
+  "homepage": "https://kavachos.xshieldai.com/ee",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/rocketlang/aegis.git",
+    "directory": "ee"
+  },
+  "keywords": [
+    "kavachos",
+    "xshieldai",
+    "ai-governance",
+    "agent-safety",
+    "pramana",
+    "hanumang",
+    "merkle",
+    "enterprise"
+  ],
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist/",
+    "LICENSE-EE",
+    "README.md"
+  ],
+  "_distribution": "private — not published to npm. Distributed directly to design partners. See captain@ankr.in",
+  "scripts": {
+    "build": "tsc --project tsconfig.json"
+  },
+  "peerDependencies": {
+    "@rocketlang/aegis": "^2.0.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.0.0",
+    "@types/node": "^20.0.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "engines": {
+    "bun": ">=1.0.0",
+    "node": ">=18.0.0"
+  },
+  "_kavachos": {
+    "tier": "EE",
+    "license": "BSL-1.1",
+    "converts_to": "AGPL-3.0",
+    "converts_after_years": 4,
+    "free_tier": "up to 3 concurrent agent sessions",
+    "activation": "set AEGIS_EE_LICENSE_KEY env var — contact captain@ankr.in for a signed key",
+    "ee_capabilities": [
+      "PRAMANA Merkle receipt chain + S3 anchoring",
+      "HanumanG EE agent delegation posture registry",
+      "Dual-control L4 approval (two approvers required for DAN-4)",
+      "Slack notification channel",
+      "Maritime injection signatures (AIS/NMEA/Modbus patterns)",
+      "Multi-tenant session isolation"
+    ]
+  }
+}

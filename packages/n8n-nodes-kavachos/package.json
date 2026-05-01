@@ -1,0 +1,59 @@
+{
+  "name": "@rocketlang/n8n-nodes-kavachos",
+  "version": "1.1.0",
+  "description": "KavachOS n8n community nodes — DAN gate, kernel enforcement, budget check, and audit log for AI agents.",
+  "license": "AGPL-3.0",
+  "author": "Capt. Anil Sharma <capt.anil.sharma@powerpbox.org>",
+  "homepage": "https://kavachos.xshieldai.com",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/rocketlang/aegis.git",
+    "directory": "packages/n8n-nodes-kavachos"
+  },
+  "keywords": [
+    "n8n-community-node-package",
+    "kavachos",
+    "xshieldai",
+    "ai-governance",
+    "seccomp",
+    "agent-safety"
+  ],
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist/",
+    "README.md",
+    "LICENSE"
+  ],
+  "n8n": {
+    "n8nNodesApiVersion": 1,
+    "credentials": [
+      "dist/credentials/AegisApi.credentials.js"
+    ],
+    "nodes": [
+      "dist/nodes/KavachGate/KavachGate.node.js",
+      "dist/nodes/KavachRun/KavachRun.node.js",
+      "dist/nodes/KavachBudget/KavachBudget.node.js",
+      "dist/nodes/KavachAudit/KavachAudit.node.js"
+    ]
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "prepublishOnly": "npm run build"
+  },
+  "devDependencies": {
+    "typescript": "^5.0.0",
+    "n8n-workflow": "^1.0.0",
+    "@types/node": "^20.0.0"
+  },
+  "peerDependencies": {
+    "n8n-workflow": ">=1.0.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

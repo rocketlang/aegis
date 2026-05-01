@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Copyright (c) 2026 Capt. Anil Sharma (rocketlang). All rights reserved.
 // See LICENSE for details.
-// AEGIS CLI — aegis status | kill | pause | resume [agent-id] | budget | check-budget | check-spawn | check-destructive | check-shield | register | close | quarantine | valve | init
+// AEGIS CLI — aegis status | kill | pause | resume [agent-id] | budget | check-budget | check-spawn | check-destructive | check-shield | register | close | quarantine | valve | init | bg
 
 const command = Bun.argv[2] || "status";
 const args = Bun.argv.slice(3);
@@ -46,6 +46,8 @@ async function main() {
       return await (await import("./commands/init")).default(args);
     case "statusline":
       return (await import("./commands/statusline")).default(args);
+    case "bg":
+      return (await import("./commands/bg")).default(args);
     case "help":
     case "--help":
     case "-h":
@@ -91,6 +93,8 @@ Commands:
   valve open <id>         Restore THROTTLED/CRACKED → OPEN (human only)
   init            Initialize ~/.aegis/ config and database
   statusline      Single-line status for Claude Code statusLine hook
+  bg list         List background agents spawned this session
+  bg ack          Acknowledge all — remove Stop hook guard for this session
 
 Dashboard:  bun run /root/aegis/src/dashboard/server.ts
 Monitor:    bun run /root/aegis/src/monitor/index.ts

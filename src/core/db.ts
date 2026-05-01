@@ -143,6 +143,145 @@ function initSchema(db: Database): void {
   try { db.exec(`CREATE INDEX IF NOT EXISTS idx_agents_tenant ON agents(tenant_id)`); } catch {}
   try { db.exec(`CREATE INDEX IF NOT EXISTS idx_approvals_tenant ON kavach_approvals(tenant_id)`); } catch {}
   try { db.exec(`CREATE INDEX IF NOT EXISTS idx_alerts_tenant ON alerts(tenant_id)`); } catch {}
+  // Desk capture columns — KOS-076 session start hook
+  try { db.exec(`ALTER TABLE sessions ADD COLUMN hostname TEXT`); } catch {}
+  try { db.exec(`ALTER TABLE sessions ADD COLUMN model TEXT`); } catch {}
+  try { db.exec(`ALTER TABLE sessions ADD COLUMN git_remote TEXT`); } catch {}
+  try { db.exec(`ALTER TABLE sessions ADD COLUMN ended_at TEXT`); } catch {}
+  try { db.exec(`ALTER TABLE sessions ADD COLUMN stop_reason TEXT`); } catch {}
+  try { db.exec(`ALTER TABLE sessions ADD COLUMN tool_call_count INTEGER DEFAULT 0`); } catch {}
+  try { db.exec(`ALTER TABLE sessions ADD COLUMN dan_event_count INTEGER DEFAULT 0`); } catch {}
+  try { db.exec(`ALTER TABLE sessions ADD COLUMN mudrika_uri TEXT`); } catch {}
+  // @rule:BMOS-004 BMOS-Authorize audit log — masks ARE the policy; every check is logged
+  try { db.exec(`CREATE TABLE IF NOT EXISTS authorize_log (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    caller TEXT NOT NULL,
+    target TEXT NOT NULL,
+    capability TEXT NOT NULL,
+    authorized INTEGER NOT NULL,
+    caller_mask INTEGER,
+    target_required_mask INTEGER,
+    result_mask INTEGER,
+    latency_us INTEGER,
+    called_at TEXT NOT NULL
+  )`); } catch {}
+  try { db.exec(`CREATE INDEX IF NOT EXISTS idx_authorize_log_caller ON authorize_log(caller)`); } catch {}
+  try { db.exec(`CREATE INDEX IF NOT EXISTS idx_authorize_log_called_at ON authorize_log(called_at)`); } catch {}
+
+  // @rule:KOS-T095 background agent guard — track spawns so Stop hook can warn before kill
+  try { db.exec(`CREATE TABLE IF NOT EXISTS background_agents (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    session_id TEXT NOT NULL,
+    spawned_at TEXT NOT NULL,
+    completed_at TEXT,
+    description TEXT,
+    subagent_type TEXT,
+    task_id TEXT,
+    status TEXT NOT NULL DEFAULT 'running',
+    acknowledged INTEGER NOT NULL DEFAULT 0
+  )`); } catch {}
+  // Migrate: add columns if table exists without them (idempotent)
+  try { db.exec(`ALTER TABLE background_agents ADD COLUMN task_id TEXT`); } catch {}
+  try { db.exec(`ALTER TABLE background_agents ADD COLUMN status TEXT NOT NULL DEFAULT 'running'`); } catch {}
+  try { db.exec(`ALTER TABLE background_agents ADD COLUMN completed_at TEXT`); } catch {}
+  try { db.exec(`CREATE INDEX IF NOT EXISTS idx_bg_agents_session ON background_agents(session_id)`); } catch {}
+  try { db.exec(`CREATE INDEX IF NOT EXISTS idx_bg_agents_task_id ON background_agents(task_id)`); } catch {}
+
+  // @rule:AGS-005 SDT chain store — retains parent tokens for chain validation
+  // @rule:AGS-014 retention >= max(child.expiry) + 1hr
+  try { db.exec(`CREATE TABLE IF NOT EXISTS sdt_chain_store (
+    token_id TEXT PRIMARY KEY,
+    chain_hash TEXT NOT NULL UNIQUE,
+    token_json TEXT NOT NULL,
+    depth INTEGER NOT NULL DEFAULT 0,
+    expiry TEXT NOT NULL DEFAULT 'task_end',
+    issued_at TEXT NOT NULL,
+    agent_id TEXT NOT NULL,
+    spawner_id TEXT NOT NULL,
+    delegated_mask INTEGER NOT NULL DEFAULT 0,
+    max_depth INTEGER NOT NULL DEFAULT 5
+  )`); } catch {}
+  try { db.exec(`CREATE INDEX IF NOT EXISTS idx_sdt_chain_hash ON sdt_chain_store(chain_hash)`); } catch {}
+  try { db.exec(`CREATE INDEX IF NOT EXISTS idx_sdt_agent_id ON sdt_chain_store(agent_id)`); } catch {}
+
+  // @rule:AGS-010 SDT escalations — human-in-loop pending approvals
+  try { db.exec(`CREATE TABLE IF NOT EXISTS sdt_escalations (
+    escalation_id TEXT PRIMARY KEY,
+    agent_id TEXT NOT NULL,
+    resource TEXT NOT NULL,
+    action TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'pending',
+    created_at TEXT NOT NULL,
+    decided_at TEXT
+  )`); } catch {}
+  try { db.exec(`CREATE INDEX IF NOT EXISTS idx_sdt_esc_agent ON sdt_escalations(agent_id)`); } catch {}
+  try { db.exec(`CREATE INDEX IF NOT EXISTS idx_sdt_esc_status ON sdt_escalations(status)`); } catch {}
+
+  // @rule:AGS-015 SDT authorize audit log — every authorize decision sealed immediately
+  try { db.exec(`CREATE TABLE IF NOT EXISTS sdt_authorize_log (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    audit_id TEXT NOT NULL UNIQUE,
+    agent_id TEXT NOT NULL,
+    resource TEXT NOT NULL,
+    action TEXT NOT NULL,
+    authorized INTEGER NOT NULL DEFAULT 0,
+    reason TEXT NOT NULL,
+    effective_mask INTEGER NOT NULL DEFAULT 0,
+    latency_us INTEGER,
+    decided_at TEXT NOT NULL
+  )`); } catch {}
+  try { db.exec(`CREATE INDEX IF NOT EXISTS idx_sdt_audit_agent ON sdt_authorize_log(agent_id)`); } catch {}
+  try { db.exec(`CREATE INDEX IF NOT EXISTS idx_sdt_audit_decided ON sdt_authorize_log(decided_at)`); } catch {}
+}
+
+// --- Background agent tracking (KOS-T095) ---
+
+export function recordBackgroundAgent(sessionId: string, description?: string, subagentType?: string, taskId?: string): number {
+  const db = getDb();
+  const result = db.run(
+    "INSERT INTO background_agents (session_id, spawned_at, description, subagent_type, task_id, status) VALUES (?, ?, ?, ?, ?, 'running')",
+    [sessionId, new Date().toISOString(), description ?? null, subagentType ?? null, taskId ?? null]
+  );
+  return result.lastInsertRowid as number;
+}
+
+export interface BgAgentRow {
+  id: number;
+  spawned_at: string;
+  completed_at: string | null;
+  description: string | null;
+  subagent_type: string | null;
+  task_id: string | null;
+  status: string;
+}
+
+export function getUnacknowledgedBgAgents(sessionId: string, windowMinutes = 60): BgAgentRow[] {
+  const db = getDb();
+  const since = new Date(Date.now() - windowMinutes * 60 * 1000).toISOString();
+  return db.query(
+    "SELECT id, spawned_at, completed_at, description, subagent_type, task_id, status FROM background_agents WHERE session_id=? AND acknowledged=0 AND spawned_at >= ?"
+  ).all(sessionId, since) as BgAgentRow[];
+}
+
+export function completeBgAgent(taskId: string): void {
+  const db = getDb();
+  db.run(
+    "UPDATE background_agents SET status='completed', completed_at=?, acknowledged=1 WHERE task_id=?",
+    [new Date().toISOString(), taskId]
+  );
+}
+
+export function acknowledgeAllBgAgents(sessionId: string): void {
+  const db = getDb();
+  db.run("UPDATE background_agents SET acknowledged=1, status=CASE WHEN status='running' THEN 'force-quit' ELSE status END WHERE session_id=?", [sessionId]);
+}
+
+export function getAllBgAgents(windowHours = 24): BgAgentRow[] {
+  const db = getDb();
+  const since = new Date(Date.now() - windowHours * 3600 * 1000).toISOString();
+  return db.query(
+    "SELECT id, spawned_at, completed_at, description, subagent_type, task_id, status FROM background_agents WHERE spawned_at >= ? ORDER BY spawned_at DESC LIMIT 100"
+  ).all(since) as BgAgentRow[];
 }
 
 // --- Dashboard access (KAV-066 — hosted-service detection) ---
@@ -446,6 +585,37 @@ export function getRecentApprovals(limit = 20): KavachApproval[] {
   return db.query("SELECT * FROM kavach_approvals ORDER BY created_at DESC LIMIT ?").all(limit) as KavachApproval[];
 }
 
+export interface KavachAuditFilter {
+  session_id?: string | null;
+  status?: string | null;
+  level?: number | null;
+  limit?: number;
+}
+
+export function queryKavachAudit(filter: KavachAuditFilter = {}): { records: KavachApproval[]; total: number } {
+  const db = getDb();
+  const { session_id, status, level, limit = 50 } = filter;
+
+  const conditions: string[] = [];
+  const params: (string | number)[] = [];
+
+  if (session_id) { conditions.push("session_id = ?"); params.push(session_id); }
+  if (status) { conditions.push("status = ?"); params.push(status); }
+  if (level != null && !isNaN(level)) { conditions.push("level = ?"); params.push(level); }
+
+  const where = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
+  const cap = Math.min(limit, 500);
+
+  const records = db.query(
+    `SELECT id, created_at, command, tool_name, level, consequence, session_id, status, decided_at, decided_by
+     FROM kavach_approvals ${where} ORDER BY created_at DESC LIMIT ?`
+  ).all(...params, cap) as KavachApproval[];
+
+  const countRow = db.query(`SELECT COUNT(*) as cnt FROM kavach_approvals ${where}`).get(...params) as { cnt: number } | null;
+
+  return { records, total: countRow?.cnt ?? records.length };
+}
+
 // --- Phase 2: Agent Registry (V2-040..048) ---
 
 export interface AgentRow {
@@ -567,8 +737,9 @@ export function getAgentRow(agentId: string): AgentRow | null {
   return db.query("SELECT * FROM agents WHERE agent_id = ?").get(agentId) as AgentRow | null;
 }
 
-export function listAgentRows(states?: string[]): AgentRow[];
-export function listAgentRows(states: string[]): AgentRow[] {
+export function listAgentRows(): AgentRow[];
+export function listAgentRows(states: string[]): AgentRow[];
+export function listAgentRows(states?: string[]): AgentRow[] {
   const db = getDb();
   if (!states || states.length === 0) {
     return db.query("SELECT * FROM agents ORDER BY spawn_timestamp DESC").all() as AgentRow[];

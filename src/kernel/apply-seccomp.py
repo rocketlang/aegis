@@ -298,10 +298,11 @@ def _build_notify_message(syscall: str, agent_id: str, session_id: str,
     ])
 
 
-def _notify_recv(notify_fd: int) -> Optional[Tuple[int, int, int]]:
+def _notify_recv(notify_fd: int) -> Optional[Tuple[int, int, int, Tuple[int, ...]]]:
     """
     Read one pending seccomp notification.
-    Returns (notif_id, pid, syscall_nr) or None on error.
+    Returns (notif_id, pid, syscall_nr, syscall_args_6tuple) or None on error.
+    syscall_args_6tuple mirrors the 6 args in struct seccomp_notif.
     Blocks until a notification arrives (caller should poll first).
     """
     buf = bytearray(_NOTIF_SIZE)
@@ -311,9 +312,99 @@ def _notify_recv(notify_fd: int) -> Optional[Tuple[int, int, int]]:
         errno = ctypes.get_errno()
         sys.stderr.write(f"[kavachos:supervisor] NOTIF_RECV failed: errno={errno}\n")
         return None
+    # struct seccomp_notif: id(Q) pid(I) flags(I) nr(i) arch(I) ip(Q) args[0..5](6Q)
     fields = struct.unpack(_NOTIF_PACK, bytes(buf))
-    notif_id, _pid, _flags, nr, _arch, _ip = fields[0], fields[1], fields[2], fields[3], fields[4], fields[5]
-    return notif_id, _pid, nr
+    notif_id, _pid, _flags, nr = fields[0], fields[1], fields[2], fields[3]
+    syscall_args = tuple(fields[6:12])  # 6 syscall arguments
+    return notif_id, _pid, nr, syscall_args
+
+
+def _read_procmem_str(pid: int, addr: int, max_len: int = 512) -> Optional[str]:
+    """
+    Read a null-terminated string from tracee process memory.
+    Used to resolve execve pathname from syscall arg0. @rule:KOS-047
+    """
+    if addr == 0:
+        return None
+    try:
+        with open(f"/proc/{pid}/mem", "rb") as f:
+            f.seek(addr)
+            data = f.read(max_len)
+        null_pos = data.find(b"\x00")
+        chunk = data[:null_pos] if null_pos >= 0 else data
+        return chunk.decode("utf-8", errors="replace")
+    except Exception:
+        return None
+
+
+# Syscall numbers for execve/execveat on x86_64
+_NR_EXECVE    = 59
+_NR_EXECVEAT  = 322
+
+
+def _auto_decide_exec(
+    pid: int,
+    syscall_nr: int,
+    syscall_args: Tuple[int, ...],
+    allowlist_path: Optional[str],
+) -> Tuple[bool, str]:
+    """
+    Auto-ALLOW/DENY execve/execveat from the exec allowlist. @rule:KOS-047
+    Returns (allow: bool, reason: str).
+    No Telegram escalation — exec decisions are too fast for human-in-loop.
+    """
+    if allowlist_path is None:
+        return True, "no allowlist configured — allow (strict_exec not active)"
+
+    # Resolve binary path.
+    # execve:  arg0 = filename ptr in tracee memory.
+    # execveat: arg1 = filename ptr; arg0 = dirfd; arg4 = flags.
+    #   Special case: AT_EMPTY_PATH (0x1000) — path is empty, binary is the dirfd itself.
+    #   Must resolve via /proc/{pid}/fd/{dirfd} readlink, not from arg1 (which is empty/null).
+    AT_EMPTY_PATH = 0x1000
+    binary: Optional[str] = None
+
+    if syscall_nr == _NR_EXECVEAT:
+        flags = syscall_args[4] if len(syscall_args) > 4 else 0
+        if flags & AT_EMPTY_PATH:
+            dirfd = syscall_args[0]
+            try:
+                binary = os.readlink(f"/proc/{pid}/fd/{dirfd}")
+            except Exception:
+                binary = None
+        else:
+            addr = syscall_args[1]
+            binary = _read_procmem_str(pid, addr)
+    else:
+        addr = syscall_args[0]
+        binary = _read_procmem_str(pid, addr)
+
+    if not binary:
+        # Fallback: read /proc/{pid}/exe (the *current* binary, not the target —
+        # only useful for sub-exec chains, but better than denying blindly)
+        try:
+            binary = os.readlink(f"/proc/{pid}/exe")
+        except Exception:
+            pass
+
+    if not binary:
+        return False, "DENY: could not resolve binary path"
+
+    try:
+        with open(allowlist_path) as f:
+            allowlist = json.load(f)
+        allowed_paths = {e["path"] for e in allowlist.get("allow", [])}
+        prefixes = [e["path"][:-1] for e in allowlist.get("allow", []) if e["path"].endswith("*")]
+    except Exception as e:
+        sys.stderr.write(f"[kavachos:exec] allowlist load error: {e} — allow by default\n")
+        return True, f"allowlist error — allow: {e}"
+
+    if binary in allowed_paths:
+        return True, f"ALLOW: {binary} in exec allowlist"
+    if any(binary.startswith(p) for p in prefixes):
+        return True, f"ALLOW: {binary} matches prefix allowlist"
+
+    return False, f"DENY: {binary!r} not in exec allowlist for agent_type={allowlist.get('agent_type','?')}"
 
 
 def _notify_send(notify_fd: int, notif_id: int, allow: bool) -> None:
@@ -335,7 +426,8 @@ def _notify_send(notify_fd: int, notif_id: int, allow: bool) -> None:
 
 
 def run_supervisor(notify_fd: int, agent_pid: int,
-                   session_id: str, agent_id: str, domain: str) -> int:
+                   session_id: str, agent_id: str, domain: str,
+                   exec_allowlist_path: Optional[str] = None) -> int:
     """
     @rule:KOS-028 supervisor loop — runs in parent process, no seccomp filter.
     Uses poll() so POLLHUP (child exited) is detected cleanly without racing
@@ -377,9 +469,20 @@ def run_supervisor(notify_fd: int, agent_pid: int,
                 if result is None:
                     continue  # ioctl failed (e.g. EINTR) — retry
 
-                notif_id, pid, nr = result
+                notif_id, pid, nr, syscall_args = result
                 syscall = syscall_name(nr)
                 approval_id = "KOS-" + "".join(random.choices(string.hexdigits.upper(), k=8))
+
+                # @rule:KOS-047 execve/execveat: auto-ALLOW/DENY from exec allowlist
+                # No Telegram — exec decisions are sub-millisecond, no human-in-loop possible.
+                if nr in (_NR_EXECVE, _NR_EXECVEAT):
+                    allow, reason = _auto_decide_exec(pid, nr, syscall_args, exec_allowlist_path)
+                    sys.stderr.write(
+                        f"[kavachos:exec] AUTO {'ALLOW' if allow else 'DENY'} "
+                        f"syscall={syscall} pid={pid} — {reason}\n"
+                    )
+                    _notify_send(notify_fd, notif_id, allow)
+                    continue  # no Telegram, no approval record — just log
 
                 sys.stderr.write(
                     f"[kavachos:supervisor] GATED syscall={syscall} pid={pid} "
@@ -547,9 +650,11 @@ def main() -> None:
     # Build context before fork (pre-flight checks + libseccomp ctx allocation)
     ctx, has_notify = build_ctx(profile)
 
-    session_id = os.environ.get("KAVACHOS_SESSION_ID", "unknown")
-    agent_id   = os.environ.get("KAVACHOS_AGENT_ID",   session_id)
-    domain     = os.environ.get("KAVACHOS_DOMAIN",     "unknown")
+    session_id          = os.environ.get("KAVACHOS_SESSION_ID",      "unknown")
+    agent_id            = os.environ.get("KAVACHOS_AGENT_ID",        session_id)
+    domain              = os.environ.get("KAVACHOS_DOMAIN",          "unknown")
+    # @rule:KOS-047 exec allowlist path — written by runner.ts when strict_exec=true
+    exec_allowlist_path = os.environ.get("KAVACHOS_EXEC_ALLOWLIST")  # None = strict_exec off
 
     if not has_notify:
         # ── Phase 1A path (no NOTIFY syscalls) — load and exec directly ──────
@@ -617,7 +722,7 @@ def main() -> None:
 
         sock_recv.close()
 
-        exit_code = run_supervisor(notify_fd, pid, session_id, agent_id, domain)
+        exit_code = run_supervisor(notify_fd, pid, session_id, agent_id, domain, exec_allowlist_path)
         sys.exit(exit_code)
 
 

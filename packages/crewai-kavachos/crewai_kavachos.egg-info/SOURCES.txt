@@ -1,0 +1,9 @@
+README.md
+pyproject.toml
+crewai_kavachos/__init__.py
+crewai_kavachos/gate.py
+crewai_kavachos.egg-info/PKG-INFO
+crewai_kavachos.egg-info/SOURCES.txt
+crewai_kavachos.egg-info/dependency_links.txt
+crewai_kavachos.egg-info/requires.txt
+crewai_kavachos.egg-info/top_level.txt

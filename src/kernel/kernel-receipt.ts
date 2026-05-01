@@ -16,6 +16,7 @@ export interface KernelViolationEvent {
   violation_details?: string;
   profile_hash?: string;
   severity?: "WARN" | "ERROR" | "CRITICAL";
+  delegation_depth?: number;  // @rule:KOS-094 — depth sealed into receipt hash
 }
 
 export interface KernelReceipt {
@@ -25,22 +26,26 @@ export interface KernelReceipt {
   receipt_hash: string;
   prev_receipt_hash: string | null;
   sealed_at: string;
+  delegation_depth: number;   // @rule:KOS-094 — depth regression between receipts = tamper indicator
   pramana_version: "1.1";
   rule_ref: "KOS-005";
 }
 
 // @rule:KOS-005 seal every kernel violation as a PRAMANA receipt with SHA-256 chain
+// @rule:KOS-094 delegation_depth is mandatory in every receipt — depth sealed into hash
 export function sealKernelViolation(event: KernelViolationEvent): KernelReceipt {
   const receiptId = `KOS-PRAMANA-${randomBytes(8).toString("hex").toUpperCase()}`;
   const sealedAt = new Date().toISOString();
+  const delegationDepth = event.delegation_depth ?? 1;
 
   // Get the hash of the last receipt in this session's chain (for chain linkage)
   const chain = getReceiptChain(event.session_id);
   const prevHash = chain.length > 0 ? chain[chain.length - 1].receipt_hash : null;
 
-  // Receipt hash: SHA-256 of (receiptId + sessionId + eventType + sealedAt + prevHash)
+  // Receipt hash: SHA-256 of (receiptId|sessionId|eventType|sealedAt|prevHash|delegationDepth)
+  // @rule:KOS-094 depth included in hash — depth regression between sequential receipts = tamper
   const receiptHash = createHash("sha256")
-    .update(`${receiptId}|${event.session_id}|${event.event_type}|${sealedAt}|${prevHash ?? "GENESIS"}`)
+    .update(`${receiptId}|${event.session_id}|${event.event_type}|${sealedAt}|${prevHash ?? "GENESIS"}|${delegationDepth}`)
     .digest("hex");
 
   recordKernelReceipt(receiptId, event.session_id, event.agent_id ?? null, event.event_type, {
@@ -51,6 +56,7 @@ export function sealKernelViolation(event: KernelViolationEvent): KernelReceipt 
     profile_hash: event.profile_hash,
     prev_receipt_hash: prevHash ?? undefined,
     receipt_hash: receiptHash,
+    delegation_depth: delegationDepth,
   });
 
   return {
@@ -60,6 +66,7 @@ export function sealKernelViolation(event: KernelViolationEvent): KernelReceipt 
     receipt_hash: receiptHash,
     prev_receipt_hash: prevHash,
     sealed_at: sealedAt,
+    delegation_depth: delegationDepth,
     pramana_version: "1.1",
     rule_ref: "KOS-005",
   };

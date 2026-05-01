@@ -11,7 +11,7 @@
 // @rule:KAV-059 Audit record for every interception
 
 import { randomBytes } from "crypto";
-import { loadConfig } from "../core/config";
+import { loadConfig, DASHBOARD_PORT } from "../core/config";
 import {
   createKavachApproval, getKavachApproval, decideKavachApproval,
   markKavachNotified, addAlert, getPendingApprovals,
@@ -209,7 +209,7 @@ function buildNotificationMessage(
     ``,
     `Approval ID: ${approvalId}`,
     `Expires: ${timeoutLabel} (silence = STOP)`,
-    `Dashboard: http://localhost:4850`,
+    `Dashboard: http://localhost:${DASHBOARD_PORT}`,
   ].join("\n");
 }
 

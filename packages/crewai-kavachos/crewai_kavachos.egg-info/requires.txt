@@ -1,0 +1,8 @@
+langchain-kavachos>=1.0.0
+
+[crewai]
+crewai>=0.28.0
+
+[dev]
+pytest>=7
+crewai>=0.28.0

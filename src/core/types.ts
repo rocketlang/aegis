@@ -134,7 +134,7 @@ export interface BudgetState {
 
 export interface AlertEvent {
   id?: number;
-  type: "budget_warning" | "budget_breach" | "spawn_limit" | "anomaly" | "heartbeat_timeout" | "kill";
+  type: "budget_warning" | "budget_breach" | "spawn_limit" | "anomaly" | "heartbeat_timeout" | "kill" | "delegation_hil_required" | "sdt_hil_required" | "sdt_mask_overflow" | "sdt_zero_capability";
   severity: "info" | "warning" | "critical";
   message: string;
   session_id?: string;
