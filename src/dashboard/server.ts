@@ -925,6 +925,150 @@ app.get("/metrics", async (_req, reply) => {
   lines.push(`kavach_bmos_authorize_latency_us_sum ${bmosLatSum.toFixed(0)}`);
   lines.push(`kavach_bmos_authorize_latency_us_count ${bmosLatTotal}`);
 
+  // ── Layer 1: Kernel metrics (KOS-T090) ──────────────────────────────────────
+
+  // kernel_profiles: ensure delegation_depth column exists (additive migration)
+  try {
+    db.exec("ALTER TABLE kernel_profiles ADD COLUMN delegation_depth INTEGER NOT NULL DEFAULT 1");
+  } catch { /* already exists */ }
+  try {
+    db.exec("ALTER TABLE kernel_receipts ADD COLUMN delegation_depth INTEGER NOT NULL DEFAULT 1");
+  } catch { /* already exists */ }
+
+  const kernelProfileRows = db.query(
+    `SELECT COUNT(*) as total,
+            SUM(CASE WHEN datetime(stored_at) > datetime('now','-24 hours') THEN 1 ELSE 0 END) as recent
+     FROM kernel_profiles`
+  ).get() as { total: number; recent: number } | null;
+
+  const kernelViolRows = db.query(
+    `SELECT severity, domain,
+            COUNT(*) as cnt
+     FROM kernel_receipts kr
+     LEFT JOIN kernel_profiles kp ON kr.session_id = kp.session_id
+     WHERE kr.event_type NOT IN ('SESSION_OPEN','SESSION_CLOSE')
+     GROUP BY severity, domain`
+  ).all() as Array<{ severity: string | null; domain: string | null; cnt: number }>;
+
+  const kernelDepthRows = db.query(
+    `SELECT delegation_depth, COUNT(*) as cnt FROM kernel_profiles GROUP BY delegation_depth`
+  ).all() as Array<{ delegation_depth: number; cnt: number }>;
+
+  // HIL gates: profiles where profile_json has hil_mode:true
+  const hilRows = db.query(
+    `SELECT COUNT(*) as cnt FROM kernel_profiles WHERE json_extract(profile_json,'$._kavachos.hil_mode') = 1`
+  ).get() as { cnt: number } | null;
+
+  const kernelReceiptTotal = db.query(
+    `SELECT COUNT(*) as cnt FROM kernel_receipts`
+  ).get() as { cnt: number } | null;
+
+  const depthRegressionRows = db.query(
+    `SELECT COUNT(*) as cnt FROM kernel_receipts WHERE event_type = 'DEPTH_REGRESSION'`
+  ).get() as { cnt: number } | null;
+
+  const chainDriftRows = db.query(
+    `SELECT COUNT(*) as cnt FROM kernel_drift_events`
+  ).get() as { cnt: number } | null;
+
+  lines.push('# HELP kavachos_kernel_profiles_generated_total Total seccomp profiles generated since deployment');
+  lines.push('# TYPE kavachos_kernel_profiles_generated_total counter');
+  lines.push(`kavachos_kernel_profiles_generated_total ${kernelProfileRows?.total ?? 0}`);
+
+  lines.push('# HELP kavachos_kernel_active_sessions Profiles generated in the last 24 hours (proxy for active sessions)');
+  lines.push('# TYPE kavachos_kernel_active_sessions gauge');
+  lines.push(`kavachos_kernel_active_sessions ${kernelProfileRows?.recent ?? 0}`);
+
+  lines.push('# HELP kavachos_kernel_hil_gates_active Sessions currently running with HIL mode (delegation_depth>=4)');
+  lines.push('# TYPE kavachos_kernel_hil_gates_active gauge');
+  lines.push(`kavachos_kernel_hil_gates_active ${hilRows?.cnt ?? 0}`);
+
+  lines.push('# HELP kavachos_kernel_violations_total Total kernel receipt events (violations, drifts, rate exceeded) by severity and domain');
+  lines.push('# TYPE kavachos_kernel_violations_total counter');
+  if (kernelViolRows.length === 0) {
+    lines.push(`kavachos_kernel_violations_total{severity="none",domain="none"} 0`);
+  }
+  for (const r of kernelViolRows) {
+    lines.push(`kavachos_kernel_violations_total{severity="${r.severity ?? 'unknown'}",domain="${r.domain ?? 'unknown'}"} ${r.cnt}`);
+  }
+
+  lines.push('# HELP kavachos_kernel_depth_distribution Number of profiles per delegation depth level');
+  lines.push('# TYPE kavachos_kernel_depth_distribution gauge');
+  for (const r of kernelDepthRows) {
+    lines.push(`kavachos_kernel_depth_distribution{depth="${r.delegation_depth}"} ${r.cnt}`);
+  }
+
+  // ── Layer 2: Proxy aliases (KOS-T090) ────────────────────────────────────────
+  // Re-expose existing budget data under kavachos_proxy_ namespace for Grafana dashboard
+
+  const proxyModelRows = db.query(
+    `SELECT model, COUNT(*) as cnt, SUM(estimated_cost_usd) as cost
+     FROM usage_log GROUP BY model`
+  ).all() as Array<{ model: string; cnt: number; cost: number }>;
+
+  const budgetBreachRows = db.query(
+    `SELECT COUNT(*) as cnt FROM alerts WHERE type = 'budget_breach'`
+  ).get() as { cnt: number } | null;
+
+  const danGateRows = db.query(
+    `SELECT COUNT(*) as cnt FROM kavach_approvals WHERE level >= 3`
+  ).get() as { cnt: number } | null;
+
+  const dailyPct = config.budget.daily_limit_usd > 0
+    ? budget.spent_usd / config.budget.daily_limit_usd
+    : 0;
+
+  lines.push('# HELP kavachos_proxy_daily_spend_usd Current daily LLM spend in USD');
+  lines.push('# TYPE kavachos_proxy_daily_spend_usd gauge');
+  lines.push(`kavachos_proxy_daily_spend_usd ${budget.spent_usd.toFixed(6)}`);
+
+  lines.push('# HELP kavachos_proxy_budget_percent_used Fraction of daily budget consumed (0.0–1.0)');
+  lines.push('# TYPE kavachos_proxy_budget_percent_used gauge');
+  lines.push(`kavachos_proxy_budget_percent_used ${dailyPct.toFixed(6)}`);
+
+  lines.push('# HELP kavachos_proxy_requests_total Total LLM requests routed through proxy by model');
+  lines.push('# TYPE kavachos_proxy_requests_total counter');
+  for (const r of proxyModelRows) {
+    lines.push(`kavachos_proxy_requests_total{model="${r.model ?? 'unknown'}"} ${r.cnt}`);
+  }
+
+  lines.push('# HELP kavachos_proxy_budget_breaches_total Total budget limit breaches');
+  lines.push('# TYPE kavachos_proxy_budget_breaches_total counter');
+  lines.push(`kavachos_proxy_budget_breaches_total ${budgetBreachRows?.cnt ?? 0}`);
+
+  lines.push('# HELP kavachos_proxy_dan_gates_total Total DAN level-3+ gates triggered');
+  lines.push('# TYPE kavachos_proxy_dan_gates_total counter');
+  lines.push(`kavachos_proxy_dan_gates_total ${danGateRows?.cnt ?? 0}`);
+
+  // ── Layer 3: Ledger metrics (KOS-T090) ───────────────────────────────────────
+
+  const chainIntact = (chainDriftRows?.cnt ?? 0) === 0 ? 1 : 0;
+
+  const receiptByDepthRows = db.query(
+    `SELECT delegation_depth, COUNT(*) as cnt FROM kernel_receipts GROUP BY delegation_depth`
+  ).all() as Array<{ delegation_depth: number; cnt: number }>;
+
+  lines.push('# HELP kavachos_ledger_chain_intact 1 if no profile drift events detected, 0 if chain broken');
+  lines.push('# TYPE kavachos_ledger_chain_intact gauge');
+  lines.push(`kavachos_ledger_chain_intact ${chainIntact}`);
+
+  lines.push('# HELP kavachos_ledger_receipts_total Total PRAMANA receipts by delegation depth');
+  lines.push('# TYPE kavachos_ledger_receipts_total counter');
+  if (receiptByDepthRows.length === 0) {
+    lines.push(`kavachos_ledger_receipts_total{delegation_depth="1"} 0`);
+  }
+  for (const r of receiptByDepthRows) {
+    lines.push(`kavachos_ledger_receipts_total{delegation_depth="${r.delegation_depth}"} ${r.cnt}`);
+  }
+
+  lines.push('# HELP kavachos_ledger_depth_regressions_total Receipt chain depth regressions detected (tamper indicator)');
+  lines.push('# TYPE kavachos_ledger_depth_regressions_total counter');
+  lines.push(`kavachos_ledger_depth_regressions_total ${depthRegressionRows?.cnt ?? 0}`);
+
+  lines.push('# HELP kavachos_ledger_receipts_all_total Total PRAMANA receipts across all depths');
+  lines.push('# TYPE kavachos_ledger_receipts_all_total counter');
+  lines.push(`kavachos_ledger_receipts_all_total ${kernelReceiptTotal?.cnt ?? 0}`);
+
   lines.push(""); // trailing newline required by Prometheus
   return reply.type("text/plain; version=0.0.4; charset=utf-8").send(lines.join("\n"));
 });
