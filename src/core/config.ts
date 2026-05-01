@@ -94,6 +94,8 @@ const DEFAULT_CONFIG: AegisConfig = {
     auto_restart_services: [],
     auto_restart_delay_ms: 3000,  // 3s after kill to let processes clear
   },
+  // @rule:KOS-091 — null by default; set endpoint to enable OTLP export
+  otlp: null,
 };
 
 export function getAegisDir(): string {

@@ -19,6 +19,7 @@ import { execSync } from "child_process";
 import { getAegisDir } from "../core/config";
 import { getDb, acknowledgeAllBgAgents } from "../core/db";
 import { issueMudrika, loadOrRotateMudrika } from "../kernel/mudrika";
+import { createTurn } from "../telemetry/turn-store";
 
 interface HookPayload {
   session_id?: string;
@@ -91,7 +92,10 @@ function run(): void {
     } catch {}
   }
 
-  // Only register once per session — subsequent prompts are already captured
+  // @rule:KOS-091 — create a new turn row for every prompt (regardless of desk-already-registered)
+  try { createTurn(sessionId, payload.prompt?.slice(0, 200) ?? null); } catch {}
+
+  // Only register desk once per session — subsequent prompts are already captured
   if (existsSync(deskPath(sessionId))) return;
 
   const now = new Date().toISOString();

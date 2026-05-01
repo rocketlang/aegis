@@ -85,6 +85,13 @@ export interface AegisConfig {
     auto_restart_services: string[];
     auto_restart_delay_ms: number;  // grace period before restart (let kill complete)
   };
+  // @rule:KOS-091 — OTLP trace export (optional; null = disabled)
+  otlp?: {
+    endpoint: string;                     // e.g. "http://localhost:4318/v1/traces"
+    headers?: Record<string, string>;     // e.g. { "Authorization": "Bearer ..." }
+    service_name?: string;                // defaults to "kavachos"
+    service_version?: string;             // defaults to package version
+  } | null;
 }
 
 // Window budget — used for Max Plan 5-hour rolling windows

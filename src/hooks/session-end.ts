@@ -13,8 +13,11 @@
 
 import { readFileSync, writeFileSync, existsSync, mkdirSync, unlinkSync } from "fs";
 import { join } from "path";
-import { getAegisDir } from "../core/config";
+import { getAegisDir, loadConfig } from "../core/config";
 import { getDb, getUnacknowledgedBgAgents } from "../core/db";
+import { closeTurn, getUnexportedTurns, markExported } from "../telemetry/turn-store";
+import { exportSpans } from "../telemetry/otel";
+import { assembleSpans } from "../telemetry/assemble-spans";
 
 interface StopPayload {
   session_id?: string;
@@ -46,7 +49,7 @@ function countActivityLines(sessionId: string): number {
 }
 
 // @rule:KOS-078
-function run(): void {
+async function run(): Promise<void> {
   const stdin = (() => {
     try { return readFileSync("/dev/stdin", "utf-8"); } catch { return "{}"; }
   })();
@@ -178,6 +181,33 @@ function run(): void {
     );
   } catch {}
 
+  // @rule:KOS-091 — export OTLP spans for completed turns, then clean up
+  try {
+    const cfg = loadConfig();
+    if (cfg.otlp?.endpoint) {
+      closeTurn(sessionId);
+      const turns = getUnexportedTurns(sessionId);
+      const spans  = assembleSpans(turns);
+      if (spans.length > 0) {
+        await exportSpans(
+          {
+            endpoint:       cfg.otlp.endpoint,
+            headers:        cfg.otlp.headers ?? {},
+            serviceName:    cfg.otlp.service_name    ?? "kavachos",
+            serviceVersion: cfg.otlp.service_version ?? "2.0.0",
+            resourceAttrs:  [],
+          },
+          spans,
+        );
+        markExported(sessionId);
+        process.stderr.write(`[KAVACH:otel] exported ${spans.length} spans → ${cfg.otlp.endpoint}\n`);
+      }
+    }
+  } catch (err) {
+    // Non-blocking — OTLP export failure must never prevent session close
+    process.stderr.write(`[KAVACH:otel] export failed (non-fatal): ${(err as Error).message}\n`);
+  }
+
   // Clean up state file so the next claude session gets a fresh ID
   try { unlinkSync(currentSessionFile); } catch {}
 
@@ -186,5 +216,4 @@ function run(): void {
   );
 }
 
-run();
-process.exit(0);
+run().finally(() => process.exit(0));

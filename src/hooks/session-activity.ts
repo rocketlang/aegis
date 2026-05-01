@@ -14,6 +14,7 @@ import { readFileSync, appendFileSync, existsSync, mkdirSync } from "fs";
 import { join } from "path";
 import { getAegisDir } from "../core/config";
 import { getDb } from "../core/db";
+import { appendToolCall } from "../telemetry/turn-store";
 
 // Extract task_id from Agent tool response — Claude Code returns it in several possible shapes
 function extractTaskId(response: unknown): string | null {
@@ -101,6 +102,15 @@ function run(): void {
   const logPath = join(sessionsDir(), `${sessionId}.jsonl`);
   try {
     appendFileSync(logPath, JSON.stringify(record) + "\n");
+  } catch { /* never block tool execution */ }
+
+  // @rule:KOS-091 — append tool call to the current open turn for OTLP span assembly
+  try {
+    appendToolCall(sessionId, {
+      name:          toolName,
+      started_at:    now,
+      input_preview: JSON.stringify(sanitizeInput(payload.tool_input)).slice(0, 200),
+    });
   } catch { /* never block tool execution */ }
 
   // Increment tool_call_count in sessions table
