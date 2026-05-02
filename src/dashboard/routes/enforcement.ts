@@ -11,7 +11,8 @@
 // @rule:CA-004    — resolvers return _meta: { computed_at, duration_ms, trust_mask_applied }
 
 import type { FastifyInstance } from "fastify";
-import { evaluate, getEnforcementMode, isDryRun } from "../../enforcement/gate";
+import { join } from "path";
+import { evaluate, getEnforcementMode, isDryRun, getCanarySet } from "../../enforcement/gate";
 import { logDecision, logPath } from "../../enforcement/logger";
 import {
   loadRegistry,
@@ -22,6 +23,13 @@ import {
 } from "../../enforcement/registry";
 import type { AegisEnforcementRequest } from "../../enforcement/types";
 import { runAudit, writeAuditFiles } from "../../enforcement/replay";
+import {
+  approveToken,
+  revokeToken,
+  listPending,
+  pendingCount,
+  getApproval,
+} from "../../enforcement/approval";
 
 export function registerEnforcementRoutes(app: FastifyInstance): void {
   // ── POST /api/v2/enforcement/gate ─────────────────────────────────────────
@@ -283,7 +291,131 @@ export function registerEnforcementRoutes(app: FastifyInstance): void {
       },
     });
   });
+
+  // ── GET /api/v2/enforcement/canary ────────────────────────────────────────
+  // Canary health: which services are in soft enforcement, pending gate count
+  app.get("/api/v2/enforcement/canary", async (_req, reply) => {
+    const mode = getEnforcementMode();
+    const canary = [...getCanarySet()];
+    const pending = listPending();
+    const registry = loadRegistry();
+
+    const canaryStatus = canary.map(key => {
+      const e = registry[key];
+      return {
+        service_id: key,
+        in_registry: !!e,
+        trust_mask: e ? `0x${e.trust_mask.toString(16).padStart(8, "0")}` : "not-found",
+        authority_class: e?.authority_class ?? "not-found",
+        governance_blast_radius: e?.governance_blast_radius ?? "not-found",
+        runtime_readiness_tier: e?.runtime_readiness.tier ?? "not-found",
+        aegis_gate_overall: e?.aegis_gate.overall ?? "not-found",
+      };
+    });
+
+    return reply.send({
+      enforcement_mode: mode,
+      dry_run: isDryRun(),
+      rollback_switch: "Set AEGIS_RUNTIME_ENABLED=false to return to shadow mode immediately",
+      canary_services: canaryStatus,
+      pending_gate_approvals: pending.length,
+      enforcement_phase: mode === "shadow" ? "shadow" : "soft_canary",
+      _meta: {
+        computed_at: new Date().toISOString(),
+        duration_ms: 0,
+        trust_mask_applied: false,
+        protocol: "aegis-enforcement-v1",
+        rule: "AEG-E-007",
+      },
+    });
+  });
+
+  // ── POST /api/v2/enforcement/approve/:token ────────────────────────────────
+  // Approve a pending GATE decision. GATE = pause, not deny.
+  // @rule:AEG-E-012 — GATE means pause; this endpoint is the continuation path
+  // @rule:AEG-E-014 — approval_reason mandatory; blank is rejected
+  app.post("/api/v2/enforcement/approve/:token", async (req, reply) => {
+    const { token } = req.params as { token: string };
+    const body = req.body as { approval_reason?: string; approved_by?: string } | undefined;
+
+    const result = approveToken(
+      token,
+      body?.approval_reason ?? "",
+      body?.approved_by ?? req.headers["x-aegis-approver"] as string ?? "anonymous",
+    );
+
+    if (!result.ok) {
+      return reply.code(400).send({
+        approved: false,
+        error: result.error,
+        rule: "AEG-E-014",
+      });
+    }
+
+    // Log the approval as an ALLOW decision with bypass context
+    const original = result.record!.original_decision;
+    const approvalDecision = {
+      ...original,
+      decision: "ALLOW" as const,
+      reason: `GATE approved: ${result.record!.approval_reason}`,
+      bypass_reason: result.record!.approval_reason,
+      bypassed_by: result.record!.approved_by,
+      bypassed_at: result.record!.approved_at,
+      timestamp: new Date().toISOString(),
+    };
+    logDecision(approvalDecision);
+
+    return reply.send({
+      approved: true,
+      token,
+      service_id: result.record!.service_id,
+      operation: result.record!.operation,
+      approval_reason: result.record!.approval_reason,
+      approved_by: result.record!.approved_by,
+      approved_at: result.record!.approved_at,
+      original_decision: "GATE",
+      resolved_decision: "ALLOW",
+      _meta: {
+        computed_at: new Date().toISOString(),
+        duration_ms: 0,
+        trust_mask_applied: true,
+        rule: "AEG-E-012",
+      },
+    });
+  });
+
+  // ── GET /api/v2/enforcement/approve/:token ────────────────────────────────
+  // Check status of a gate approval token
+  app.get("/api/v2/enforcement/approve/:token", async (req, reply) => {
+    const { token } = req.params as { token: string };
+    const record = getApproval(token);
+    if (!record) return reply.code(404).send({ error: "token not found" });
+    return reply.send({ token, status: record.status, service_id: record.service_id, expires_at: record.expires_at });
+  });
+
+  // ── DELETE /api/v2/enforcement/approve/:token ─────────────────────────────
+  // Revoke a pending approval token (Captain's override)
+  app.delete("/api/v2/enforcement/approve/:token", async (req, reply) => {
+    const { token } = req.params as { token: string };
+    const revoked = revokeToken(token);
+    return reply.send({ revoked, token });
+  });
+
+  // ── GET /api/v2/enforcement/approve ───────────────────────────────────────
+  // List all pending gate approvals
+  app.get("/api/v2/enforcement/approve", async (_req, reply) => {
+    const pending = listPending();
+    return reply.send({
+      pending_count: pending.length,
+      pending: pending.map(r => ({
+        token: r.token,
+        service_id: r.service_id,
+        operation: r.operation,
+        requested_capability: r.requested_capability,
+        created_at: r.created_at,
+        expires_at: r.expires_at,
+      })),
+    });
+  });
 }
 
-// Import join for file writing in audit route
-import { join } from "path";

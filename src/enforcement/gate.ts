@@ -18,18 +18,22 @@
 // @rule:AEG-E-005 — every gate decision is logged; log failure never blocks
 // @rule:AEG-E-006 — AEGIS_RUNTIME_ENABLED=false forces shadow mode
 // @rule:AEG-E-007 — enforcement pilot is TIER-A only; others get shadow regardless of mode
+// @rule:AEG-E-011 — enforcement_phase recorded on every decision
+// @rule:AEG-E-012 — GATE means pause, not deny; approval_token issued on GATE in soft/hard canary
 
 import {
   type AegisEnforcementRequest,
   type AegisEnforcementDecision,
   type GateDecision,
   type EnforcementMode,
+  type EnforcementPhase,
   type OperationRisk,
   OPERATION_RISK_MAP,
   HIGH_CONSEQUENCE_BITS,
   normalizeCapability,
 } from "./types";
 import { getServiceEntry, isInPilotScope } from "./registry";
+import { issueApprovalToken } from "./approval";
 
 // ── Environment config ────────────────────────────────────────────────────────
 
@@ -45,6 +49,28 @@ function getEnforcementMode(): EnforcementMode {
 function isDryRun(): boolean {
   // dry_run defaults to true — must be explicitly disabled
   return process.env.AEGIS_DRY_RUN !== "false";
+}
+
+// @rule:AEG-E-007 canary set is scoped to explicit service list; non-canary stays shadow
+function getCanarySet(): Set<string> {
+  const env = process.env.AEGIS_SOFT_CANARY_SERVICES ?? "";
+  if (!env.trim()) return new Set(["granthx", "stackpilot", "ankrclaw"]); // Batch 18 default
+  return new Set(env.split(",").map(s => s.trim()).filter(Boolean));
+}
+
+function isInCanary(serviceId: string): boolean {
+  const mode = getEnforcementMode();
+  if (mode === "shadow") return false;
+  return getCanarySet().has(serviceId);
+}
+
+// @rule:AEG-E-011 — phase derived from mode + canary membership
+function resolvePhase(mode: EnforcementMode, inCanary: boolean): EnforcementPhase {
+  if (mode === "shadow") return "shadow";
+  if (mode === "soft" && inCanary) return "soft_canary";
+  if (mode === "soft") return "shadow"; // soft mode but not in canary → still shadow
+  if (mode === "hard" && inCanary) return "hard";
+  return "shadow";
 }
 
 // ── Operation risk classification ─────────────────────────────────────────────
@@ -157,17 +183,16 @@ function computeGateDecision(
 }
 
 // ── Enforcement resolution ────────────────────────────────────────────────────
-// In shadow/dry-run: always report as if enforced but never actually block
-// In soft: enforce WARN and GATE; report BLOCK but don't block
-// In hard: enforce all decisions
+// shadow:      report faithfully, never enforce — caller sees shadow flag
+// soft canary: WARN enforced; GATE enforced (approval_token issued); BLOCK → GATE (log only)
+// hard canary: full enforcement
 
 function resolveEnforcedDecision(
   computed: GateDecision,
-  mode: EnforcementMode,
-  dry: boolean,
+  phase: EnforcementPhase,
 ): GateDecision {
-  if (dry || mode === "shadow") return computed; // report faithfully, but caller sees shadow mode flag
-  if (mode === "soft" && computed === "BLOCK") return "GATE"; // BLOCK → GATE in soft mode
+  if (phase === "shadow") return computed;
+  if (phase === "soft_canary" && computed === "BLOCK") return "GATE"; // BLOCK → GATE; never hard-block in soft
   return computed;
 }
 
@@ -177,6 +202,8 @@ export function evaluate(req: AegisEnforcementRequest): AegisEnforcementDecision
   const now = new Date().toISOString();
   const mode = getEnforcementMode();
   const dry = isDryRun();
+  const inCanary = isInCanary(req.service_id);
+  const phase = resolvePhase(mode, inCanary);
 
   const entry = getServiceEntry(req.service_id);
   const inPilot = isInPilotScope(req.service_id);
@@ -196,9 +223,11 @@ export function evaluate(req: AegisEnforcementRequest): AegisEnforcementDecision
       runtime_readiness_tier: "TIER-C",
       aegis_gate_result: "unregistered",
       enforcement_mode: mode,
+      enforcement_phase: "shadow",
       decision: "WARN",
       reason: "service not found in registry — shadow WARN (never BLOCK on unknown service)",
       pilot_scope: false,
+      in_canary: false,
       dry_run: dry,
       timestamp: now,
       caller_id: req.caller_id,
@@ -208,9 +237,14 @@ export function evaluate(req: AegisEnforcementRequest): AegisEnforcementDecision
 
   const opRisk = classifyOperationRisk(req.operation, req.requested_capability, entry.trust_mask);
   const { decision: computed, reason } = computeGateDecision(entry, opRisk, inPilot);
-  const enforced = resolveEnforcedDecision(computed, mode, dry);
+  const enforced = resolveEnforcedDecision(computed, phase);
 
-  return {
+  const isShadow = phase === "shadow" || dry;
+  const reasonText = isShadow
+    ? `[${phase.toUpperCase()} — not enforced] ${reason}`
+    : reason;
+
+  const base: AegisEnforcementDecision = {
     service_id: req.service_id,
     operation: req.operation,
     requested_capability: req.requested_capability,
@@ -221,16 +255,27 @@ export function evaluate(req: AegisEnforcementRequest): AegisEnforcementDecision
     runtime_readiness_tier: entry.runtime_readiness.tier,
     aegis_gate_result: entry.aegis_gate.overall,
     enforcement_mode: mode,
+    enforcement_phase: phase,
     decision: enforced,
-    reason: dry || mode === "shadow"
-      ? `[${mode.toUpperCase()} — not enforced] ${reason}`
-      : reason,
+    reason: reasonText,
     pilot_scope: inPilot,
-    dry_run: dry,
+    in_canary: inCanary,
+    dry_run: dry || isShadow,
     timestamp: now,
     caller_id: req.caller_id,
     session_id: req.session_id,
   };
+
+  // @rule:AEG-E-012 — GATE in active enforcement → issue approval_token
+  // GATE = pause, not deny. Caller receives token + endpoint to continue.
+  if (enforced === "GATE" && !isShadow && inCanary) {
+    const approval = issueApprovalToken(base);
+    base.approval_required = true;
+    base.approval_token = approval.token;
+    base.approval_endpoint = `/api/v2/enforcement/approve/${approval.token}`;
+  }
+
+  return base;
 }
 
-export { getEnforcementMode, isDryRun };
+export { getEnforcementMode, isDryRun, getCanarySet };

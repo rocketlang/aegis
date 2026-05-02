@@ -60,6 +60,10 @@ export interface AegisEnforcementRequest {
   metadata?: Record<string, unknown>;
 }
 
+// enforcement_phase tracks where in the rollout each decision lands
+// @rule:AEG-E-011 — phase must be recorded per decision; Pulse reads it for canary dashboards
+export type EnforcementPhase = "shadow" | "soft_canary" | "soft_global" | "hard";
+
 export interface AegisEnforcementDecision {
   service_id: string;
   operation: string;
@@ -71,13 +75,39 @@ export interface AegisEnforcementDecision {
   runtime_readiness_tier: RuntimeReadinessTier;
   aegis_gate_result: string;
   enforcement_mode: EnforcementMode;
+  enforcement_phase: EnforcementPhase;
   decision: GateDecision;
   reason: string;
   pilot_scope: boolean;
+  in_canary: boolean;
   dry_run: boolean;
   timestamp: string;
   caller_id?: string;
   session_id?: string;
+  // GATE-specific: present only when decision === "GATE"
+  // GATE = pause + approval required; not a silent deny
+  approval_required?: boolean;
+  approval_token?: string;
+  approval_endpoint?: string;
+  // Override fields: present when a GATE was bypassed
+  bypass_reason?: string;
+  bypassed_by?: string;
+  bypassed_at?: string;
+}
+
+// Approval record stored for pending GATE decisions
+export interface GateApprovalRecord {
+  token: string;
+  service_id: string;
+  operation: string;
+  requested_capability: string;
+  created_at: string;
+  expires_at: string;
+  status: "pending" | "approved" | "expired" | "revoked";
+  approval_reason?: string;
+  approved_by?: string;
+  approved_at?: string;
+  original_decision: AegisEnforcementDecision;
 }
 
 // Operations classified by risk
