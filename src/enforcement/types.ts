@@ -96,6 +96,13 @@ export interface AegisEnforcementDecision {
 }
 
 // Approval record stored for pending GATE decisions
+// Lifecycle: pending → approved → consumed
+//                   → denied
+//                   → expired (lazy, on access)
+//                   → revoked (Captain's override)
+//
+// @rule:AEG-E-015 — consumed state prevents replay
+// @rule:AEG-E-017 — denied is a first-class terminal state
 export interface GateApprovalRecord {
   token: string;
   service_id: string;
@@ -103,10 +110,19 @@ export interface GateApprovalRecord {
   requested_capability: string;
   created_at: string;
   expires_at: string;
-  status: "pending" | "approved" | "expired" | "revoked";
+  ttl_ms: number;
+  status: "pending" | "approved" | "denied" | "expired" | "consumed" | "revoked";
+  // Approval fields
   approval_reason?: string;
   approved_by?: string;
   approved_at?: string;
+  // Denial fields (AEG-E-017)
+  denial_reason?: string;
+  denied_by?: string;
+  denied_at?: string;
+  // Revocation fields
+  revoked_by?: string;
+  revoked_at?: string;
   original_decision: AegisEnforcementDecision;
 }
 
