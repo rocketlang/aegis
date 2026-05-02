@@ -269,13 +269,15 @@ function classify(svc: TierA): HardGatePolicy {
       "Rollout timing: TBD — not on any current sprint",
     ];
     profile = "Batch 27: GATE on execute/trigger/emit/approve/reject (BR-5 governance). Batch 28: mask escalation, revoke storm, expiry races — all clean. Rollback: PASS. Ready for policy, not for hard-gate.";
+    // Sequential 9-12: ankr-doctor first (governance/diagnostic, lowest HG-3 consequence),
+    // stackpilot + granthx together (BR-5 execution — pair review), ankrclaw last
+    // (external_call + BR-5 + live customer traffic — legal review mandatory).
+    // Numbers are sequential, not sparse. Review gate checkpoints are documented
+    // in the rollout sequence markdown, not encoded in the numbers.
     rolloutOrder = svc === "ankr-doctor" ? 9
-      : svc === "pramana" ? 10    // pramana is read_only but BR-5 — might promote earlier as HG-2
-      : svc === "carbonx" ? 11
-      : svc === "parali-central" ? 12
-      : svc === "stackpilot" ? 13
-      : svc === "granthx" ? 14
-      : 15; // ankrclaw = last (external_call + BR-5 + live customer traffic)
+      : svc === "stackpilot" ? 10
+      : svc === "granthx" ? 11
+      : 12; // ankrclaw = last
   }
 
   return {
