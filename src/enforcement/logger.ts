@@ -10,27 +10,30 @@ import { appendFileSync, mkdirSync, existsSync } from "fs";
 import { join, dirname } from "path";
 import type { AegisEnforcementDecision } from "./types";
 
-const LOG_PATH = join(
-  process.env.AEGIS_DECISION_LOG_PATH ??
-  join(process.env.HOME ?? "/root", ".aegis", "aegis_decision.log")
-);
+// @rule:AEG-E-005 path evaluated lazily — env override must work at call time, not module load
+function resolveLogPath(): string {
+  return process.env.AEGIS_DECISION_LOG_PATH ??
+    join(process.env.HOME ?? "/root", ".aegis", "aegis_decision.log");
+}
 
-function ensureLogDir(): void {
-  const dir = dirname(LOG_PATH);
+function ensureLogDir(path: string): void {
+  const dir = dirname(path);
   if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
 }
 
 // @rule:AEG-E-005 log never throws — failure is silent, enforcement is unaffected
 export function logDecision(decision: AegisEnforcementDecision): void {
   try {
-    ensureLogDir();
-    const line = JSON.stringify(decision) + "\n";
-    appendFileSync(LOG_PATH, line, "utf-8");
+    const path = resolveLogPath();
+    ensureLogDir(path);
+    // schema_version is stable so Pulse can consume without migration guards
+    const line = JSON.stringify({ schema_version: "aegis.decision.v1", ...decision }) + "\n";
+    appendFileSync(path, line, "utf-8");
   } catch {
     // intentionally swallowed — logging must never block the gate decision
   }
 }
 
 export function logPath(): string {
-  return LOG_PATH;
+  return resolveLogPath();
 }

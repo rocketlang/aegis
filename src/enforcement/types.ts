@@ -116,6 +116,45 @@ export const OPERATION_RISK_MAP: Record<string, OperationRisk> = {
   financial: "critical",
 };
 
+// Canonical capability normalization — maps surface aliases to canonical form
+// @rule:AEG-E-008 — all capability strings are normalized before risk classification
+export const CAPABILITY_ALIASES: Record<string, string> = {
+  // Execute variants
+  "run_agent":   "AI_EXECUTE",
+  "run-agent":   "AI_EXECUTE",
+  "tool_call":   "EXECUTE",
+  "tool-call":   "EXECUTE",
+  "call_llm":    "AI_EXECUTE",
+  "call-llm":    "AI_EXECUTE",
+  "call_tool":   "EXECUTE",
+  "invoke":      "EXECUTE",
+  // Read variants
+  "fetch":       "READ",
+  "get":         "READ",
+  "list":        "READ",
+  "search":      "QUERY",
+  "query":       "QUERY",
+  // Write variants
+  "create":      "WRITE",
+  "update":      "WRITE",
+  "patch":       "WRITE",
+  "upsert":      "WRITE",
+  // Deploy variants
+  "rollout":     "DEPLOY",
+  "release":     "DEPLOY",
+  "push":        "DEPLOY",
+  "ship":        "DEPLOY",
+  // Approve variants
+  "accept":      "APPROVE",
+  "confirm":     "APPROVE",
+  "authorize":   "APPROVE",
+};
+
+export function normalizeCapability(cap: string): string {
+  const key = cap.toLowerCase().replace(/\s+/g, "_");
+  return CAPABILITY_ALIASES[key] ?? cap.toUpperCase();
+}
+
 // High-consequence trust_mask bits — operations involving these always critical
 // From @ankr/trust-constants: BOOK=8, BL_ISSUE=10, RATE_DESK=11, AI_EXECUTE=27, APPROVE=4
 export const HIGH_CONSEQUENCE_BITS = (1 << 8) | (1 << 10) | (1 << 11) | (1 << 27) | (1 << 4);

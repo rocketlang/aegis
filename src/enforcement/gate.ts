@@ -27,6 +27,7 @@ import {
   type OperationRisk,
   OPERATION_RISK_MAP,
   HIGH_CONSEQUENCE_BITS,
+  normalizeCapability,
 } from "./types";
 import { getServiceEntry, isInPilotScope } from "./registry";
 
@@ -179,6 +180,8 @@ export function evaluate(req: AegisEnforcementRequest): AegisEnforcementDecision
 
   const entry = getServiceEntry(req.service_id);
   const inPilot = isInPilotScope(req.service_id);
+  // @rule:AEG-E-008 — normalize capability before classification
+  req = { ...req, requested_capability: normalizeCapability(req.requested_capability) };
 
   // Registry miss — shadow WARN, never BLOCK
   if (!entry) {

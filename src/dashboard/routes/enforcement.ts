@@ -21,6 +21,7 @@ import {
   invalidateCache,
 } from "../../enforcement/registry";
 import type { AegisEnforcementRequest } from "../../enforcement/types";
+import { runAudit, writeAuditFiles } from "../../enforcement/replay";
 
 export function registerEnforcementRoutes(app: FastifyInstance): void {
   // ── POST /api/v2/enforcement/gate ─────────────────────────────────────────
@@ -208,4 +209,81 @@ export function registerEnforcementRoutes(app: FastifyInstance): void {
       },
     });
   });
+
+  // ── GET /api/v2/enforcement/audit ─────────────────────────────────────────
+  // Read the decision log, detect false positives/negatives, report soft gate eligibility
+  // @rule:AEG-E-009 — no soft enforcement until audit returns verdict=PASS
+  app.get("/api/v2/enforcement/audit", async (req, reply) => {
+    const t0 = performance.now();
+    const query = req.query as Record<string, string>;
+
+    const summary = runAudit();
+
+    // Optionally write files if ?write=true
+    if (query.write === "true") {
+      const outDir = query.out_dir ?? join(process.env.HOME ?? "/root", ".aegis");
+      try {
+        writeAuditFiles(summary, outDir);
+      } catch (e) {
+        // non-fatal — still return audit result
+      }
+    }
+
+    const duration_ms = performance.now() - t0;
+
+    return reply.code(summary.audit_verdict === "PASS" ? 200 : summary.audit_verdict === "CONDITIONAL_PASS" ? 202 : 409).send({
+      ...summary,
+      _meta: {
+        computed_at: summary.generated_at,
+        duration_ms: Math.round(duration_ms * 1000) / 1000,
+        trust_mask_applied: false,
+        protocol: "aegis-audit-v1",
+        rule: "AEG-E-009",
+        soft_gate_eligible: summary.soft_gate_eligible,
+        verdict: summary.audit_verdict,
+      },
+    });
+  });
+
+  // ── POST /api/v2/enforcement/audit/synthetic ───────────────────────────────
+  // Generate synthetic traffic for all 12 TIER-A services across 5 scenarios
+  // Use this to populate the decision log before running /audit
+  app.post("/api/v2/enforcement/audit/synthetic", async (_req, reply) => {
+    const t0 = performance.now();
+    const scenarios = [
+      { operation: "read",    requested_capability: "READ" },
+      { operation: "write",   requested_capability: "WRITE" },
+      { operation: "execute", requested_capability: "EXECUTE" },
+      { operation: "deploy",  requested_capability: "DEPLOY" },
+      { operation: "approve", requested_capability: "APPROVE" },
+    ];
+
+    const results: unknown[] = [];
+
+    for (const svc of pilotSet()) {
+      for (const scen of scenarios) {
+        const d = evaluate({ service_id: svc, ...scen, caller_id: "aegis-synthetic-audit" });
+        logDecision(d);
+        results.push({ service_id: svc, operation: scen.operation, decision: d.decision });
+      }
+    }
+
+    const duration_ms = performance.now() - t0;
+
+    return reply.send({
+      generated: results.length,
+      services: pilotSet().length,
+      scenarios: scenarios.length,
+      results,
+      _meta: {
+        computed_at: new Date().toISOString(),
+        duration_ms: Math.round(duration_ms * 1000) / 1000,
+        trust_mask_applied: true,
+        note: "synthetic traffic logged — run GET /api/v2/enforcement/audit to analyse",
+      },
+    });
+  });
 }
+
+// Import join for file writing in audit route
+import { join } from "path";
