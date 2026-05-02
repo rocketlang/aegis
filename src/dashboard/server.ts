@@ -18,6 +18,7 @@ import { registerSystemRoutes } from "./routes/system";
 import { registerForjaRoutes, emitSense } from "./routes/forja";
 import { registerBitMaskOSRoutes } from "./routes/bitmaskos";
 import { registerAuthRoutes } from "../auth/routes";
+import { registerEnforcementRoutes } from "./routes/enforcement";
 import { classifyCommand, runKavachGate } from "../kavach/gate";
 // [EE] Multi-tenant — graceful degradation when EE not licensed
 import { isEE, eeStatus } from "../../ee/license";
@@ -82,7 +83,7 @@ if (config.dashboard.auth?.enabled) {
     if (u === username && p === password) {
       reply
         .header("Set-Cookie", issueSessionCookie(u))
-        .redirect(302, req.headers["x-forwarded-prefix"] === "/dashboard" ? "/dashboard" : "/");
+        .redirect(req.headers["x-forwarded-prefix"] === "/dashboard" ? "/dashboard" : "/", 302);
     } else {
       reply.type("text/html").code(401).send(loginPage("Invalid username or password."));
     }
@@ -91,7 +92,7 @@ if (config.dashboard.auth?.enabled) {
   app.get("/logout", async (_req, reply) => {
     reply
       .header("Set-Cookie", clearSessionCookie())
-      .redirect(302, "/login");
+      .redirect("/login", 302);
   });
 
   // Session guard — all other routes
@@ -310,6 +311,8 @@ registerSystemRoutes(app);
 registerForjaRoutes(app);
 registerBitMaskOSRoutes(app);
 registerAuthRoutes(app);
+// @rule:AEG-E-001 enforcement pilot — TIER-A only, shadow mode by default
+registerEnforcementRoutes(app);
 
 // --- API Routes ---
 
