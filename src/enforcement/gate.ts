@@ -54,7 +54,12 @@ function isDryRun(): boolean {
 // @rule:AEG-E-007 canary set is scoped to explicit service list; non-canary stays shadow
 function getCanarySet(): Set<string> {
   const env = process.env.AEGIS_SOFT_CANARY_SERVICES ?? "";
-  if (!env.trim()) return new Set(["granthx", "stackpilot", "ankrclaw", "carbonx", "parali-central", "pramana"]); // Batch 23: 3→6 expansion
+  if (!env.trim()) return new Set([ // Batch 26: full TIER-A (12 services)
+    "granthx", "stackpilot", "ankrclaw",
+    "carbonx", "parali-central", "pramana",
+    "ankr-doctor", "domain-capture", "ship-slm",
+    "chief-slm", "chirpee", "puranic-os",
+  ]);
   return new Set(env.split(",").map(s => s.trim()).filter(Boolean));
 }
 
