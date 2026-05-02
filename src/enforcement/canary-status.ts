@@ -172,7 +172,7 @@ export function getCanaryStatus(canaryServices: string[]): CanaryStatus {
   }
 
   // Approval log events
-  const replayAttempts: ApprovalLogEntry[] = [];
+  let rollbackDrillPassed: boolean | null = null;
   for (const ev of approvalEntries) {
     if (ev.event === "AEGIS_APPROVAL_REVOKED") {
       const row = ev.service_id ? serviceMap.get(ev.service_id) : undefined;
@@ -185,6 +185,11 @@ export function getCanaryStatus(canaryServices: string[]): CanaryStatus {
     if (ev.event === "AEGIS_APPROVAL_DENIED") {
       const row = ev.service_id ? serviceMap.get(ev.service_id) : undefined;
       if (row) row.denied++;
+    }
+    // Read rollback drill verdict from approval log — set by runRollbackDrill()
+    if (ev.event === "rollback_drill") {
+      const entry = ev as ApprovalLogEntry & { verdict?: string };
+      rollbackDrillPassed = entry.verdict === "PASS";
     }
   }
 
@@ -235,6 +240,9 @@ export function getCanaryStatus(canaryServices: string[]): CanaryStatus {
   if (!decisionLogHasCanary) {
     blockers.push("No soft_canary decisions in decision log yet — activate and run traffic first");
   }
+  if (rollbackDrillPassed === false) {
+    blockers.push("Rollback drill FAILED — kill switch did not restore shadow mode on all canary services");
+  }
 
   const sc: CanarySuccessCriteria = {
     no_read_gates: readGateServices.length === 0,
@@ -242,7 +250,7 @@ export function getCanaryStatus(canaryServices: string[]): CanaryStatus {
     no_token_replay_successes: tokenReplayCandidates.length === 0,
     no_approval_without_reason: approvalWithoutReason.length === 0,
     no_revoke_without_reason: revokeWithoutReason.length === 0,
-    rollback_drill_passed: null, // set by POST /rollback-drill; not re-run here
+    rollback_drill_passed: rollbackDrillPassed, // derived from approval log rollback_drill event
     decision_log_has_canary_entries: decisionLogHasCanary,
     all_criteria_met: blockers.length === 0,
     blockers,
