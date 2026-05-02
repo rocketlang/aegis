@@ -69,6 +69,23 @@ export interface SimulationResult {
 //
 // Stage 1 pilot. Chirpee chosen first: consumer text agent, lowest blast,
 // false positive surface is visible and immediately recoverable.
+//
+// HG-1 JUSTIFICATION (established Batch 31 soak run 1, 2026-05-03):
+//
+//   HG-1 does not hard-block risky real work.
+//   HG-1 hard-blocks policy-proven impossible or malformed actions
+//   that the soft gate intentionally does not interrupt.
+//
+//   Evidence:
+//     IMPOSSIBLE_OP             → soft=ALLOW, hard-sim=BLOCK (true positive)
+//     EMPTY_CAPABILITY_ON_WRITE → soft=ALLOW, hard-sim=BLOCK (true positive)
+//
+//   Why soft allows: gate sees medium-risk op on read_only+BR-0 — passes.
+//   No registry entry exists for malformed caps, so no WARN trigger fires.
+//   Why hard blocks: both are in hard_block_capabilities — policy is explicit.
+//
+//   The gap soft allows + hard blocks = the closed surface HG-1 adds.
+//   Run 1: 0 false positives, 10 true positives, 0 production fires, 390/390 PASS.
 
 export const CHIRPEE_HG1_POLICY: ServiceHardGatePolicy = {
   service_id: "chirpee",
