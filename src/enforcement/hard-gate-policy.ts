@@ -1,0 +1,235 @@
+/**
+ * AEGIS Hard-Gate Policy
+ *
+ * Defines per-service hard-gate configuration and the dry-run simulation
+ * function. This module does NOT modify gate.ts behavior. Hard-gate is
+ * disabled by default for all services. Enabling a service requires an
+ * explicit env var change (AEGIS_HARD_GATE_SERVICES) — a deliberate manual
+ * step, not an automated promotion.
+ *
+ * Global invariants (non-overridable):
+ *   READ never hard-blocks in any mode or group (AEG-E-002 extended)
+ *   Unknown service remains WARN in all modes
+ *   Unknown capability remains GATE/WARN until canonical registry is complete
+ *
+ * @rule:AEG-HG-001 hard_gate_enabled=false is the default for all services
+ * @rule:AEG-HG-002 READ is in never_block for every service in every HG group
+ * @rule:AEG-HG-003 hard-gate promotion requires explicit env var — not automatic
+ */
+
+// ── Global kill switch ────────────────────────────────────────────────────────
+// This constant guards every hard-gate decision path. It is false.
+// Changing it requires a deliberate manual step.
+export const HARD_GATE_GLOBALLY_ENABLED = false;
+
+// Per-service activation set. Empty until Stage 1 manual promotion.
+// Populated by: AEGIS_HARD_GATE_SERVICES env var (comma-separated service IDs).
+// The env var does not exist in production yet — creating it is a manual act.
+export const HARD_GATE_SERVICES_ENABLED: ReadonlySet<string> = (() => {
+  if (!HARD_GATE_GLOBALLY_ENABLED) return new Set<string>(); // @rule:AEG-HG-001
+  const raw = process.env.AEGIS_HARD_GATE_SERVICES ?? "";
+  return new Set(raw.split(",").map(s => s.trim()).filter(Boolean));
+})();
+
+// ── Types ─────────────────────────────────────────────────────────────────────
+
+export type HGGroup = "HG-0" | "HG-1" | "HG-2" | "HG-3" | "HG-4";
+
+export interface ServiceHardGatePolicy {
+  service_id: string;
+  hg_group: HGGroup;
+  hard_gate_enabled: false; // always false in this module — enabling happens via env var
+  hard_block_capabilities: ReadonlySet<string>; // BLOCK when hard-gate is active
+  still_gate_capabilities: ReadonlySet<string>; // GATE even when hard-gate active (not BLOCK)
+  always_allow_capabilities: ReadonlySet<string>; // ALLOW regardless
+  never_block_capabilities: ReadonlySet<string>; // AEG-E-002: READ always here
+  rollout_order: number;
+  stage: string;
+}
+
+export interface SimulationResult {
+  service_id: string;
+  requested_capability: string;
+  operation: string;
+  soft_decision: string;
+  simulated_hard_decision: string;
+  hard_gate_would_apply: boolean;
+  hard_gate_enabled_for_service: boolean;
+  reason: string;
+  invariant_applied: string | null;
+}
+
+// ── chirpee HG-1 policy ───────────────────────────────────────────────────────
+//
+// HG-1 hard-block scope: malformed / impossible actions only.
+// Rationale: read_only authority + BR-0 → false positive is bounded.
+// Anything high-consequence (DEPLOY/DELETE/EXECUTE/APPROVE/FULL_AUTONOMY)
+// remains GATE even when hard-gate is active — the safety catch stays on
+// for operations that matter.
+//
+// Stage 1 pilot. Chirpee chosen first: consumer text agent, lowest blast,
+// false positive surface is visible and immediately recoverable.
+
+export const CHIRPEE_HG1_POLICY: ServiceHardGatePolicy = {
+  service_id: "chirpee",
+  hg_group: "HG-1",
+  hard_gate_enabled: false, // @rule:AEG-HG-001 — changed only by AEGIS_HARD_GATE_SERVICES
+  hard_block_capabilities: new Set([
+    "IMPOSSIBLE_OP",             // demonstrably invalid sentinel operation
+    "EMPTY_CAPABILITY_ON_WRITE", // empty capability string on a write-class operation
+  ]),
+  still_gate_capabilities: new Set([
+    // High-consequence ops stay GATE in hard mode — never BLOCK for HG-1
+    "CI_DEPLOY", "DELETE", "EXECUTE", "APPROVE", "AI_EXECUTE",
+    "FULL_AUTONOMY", "SPAWN_AGENTS", "MEMORY_WRITE", "AUDIT_WRITE",
+    "TRIGGER", "EMIT",
+  ]),
+  always_allow_capabilities: new Set([
+    "READ", "GET", "LIST", "QUERY", "SEARCH", "HEALTH",
+  ]),
+  never_block_capabilities: new Set([
+    "READ", // @rule:AEG-HG-002 — AEG-E-002 extended to hard mode
+  ]),
+  rollout_order: 1,
+  stage: "Stage 1 — HG-1 pilot — not yet enabled",
+};
+
+// ── Policy registry ───────────────────────────────────────────────────────────
+// Only chirpee has a policy in Batch 30. Other HG-1/HG-2/HG-3 services will
+// be added when their stage is reached.
+
+export const HARD_GATE_POLICIES: Readonly<Record<string, ServiceHardGatePolicy>> = {
+  chirpee: CHIRPEE_HG1_POLICY,
+};
+
+// ── Simulation ────────────────────────────────────────────────────────────────
+//
+// simulateHardGate: computes what a hard gate WOULD decide given:
+//   - a soft-canary decision (from evaluate())
+//   - the service's hard-gate policy
+//   - an optional override to force-enable for dry-run purposes
+//
+// Does NOT change gate.ts behavior. Does NOT affect production.
+// The override parameter exists ONLY for testing policy correctness in
+// dry-run batches (Batch 30). It must never be called with override=true
+// from inside gate.ts itself.
+
+export function simulateHardGate(
+  serviceId: string,
+  softDecision: string,
+  requestedCapability: string,
+  operation: string,
+  dryRunOverride = false, // if true: simulate AS IF hard-gate were enabled
+): SimulationResult {
+  const policy = HARD_GATE_POLICIES[serviceId];
+  const cap = requestedCapability.toUpperCase();
+  const op  = operation.toLowerCase();
+
+  // No policy defined → preserve soft decision, no hard-gate logic applies
+  if (!policy) {
+    return {
+      service_id: serviceId,
+      requested_capability: cap,
+      operation,
+      soft_decision: softDecision,
+      simulated_hard_decision: softDecision,
+      hard_gate_would_apply: false,
+      hard_gate_enabled_for_service: false,
+      reason: `No hard-gate policy defined for ${serviceId} — soft decision preserved`,
+      invariant_applied: null,
+    };
+  }
+
+  const isEnabled = HARD_GATE_GLOBALLY_ENABLED && HARD_GATE_SERVICES_ENABLED.has(serviceId);
+  const effectivelyEnabled = isEnabled || dryRunOverride;
+
+  if (!effectivelyEnabled) {
+    return {
+      service_id: serviceId,
+      requested_capability: cap,
+      operation,
+      soft_decision: softDecision,
+      simulated_hard_decision: softDecision,
+      hard_gate_would_apply: false,
+      hard_gate_enabled_for_service: false,
+      reason: "hard_gate_enabled=false for this service — soft decision preserved (dryRunOverride=false)",
+      invariant_applied: null,
+    };
+  }
+
+  // @rule:AEG-HG-002 READ never hard-blocks regardless of policy list
+  if (policy.never_block_capabilities.has(cap) || op === "read" || op === "get" ||
+      op === "list" || op === "query" || op === "search" || op === "health") {
+    return {
+      service_id: serviceId,
+      requested_capability: cap,
+      operation,
+      soft_decision: softDecision,
+      simulated_hard_decision: "ALLOW",
+      hard_gate_would_apply: false,
+      hard_gate_enabled_for_service: effectivelyEnabled,
+      reason: "READ/GET/LIST/QUERY/SEARCH/HEALTH — never_block invariant (AEG-E-002 extended)",
+      invariant_applied: "AEG-HG-002",
+    };
+  }
+
+  // always_allow takes priority over hard_block
+  if (policy.always_allow_capabilities.has(cap)) {
+    return {
+      service_id: serviceId,
+      requested_capability: cap,
+      operation,
+      soft_decision: softDecision,
+      simulated_hard_decision: "ALLOW",
+      hard_gate_would_apply: false,
+      hard_gate_enabled_for_service: effectivelyEnabled,
+      reason: `${cap} is in always_allow_capabilities`,
+      invariant_applied: null,
+    };
+  }
+
+  // Hard-block: the only path to hard BLOCK
+  if (policy.hard_block_capabilities.has(cap)) {
+    return {
+      service_id: serviceId,
+      requested_capability: cap,
+      operation,
+      soft_decision: softDecision,
+      simulated_hard_decision: "BLOCK",
+      hard_gate_would_apply: true,
+      hard_gate_enabled_for_service: effectivelyEnabled,
+      reason: `${cap} is in hard_block_capabilities for ${serviceId} (${policy.hg_group}) — hard BLOCK`,
+      invariant_applied: null,
+    };
+  }
+
+  // still_gate: GATE even in hard mode (does not become BLOCK)
+  if (policy.still_gate_capabilities.has(cap)) {
+    return {
+      service_id: serviceId,
+      requested_capability: cap,
+      operation,
+      soft_decision: softDecision,
+      simulated_hard_decision: "GATE",
+      hard_gate_would_apply: false,
+      hard_gate_enabled_for_service: effectivelyEnabled,
+      reason: `${cap} is in still_gate_capabilities — hard gate defers, GATE not BLOCK`,
+      invariant_applied: null,
+    };
+  }
+
+  // Unknown capability: GATE/WARN — never hard-block until canonical registry complete
+  // @rule:AEG-HG-003 (indirect): unknown cap → GATE until registry complete
+  const unknownCapDecision = softDecision === "BLOCK" ? "GATE" : softDecision;
+  return {
+    service_id: serviceId,
+    requested_capability: cap,
+    operation,
+    soft_decision: softDecision,
+    simulated_hard_decision: unknownCapDecision,
+    hard_gate_would_apply: false,
+    hard_gate_enabled_for_service: effectivelyEnabled,
+    reason: `${cap} not in any hard-gate list — unknown capability stays GATE/WARN (canonical registry incomplete)`,
+    invariant_applied: "unknown_cap_gates_before_blocking",
+  };
+}
