@@ -117,7 +117,7 @@
   "forja_proof": "/api/v2/forja/proof",
   "trust_mask": 255,
   "trust_mask_schema": "ankr-trust-32bit-v1",
-  "k_mask": 237,
+  "k_mask": 255,
   "k_mask_schema": "ankr-prajna-8bit-v1",
   "req_mask": 1157590239,
   "req_mask_schema": "ankr-req-32bit-v1",
@@ -126,7 +126,7 @@
   "capability_captured_schema": "ankr-archmask-v1",
   "claw_mask": 65535,
   "claw_mask_schema": "claw-design-16bit-v1",
-  "claude_ankr_mask": 14,
+  "claude_ankr_mask": 31,
   "claude_ankr_mask_schema": "claude-ankr-5bit-v1",
   "capability_audit": {
     "kavachos_kernel_phase1": "✅ built — KavachOS KERNEL Phase 1: seccomp profile generator, Falco rule generator, receipt chain, profile store, runner, CLI (KOS-010 to KOS-017)",
@@ -186,7 +186,14 @@
     "merkle_ledger": "✅ built — src/kernel/merkle-ledger.ts: CT-style RFC 6962 Merkle tree over PRAMANA receipt batches; Ed25519-signed STH (SDGE signing pattern); inclusion proof generation + verification (KOS-T040)",
     "merkle_anchor": "✅ built — src/kernel/merkle-anchor.ts: S3 Object Lock anchor (KAVACHOS_S3_BUCKET env) with local ~/.aegis/merkle/checkpoints/ fallback (KOS-T041)",
     "verify_chain_cli": "✅ built — kavachos verify-chain [--session <id>] [--all] [--json]: re-walks SHA-256 chain from genesis, reports Merkle inclusion (KOS-T042)",
-    "checkpoint_cli": "✅ built — kavachos checkpoint run|list: creates hourly Merkle STH + anchors; lists with STH signature verification (KOS-T040)"
+    "checkpoint_cli": "✅ built — kavachos checkpoint run|list: creates hourly Merkle STH + anchors; lists with STH signature verification (KOS-T040)",
+    "enforcement_soft_canary": "✅ built — src/enforcement/gate.ts evaluate(): ALLOW/WARN/GATE/BLOCK decisions per service+op+cap; AEGIS_ENFORCEMENT_MODE=soft; shadow phase; @rule:AEG-E-002 READ always ALLOW",
+    "enforcement_registry": "✅ built — src/enforcement/registry.ts: TIER-A 12-service registry; authority_class, governance_blast_radius, runtime_readiness.tier, aegis_gate, human_gate_required",
+    "enforcement_approval": "✅ built — src/enforcement/approval.ts: issueApprovalToken/approveToken/denyToken/revokeToken/getApproval/runRollbackDrill; AEG-E-013..018 all enforced",
+    "enforcement_canary_status": "✅ built — src/enforcement/canary-status.ts: 6-criterion canary health: no_read_gates, no_unknown_service_blocks, no_token_replay_successes, no_approval_without_reason, no_revoke_without_reason, rollback_drill_passed",
+    "enforcement_hard_gate_policy": "✅ built — src/enforcement/hard-gate-policy.ts: HARD_GATE_GLOBALLY_ENABLED=false (constant), CHIRPEE_HG1_POLICY, simulateHardGate(dryRunOverride); does NOT modify gate.ts; @rule:AEG-HG-001/002/003",
+    "enforcement_soak_run1": "✅ run — scripts/batch31-chirpee-soak-observation.ts: 390/390 PASS, false_positives=0, true_positives=10, invariant_violations=0, production_gate_fires=0",
+    "enforcement_soak_run2": "✅ run — scripts/batch31-chirpee-soak-run2.ts: 578/578 PASS, mixed-case caps confirmed, false_positives=0, true_positives=10; HG-1 justification locked in hard-gate-policy.ts comment"
   },
   "protocol": "bitmask-os-v1",
   "bitmask_os_layer": 4,
@@ -233,5 +240,21 @@
     "vivechana": "proposals/xshieldai-kavach--vivechana--formal--2026-04-29.md",
     "deep-knowledge": "proposals/xshieldai-kavach--deep-knowledge--formal--2026-04-29.md",
     "v1_superseded": "proposals/ankr-aegis--logics--formal--2026-04-17.md"
+  },
+  "granthx_indexed": true,
+  "enforcement_rollout": {
+    "batch_history": "28 (rough-weather) → 29 (HG classification) → 30 (HG-1 pilot) → 31 (soak 2/7)",
+    "soak_runs_complete": 2,
+    "soak_runs_required": 7,
+    "false_positives_lifetime": 0,
+    "true_positives_lifetime": 20,
+    "invariant_violations_lifetime": 0,
+    "production_gate_fires_lifetime": 0,
+    "total_checks_lifetime": 968,
+    "hard_gate_enabled": false,
+    "ready_to_promote_chirpee": false,
+    "hg1_justification": "IMPOSSIBLE_OP/EMPTY_CAP: soft=ALLOW (unknown medium-risk cap on read_only+BR-0 passes), hard-sim=BLOCK (in hard_block_capabilities). The gap soft allows + hard blocks = the closed surface HG-1 adds.",
+    "stage1_service": "chirpee",
+    "rollout_order": "chirpee(1)→ship-slm(2)→chief-slm(3)→puranic-os(4)→pramana(5)→domain-capture(6)→parali-central(7)→carbonx(8)→ankr-doctor(9)→stackpilot(10)→granthx(11)→ankrclaw(12)"
   }
 }
