@@ -120,8 +120,9 @@ export interface GateApprovalRecord {
   denial_reason?: string;
   denied_by?: string;
   denied_at?: string;
-  // Revocation fields
+  // Revocation fields (AEG-E-018 — revoked_by + revoke_reason always required)
   revoked_by?: string;
+  revoke_reason?: string;
   revoked_at?: string;
   original_decision: AegisEnforcementDecision;
 }

@@ -24,6 +24,11 @@ import {
 import type { AegisEnforcementRequest } from "../../enforcement/types";
 import { runAudit, writeAuditFiles } from "../../enforcement/replay";
 import {
+  getCanaryStatus,
+  getRecentCanaryDecisions,
+  getCanaryApprovals,
+} from "../../enforcement/canary-status";
+import {
   approveToken,
   denyToken,
   revokeToken,
@@ -501,17 +506,33 @@ export function registerEnforcementRoutes(app: FastifyInstance): void {
   });
 
   // ── DELETE /api/v2/enforcement/revoke/:token ──────────────────────────────
-  // Revoke (Captain's override — cancels without approval or denial paper trail)
+  // Captain's override — requires revoked_by AND revoke_reason (AEG-E-018)
+  // The ship's log records even the Captain's override.
   app.delete("/api/v2/enforcement/revoke/:token", async (req, reply) => {
     const { token } = req.params as { token: string };
-    const body = req.body as { revoked_by?: string } | undefined;
-    const revoker = body?.revoked_by ?? req.headers["x-aegis-approver"] as string ?? "system";
-    const revoked = revokeToken(token, revoker);
-    return reply.code(revoked ? 200 : 400).send({
-      revoked,
+    const body = req.body as { revoked_by?: string; revoke_reason?: string } | undefined;
+
+    const revoker = body?.revoked_by ?? req.headers["x-aegis-approver"] as string ?? "";
+    const reason  = body?.revoke_reason ?? "";
+
+    const result = revokeToken(token, revoker, reason);
+
+    if (!result.ok) {
+      return reply.code(400).send({
+        revoked: false,
+        error: result.error,
+        rule: "AEG-E-018",
+        hint: "Both revoked_by and revoke_reason are required — no unattributed overrides",
+      });
+    }
+
+    return reply.send({
+      revoked: true,
       token,
       revoked_by: revoker,
-      note: revoked ? "token revoked — operation requires a new gate cycle" : "token was not in pending state",
+      revoke_reason: reason,
+      logged_as: "AEGIS_APPROVAL_REVOKED",
+      note: "token revoked — operation requires a new gate cycle",
     });
   });
 
@@ -567,6 +588,92 @@ export function registerEnforcementRoutes(app: FastifyInstance): void {
         computed_at: new Date().toISOString(),
         rule: "AEG-E-006",
         note: "Set AEGIS_RUNTIME_ENABLED=false to return to shadow immediately",
+      },
+    });
+  });
+
+  // ── GET /api/v2/enforcement/canary/status ─────────────────────────────────
+  // Live observation window — aggregated canary health, success criteria, ready_to_expand
+  // @rule:AEG-E-019 — canary observation must be live-queryable before expanding scope
+  app.get("/api/v2/enforcement/canary/status", async (_req, reply) => {
+    const t0 = performance.now();
+    const canary = [...getCanarySet()];
+    const status = getCanaryStatus(canary);
+    const duration_ms = performance.now() - t0;
+
+    return reply.code(status.ready_to_expand ? 200 : 202).send({
+      ...status,
+      _meta: {
+        computed_at: status.generated_at,
+        duration_ms: Math.round(duration_ms * 1000) / 1000,
+        trust_mask_applied: false,
+        protocol: "aegis-canary-v1",
+        rule: "AEG-E-019",
+        ready_to_expand: status.ready_to_expand,
+      },
+    });
+  });
+
+  // ── GET /api/v2/enforcement/canary/decisions ──────────────────────────────
+  // Last N decision log entries for canary services (default 50, max 200)
+  app.get("/api/v2/enforcement/canary/decisions", async (req, reply) => {
+    const query = req.query as Record<string, string>;
+    const limit = Math.min(parseInt(query.limit ?? "50", 10) || 50, 200);
+    const canary = [...getCanarySet()];
+    const decisions = getRecentCanaryDecisions(canary, limit);
+
+    return reply.send({
+      canary_services: canary,
+      limit,
+      count: decisions.length,
+      decisions,
+      _meta: {
+        computed_at: new Date().toISOString(),
+        duration_ms: 0,
+        trust_mask_applied: false,
+        protocol: "aegis-canary-v1",
+      },
+    });
+  });
+
+  // ── GET /api/v2/enforcement/canary/approvals ──────────────────────────────
+  // Approval records scoped to canary services
+  app.get("/api/v2/enforcement/canary/approvals", async (_req, reply) => {
+    const canary = [...getCanarySet()];
+    const approvals = getCanaryApprovals(canary);
+    const byStatus = approvals.reduce((acc, r) => {
+      acc[r.status] = (acc[r.status] ?? 0) + 1;
+      return acc;
+    }, {} as Record<string, number>);
+
+    return reply.send({
+      canary_services: canary,
+      total: approvals.length,
+      by_status: byStatus,
+      approval_log_path: approvalLogPath(),
+      records: approvals.map(r => ({
+        token: r.token,
+        service_id: r.service_id,
+        operation: r.operation,
+        requested_capability: r.requested_capability,
+        status: r.status,
+        created_at: r.created_at,
+        expires_at: r.expires_at,
+        approval_reason: r.approval_reason,
+        approved_by: r.approved_by,
+        approved_at: r.approved_at,
+        denial_reason: r.denial_reason,
+        denied_by: r.denied_by,
+        denied_at: r.denied_at,
+        revoked_by: r.revoked_by,
+        revoke_reason: r.revoke_reason,
+        revoked_at: r.revoked_at,
+      })),
+      _meta: {
+        computed_at: new Date().toISOString(),
+        schema_version: "aegis.approval.v1",
+        protocol: "aegis-canary-v1",
+        rules: ["AEG-E-015", "AEG-E-017", "AEG-E-018"],
       },
     });
   });

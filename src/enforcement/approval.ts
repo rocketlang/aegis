@@ -223,25 +223,43 @@ export function denyToken(
   return { ok: true, record };
 }
 
+// @rule:AEG-E-018 — revoke_reason and revoked_by required; Captain's override is auditable
+// "The Captain may override, but the ship's log still records it."
 export function revokeToken(
   token: string,
-  revoked_by?: string,
-): boolean {
+  revoked_by: string,
+  revoke_reason: string,
+): { ok: boolean; error?: string } {
+  if (!revoked_by?.trim()) {
+    return { ok: false, error: "revoked_by is required — even Captain's override must be attributed (AEG-E-018)" };
+  }
+  if (!revoke_reason?.trim()) {
+    return { ok: false, error: "revoke_reason is required — no unattributed overrides (AEG-E-018)" };
+  }
+
   const record = store.get(token);
-  if (!record || record.status !== "pending") return false;
+  if (!record) return { ok: false, error: "approval token not found" };
+  if (record.status !== "pending") return { ok: false, error: `token already ${record.status} — cannot revoke` };
+
   const now = new Date().toISOString();
   record.status = "revoked";
-  record.revoked_by = revoked_by;
+  record.revoked_by = revoked_by.trim();
+  record.revoke_reason = revoke_reason.trim();
   record.revoked_at = now;
+
+  // @rule:AEG-E-018 — AEGIS_APPROVAL_REVOKED is always logged; no silent overrides
   logApprovalEvent({
-    event: "token_revoked",
+    event: "AEGIS_APPROVAL_REVOKED",
     token,
     service_id: record.service_id,
     operation: record.operation,
-    revoked_by: revoked_by ?? "system",
+    requested_capability: record.requested_capability,
+    revoked_by: record.revoked_by,
+    revoke_reason: record.revoke_reason,
     revoked_at: now,
   });
-  return true;
+
+  return { ok: true };
 }
 
 export function getApproval(token: string): GateApprovalRecord | undefined {
