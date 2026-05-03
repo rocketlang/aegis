@@ -271,6 +271,59 @@ export const PRAMANA_HG2A_POLICY: ServiceHardGatePolicy = {
   stage: "Stage 4 — HG-2A LIVE 2026-05-03 (Batch 43) — soak: Batch 42 7/7",
 };
 
+// ── domain-capture HG-2A policy ───────────────────────────────────────────────
+//
+// Stage 4 (second HG-2A service). Profile: read_only + BR-5.
+// Identical authority_class and blast radius to pramana.
+// Registry repaired Batch 45: codex.json now has authority_class=read_only,
+// governance_blast_radius=BR-5, runtime_readiness TIER-A, hg_group=HG-2A.
+// Soft blocker from Batch 41 cleared: portPath backend.domainCapture → 4650.
+// Policy prep: Batch 46, 2026-05-03. Soak: 7/7 required before promotion.
+// NOT LIVE: hard_gate_enabled=false. NOT in AEGIS_HARD_GATE_SERVICES.
+//
+// TP gap (locked Batch 46 soak run 1):
+//   IMPOSSIBLE_OP             → soft=ALLOW, sim(on)=BLOCK (TP)
+//   EMPTY_CAPABILITY_ON_WRITE → soft=ALLOW, sim(on)=BLOCK (TP)
+//
+// Domain operations (CAPTURE_DOMAIN/CLASSIFY_DOMAIN/EXTRACT_RULES/etc):
+//   Not in hard_block_capabilities — soft decision preserved.
+//   These are legitimate domain-capture operations, not malformed calls.
+//
+// still_gate gotcha (inherited from pramana doctrine, locked Batch 42 Run 7):
+//   MEMORY_WRITE / AUDIT_WRITE / SPAWN_AGENTS are downgrade-guard caps only.
+//   Soft layer returns ALLOW for them (not soft-gated). still_gate only fires
+//   when soft=BLOCK — these caps are not guaranteed soft-gated through evaluate().
+//
+// Rollback (when eventually promoted): remove domain-capture from
+//   AEGIS_HARD_GATE_SERVICES — immediately returns to soft_canary.
+//
+// @rule:AEG-HG-001 hard_gate_enabled=false — NOT in AEGIS_HARD_GATE_SERVICES (Batch 46)
+// @rule:AEG-HG-002 READ is in never_block — AEG-E-002 extended to HG-2
+
+export const DOMAIN_CAPTURE_HG2A_POLICY: ServiceHardGatePolicy = {
+  service_id: "domain-capture",
+  hg_group: "HG-2",
+  hard_gate_enabled: false, // @rule:AEG-HG-001 — NOT LIVE (Batch 46). Promotion after 7/7 soak.
+  hard_block_capabilities: new Set([
+    "IMPOSSIBLE_OP",             // demonstrably invalid sentinel — same justification as pramana/HG-1
+    "EMPTY_CAPABILITY_ON_WRITE", // empty capability string on write-class op — same as pramana
+  ]),
+  still_gate_capabilities: new Set([
+    // High-consequence ops stay GATE in hard mode — never BLOCK for HG-2A
+    "DEPLOY", "CI_DEPLOY", "DELETE", "EXECUTE", "APPROVE", "AI_EXECUTE",
+    "FULL_AUTONOMY", "SPAWN_AGENTS", "MEMORY_WRITE", "AUDIT_WRITE",
+    "TRIGGER", "EMIT",
+  ]),
+  always_allow_capabilities: new Set([
+    "READ", "GET", "LIST", "QUERY", "SEARCH", "HEALTH",
+  ]),
+  never_block_capabilities: new Set([
+    "READ", // @rule:AEG-HG-002 — AEG-E-002 extended to hard mode
+  ]),
+  rollout_order: 6,
+  stage: "Stage 4 — HG-2A prep — NOT LIVE (Batch 46, 2026-05-03)",
+};
+
 // ── Policy registry ───────────────────────────────────────────────────────────
 // Batch 34: ship-slm + chief-slm added (disabled). Chirpee = Stage 1 live.
 // Batch 36: ship-slm + chief-slm promoted live.
@@ -278,13 +331,15 @@ export const PRAMANA_HG2A_POLICY: ServiceHardGatePolicy = {
 // Batch 39: puranic-os promoted live. All 4 HG-1 services now live.
 // Batch 42: pramana added (HG-2A, disabled). Stage 4 soak — 7/7 PASS, promotion permitted.
 // Batch 43: pramana promoted live (HG-2A). 5 live hard-gate services total.
+// Batch 46: domain-capture added (HG-2A, disabled). Stage 4 soak — run 1/7 underway.
 
 export const HARD_GATE_POLICIES: Readonly<Record<string, ServiceHardGatePolicy>> = {
-  chirpee:       CHIRPEE_HG1_POLICY,
-  "ship-slm":    SHIP_SLM_HG1_POLICY,
-  "chief-slm":   CHIEF_SLM_HG1_POLICY,
-  "puranic-os":  PURANIC_OS_HG1_POLICY,
-  pramana:       PRAMANA_HG2A_POLICY,
+  chirpee:           CHIRPEE_HG1_POLICY,
+  "ship-slm":        SHIP_SLM_HG1_POLICY,
+  "chief-slm":       CHIEF_SLM_HG1_POLICY,
+  "puranic-os":      PURANIC_OS_HG1_POLICY,
+  pramana:           PRAMANA_HG2A_POLICY,
+  "domain-capture":  DOMAIN_CAPTURE_HG2A_POLICY,
 };
 
 // ── Live hard-gate enforcement ────────────────────────────────────────────────
