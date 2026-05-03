@@ -1,0 +1,100 @@
+{
+  "batch": 62,
+  "type": "candidate_readiness_audit",
+  "purpose": "Classify carbonx-backend as HG-2B candidate; characterise soak readiness gaps",
+  "timestamp": "2026-05-03T11:51:22.049Z",
+  "verdict": "PASS",
+  "checks": 89,
+  "passed": 89,
+  "failed": 0,
+  "failures": [],
+  "findings": [
+    "FINDING: authority_class discrepancy — codex rollout assumed \"external_call\" — services.json actual=\"financial\". Financial authority class has higher accountability requirements than external_call. Candidate profile must use actual value.",
+    "FINDING: blast_radius discrepancy — codex rollout assumed \"BR-3\" — services.json actual=\"BR-5\". BR-5 is parali-central class, not BR-3. Soak doctrine applies in full.",
+    "FINDING: runtime_readiness tier discrepancy — codex rollout assumed \"TIER-A\" — services.json runtime_readiness.tier=\"TIER-C\". TIER-C = scan-first: code scan must complete before trust_mask enforcement. This is a soak readiness blocker.",
+    "FINDING: needs_code_scan=true — carbonx-backend has not yet had a code-level dependency scan. Technical blast radius shows BR-0 (no code deps found) vs semantic BR-5. Divergence must be resolved before soft-canary 1/7 begins. This is the primary soak readiness gap for Batch 63+.",
+    "FINDING: HG-2C undefined — No HG-2C policy exists yet. carbonx financial settlement risk (SUBMIT_ETS_SURRENDER) may eventually warrant HG-2C doctrine. For now: classify HG-2B + financial_settlement_doctrine=true. Reassess after soak evidence from Batches 63-69."
+  ],
+  "invariants": {
+    "live_roster_size": 7,
+    "hg2b_live_count": 1,
+    "hg2c_live_count": 0,
+    "carbonx_in_hard_gate_services": false,
+    "carbonx_hard_gate_enabled": false,
+    "carbonx_has_policy": false
+  },
+  "carbonx_candidate_profile": {
+    "service_id": "carbonx-backend",
+    "hg_group_candidate": "HG-2B",
+    "rollout_order": 8,
+    "hard_gate_enabled": false,
+    "external_state_touch": true,
+    "boundary_crossing": true,
+    "approval_required_for_irreversible_action": true,
+    "observability_required": true,
+    "audit_artifact_required": true,
+    "financial_settlement_doctrine": true,
+    "authority_class_actual": "financial",
+    "governance_blast_radius_actual": "BR-5",
+    "runtime_readiness_tier_actual": "TIER-C",
+    "needs_code_scan": true,
+    "human_gate_required": true,
+    "soak_ready": false,
+    "soak_readiness_blockers": [
+      "needs_code_scan=true: resolve technical vs semantic blast radius divergence"
+    ]
+  },
+  "surface_design": {
+    "allow_surface": [
+      "READ",
+      "GET_CII_TRAJECTORY",
+      "GET_ETS_PRICE",
+      "READ_EMISSIONS_DASHBOARD",
+      "GET_EUA_POSITION",
+      "GET_ANNUAL_ETS_COST",
+      "GET_FUELEU_COMPLIANCE_BALANCE",
+      "GET_CARBON_SHORTFALL"
+    ],
+    "gate_surface": [
+      "GENERATE_EMISSIONS_REPORT",
+      "SET_CARBON_TARGET",
+      "CALCULATE_EUA_OBLIGATION",
+      "TRACK_EUA_POSITION",
+      "COMPUTE_FUELEU_INTENSITY",
+      "EXTERNAL_WRITE",
+      "RELEASE_DOCUMENT",
+      "APPROVE_TRANSACTION",
+      "SYNC_PUSH"
+    ],
+    "hard_block_surface": [
+      "SUBMIT_ETS_SURRENDER",
+      "IMPOSSIBLE_OP",
+      "EMPTY_CAPABILITY_ON_WRITE",
+      "EXTERNAL_WRITE_UNAUTHENTICATED",
+      "BULK_ETS_MUTATION",
+      "FORCE_ETS_OVERWRITE",
+      "EUA_BULK_DELETE"
+    ]
+  },
+  "metadata_discrepancy": {
+    "assumed_authority_class": "external_call",
+    "actual_authority_class": "financial",
+    "assumed_blast_radius": "BR-3",
+    "actual_blast_radius": "BR-5",
+    "assumed_tier": "TIER-A",
+    "actual_runtime_readiness": "TIER-C",
+    "discrepancy_impact": "Soak doctrine (full HG-2B) applies; financial_settlement_doctrine addendum required"
+  },
+  "soak_readiness": {
+    "verdict": "NOT_READY",
+    "blockers": [
+      "needs_code_scan=true: technical vs semantic blast radius unresolved"
+    ],
+    "gate_for_batch_63": "Complete code scan → resolve technical_blast_radius → confirm dependency graph → then declare CARBONX_HG2B_POLICY"
+  },
+  "runtime_env_mode": "audit_env_set_to_live7_no_carbonx",
+  "batch60_artifact_is_source_of_truth": true,
+  "batch61_convergence_passed": true,
+  "zenodo_paper_status": "historical_snapshot — carbonx not covered",
+  "product_brief_status": "requires_update_to_include_carbonx_candidate_classification"
+}
