@@ -206,7 +206,8 @@
     "enforcement_stage3_prep": "✅ run — Batch 37: puranic-os HG-1 policy prep (118/118 PASS); PURANIC_OS_HG1_POLICY added (hard_gate_enabled=false, rollout_order=4, BR-1); still_gate downgrade semantics verified for BR-1 profile",
     "enforcement_stage3_soak": "✅ run — Batch 38: puranic-os 7/7 soak (917/917 PASS); 11 traffic waves per run; approval lifecycle FSM; kill+rollback extended; boundary conditions; 20 TPs; FP=0; production_fires=0; promotion_permitted_puranic_os=true",
     "enforcement_env_gate_switch": "✅ confirmed — AEGIS_HARD_GATE_SERVICES env var is the live gate switch. policy.hard_gate_enabled is advisory; gate.ts checks env, not policy flag. Adding service to env immediately activates live BLOCK for hard_block caps regardless of policy flag value.",
-    "enforcement_hg1_closure": "✅ complete — Batch 40: all 4 HG-1 services live (chirpee/ship-slm/chief-slm/puranic-os); 6225 lifetime checks; 0 FP; 0 prod_fires; rollback config-only; HG-2 armoury open"
+    "enforcement_hg1_closure": "✅ complete — Batch 40: all 4 HG-1 services live (chirpee/ship-slm/chief-slm/puranic-os); 6225 lifetime checks; 0 FP; 0 prod_fires; rollback config-only; HG-2 armoury open",
+    "enforcement_hg2_doctrine": "✅ complete — Batch 41: HG-2A/HG-2B/HG-2C classified; pramana soak-ready; HG-2B hard-blocked (external_call review); HG-1 regression PASS"
   },
   "protocol": "bitmask-os-v1",
   "bitmask_os_layer": 4,
@@ -256,7 +257,7 @@
   },
   "granthx_indexed": true,
   "enforcement_rollout": {
-    "batch_history": "28 (rough-weather) → 29 (HG policy) → 30 (HG-1 pilot) → 31 (chirpee soak 7/7) → 32/33 (chirpee promote+observe) → 34 (ship/chief prep) → 35 (ship/chief soak 7/7) → 36 (ship/chief promote) → 37 (puranic-os prep) → 38 (puranic-os soak 7/7) → 39 (puranic-os promote) → 40 (HG-1 closure)",
+    "batch_history": "28 (rough-weather) → 29 (HG policy) → 30 (HG-1 pilot) → 31 (chirpee soak 7/7) → 32/33 (chirpee promote+observe) → 34 (ship/chief prep) → 35 (ship/chief soak 7/7) → 36 (ship/chief promote) → 37 (puranic-os prep) → 38 (puranic-os soak 7/7) → 39 (puranic-os promote) → 40 (HG-1 closure) → 41 (HG-2 opening doctrine)",
     "soak_runs_complete": "28/28 (chirpee:7 + ship-slm:7 + chief-slm:7 + puranic-os:7)",
     "false_positives_lifetime": 0,
     "true_positives_lifetime": 242,
@@ -283,6 +284,10 @@
     "stage3_promoted": true,
     "hg1_closed": true,
     "hg2_open": true,
-    "hg1_closure_date": "2026-05-03T02:07:07.858Z"
+    "hg1_closure_date": "2026-05-03T02:07:07.858Z",
+    "hg2_doctrine_complete": true,
+    "hg2a_first_mover": "pramana",
+    "hg2b_blocked_reason": "external_call — impact review required before hard-block",
+    "hg2_soak_batch_next": "Batch 42 (pramana policy prep + soak)"
   }
 }
