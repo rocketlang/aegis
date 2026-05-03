@@ -46,6 +46,19 @@ export interface ServiceHardGatePolicy {
   never_block_capabilities: ReadonlySet<string>; // AEG-E-002: READ always here
   rollout_order: number;
   stage: string;
+  // HG-2B doctrine fields (required for external-state services; Batch 52 doctrine v1)
+  // @rule:AEG-HG-2B-001 external_state_touch=true forces external cleanup in rollback
+  // @rule:AEG-HG-2B-002 approval_required_for_irreversible_action=true — non-negotiable
+  // @rule:AEG-HG-2B-003 observability_required=true — CA-003; no silent boundary crossings
+  // @rule:AEG-HG-2B-004 audit_artifact_required=true — every soak/promotion/rollback tracked
+  external_state_touch?: boolean;
+  boundary_crossing?: boolean;
+  reversible_actions_only?: boolean;
+  approval_required_for_irreversible_action?: boolean;
+  kill_switch_scope?: "global" | "service" | "capability_class";
+  rollback_path?: string;
+  observability_required?: boolean;
+  audit_artifact_required?: boolean;
 }
 
 export interface SimulationResult {
@@ -332,6 +345,97 @@ export const DOMAIN_CAPTURE_HG2A_POLICY: ServiceHardGatePolicy = {
 };
 
 // ── Policy registry ───────────────────────────────────────────────────────────
+// ── parali-central HG-2B policy ───────────────────────────────────────────────
+//
+// HG-2B — first external-state / boundary-crossing candidate.
+// Doctrine defined: Batch 52 (aegis-hg2b-doctrine-v1, 2026-05-03).
+// Soft-canary started: Batch 53 (run 1/7, 2026-05-03).
+//
+// HG-2B PROFILE:
+//   external_state_touch=true — may touch APIs/DBs outside ANKR runtime
+//   boundary_crossing=true    — inbound signals + outbound mutations
+//   reversible_actions_only=false — EXTERNAL_NOTIFY/EXTERNAL_DELETE are irreversible
+//   approval_required_for_irreversible_action=true — non-negotiable (AEG-HG-2B-002)
+//   observability_required=true — CA-003; no silent boundary crossings
+//   audit_artifact_required=true — every soak + promotion tracked in audits/
+//
+// Hard-block scope (HG-2B doctrine):
+//   Unconditionally blocked: unauthenticated writes, unapproved deletes,
+//   bulk mutations, snapshot-free overwrites, plus universal malformed sentinels.
+//
+// Still-gate scope:
+//   External writes/notifications/syncs/deploys require GATE (human approval),
+//   but CAN proceed once an approval token is issued and approved.
+//   READ and safe external-read paths (FETCH_STATUS/CHECK_CONNECTION/DRY_RUN)
+//   always remain ALLOW — AEG-HG-002 invariant extended to all read-class ops.
+//
+// NOT PROMOTED. hard_gate_enabled=false. Not in AEGIS_HARD_GATE_SERVICES.
+// Rollout order 7 is the candidate slot — will become live order on promotion.
+// @rule:AEG-HG-001 — hard_gate_enabled=false until manual promotion act.
+
+export const PARALI_CENTRAL_HG2B_POLICY: ServiceHardGatePolicy = {
+  service_id: "parali-central",
+  hg_group: "HG-2",
+  hard_gate_enabled: false, // @rule:AEG-HG-001 — candidate only; NOT in AEGIS_HARD_GATE_SERVICES
+  hard_block_capabilities: new Set([
+    // Universal malformed sentinels (all HG groups)
+    "IMPOSSIBLE_OP",
+    "EMPTY_CAPABILITY_ON_WRITE",
+    // HG-2B external-state doctrine (AEG-HG-2B-002)
+    "EXTERNAL_WRITE_UNAUTHENTICATED",   // external write with no auth token
+    "EXTERNAL_DELETE_UNAPPROVED",       // irreversible delete without approval token
+    "BULK_EXTERNAL_MUTATION",           // batch external write — blast radius too high
+    "FORCE_EXTERNAL_OVERWRITE",         // CA-003 violation: no before_snapshot
+  ]),
+  still_gate_capabilities: new Set([
+    // External-state operations — require GATE + approval token (AEG-HG-2B-002)
+    "EXTERNAL_WRITE",        // write to external system
+    "EXTERNAL_NOTIFY",       // notification/email/SMS/webhook (irreversible)
+    "BOUNDARY_MUTATION",     // mutate shared state across trust boundary
+    "SYNC_PUSH",             // push internal state to external endpoint
+    "DELETE_EXTERNAL_STATE", // delete from external system (irreversible)
+    "APPROVE_TRANSACTION",   // approve financial/ledger transaction (irreversible)
+    "DEPLOY_TO_EXTERNAL",    // trigger deploy on external system
+    "RELEASE_DOCUMENT",      // release/endorse document to external party
+    "FINALIZE_RECORD",       // finalize a record in external system
+    "TRIGGER_WORKFLOW",      // trigger external workflow
+    "SEND_MESSAGE",          // send external message
+    "SYNC_RECORD",           // sync internal record to external DB
+    "UPDATE_EXTERNAL_STATE", // update external system state
+    // Standard high-consequence ops (all HG groups keep these as GATE)
+    "CI_DEPLOY", "DELETE", "EXECUTE", "APPROVE", "AI_EXECUTE",
+    "FULL_AUTONOMY", "SPAWN_AGENTS", "MEMORY_WRITE", "AUDIT_WRITE", "EMIT",
+  ]),
+  always_allow_capabilities: new Set([
+    // Internal read-class — always ALLOW (AEG-HG-002)
+    "READ", "GET", "LIST", "QUERY", "SEARCH", "HEALTH",
+    // External read-class — safe, idempotent (HG-2B doctrine § allowed_action_classes)
+    "STATUS",            // status check of external system
+    "EXTERNAL_READ",     // read-only query to external system
+    "FETCH_STATUS",      // fetch external service/resource status
+    "CHECK_CONNECTION",  // connectivity check (no mutation)
+    "DRY_RUN",           // dry-run mode — no external side-effects
+  ]),
+  never_block_capabilities: new Set([
+    "READ", // @rule:AEG-HG-002 — AEG-E-002 extended to hard mode
+  ]),
+  rollout_order: 7,
+  stage: "Stage 5 — HG-2B candidate — soft_canary 2026-05-03 (Batch 53) — NOT PROMOTED",
+  // HG-2B doctrine fields (Batch 52, aegis-hg2b-doctrine-v1)
+  external_state_touch: true,
+  boundary_crossing: true,
+  reversible_actions_only: false,
+  approval_required_for_irreversible_action: true,
+  kill_switch_scope: "service",
+  rollback_path:
+    "Remove parali-central from AEGIS_HARD_GATE_SERVICES (immediate soft_canary return). " +
+    "If external_state_touch=true: audit external system for mutations during hard-gate window; " +
+    "document cleanup in audits/batchNN_parali_central_rollback.json.",
+  observability_required: true,
+  audit_artifact_required: true,
+};
+
+// ── Policy registry ───────────────────────────────────────────────────────────
 // Batch 34: ship-slm + chief-slm added (disabled). Chirpee = Stage 1 live.
 // Batch 36: ship-slm + chief-slm promoted live.
 // Batch 37: puranic-os added (disabled). Stage 3 candidate.
@@ -340,14 +444,17 @@ export const DOMAIN_CAPTURE_HG2A_POLICY: ServiceHardGatePolicy = {
 // Batch 43: pramana promoted live (HG-2A). 5 live hard-gate services total.
 // Batch 46: domain-capture added (HG-2A, disabled). Stage 4 soak — 7/7 PASS (Batch 47).
 // Batch 48: domain-capture promoted live (HG-2A). 6 live hard-gate services total.
+// Batch 53: parali-central added (HG-2B candidate, soft_canary). Live roster unchanged at 6.
 
 export const HARD_GATE_POLICIES: Readonly<Record<string, ServiceHardGatePolicy>> = {
-  chirpee:           CHIRPEE_HG1_POLICY,
-  "ship-slm":        SHIP_SLM_HG1_POLICY,
-  "chief-slm":       CHIEF_SLM_HG1_POLICY,
-  "puranic-os":      PURANIC_OS_HG1_POLICY,
-  pramana:           PRAMANA_HG2A_POLICY,
-  "domain-capture":  DOMAIN_CAPTURE_HG2A_POLICY,
+  chirpee:             CHIRPEE_HG1_POLICY,
+  "ship-slm":          SHIP_SLM_HG1_POLICY,
+  "chief-slm":         CHIEF_SLM_HG1_POLICY,
+  "puranic-os":        PURANIC_OS_HG1_POLICY,
+  pramana:             PRAMANA_HG2A_POLICY,
+  "domain-capture":    DOMAIN_CAPTURE_HG2A_POLICY,
+  // HG-2B candidate (soft_canary — NOT in AEGIS_HARD_GATE_SERVICES)
+  "parali-central":    PARALI_CENTRAL_HG2B_POLICY,
 };
 
 // ── Live hard-gate enforcement ────────────────────────────────────────────────

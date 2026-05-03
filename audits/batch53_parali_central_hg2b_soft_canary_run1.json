@@ -1,0 +1,140 @@
+{
+  "batch": 53,
+  "date": "2026-05-03T07:33:48.129Z",
+  "type": "hg2b_soft_canary_soak",
+  "soak_run": 1,
+  "soak_total": 7,
+  "verdict": "PASS",
+  "total_checks": 153,
+  "passed": 153,
+  "failed": 0,
+  "failures": [],
+  "service": "parali-central",
+  "hg_group": "HG-2B",
+  "phase": "soft_canary",
+  "hard_gate_enabled": false,
+  "in_aegis_hard_gate_services": false,
+  "live_roster": [
+    "chirpee",
+    "ship-slm",
+    "chief-slm",
+    "puranic-os",
+    "pramana",
+    "domain-capture"
+  ],
+  "live_roster_size": 6,
+  "hg2b_in_live_roster": 0,
+  "hg2c_in_live_roster": 0,
+  "promotion_permitted_parali_central": false,
+  "false_positives": 0,
+  "production_fires": 0,
+  "doctrine_fields_verified": {
+    "external_state_touch": true,
+    "boundary_crossing": true,
+    "reversible_actions_only": false,
+    "approval_required_for_irreversible_action": true,
+    "kill_switch_scope": "service",
+    "observability_required": true,
+    "audit_artifact_required": true
+  },
+  "approval_lifecycle": {
+    "issue": "PASS",
+    "approve": "PASS",
+    "deny": "PASS",
+    "revoke": "PASS",
+    "simulated_rollback_finding": {
+      "service": "parali-central",
+      "cap": "DELETE_EXTERNAL_STATE",
+      "reason": "approval token revoked before action proceeded",
+      "action": "simulated_rollback",
+      "finding": "irreversible_action_without_valid_approval_triggers_rollback",
+      "hg2b_doctrine_code": "IRR-NOAPPROVAL"
+    }
+  },
+  "sense_events_observed": [
+    {
+      "cap": "EXTERNAL_WRITE",
+      "decision": "GATE",
+      "ca003_compliant": true
+    },
+    {
+      "cap": "IMPOSSIBLE_OP",
+      "decision": "BLOCK",
+      "ca003_compliant": true
+    },
+    {
+      "cap": "DELETE_EXTERNAL_STATE",
+      "decision": "GATE",
+      "ca003_compliant": true
+    },
+    {
+      "cap": "TRIGGER_WORKFLOW",
+      "decision": "GATE",
+      "ca003_compliant": true
+    }
+  ],
+  "capability_surface": {
+    "always_allow": [
+      "READ",
+      "GET",
+      "LIST",
+      "QUERY",
+      "SEARCH",
+      "HEALTH",
+      "STATUS",
+      "EXTERNAL_READ",
+      "FETCH_STATUS",
+      "CHECK_CONNECTION",
+      "DRY_RUN"
+    ],
+    "hard_block": [
+      "IMPOSSIBLE_OP",
+      "EMPTY_CAPABILITY_ON_WRITE",
+      "EXTERNAL_WRITE_UNAUTHENTICATED",
+      "EXTERNAL_DELETE_UNAPPROVED",
+      "BULK_EXTERNAL_MUTATION",
+      "FORCE_EXTERNAL_OVERWRITE"
+    ],
+    "still_gate_gate_required": [
+      "EXTERNAL_WRITE",
+      "EXTERNAL_NOTIFY",
+      "BOUNDARY_MUTATION",
+      "SYNC_PUSH",
+      "DELETE_EXTERNAL_STATE",
+      "APPROVE_TRANSACTION",
+      "DEPLOY_TO_EXTERNAL",
+      "RELEASE_DOCUMENT",
+      "FINALIZE_RECORD",
+      "TRIGGER_WORKFLOW",
+      "SEND_MESSAGE",
+      "SYNC_RECORD",
+      "UPDATE_EXTERNAL_STATE"
+    ]
+  },
+  "soak_criteria_remaining": [
+    "Run 2/7: expand GATE surface (BOUNDARY_MUTATION/SYNC_PUSH/EXTERNAL_NOTIFY)",
+    "Run 3/7: SENSE event completeness on all irreversible paths",
+    "Run 4/7: approval token TTL expiry + re-issue",
+    "Run 5/7: mixed still_gate + hard_block + unknown cap",
+    "Run 6/7: cross-group isolation (HG-2B caps not bleeding into HG-1/HG-2A)",
+    "Run 7/7: full approval lifecycle + rollback drill + promotion readiness gate"
+  ],
+  "summary": [
+    "PARALI_CENTRAL_HG2B_POLICY declared in hard-gate-policy.ts",
+    "hard_gate_enabled=false confirmed — NOT in AEGIS_HARD_GATE_SERVICES",
+    "phase=soft_canary, stage confirms NOT PROMOTED",
+    "HG-2B doctrine fields: all 8 present and verified",
+    "ALLOW paths: READ/GET/LIST/QUERY/SEARCH/HEALTH — PASS (no FP)",
+    "Safe external-read paths: EXTERNAL_READ/FETCH_STATUS/CHECK_CONNECTION/DRY_RUN — ALLOW",
+    "External write paths: EXTERNAL_WRITE/SEND_MESSAGE/TRIGGER_WORKFLOW — GATE (not BLOCK)",
+    "Irreversible paths: DELETE_EXTERNAL_STATE/APPROVE_TRANSACTION — GATE (approval required)",
+    "Hard-block surface: IMPOSSIBLE_OP/EXTERNAL_WRITE_UNAUTHENTICATED — BLOCK (dry-run)",
+    "Approval lifecycle: issue/approve/deny/revoke all PASS",
+    "Simulated rollback finding: IRR-NOAPPROVAL recorded (revoked token before action)",
+    "SENSE events: 4 cases verified, all CA-003 compliant",
+    "Unknown cap/service safety: PASS",
+    "Six live guards regression: PASS",
+    "Kill switch: PASS (all 6 suppressed, parali-central candidate safe)",
+    "promotion_permitted_parali_central=false (1/7 soak runs complete)"
+  ]
+}
