@@ -1,0 +1,96 @@
+{
+  "batch": 47,
+  "service": "domain-capture",
+  "hg_group": "HG-2A",
+  "run_date": "2026-05-03T03:53:03.983Z",
+  "soak_runs": [
+    {
+      "run": 1,
+      "verdict": "PASS",
+      "source": "batch46_domain_capture_soak_run1_metrics.json",
+      "checks": 123,
+      "passed": 123,
+      "failed": 0,
+      "prod_fires": 0,
+      "fp": 0
+    },
+    {
+      "run": 2,
+      "verdict": "PASS",
+      "checks": 45,
+      "passed": 45,
+      "failed": 0,
+      "prod_fires": 0,
+      "fp": 0
+    },
+    {
+      "run": 3,
+      "verdict": "PASS",
+      "checks": 41,
+      "passed": 41,
+      "failed": 0,
+      "prod_fires": 0,
+      "fp": 0
+    },
+    {
+      "run": 4,
+      "verdict": "PASS",
+      "checks": 81,
+      "passed": 81,
+      "failed": 0,
+      "prod_fires": 0,
+      "fp": 0
+    },
+    {
+      "run": 5,
+      "verdict": "PASS",
+      "checks": 32,
+      "passed": 32,
+      "failed": 0,
+      "prod_fires": 0,
+      "fp": 0
+    },
+    {
+      "run": 6,
+      "verdict": "PASS",
+      "checks": 62,
+      "passed": 62,
+      "failed": 0,
+      "prod_fires": 0,
+      "fp": 0
+    },
+    {
+      "run": 7,
+      "verdict": "PASS",
+      "checks": 88,
+      "passed": 88,
+      "failed": 0,
+      "prod_fires": 0,
+      "fp": 0
+    }
+  ],
+  "batch47_total_checks": 349,
+  "batch47_total_passed": 349,
+  "batch47_total_failed": 0,
+  "batch47_total_prod_fires": 0,
+  "batch47_total_fp": 0,
+  "all_7_runs_pass": true,
+  "promotion_permitted_domain_capture": true,
+  "hard_gate_enabled_after_soak": false,
+  "policy_stage": "Stage 4 — HG-2A prep — NOT LIVE (Batch 46, 2026-05-03)",
+  "invariants_confirmed": [
+    "hard_gate_enabled=false throughout soak",
+    "domain-capture not in AEGIS_HARD_GATE_SERVICES",
+    "0 false positives across all runs",
+    "0 production fires across all runs",
+    "IMPOSSIBLE_OP + EMPTY_CAPABILITY_ON_WRITE: soft=ALLOW, sim(on)=BLOCK",
+    "domain ops (CAPTURE_DOMAIN etc): NOT BLOCK",
+    "critical ops: GATE not BLOCK (still_gate)",
+    "READ/ALLOW surface: intact (AEG-HG-002)",
+    "approval_token on soft_canary GATE: present; action methods: absent",
+    "kill switch: all services → shadow, 0 hard BLOCK",
+    "HG-2B (parali-central, carbonx): NOT hard_gate, NOT BLOCK",
+    "live roster (5 services): regression clean"
+  ],
+  "promotion_note": "Promotion is a separate human act. Add domain-capture to AEGIS_HARD_GATE_SERVICES and set hard_gate_enabled=true in DOMAIN_CAPTURE_HG2A_POLICY."
+}

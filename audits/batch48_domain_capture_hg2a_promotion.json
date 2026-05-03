@@ -1,0 +1,76 @@
+{
+  "batch": 48,
+  "service": "domain-capture",
+  "tier": "HG-2A",
+  "previous_phase": "soft_canary",
+  "new_phase": "hard_gate",
+  "promotion_basis": "Batch 47 7/7 soak PASS",
+  "soak_runs_passed": 7,
+  "total_soak_checks": 472,
+  "false_positives": 0,
+  "production_fires": 0,
+  "hard_gate_enabled": true,
+  "added_to_AEGIS_HARD_GATE_SERVICES": true,
+  "hg2b_services_promoted": 0,
+  "hg2c_services_promoted": 0,
+  "promotion_performed_by": "human_authorized_batch",
+  "promotion_permitted_domain_capture": true,
+  "batch48_verdict": "PASS",
+  "batch48_total_checks": 148,
+  "batch48_total_passed": 148,
+  "batch48_total_failed": 0,
+  "batch48_prod_fires": 0,
+  "timestamp": "2026-05-03T06:22:57.785Z",
+  "live_hard_gate_roster": [
+    {
+      "service": "chirpee",
+      "hg_group": "HG-1",
+      "rollout_order": 1,
+      "since": "Batch 32"
+    },
+    {
+      "service": "ship-slm",
+      "hg_group": "HG-1",
+      "rollout_order": 2,
+      "since": "Batch 36"
+    },
+    {
+      "service": "chief-slm",
+      "hg_group": "HG-1",
+      "rollout_order": 3,
+      "since": "Batch 36"
+    },
+    {
+      "service": "puranic-os",
+      "hg_group": "HG-1",
+      "rollout_order": 4,
+      "since": "Batch 39"
+    },
+    {
+      "service": "pramana",
+      "hg_group": "HG-2A",
+      "rollout_order": 5,
+      "since": "Batch 43"
+    },
+    {
+      "service": "domain-capture",
+      "hg_group": "HG-2A",
+      "rollout_order": 6,
+      "since": "Batch 48"
+    }
+  ],
+  "not_promoted": [
+    {
+      "service": "parali-central",
+      "status": "HG-2B — external impact review pending"
+    },
+    {
+      "service": "carbonx",
+      "status": "HG-2B — external impact review pending"
+    },
+    {
+      "service": "ankr-doctor",
+      "status": "HG-2C — separate governance review"
+    }
+  ]
+}

@@ -1,0 +1,94 @@
+{
+  "batch": 49,
+  "audit_type": "cross_repo_promotion_convergence",
+  "service": "domain-capture",
+  "tier": "HG-2A",
+  "audit_date": "2026-05-03T06:31:22.285Z",
+  "verdict": "PASS",
+  "total_checks": 85,
+  "passed": 85,
+  "failed": 0,
+  "surfaces_audited": [
+    "policy",
+    "runtime_env",
+    "codex.json",
+    "batch47_verdict",
+    "batch48_promotion",
+    "audit_trail",
+    "approval_lifecycle",
+    "isolation",
+    "regression"
+  ],
+  "convergence_summary": {
+    "policy_hard_gate_enabled": true,
+    "policy_rollout_order": 6,
+    "policy_hg_group": "HG-2",
+    "codex_hg_group": "HG-2A",
+    "codex_hg_group_status": "LIVE — Batch 48 (hard_gate promoted 2026-05-03)",
+    "runtime_hard_gate_active": true,
+    "soak_runs_passed": 7,
+    "total_soak_checks": 472,
+    "soak_false_positives": 0,
+    "soak_prod_fires": 0,
+    "batch48_checks": 148,
+    "batch48_failures": 0,
+    "batch48_prod_fires": 0,
+    "approval_lifecycle_live": true,
+    "hg2b_services_promoted": 0,
+    "hg2c_services_promoted": 0,
+    "hg1_services_stable": 4,
+    "pramana_stable": true,
+    "rollback_documented": true,
+    "artifacts_tracked": true
+  },
+  "live_hard_gate_roster": [
+    {
+      "service": "chirpee",
+      "hg_group": "HG-1",
+      "rollout_order": 1,
+      "since": "Batch 32"
+    },
+    {
+      "service": "ship-slm",
+      "hg_group": "HG-1",
+      "rollout_order": 2,
+      "since": "Batch 36"
+    },
+    {
+      "service": "chief-slm",
+      "hg_group": "HG-1",
+      "rollout_order": 3,
+      "since": "Batch 36"
+    },
+    {
+      "service": "puranic-os",
+      "hg_group": "HG-1",
+      "rollout_order": 4,
+      "since": "Batch 39"
+    },
+    {
+      "service": "pramana",
+      "hg_group": "HG-2A",
+      "rollout_order": 5,
+      "since": "Batch 43"
+    },
+    {
+      "service": "domain-capture",
+      "hg_group": "HG-2A",
+      "rollout_order": 6,
+      "since": "Batch 48"
+    }
+  ],
+  "not_promoted": [
+    "parali-central (HG-2B)",
+    "carbonx (HG-2B)",
+    "ankr-doctor (HG-2C)"
+  ],
+  "tracked_artifacts": [
+    "audits/batch47_domain_capture_final_verdict.json",
+    "audits/batch48_domain_capture_hg2a_promotion.json",
+    "audits/batch48_domain_capture_hg2a_summary.md",
+    "audits/batch49_domain_capture_cross_repo_audit.json"
+  ],
+  "failures": []
+}
