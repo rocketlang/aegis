@@ -180,13 +180,53 @@ export const CHIEF_SLM_HG1_POLICY: ServiceHardGatePolicy = {
   stage: "Stage 2 — HG-1 LIVE 2026-05-03 (Batch 36) — soak: Batch 35 7/7",
 };
 
+// ── puranic-os HG-1 policy ────────────────────────────────────────────────────
+//
+// Stage 3 candidate. Profile: read_only authority + BR-1 (slightly higher blast
+// radius than BR-0 HG-1 services, still fully HG-1 eligible).
+// Registry confirmed Batch 37, 2026-05-03: TIER-A, authority_class=read_only, BR-1.
+// Not live — hard_gate_enabled=false until 7-run soak.
+// Promotion requires: AEGIS_HARD_GATE_SERVICES includes puranic-os (manual act, Batch 40).
+//
+// BR-1 vs BR-0 note: BR-1 means slightly broader internal reach than chirpee/ship-slm.
+// Policy is identical — hard-block scope stays IMPOSSIBLE_OP + EMPTY_CAPABILITY_ON_WRITE.
+// Soak validates false-positive surface under BR-1 conditions before promotion.
+//
+// @rule:AEG-HG-001 hard_gate_enabled=false — runtime enabling is AEGIS_HARD_GATE_SERVICES
+
+export const PURANIC_OS_HG1_POLICY: ServiceHardGatePolicy = {
+  service_id: "puranic-os",
+  hg_group: "HG-1",
+  hard_gate_enabled: false, // @rule:AEG-HG-001
+  hard_block_capabilities: new Set([
+    "IMPOSSIBLE_OP",
+    "EMPTY_CAPABILITY_ON_WRITE",
+  ]),
+  still_gate_capabilities: new Set([
+    "CI_DEPLOY", "DELETE", "EXECUTE", "APPROVE", "AI_EXECUTE",
+    "FULL_AUTONOMY", "SPAWN_AGENTS", "MEMORY_WRITE", "AUDIT_WRITE",
+    "TRIGGER", "EMIT",
+  ]),
+  always_allow_capabilities: new Set([
+    "READ", "GET", "LIST", "QUERY", "SEARCH", "HEALTH",
+  ]),
+  never_block_capabilities: new Set([
+    "READ", // @rule:AEG-HG-002
+  ]),
+  rollout_order: 4,
+  stage: "Stage 3 — HG-1 prep — NOT LIVE (Batch 37, 2026-05-03)",
+};
+
 // ── Policy registry ───────────────────────────────────────────────────────────
-// Batch 34: ship-slm + chief-slm policies added (disabled). Chirpee = Stage 1 live.
+// Batch 34: ship-slm + chief-slm added (disabled). Chirpee = Stage 1 live.
+// Batch 36: ship-slm + chief-slm promoted live.
+// Batch 37: puranic-os added (disabled). Stage 3 candidate.
 
 export const HARD_GATE_POLICIES: Readonly<Record<string, ServiceHardGatePolicy>> = {
-  chirpee:    CHIRPEE_HG1_POLICY,
-  "ship-slm": SHIP_SLM_HG1_POLICY,
-  "chief-slm": CHIEF_SLM_HG1_POLICY,
+  chirpee:       CHIRPEE_HG1_POLICY,
+  "ship-slm":    SHIP_SLM_HG1_POLICY,
+  "chief-slm":   CHIEF_SLM_HG1_POLICY,
+  "puranic-os":  PURANIC_OS_HG1_POLICY,
 };
 
 // ── Live hard-gate enforcement ────────────────────────────────────────────────

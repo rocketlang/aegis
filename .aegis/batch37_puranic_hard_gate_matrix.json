@@ -1,0 +1,185 @@
+[
+  {
+    "service": "puranic-os",
+    "operation": "read",
+    "capability": "READ",
+    "soft_decision": "ALLOW",
+    "enforcement_phase": "soft_canary",
+    "sim_off": "ALLOW",
+    "sim_off_fires": false,
+    "sim_on": "ALLOW",
+    "sim_on_applies": false,
+    "is_malformed": false
+  },
+  {
+    "service": "puranic-os",
+    "operation": "get",
+    "capability": "GET",
+    "soft_decision": "ALLOW",
+    "enforcement_phase": "soft_canary",
+    "sim_off": "ALLOW",
+    "sim_off_fires": false,
+    "sim_on": "ALLOW",
+    "sim_on_applies": false,
+    "is_malformed": false
+  },
+  {
+    "service": "puranic-os",
+    "operation": "list",
+    "capability": "LIST",
+    "soft_decision": "ALLOW",
+    "enforcement_phase": "soft_canary",
+    "sim_off": "ALLOW",
+    "sim_off_fires": false,
+    "sim_on": "ALLOW",
+    "sim_on_applies": false,
+    "is_malformed": false
+  },
+  {
+    "service": "puranic-os",
+    "operation": "query",
+    "capability": "QUERY",
+    "soft_decision": "ALLOW",
+    "enforcement_phase": "soft_canary",
+    "sim_off": "ALLOW",
+    "sim_off_fires": false,
+    "sim_on": "ALLOW",
+    "sim_on_applies": false,
+    "is_malformed": false
+  },
+  {
+    "service": "puranic-os",
+    "operation": "search",
+    "capability": "SEARCH",
+    "soft_decision": "ALLOW",
+    "enforcement_phase": "soft_canary",
+    "sim_off": "ALLOW",
+    "sim_off_fires": false,
+    "sim_on": "ALLOW",
+    "sim_on_applies": false,
+    "is_malformed": false
+  },
+  {
+    "service": "puranic-os",
+    "operation": "health",
+    "capability": "HEALTH",
+    "soft_decision": "ALLOW",
+    "enforcement_phase": "soft_canary",
+    "sim_off": "ALLOW",
+    "sim_off_fires": false,
+    "sim_on": "ALLOW",
+    "sim_on_applies": false,
+    "is_malformed": false
+  },
+  {
+    "service": "puranic-os",
+    "operation": "write",
+    "capability": "WRITE",
+    "soft_decision": "ALLOW",
+    "enforcement_phase": "soft_canary",
+    "sim_off": "ALLOW",
+    "sim_off_fires": false,
+    "sim_on": "ALLOW",
+    "sim_on_applies": false,
+    "is_malformed": false
+  },
+  {
+    "service": "puranic-os",
+    "operation": "create",
+    "capability": "WRITE",
+    "soft_decision": "ALLOW",
+    "enforcement_phase": "soft_canary",
+    "sim_off": "ALLOW",
+    "sim_off_fires": false,
+    "sim_on": "ALLOW",
+    "sim_on_applies": false,
+    "is_malformed": false
+  },
+  {
+    "service": "puranic-os",
+    "operation": "update",
+    "capability": "WRITE",
+    "soft_decision": "ALLOW",
+    "enforcement_phase": "soft_canary",
+    "sim_off": "ALLOW",
+    "sim_off_fires": false,
+    "sim_on": "ALLOW",
+    "sim_on_applies": false,
+    "is_malformed": false
+  },
+  {
+    "service": "puranic-os",
+    "operation": "patch",
+    "capability": "WRITE",
+    "soft_decision": "ALLOW",
+    "enforcement_phase": "soft_canary",
+    "sim_off": "ALLOW",
+    "sim_off_fires": false,
+    "sim_on": "ALLOW",
+    "sim_on_applies": false,
+    "is_malformed": false
+  },
+  {
+    "service": "puranic-os",
+    "operation": "ai-execute",
+    "capability": "AI_EXECUTE",
+    "soft_decision": "GATE",
+    "sim_on": "GATE",
+    "sim_on_applies": false,
+    "is_malformed": false
+  },
+  {
+    "service": "puranic-os",
+    "operation": "deploy",
+    "capability": "CI_DEPLOY",
+    "soft_decision": "GATE",
+    "sim_on": "GATE",
+    "sim_on_applies": false,
+    "is_malformed": false
+  },
+  {
+    "service": "puranic-os",
+    "operation": "delete",
+    "capability": "DELETE",
+    "soft_decision": "GATE",
+    "sim_on": "GATE",
+    "sim_on_applies": false,
+    "is_malformed": false
+  },
+  {
+    "service": "puranic-os",
+    "operation": "execute",
+    "capability": "EXECUTE",
+    "soft_decision": "ALLOW",
+    "sim_on": "ALLOW",
+    "sim_on_applies": false,
+    "is_malformed": false
+  },
+  {
+    "service": "puranic-os",
+    "operation": "approve",
+    "capability": "APPROVE",
+    "soft_decision": "ALLOW",
+    "sim_on": "ALLOW",
+    "sim_on_applies": false,
+    "is_malformed": false
+  },
+  {
+    "service": "puranic-os",
+    "operation": "frob",
+    "capability": "IMPOSSIBLE_OP",
+    "soft_decision": "ALLOW",
+    "sim_on": "BLOCK",
+    "sim_on_applies": true,
+    "is_malformed": true
+  },
+  {
+    "service": "puranic-os",
+    "operation": "write",
+    "capability": "EMPTY_CAPABILITY_ON_WRITE",
+    "soft_decision": "ALLOW",
+    "sim_on": "BLOCK",
+    "sim_on_applies": true,
+    "is_malformed": true
+  }
+]
