@@ -228,29 +228,32 @@ export function applyHardGate(
     };
   }
 
-  // still_gate: GATE even in hard mode (not BLOCK)
-  if (policy.still_gate_capabilities.has(cap)) {
+  // still_gate: ONLY fires to downgrade a BLOCK to GATE (defensive).
+  // Does NOT upgrade ALLOW to GATE — soft decision is preserved when not a BLOCK.
+  // Rationale: soft gate for read_only+BR-0 services returns ALLOW for high-risk ops
+  // like EXECUTE/APPROVE/TRIGGER; hard-gate must not override that.
+  if (policy.still_gate_capabilities.has(cap) && softDecision === "BLOCK") {
     return {
       decision: "GATE",
       hard_gate_active: true,
       hard_gate_applied: false,
       hard_gate_service: serviceId,
       policy_version: policy.hg_group,
-      reason: `${cap} in still_gate_capabilities — hard gate defers, GATE not BLOCK`,
+      reason: `${cap} in still_gate_capabilities — hard gate defers, GATE not BLOCK (soft was BLOCK)`,
       invariant_applied: null,
     };
   }
 
-  // Unknown capability: GATE/WARN — never hard-block until canonical registry complete
-  const safeDecision = softDecision === "BLOCK" ? "GATE" : softDecision;
+  // Unknown capability or still_gate with non-BLOCK soft: pass through soft decision.
+  // Unknown caps never hard-block until canonical registry is complete.
   return {
-    decision: safeDecision,
+    decision: softDecision,
     hard_gate_active: true,
     hard_gate_applied: false,
     hard_gate_service: serviceId,
     policy_version: policy.hg_group,
-    reason: `${cap} not in any hard-gate list — unknown capability stays GATE/WARN`,
-    invariant_applied: "unknown_cap_gates_before_blocking",
+    reason: `${cap} not in hard_block — soft decision preserved (GATE/WARN/ALLOW)`,
+    invariant_applied: "unknown_cap_or_still_gate_preserves_soft",
   };
 }
 
