@@ -18,9 +18,10 @@
  */
 
 // ── Global kill switch ────────────────────────────────────────────────────────
-// This constant guards every hard-gate decision path. It is false.
-// Changing it requires a deliberate manual step.
-export const HARD_GATE_GLOBALLY_ENABLED = false;
+// Changed to true: Batch 32 manual promotion, 2026-05-03.
+// Evidence: Batch 31 7/7 soak, 2940 checks, 0 false positives, 110 true positives.
+// Rollback: set to false — chirpee immediately returns to soft-canary. No migration needed.
+export const HARD_GATE_GLOBALLY_ENABLED = true;
 
 // Per-service activation set. Empty until Stage 1 manual promotion.
 // Populated by: AEGIS_HARD_GATE_SERVICES env var (comma-separated service IDs).
@@ -38,7 +39,7 @@ export type HGGroup = "HG-0" | "HG-1" | "HG-2" | "HG-3" | "HG-4";
 export interface ServiceHardGatePolicy {
   service_id: string;
   hg_group: HGGroup;
-  hard_gate_enabled: false; // always false in this module — enabling happens via env var
+  hard_gate_enabled: false; // policy object default is always false; runtime enabling is via env var
   hard_block_capabilities: ReadonlySet<string>; // BLOCK when hard-gate is active
   still_gate_capabilities: ReadonlySet<string>; // GATE even when hard-gate active (not BLOCK)
   always_allow_capabilities: ReadonlySet<string>; // ALLOW regardless
@@ -108,7 +109,7 @@ export const CHIRPEE_HG1_POLICY: ServiceHardGatePolicy = {
     "READ", // @rule:AEG-HG-002 — AEG-E-002 extended to hard mode
   ]),
   rollout_order: 1,
-  stage: "Stage 1 — HG-1 pilot — not yet enabled",
+  stage: "Stage 1 — HG-1 pilot — LIVE 2026-05-03 (Batch 32)",
 };
 
 // ── Policy registry ───────────────────────────────────────────────────────────
@@ -118,6 +119,140 @@ export const CHIRPEE_HG1_POLICY: ServiceHardGatePolicy = {
 export const HARD_GATE_POLICIES: Readonly<Record<string, ServiceHardGatePolicy>> = {
   chirpee: CHIRPEE_HG1_POLICY,
 };
+
+// ── Live hard-gate enforcement ────────────────────────────────────────────────
+//
+// applyHardGate: the live enforcement path. Called from gate.ts evaluate()
+// when HARD_GATE_GLOBALLY_ENABLED=true.
+//
+// Reads process.env.AEGIS_HARD_GATE_SERVICES at call time (not import time)
+// so that the env var can be set after module load in scripts and tests.
+//
+// Returns hard_gate_active=true if the service is in the enabled set.
+// Returns hard_gate_applied=true only when a hard BLOCK fires.
+// All other paths preserve the soft decision unchanged.
+//
+// @rule:AEG-HG-001 — hard_gate_enabled is a policy default; runtime enabling is env var
+// @rule:AEG-HG-002 — READ never hard-blocks regardless of capability list
+// @rule:AEG-HG-003 — promotion requires explicit AEGIS_HARD_GATE_SERVICES entry
+
+export interface HardGateResult {
+  decision: string;
+  hard_gate_active: boolean;   // service has hard-gate running (phase = "hard_gate")
+  hard_gate_applied: boolean;  // a hard BLOCK was triggered by hard_block_capabilities
+  hard_gate_service: string;
+  policy_version: string;
+  reason: string;
+  invariant_applied: string | null;
+}
+
+function isHardGateActiveForService(serviceId: string): boolean {
+  if (!HARD_GATE_GLOBALLY_ENABLED) return false;
+  const raw = process.env.AEGIS_HARD_GATE_SERVICES ?? "";
+  return raw.split(",").map(s => s.trim()).includes(serviceId);
+}
+
+export function applyHardGate(
+  serviceId: string,
+  softDecision: string,
+  requestedCapability: string,
+  operation: string,
+): HardGateResult {
+  const policy = HARD_GATE_POLICIES[serviceId];
+  const isActive = isHardGateActiveForService(serviceId);
+
+  if (!isActive) {
+    return {
+      decision: softDecision,
+      hard_gate_active: false,
+      hard_gate_applied: false,
+      hard_gate_service: serviceId,
+      policy_version: "none",
+      reason: "service not in AEGIS_HARD_GATE_SERVICES",
+      invariant_applied: null,
+    };
+  }
+
+  if (!policy) {
+    return {
+      decision: softDecision,
+      hard_gate_active: true,
+      hard_gate_applied: false,
+      hard_gate_service: serviceId,
+      policy_version: "none",
+      reason: "hard-gate active but no policy defined — soft decision preserved",
+      invariant_applied: null,
+    };
+  }
+
+  const cap = requestedCapability.toUpperCase().trim();
+  const op  = operation.toLowerCase().trim();
+
+  // @rule:AEG-HG-002 — READ never hard-blocks
+  if (policy.never_block_capabilities.has(cap) ||
+      ["read","get","list","query","search","health"].includes(op)) {
+    return {
+      decision: "ALLOW",
+      hard_gate_active: true,
+      hard_gate_applied: false,
+      hard_gate_service: serviceId,
+      policy_version: policy.hg_group,
+      reason: "READ/GET/LIST/QUERY/SEARCH/HEALTH — never_block invariant (AEG-HG-002)",
+      invariant_applied: "AEG-HG-002",
+    };
+  }
+
+  // always_allow takes priority over hard_block
+  if (policy.always_allow_capabilities.has(cap)) {
+    return {
+      decision: "ALLOW",
+      hard_gate_active: true,
+      hard_gate_applied: false,
+      hard_gate_service: serviceId,
+      policy_version: policy.hg_group,
+      reason: `${cap} in always_allow_capabilities`,
+      invariant_applied: null,
+    };
+  }
+
+  // Hard-block: the only path to a live BLOCK decision
+  if (policy.hard_block_capabilities.has(cap)) {
+    return {
+      decision: "BLOCK",
+      hard_gate_active: true,
+      hard_gate_applied: true,
+      hard_gate_service: serviceId,
+      policy_version: policy.hg_group,
+      reason: `${cap} in hard_block_capabilities for ${serviceId} (${policy.hg_group}) — hard BLOCK`,
+      invariant_applied: null,
+    };
+  }
+
+  // still_gate: GATE even in hard mode (not BLOCK)
+  if (policy.still_gate_capabilities.has(cap)) {
+    return {
+      decision: "GATE",
+      hard_gate_active: true,
+      hard_gate_applied: false,
+      hard_gate_service: serviceId,
+      policy_version: policy.hg_group,
+      reason: `${cap} in still_gate_capabilities — hard gate defers, GATE not BLOCK`,
+      invariant_applied: null,
+    };
+  }
+
+  // Unknown capability: GATE/WARN — never hard-block until canonical registry complete
+  const safeDecision = softDecision === "BLOCK" ? "GATE" : softDecision;
+  return {
+    decision: safeDecision,
+    hard_gate_active: true,
+    hard_gate_applied: false,
+    hard_gate_service: serviceId,
+    policy_version: policy.hg_group,
+    reason: `${cap} not in any hard-gate list — unknown capability stays GATE/WARN`,
+    invariant_applied: "unknown_cap_gates_before_blocking",
+  };
+}
 
 // ── Simulation ────────────────────────────────────────────────────────────────
 //

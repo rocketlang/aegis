@@ -34,6 +34,7 @@ import {
 } from "./types";
 import { getServiceEntry, isInPilotScope } from "./registry";
 import { issueApprovalToken } from "./approval";
+import { applyHardGate, HARD_GATE_GLOBALLY_ENABLED } from "./hard-gate-policy";
 
 // ── Environment config ────────────────────────────────────────────────────────
 
@@ -244,10 +245,21 @@ export function evaluate(req: AegisEnforcementRequest): AegisEnforcementDecision
   const { decision: computed, reason } = computeGateDecision(entry, opRisk, inPilot);
   const enforced = resolveEnforcedDecision(computed, phase);
 
-  const isShadow = phase === "shadow" || dry;
+  // @rule:AEG-HG-003 — hard-gate overlay: applied after soft decision, per-service capability BLOCK
+  // Kill switch (phase=shadow) always wins over hard-gate — AEG-E-006 takes precedence.
+  // @rule:AEG-E-006 — AEGIS_RUNTIME_ENABLED=false forces shadow; hard-gate must not override that
+  const hg = (HARD_GATE_GLOBALLY_ENABLED && phase !== "shadow")
+    ? applyHardGate(req.service_id, enforced, req.requested_capability, req.operation)
+    : null;
+
+  const finalDecision = (hg?.hard_gate_applied ? hg.decision : enforced) as GateDecision;
+  const finalPhase: EnforcementPhase = hg?.hard_gate_active ? "hard_gate" : phase;
+  const finalReason = hg?.hard_gate_applied ? hg.reason : reason;
+
+  const isShadow = finalPhase === "shadow" || dry;
   const reasonText = isShadow
-    ? `[${phase.toUpperCase()} — not enforced] ${reason}`
-    : reason;
+    ? `[${finalPhase.toUpperCase()} — not enforced] ${finalReason}`
+    : finalReason;
 
   const base: AegisEnforcementDecision = {
     service_id: req.service_id,
@@ -260,8 +272,8 @@ export function evaluate(req: AegisEnforcementRequest): AegisEnforcementDecision
     runtime_readiness_tier: entry.runtime_readiness.tier,
     aegis_gate_result: entry.aegis_gate.overall,
     enforcement_mode: mode,
-    enforcement_phase: phase,
-    decision: enforced,
+    enforcement_phase: finalPhase,
+    decision: finalDecision,
     reason: reasonText,
     pilot_scope: inPilot,
     in_canary: inCanary,
@@ -269,11 +281,17 @@ export function evaluate(req: AegisEnforcementRequest): AegisEnforcementDecision
     timestamp: now,
     caller_id: req.caller_id,
     session_id: req.session_id,
+    ...(hg?.hard_gate_active && {
+      hard_gate_active: hg.hard_gate_active,
+      hard_gate_applied: hg.hard_gate_applied,
+      hard_gate_service: hg.hard_gate_service,
+      hard_gate_policy_version: hg.policy_version,
+    }),
   };
 
   // @rule:AEG-E-012 — GATE in active enforcement → issue approval_token
   // GATE = pause, not deny. Caller receives token + endpoint to continue.
-  if (enforced === "GATE" && !isShadow && inCanary) {
+  if (finalDecision === "GATE" && !isShadow && inCanary) {
     const approval = issueApprovalToken(base);
     base.approval_required = true;
     base.approval_token = approval.token;

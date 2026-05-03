@@ -62,7 +62,8 @@ export interface AegisEnforcementRequest {
 
 // enforcement_phase tracks where in the rollout each decision lands
 // @rule:AEG-E-011 — phase must be recorded per decision; Pulse reads it for canary dashboards
-export type EnforcementPhase = "shadow" | "soft_canary" | "soft_global" | "hard";
+// hard_gate = HG-1+ active for this service (per-service capability BLOCK layer on top of soft)
+export type EnforcementPhase = "shadow" | "soft_canary" | "soft_global" | "hard" | "hard_gate";
 
 export interface AegisEnforcementDecision {
   service_id: string;
@@ -89,6 +90,13 @@ export interface AegisEnforcementDecision {
   approval_required?: boolean;
   approval_token?: string;
   approval_endpoint?: string;
+  // Hard-gate overlay: present when HG-1+ active for this service
+  // hard_gate_active = true even when no BLOCK fires (phase = "hard_gate")
+  // hard_gate_applied = true only when a hard BLOCK was triggered
+  hard_gate_active?: boolean;
+  hard_gate_applied?: boolean;
+  hard_gate_service?: string;
+  hard_gate_policy_version?: string;
   // Override fields: present when a GATE was bypassed
   bypass_reason?: string;
   bypassed_by?: string;
