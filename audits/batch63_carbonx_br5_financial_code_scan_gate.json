@@ -1,0 +1,95 @@
+{
+  "batch": 63,
+  "type": "code_scan_gate",
+  "purpose": "Resolve carbonx needs_code_scan=true; determine soak readiness",
+  "timestamp": "2026-05-03T12:20:17.756Z",
+  "verdict": "PASS",
+  "gate_decision": "BLOCKED_FOR_SOAK",
+  "checks": 67,
+  "passed": 67,
+  "failed": 0,
+  "failures": [],
+  "blockers": [
+    "BLOCKER [no_idempotency_on_surrender]: recordSurrender has no idempotency key, deduplication, or external reference guard. An AI agent retrying on network failure would double-surrender EUAs. Required before soft-canary: add idempotencyKey or externalRef to EtsTransaction.",
+    "BLOCKER [financial_irreversible_path_without_human_gate]: surrenderEtsAllowances mutation has JWT auth only. No approval token, no role guard, no human-gate check before executing recordSurrender(). Any authenticated org user (including an AI agent with a valid JWT) can surrender EUAs without additional approval. IRR-NOAPPROVAL doctrine is violated. This is the primary soak blocker.",
+    "BLOCKER [no_safe_soft_canary_surface]: No reversal, correction, or compensation path exists for incorrect surrenders. Soft-canary simulation must have a safe surface: at minimum a dry-run mode or a correctSurrender mutation that can undo a test surrender. Without this, soak runs carry real financial correction cost on any error.",
+    "BLOCKER [financial_irreversible_path_without_human_gate]: recordSurrender() emits only pino log — no SENSE event to the event bus. CA-003 (AEG-HG-2B-003 observability_required) mandates that boundary-crossing events are visible to downstream subscribers (kavachos, pramana, ankr-mailer). A financial surrender is exactly the event that must be visible system-wide. Required: SENSE event with before_snapshot + after_snapshot + delta (CA-003).",
+    "BLOCKER [no_safe_soft_canary_surface]: surrenderEtsAllowances has no dry-run or simulation mode. CII, FuelEU, and EEXI all have simulate queries — the precedent and pattern exist. Adding simulateSurrender query (read-only, no DB write) is the minimum required. Without it, AEGIS cannot soak-test against carbonx without triggering real DB mutations."
+  ],
+  "findings": [
+    "✅ package.json — name=@ankr/carbonx-backend, runtime=bun",
+    "✅ external API surface — ICE + EEX price feeds are read-only. Carbon credit registry URLs are constants only — no live external write calls found.",
+    "FINDING: surrender is LOCAL DB only — recordSurrender() writes to local Prisma DB (etsRecord + etsAccount + etsTransaction). No integration with EU THETIS-MRV, MRV portal, or EU ETS registry found. Risk: internal DB integrity, not live EU registry corruption. However, IRR-NOAPPROVAL still applies — local surrender records flow to regulatory reports.",
+    "FINDING: calculateFleetEts is a fleet-wide write — calculateFleetEts() loops all vessels and calls calculateAndPersist() per vessel. This is a bulk database mutation path. Does not surrender EUAs directly — but updates obligationMt for all vessels. Included in GATE surface (not BLOCK).",
+    "FINDING: setManualCarbonPrice lacks admin-role guard — setManualCarbonPrice sets EUA price globally — affects all obligation calculations. JWT auth only, no role=admin check visible in schema. Should require admin role guard.",
+    "✅ financial atomicity — Prisma $transaction ensures all-or-nothing for surrender (record update + balance decrement + tx log).",
+    "FINDING: surrenderEtsAllowances is irreversible — recordSurrender() increments euaSurrendered (+=). No undo/reverse mutation exists. Calling the mutation twice with the same amount double-decrements euaBalance. This confirms IRR-NOAPPROVAL must apply — any surrender without explicit human approval is undoable only by a corrective DB operation, not by a clean API path.",
+    "FINDING: role guard scan — role/admin string found within 1200 chars of surrender mutation — verify it applies to surrender specifically, not to setManualCarbonPrice which follows immediately",
+    "FINDING: EtsTransaction schema has no idempotency field — Prisma $transaction ensures DB atomicity (all 3 ops succeed or none do), but does not prevent duplicate surrenders from distinct API calls. An externalRef or transactionNonce field in EtsTransaction would close this gap.",
+    "✅ audit trail partial — etsTransaction.create provides a DB-level audit trail per surrender. pino structured log provides real-time observability. Sufficient for soft-canary if SENSE event added.",
+    "FINDING: SENSE endpoint exists but not called from surrender — POST /api/v2/forja/sense/emit is wired in main.ts. ets-service.ts does not call it. Adding SENSE emission to recordSurrender() is a 5-line fix — but must happen before soak begins.",
+    "✅ secrets hygiene — JWT_SECRET throws if absent. ICE/EEX API keys are optional (fallback to simulated price). No hardcoded credentials found in financial paths.",
+    "FINDING: simulate pattern established — Add simulateSurrender(vesselId, year, euaAmount): EtsSurrenderSimulation as a read-only query. Return { projectedNewSurrendered, wouldSettle, projectedBalance, shortfall, compliancePct }. No DB write. This is the soak surface AEGIS will call during soft-canary runs 1-7.",
+    "FINDING: zero test coverage for surrender path — No *.test.ts files found in carbonx/backend/src. CII, EEXI, and FuelEU calculators have pure-function logic suitable for unit tests. recordSurrender() requires integration test. Test coverage is not a hard soak blocker for AEGIS (AEGIS supplies the soak), but is a quality gap that should be closed before production promotion."
+  ],
+  "invariants": {
+    "live_roster_size": 7,
+    "hg2b_live_count": 1,
+    "hg2c_live_count": 0,
+    "carbonx_in_hard_gate_services": false,
+    "carbonx_hard_gate_enabled": false,
+    "carbonx_has_policy": false
+  },
+  "scan_results": {
+    "source_available": true,
+    "external_api_clients": [
+      "ICE Carbon API (price-feed GET)",
+      "EEX Carbon API (price-feed GET)"
+    ],
+    "external_writes_found": false,
+    "surrender_is_local_db_only": true,
+    "surrender_path_exists": true,
+    "financial_atomicity": true,
+    "db_audit_trail": true,
+    "jwt_auth_present": true,
+    "approval_token_on_surrender": false,
+    "role_guard_on_surrender": true,
+    "idempotency_key_on_surrender": false,
+    "compensation_path_exists": false,
+    "sense_event_on_surrender": false,
+    "dry_run_mode_on_surrender": false,
+    "dry_run_precedent": true,
+    "test_coverage_for_surrender": false,
+    "secrets_hygiene_pass": true
+  },
+  "required_before_batch_64": [
+    {
+      "id": "CARBONX-FIX-001",
+      "priority": "CRITICAL",
+      "title": "Add human approval gate to surrenderEtsAllowances mutation",
+      "detail": "Add approvalToken arg + AEG-E-016 scoped-key verification before calling recordSurrender(). Token must bind: service_id=carbonx-backend + capability=SUBMIT_ETS_SURRENDER + vesselId + year + euaAmount."
+    },
+    {
+      "id": "CARBONX-FIX-002",
+      "priority": "CRITICAL",
+      "title": "Add SENSE event emission to recordSurrender()",
+      "detail": "Call POST /api/v2/forja/sense/emit from within recordSurrender() after $transaction completes. Payload: { type: 'EUA_SURRENDER_RECORDED', before_snapshot, after_snapshot, delta } (CA-003)."
+    },
+    {
+      "id": "CARBONX-FIX-003",
+      "priority": "CRITICAL",
+      "title": "Add simulateSurrender read-only query (dry-run surface)",
+      "detail": "Add simulateSurrender(vesselId, year, euaAmount): EtsSurrenderSimulation as a query (not mutation). Returns { projectedNewSurrendered, wouldSettle, projectedBalance, shortfall } — no DB write. This is the safe soak surface for AEGIS soft-canary runs 1-7."
+    },
+    {
+      "id": "CARBONX-FIX-004",
+      "priority": "HIGH",
+      "title": "Add idempotency key to EtsTransaction + recordSurrender",
+      "detail": "Add externalRef or transactionNonce to EtsTransaction Prisma model and surrenderEtsAllowances args. recordSurrender() must reject duplicate externalRef with 409 (not 500). Closes double-surrender risk on network retry."
+    }
+  ],
+  "next_batch_when_fixed": "Batch 64 — declare CARBONX_HG2B_POLICY (hard_gate_enabled=false, financial addendum) + soft-canary run 1/7",
+  "runtime_env_mode": "live7_regression_only_no_carbonx",
+  "batch62_candidate_profile_used": true,
+  "batch62_artifact_is_source_of_truth": true
+}
