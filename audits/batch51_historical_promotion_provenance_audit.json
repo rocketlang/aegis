@@ -1,0 +1,215 @@
+{
+  "batch": 51,
+  "audit_type": "historical_promotion_provenance",
+  "audit_date": "2026-05-03T06:50:55.958Z",
+  "verdict": "PASS",
+  "total_checks": 95,
+  "passed": 95,
+  "failed": 0,
+  "hard_gate_globally_enabled": true,
+  "provenance_table": [
+    {
+      "service": "chirpee",
+      "hg_group": "HG-1",
+      "rollout_order": 1,
+      "promotion_batch": 32,
+      "soak_batch": 31,
+      "hard_gate_enabled": true,
+      "stage": "Stage 1 — HG-1 pilot — LIVE 2026-05-03 (Batch 32)",
+      "codex_present": false,
+      "tracked_artifacts_present": false,
+      "legacy_artifact_gap": true
+    },
+    {
+      "service": "ship-slm",
+      "hg_group": "HG-1",
+      "rollout_order": 2,
+      "promotion_batch": 36,
+      "soak_batch": 35,
+      "hard_gate_enabled": true,
+      "stage": "Stage 2 — HG-1 LIVE 2026-05-03 (Batch 36) — soak: Batch 35 7/7",
+      "codex_present": false,
+      "tracked_artifacts_present": false,
+      "legacy_artifact_gap": true
+    },
+    {
+      "service": "chief-slm",
+      "hg_group": "HG-1",
+      "rollout_order": 3,
+      "promotion_batch": 36,
+      "soak_batch": 35,
+      "hard_gate_enabled": true,
+      "stage": "Stage 2 — HG-1 LIVE 2026-05-03 (Batch 36) — soak: Batch 35 7/7",
+      "codex_present": false,
+      "tracked_artifacts_present": false,
+      "legacy_artifact_gap": true
+    },
+    {
+      "service": "puranic-os",
+      "hg_group": "HG-1",
+      "rollout_order": 4,
+      "promotion_batch": 39,
+      "soak_batch": 38,
+      "hard_gate_enabled": true,
+      "stage": "Stage 3 — HG-1 LIVE 2026-05-03 (Batch 39) — soak: Batch 38 7/7",
+      "codex_present": false,
+      "tracked_artifacts_present": false,
+      "legacy_artifact_gap": true
+    },
+    {
+      "service": "pramana",
+      "hg_group": "HG-2A",
+      "rollout_order": 5,
+      "promotion_batch": 43,
+      "soak_batch": 42,
+      "hard_gate_enabled": true,
+      "stage": "Stage 4 — HG-2A LIVE 2026-05-03 (Batch 43) — soak: Batch 42 7/7",
+      "codex_present": false,
+      "tracked_artifacts_present": false,
+      "legacy_artifact_gap": true
+    },
+    {
+      "service": "domain-capture",
+      "hg_group": "HG-2A",
+      "rollout_order": 6,
+      "promotion_batch": 48,
+      "soak_batch": 47,
+      "hard_gate_enabled": true,
+      "stage": "Stage 4 — HG-2A LIVE 2026-05-03 (Batch 48) — soak: Batch 47 7/7",
+      "codex_present": true,
+      "tracked_artifacts_present": true,
+      "legacy_artifact_gap": false
+    }
+  ],
+  "legacy_artifact_gaps": [
+    {
+      "service": "chirpee",
+      "promotion_batch": 32,
+      "note": "Promoted in Batch 32 before audits/ pattern established in Batch 49. Artifacts in .aegis/ (gitignored, ephemeral): some present.",
+      "ephemeral_present": [
+        true
+      ]
+    },
+    {
+      "service": "ship-slm",
+      "promotion_batch": 36,
+      "note": "Promoted in Batch 36 before audits/ pattern established in Batch 49. Artifacts in .aegis/ (gitignored, ephemeral): some present.",
+      "ephemeral_present": [
+        true
+      ]
+    },
+    {
+      "service": "chief-slm",
+      "promotion_batch": 36,
+      "note": "Promoted in Batch 36 before audits/ pattern established in Batch 49. Artifacts in .aegis/ (gitignored, ephemeral): some present.",
+      "ephemeral_present": [
+        true
+      ]
+    },
+    {
+      "service": "puranic-os",
+      "promotion_batch": 39,
+      "note": "Promoted in Batch 39 before audits/ pattern established in Batch 49. Artifacts in .aegis/ (gitignored, ephemeral): some present.",
+      "ephemeral_present": [
+        true,
+        true
+      ]
+    },
+    {
+      "service": "pramana",
+      "promotion_batch": 43,
+      "note": "Promoted in Batch 43 before audits/ pattern established in Batch 49. Artifacts in .aegis/ (gitignored, ephemeral): some present.",
+      "ephemeral_present": [
+        true,
+        true,
+        true
+      ]
+    }
+  ],
+  "codex_gaps": [
+    {
+      "service": "chirpee",
+      "note": "codex.json absent at /root/ankr-labs-nx/apps/chirpee/codex.json — pre-audits/ era, not a failure"
+    },
+    {
+      "service": "ship-slm",
+      "note": "codex.json absent at /root/ankr-labs-nx/apps/ship-slm/codex.json — pre-audits/ era, not a failure"
+    },
+    {
+      "service": "chief-slm",
+      "note": "codex.json absent at /root/ankr-labs-nx/apps/chief-slm/codex.json — pre-audits/ era, not a failure"
+    },
+    {
+      "service": "puranic-os",
+      "note": "codex.json absent at /root/ankr-labs-nx/apps/puranic-os/codex.json — pre-audits/ era, not a failure"
+    },
+    {
+      "service": "pramana",
+      "note": "codex.json absent at /root/ankr-labs-nx/apps/pramana/codex.json — pre-audits/ era, not a failure"
+    }
+  ],
+  "rollback_doctrine": [
+    {
+      "service": "chirpee",
+      "mechanism": "AEGIS_HARD_GATE_SERVICES env var removal — immediate, config-only",
+      "read_safe": true,
+      "stage_confirmed": true
+    },
+    {
+      "service": "ship-slm",
+      "mechanism": "AEGIS_HARD_GATE_SERVICES env var removal — immediate, config-only",
+      "read_safe": true,
+      "stage_confirmed": true
+    },
+    {
+      "service": "chief-slm",
+      "mechanism": "AEGIS_HARD_GATE_SERVICES env var removal — immediate, config-only",
+      "read_safe": true,
+      "stage_confirmed": true
+    },
+    {
+      "service": "puranic-os",
+      "mechanism": "AEGIS_HARD_GATE_SERVICES env var removal — immediate, config-only",
+      "read_safe": true,
+      "stage_confirmed": true
+    },
+    {
+      "service": "pramana",
+      "mechanism": "AEGIS_HARD_GATE_SERVICES env var removal — immediate, config-only",
+      "read_safe": true,
+      "stage_confirmed": true
+    },
+    {
+      "service": "domain-capture",
+      "mechanism": "AEGIS_HARD_GATE_SERVICES env var removal — immediate, config-only",
+      "read_safe": true,
+      "stage_confirmed": true
+    }
+  ],
+  "hard_findings_from_batch50_drift": {
+    "services_fixed": [
+      "chirpee",
+      "ship-slm",
+      "chief-slm"
+    ],
+    "fix": "hard_gate_enabled set to true (was false despite being in AEGIS_HARD_GATE_SERVICES)",
+    "runtime_was": "correct",
+    "documentary_was": "wrong",
+    "status": "RESOLVED in Batch 50"
+  },
+  "invariants_confirmed": [
+    "One policy per service — no orphan, no duplicate",
+    "hard_gate_enabled=true for all 6 (post Batch 50 fix)",
+    "Exactly once in AEGIS_HARD_GATE_SERVICES",
+    "rollout_order contiguous [1,2,3,4,5,6], unique",
+    "Stage text identifies promotion batch for all 6",
+    "HG group assignment unchanged for all 6",
+    "Tracked artifacts present for Batch 48–50 promotions",
+    "Rollback doctrine: stage LIVE + READ in never_block for all 6",
+    "Kill switch: shadow + NOT BLOCK; restore: hard_gate + BLOCK",
+    "Unknown service: shadow + NOT BLOCK",
+    "Unknown capability: hard_gate + NOT BLOCK"
+  ],
+  "failures": [],
+  "note": "Legacy artifact gaps and codex gaps are INFORMATIONAL only — not failures. The audits/ pattern was established in Batch 49; pre-Batch 47 promotions have ephemeral-only artifacts in .aegis/ (gitignored). This is expected and honest."
+}
