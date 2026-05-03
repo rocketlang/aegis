@@ -112,12 +112,75 @@ export const CHIRPEE_HG1_POLICY: ServiceHardGatePolicy = {
   stage: "Stage 1 — HG-1 pilot — LIVE 2026-05-03 (Batch 32)",
 };
 
+// ── ship-slm HG-1 policy ─────────────────────────────────────────────────────
+//
+// Stage 2 candidate. Identical profile to chirpee: read_only authority + BR-0.
+// Policy prepared Batch 34. Not live — hard_gate_enabled=false until 7-run soak.
+// Promotion requires: AEGIS_HARD_GATE_SERVICES=ship-slm (manual act, after soak).
+//
+// @rule:AEG-HG-001 hard_gate_enabled=false — changed only by AEGIS_HARD_GATE_SERVICES
+
+export const SHIP_SLM_HG1_POLICY: ServiceHardGatePolicy = {
+  service_id: "ship-slm",
+  hg_group: "HG-1",
+  hard_gate_enabled: false, // @rule:AEG-HG-001
+  hard_block_capabilities: new Set([
+    "IMPOSSIBLE_OP",
+    "EMPTY_CAPABILITY_ON_WRITE",
+  ]),
+  still_gate_capabilities: new Set([
+    "CI_DEPLOY", "DELETE", "EXECUTE", "APPROVE", "AI_EXECUTE",
+    "FULL_AUTONOMY", "SPAWN_AGENTS", "MEMORY_WRITE", "AUDIT_WRITE",
+    "TRIGGER", "EMIT",
+  ]),
+  always_allow_capabilities: new Set([
+    "READ", "GET", "LIST", "QUERY", "SEARCH", "HEALTH",
+  ]),
+  never_block_capabilities: new Set([
+    "READ", // @rule:AEG-HG-002
+  ]),
+  rollout_order: 2,
+  stage: "Stage 2 — HG-1 prep — NOT LIVE (Batch 34, 2026-05-03)",
+};
+
+// ── chief-slm HG-1 policy ─────────────────────────────────────────────────────
+//
+// Stage 2 candidate. Identical profile to chirpee: read_only authority + BR-0.
+// Policy prepared Batch 34. Not live — hard_gate_enabled=false until 7-run soak.
+// Promotion requires: AEGIS_HARD_GATE_SERVICES=chief-slm (manual act, after soak).
+//
+// @rule:AEG-HG-001 hard_gate_enabled=false — changed only by AEGIS_HARD_GATE_SERVICES
+
+export const CHIEF_SLM_HG1_POLICY: ServiceHardGatePolicy = {
+  service_id: "chief-slm",
+  hg_group: "HG-1",
+  hard_gate_enabled: false, // @rule:AEG-HG-001
+  hard_block_capabilities: new Set([
+    "IMPOSSIBLE_OP",
+    "EMPTY_CAPABILITY_ON_WRITE",
+  ]),
+  still_gate_capabilities: new Set([
+    "CI_DEPLOY", "DELETE", "EXECUTE", "APPROVE", "AI_EXECUTE",
+    "FULL_AUTONOMY", "SPAWN_AGENTS", "MEMORY_WRITE", "AUDIT_WRITE",
+    "TRIGGER", "EMIT",
+  ]),
+  always_allow_capabilities: new Set([
+    "READ", "GET", "LIST", "QUERY", "SEARCH", "HEALTH",
+  ]),
+  never_block_capabilities: new Set([
+    "READ", // @rule:AEG-HG-002
+  ]),
+  rollout_order: 3,
+  stage: "Stage 2 — HG-1 prep — NOT LIVE (Batch 34, 2026-05-03)",
+};
+
 // ── Policy registry ───────────────────────────────────────────────────────────
-// Only chirpee has a policy in Batch 30. Other HG-1/HG-2/HG-3 services will
-// be added when their stage is reached.
+// Batch 34: ship-slm + chief-slm policies added (disabled). Chirpee = Stage 1 live.
 
 export const HARD_GATE_POLICIES: Readonly<Record<string, ServiceHardGatePolicy>> = {
-  chirpee: CHIRPEE_HG1_POLICY,
+  chirpee:    CHIRPEE_HG1_POLICY,
+  "ship-slm": SHIP_SLM_HG1_POLICY,
+  "chief-slm": CHIEF_SLM_HG1_POLICY,
 };
 
 // ── Live hard-gate enforcement ────────────────────────────────────────────────
@@ -358,8 +421,9 @@ export function simulateHardGate(
     };
   }
 
-  // still_gate: GATE even in hard mode (does not become BLOCK)
-  if (policy.still_gate_capabilities.has(cap)) {
+  // still_gate: ONLY fires to downgrade a BLOCK to GATE (defensive).
+  // Does NOT upgrade ALLOW to GATE — mirrors applyHardGate semantics exactly.
+  if (policy.still_gate_capabilities.has(cap) && softDecision === "BLOCK") {
     return {
       service_id: serviceId,
       requested_capability: cap,
@@ -368,7 +432,7 @@ export function simulateHardGate(
       simulated_hard_decision: "GATE",
       hard_gate_would_apply: false,
       hard_gate_enabled_for_service: effectivelyEnabled,
-      reason: `${cap} is in still_gate_capabilities — hard gate defers, GATE not BLOCK`,
+      reason: `${cap} is in still_gate_capabilities — hard gate defers, GATE not BLOCK (soft was BLOCK)`,
       invariant_applied: null,
     };
   }
