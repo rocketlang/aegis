@@ -91,7 +91,7 @@ export interface SimulationResult {
 export const CHIRPEE_HG1_POLICY: ServiceHardGatePolicy = {
   service_id: "chirpee",
   hg_group: "HG-1",
-  hard_gate_enabled: false, // @rule:AEG-HG-001 — changed only by AEGIS_HARD_GATE_SERVICES
+  hard_gate_enabled: true, // @rule:AEG-HG-001 — in sync with AEGIS_HARD_GATE_SERVICES (Batch 32)
   hard_block_capabilities: new Set([
     "IMPOSSIBLE_OP",             // demonstrably invalid sentinel operation
     "EMPTY_CAPABILITY_ON_WRITE", // empty capability string on a write-class operation
@@ -126,7 +126,7 @@ export const CHIRPEE_HG1_POLICY: ServiceHardGatePolicy = {
 export const SHIP_SLM_HG1_POLICY: ServiceHardGatePolicy = {
   service_id: "ship-slm",
   hg_group: "HG-1",
-  hard_gate_enabled: false, // @rule:AEG-HG-001
+  hard_gate_enabled: true, // @rule:AEG-HG-001 — in sync with AEGIS_HARD_GATE_SERVICES (Batch 36)
   hard_block_capabilities: new Set([
     "IMPOSSIBLE_OP",
     "EMPTY_CAPABILITY_ON_WRITE",
@@ -160,7 +160,7 @@ export const SHIP_SLM_HG1_POLICY: ServiceHardGatePolicy = {
 export const CHIEF_SLM_HG1_POLICY: ServiceHardGatePolicy = {
   service_id: "chief-slm",
   hg_group: "HG-1",
-  hard_gate_enabled: false, // @rule:AEG-HG-001
+  hard_gate_enabled: true, // @rule:AEG-HG-001 — in sync with AEGIS_HARD_GATE_SERVICES (Batch 36)
   hard_block_capabilities: new Set([
     "IMPOSSIBLE_OP",
     "EMPTY_CAPABILITY_ON_WRITE",

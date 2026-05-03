@@ -1,0 +1,85 @@
+{
+  "batch": 50,
+  "watch_type": "post_promotion_roster_drift_watch",
+  "watch_date": "2026-05-03T06:38:57.020Z",
+  "verdict": "PASS",
+  "total_checks": 125,
+  "passed": 125,
+  "failed": 0,
+  "drift_findings": [],
+  "roster_at_watch_time": [
+    {
+      "service": "chirpee",
+      "hg_group": "HG-1",
+      "rollout_order": 1,
+      "hard_gate_enabled": true,
+      "stage": "Stage 1 — HG-1 pilot — LIVE 2026-05-03 (Batch 32)",
+      "since": "Batch 32"
+    },
+    {
+      "service": "ship-slm",
+      "hg_group": "HG-1",
+      "rollout_order": 2,
+      "hard_gate_enabled": true,
+      "stage": "Stage 2 — HG-1 LIVE 2026-05-03 (Batch 36) — soak: Batch 35 7/7",
+      "since": "Batch 36"
+    },
+    {
+      "service": "chief-slm",
+      "hg_group": "HG-1",
+      "rollout_order": 3,
+      "hard_gate_enabled": true,
+      "stage": "Stage 2 — HG-1 LIVE 2026-05-03 (Batch 36) — soak: Batch 35 7/7",
+      "since": "Batch 36"
+    },
+    {
+      "service": "puranic-os",
+      "hg_group": "HG-1",
+      "rollout_order": 4,
+      "hard_gate_enabled": true,
+      "stage": "Stage 3 — HG-1 LIVE 2026-05-03 (Batch 39) — soak: Batch 38 7/7",
+      "since": "Batch 39"
+    },
+    {
+      "service": "pramana",
+      "hg_group": "HG-2",
+      "rollout_order": 5,
+      "hard_gate_enabled": true,
+      "stage": "Stage 4 — HG-2A LIVE 2026-05-03 (Batch 43) — soak: Batch 42 7/7",
+      "since": "Batch 43"
+    },
+    {
+      "service": "domain-capture",
+      "hg_group": "HG-2",
+      "rollout_order": 6,
+      "hard_gate_enabled": true,
+      "stage": "Stage 4 — HG-2A LIVE 2026-05-03 (Batch 48) — soak: Batch 47 7/7",
+      "since": "Batch 48"
+    }
+  ],
+  "not_promoted": [
+    "parali-central",
+    "carbonx",
+    "ankr-doctor",
+    "stackpilot",
+    "granthx",
+    "ankrclaw"
+  ],
+  "invariants_confirmed": [
+    "AEGIS_HARD_GATE_SERVICES: exactly 6 entries, no duplicates",
+    "rollout_order 1-6: unique, no gaps",
+    "HG-1 services (4): hg_group unchanged",
+    "HG-2A services (2): pramana + domain-capture, hg_group unchanged",
+    "HG-2B/HG-2C: NOT in AEGIS_HARD_GATE_SERVICES, NOT hard_gate phase",
+    "Unknown service: shadow + NOT BLOCK",
+    "Unknown capability: hard_gate phase but NOT BLOCK (all 6 services)",
+    "READ: hard_gate + ALLOW on every live service (AEG-HG-002)",
+    "IMPOSSIBLE_OP: hard_gate + BLOCK on every live service (TP intact)",
+    "Rollback doctrine: stage contains LIVE; env var removal → immediate soft_canary",
+    "Kill switch: all 6 → shadow simultaneously; all 6 restore immediately",
+    "codex/runtime: domain-capture codex LIVE + hard_gate confirmed at runtime",
+    "HARD_GATE_POLICIES registry: exactly 6 entries (no ghost policies)"
+  ],
+  "note_on_pramana_artifacts": "Batch 43 pramana promotion artifacts are in .aegis/ only — pre-existing gap from before audits/ pattern. Not a drift finding.",
+  "hard_gate_globally_enabled": true
+}
