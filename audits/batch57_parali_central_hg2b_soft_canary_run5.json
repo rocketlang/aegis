@@ -1,0 +1,204 @@
+{
+  "batch": 57,
+  "date": "2026-05-03T08:47:05.728Z",
+  "type": "hg2b_soft_canary_soak",
+  "soak_run": 5,
+  "soak_total": 7,
+  "verdict": "PASS",
+  "total_checks": 239,
+  "passed": 239,
+  "failed": 0,
+  "failures": [],
+  "service": "parali-central",
+  "hg_group": "HG-2B",
+  "phase": "soft_canary",
+  "hard_gate_enabled": false,
+  "in_aegis_hard_gate_services": false,
+  "live_roster": [
+    "chirpee",
+    "ship-slm",
+    "chief-slm",
+    "puranic-os",
+    "pramana",
+    "domain-capture"
+  ],
+  "live_roster_size": 6,
+  "hg2b_in_live_roster": 0,
+  "hg2c_in_live_roster": 0,
+  "promotion_permitted_parali_central": false,
+  "false_positives": 0,
+  "production_fires": 0,
+  "run5_focus": {
+    "traffic_profile": {
+      "allow_caps": [
+        "READ",
+        "GET",
+        "LIST",
+        "QUERY",
+        "SEARCH",
+        "HEALTH",
+        "EXTERNAL_READ",
+        "FETCH_STATUS",
+        "CHECK_CONNECTION",
+        "DRY_RUN"
+      ],
+      "gate_caps": [
+        "EXTERNAL_WRITE",
+        "EXTERNAL_NOTIFY",
+        "BOUNDARY_MUTATION",
+        "SYNC_PUSH",
+        "DELETE_EXTERNAL_STATE",
+        "APPROVE_TRANSACTION",
+        "DEPLOY_TO_EXTERNAL",
+        "RELEASE_DOCUMENT",
+        "FINALIZE_RECORD",
+        "TRIGGER_WORKFLOW",
+        "SEND_MESSAGE",
+        "SYNC_RECORD",
+        "UPDATE_EXTERNAL_STATE"
+      ],
+      "block_caps": [
+        "IMPOSSIBLE_OP",
+        "EMPTY_CAPABILITY_ON_WRITE",
+        "EXTERNAL_WRITE_UNAUTHENTICATED",
+        "EXTERNAL_DELETE_UNAPPROVED",
+        "BULK_EXTERNAL_MUTATION",
+        "FORCE_EXTERNAL_OVERWRITE"
+      ],
+      "unknown_caps": [
+        "FUTURE_IRREVERSIBLE_OP",
+        "CROSS_ORG_SOVEREIGN_WRITE",
+        "PHANTOM_FINALIZE",
+        "UNKNOWN_EXTERNAL_MUTATION",
+        "AI_AGENT_SUPERUSER",
+        "ROOT_BOUNDARY_OVERRIDE"
+      ],
+      "malformed_aliases": [
+        {
+          "raw": "external_write",
+          "normalized": "EXTERNAL_WRITE",
+          "class": "GATE"
+        },
+        {
+          "raw": "ExternalWrite",
+          "normalized": "EXTERNAL_WRITE",
+          "class": "GATE"
+        },
+        {
+          "raw": "external-write",
+          "normalized": "EXTERNAL_WRITE",
+          "class": "GATE"
+        },
+        {
+          "raw": "SEND MESSAGE",
+          "normalized": "SEND_MESSAGE",
+          "class": "GATE"
+        },
+        {
+          "raw": "send.message",
+          "normalized": "SEND_MESSAGE",
+          "class": "GATE"
+        },
+        {
+          "raw": "bulk external mutation",
+          "normalized": "BULK_EXTERNAL_MUTATION",
+          "class": "BLOCK"
+        },
+        {
+          "raw": "force.external.overwrite",
+          "normalized": "FORCE_EXTERNAL_OVERWRITE",
+          "class": "BLOCK"
+        },
+        {
+          "raw": "approve transaction",
+          "normalized": "APPROVE_TRANSACTION",
+          "class": "GATE"
+        },
+        {
+          "raw": "release-document",
+          "normalized": "RELEASE_DOCUMENT",
+          "class": "GATE"
+        },
+        {
+          "raw": "delete external state",
+          "normalized": "DELETE_EXTERNAL_STATE",
+          "class": "GATE"
+        }
+      ],
+      "unknown_aliases": [
+        {
+          "raw": "future-irreversible-op",
+          "expected": "FUTURE_IRREVERSIBLE_OP"
+        },
+        {
+          "raw": "ai.agent.superuser",
+          "expected": "AI_AGENT_SUPERUSER"
+        },
+        {
+          "raw": "PhantomFinalize",
+          "expected": "PHANTOM_FINALIZE"
+        }
+      ]
+    },
+    "normalization_layer": "normalizeCapability() — PascalCase + spaces + dots + hyphens → UPPER_SNAKE",
+    "allow_path_false_positives": 0,
+    "gate_sense_events_emitted": 13,
+    "block_sense_events_emitted": 8,
+    "irr_noapproval_findings": 21,
+    "doctrine_block_reason_confirmed": true,
+    "unknown_cap_hard_block": false,
+    "alias_block_downgrade": false,
+    "alias_gate_downgrade": false,
+    "burst_calls": 20,
+    "burst_state_mutation": false
+  },
+  "alias_doctrine": {
+    "normalization_required": true,
+    "reason": "without normalization, aliases in lowercase/space/dot/camel form bypass hard_block_capabilities lookup",
+    "block_class_aliases_verified": [
+      "bulk external mutation",
+      "force.external.overwrite"
+    ],
+    "gate_class_aliases_verified": [
+      "external_write",
+      "ExternalWrite",
+      "external-write",
+      "SEND MESSAGE",
+      "send.message",
+      "approve transaction",
+      "release-document",
+      "delete external state"
+    ],
+    "unknown_aliases_verified": [
+      "future-irreversible-op",
+      "ai.agent.superuser",
+      "PhantomFinalize"
+    ]
+  },
+  "soak_criteria_status": {
+    "run1": "COMPLETE — baseline surface, approval lifecycle",
+    "run2": "COMPLETE — expanded GATE surface, concurrent tokens, cross-group isolation",
+    "run3": "COMPLETE — irreversible-path SENSE completeness, IRR-NOAPPROVAL, doctrine_block_reason",
+    "run4": "COMPLETE — TTL expiry, re-issue, replay protection, cross-authorization, all token states",
+    "run5": "COMPLETE — mixed ALLOW/GATE/BLOCK/unknown/alias stress; normalization layer verified",
+    "run6": "PENDING — cross-group isolation extended (full HG-1 + HG-2A regression suite)",
+    "run7": "PENDING — rollback drill + full lifecycle + promotion readiness gate"
+  },
+  "summary": [
+    "10 ALLOW caps: all remain ALLOW, 0 false positives — PASS",
+    "13 GATE caps: in still_gate, not in hard_block, simulation preserves GATE — PASS",
+    "6 BLOCK caps: simulation=BLOCK, hard_gate_would_apply=true, doctrine_block_reason set — PASS",
+    "6 unknown caps: not hard-BLOCK, not in still_gate or always_allow — PASS",
+    "10 alias normalization: all 10 aliases resolve to canonical form — PASS",
+    "3 unknown-alias: normalized forms remain unknown-safe, not hard-BLOCK — PASS",
+    "2 BLOCK-class aliases: BLOCK after normalization, bypass confirmed without normalization — PASS",
+    "8 GATE-class aliases: GATE preserved after normalization, no GATE→ALLOW downgrade — PASS",
+    "Burst: 20 calls, no phase/roster mutation — PASS",
+    "HG-1/HG-2A isolation: no HG-2B authority bleeds into chirpee/pramana — PASS",
+    "Unknown service never blocks — PASS",
+    "Kill switch: 6 live guards suppressed, parali-central inert — PASS",
+    "All SENSE correlation_ids unique — PASS",
+    "All IRR-NOAPPROVAL findings link to SENSE correlation_id — PASS",
+    "promotion_permitted_parali_central=false (5/7 soak runs complete)"
+  ]
+}
