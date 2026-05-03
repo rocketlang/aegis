@@ -1,0 +1,307 @@
+{
+  "batch": 65,
+  "title": "carbonx BR-5 Financial Remediation Re-scan Gate",
+  "run_at": "2026-05-03T13:28:15.493Z",
+  "verdict": "PASS",
+  "checks_passed": 46,
+  "checks_total": 46,
+  "gate_decision": "READY_FOR_POLICY_DECLARATION",
+  "controls_verified": {
+    "FIX-001-approval-token": 7,
+    "FIX-002-sense-event": 7,
+    "FIX-003-simulate-dry-run": 6,
+    "FIX-004-idempotency": 9
+  },
+  "live_roster_count": 7,
+  "carbonx_in_policy": false,
+  "db_checks": {
+    "externalRef_column_present": true,
+    "unique_index_present": false
+  },
+  "findings": [],
+  "next_batch": "Batch 66 — declare CARBONX_HG2B_POLICY + soft-canary soak run 1/7",
+  "results": [
+    {
+      "id": 1,
+      "label": "Batch 63 artifact exists",
+      "verdict": "PASS",
+      "section": "artifact"
+    },
+    {
+      "id": 2,
+      "label": "Batch 63 gate_decision=BLOCKED_FOR_SOAK",
+      "verdict": "PASS",
+      "section": "artifact"
+    },
+    {
+      "id": 3,
+      "label": "Batch 63 listed CARBONX-FIX-001",
+      "verdict": "PASS",
+      "section": "artifact"
+    },
+    {
+      "id": 4,
+      "label": "Batch 63 listed CARBONX-FIX-004",
+      "verdict": "PASS",
+      "section": "artifact"
+    },
+    {
+      "id": 5,
+      "label": "Batch 64 artifact exists",
+      "verdict": "PASS",
+      "section": "artifact"
+    },
+    {
+      "id": 6,
+      "label": "Batch 64 verdict=PASS",
+      "verdict": "PASS",
+      "section": "artifact"
+    },
+    {
+      "id": 7,
+      "label": "Batch 64 checks_passed=30",
+      "verdict": "PASS",
+      "section": "artifact"
+    },
+    {
+      "id": 8,
+      "label": "carbonx NOT in hard-gate-policy.ts (no policy declared yet)",
+      "verdict": "PASS",
+      "section": "roster"
+    },
+    {
+      "id": 5,
+      "label": "live roster = 7 (hard_gate_enabled: true count)",
+      "verdict": "PASS",
+      "section": "roster"
+    },
+    {
+      "id": 5,
+      "label": "live_roster=7",
+      "verdict": "PASS",
+      "section": "roster"
+    },
+    {
+      "id": 9,
+      "label": "surrenderEtsAllowances has approvalToken: t.arg.string({ required: true })",
+      "verdict": "PASS",
+      "section": "fix-001"
+    },
+    {
+      "id": 10,
+      "label": "verifyApprovalToken called before recordSurrender in mutation resolve",
+      "verdict": "PASS",
+      "section": "fix-001"
+    },
+    {
+      "id": 11,
+      "label": "verifyApprovalToken enforces service_id=carbonx-backend binding",
+      "verdict": "PASS",
+      "section": "fix-001"
+    },
+    {
+      "id": 12,
+      "label": "verifyApprovalToken enforces capability binding",
+      "verdict": "PASS",
+      "section": "fix-001"
+    },
+    {
+      "id": 13,
+      "label": "verifyApprovalToken enforces operation binding",
+      "verdict": "PASS",
+      "section": "fix-001"
+    },
+    {
+      "id": 14,
+      "label": "IrrNoApprovalError thrown on missing/wrong token",
+      "verdict": "PASS",
+      "section": "fix-001"
+    },
+    {
+      "id": 15,
+      "label": "token expiry check present (AEG-E-016 token lifecycle)",
+      "verdict": "PASS",
+      "section": "fix-001"
+    },
+    {
+      "id": 16,
+      "label": "aegis-sense module exists with AegisSenseEvent interface",
+      "verdict": "PASS",
+      "section": "fix-002"
+    },
+    {
+      "id": 17,
+      "label": "recordSurrender calls emitAegisSenseEvent with ETS_SURRENDER",
+      "verdict": "PASS",
+      "section": "fix-002"
+    },
+    {
+      "id": 18,
+      "label": "SENSE event includes before_snapshot + after_snapshot + delta",
+      "verdict": "PASS",
+      "section": "fix-002"
+    },
+    {
+      "id": 19,
+      "label": "SENSE event interface includes correlation_id (pramana receipt chain)",
+      "verdict": "PASS",
+      "section": "fix-002"
+    },
+    {
+      "id": 20,
+      "label": "SENSE event includes irreversible flag (AEG-HG-2B-003)",
+      "verdict": "PASS",
+      "section": "fix-002"
+    },
+    {
+      "id": 21,
+      "label": "SENSE event includes service_id + capability + operation",
+      "verdict": "PASS",
+      "section": "fix-002"
+    },
+    {
+      "id": 22,
+      "label": "SENSE event emitted on surrender path (after $transaction)",
+      "verdict": "PASS",
+      "section": "fix-002"
+    },
+    {
+      "id": 23,
+      "label": "simulateSurrender queryField exists in ets.ts",
+      "verdict": "PASS",
+      "section": "fix-003"
+    },
+    {
+      "id": 24,
+      "label": "simulateSurrender is a queryField (read-only, not mutationField)",
+      "verdict": "PASS",
+      "section": "fix-003"
+    },
+    {
+      "id": 25,
+      "label": "simulateSurrender computes projectedBalance (before/after)",
+      "verdict": "PASS",
+      "section": "fix-003"
+    },
+    {
+      "id": 26,
+      "label": "simulateSurrender does NOT call recordSurrender (no DB writes)",
+      "verdict": "PASS",
+      "section": "fix-003"
+    },
+    {
+      "id": 27,
+      "label": "simulateSurrender returns approvalScopeRequired",
+      "verdict": "PASS",
+      "section": "fix-003"
+    },
+    {
+      "id": 28,
+      "label": "simulateSurrender validates sufficientBalance",
+      "verdict": "PASS",
+      "section": "fix-003"
+    },
+    {
+      "id": 29,
+      "label": "surrenderEtsAllowances mutation accepts externalRef arg",
+      "verdict": "PASS",
+      "section": "fix-004"
+    },
+    {
+      "id": 30,
+      "label": "recordSurrender signature accepts externalRef?: string",
+      "verdict": "PASS",
+      "section": "fix-004"
+    },
+    {
+      "id": 31,
+      "label": "EtsTransaction has externalRef in Prisma schema",
+      "verdict": "PASS",
+      "section": "fix-004"
+    },
+    {
+      "id": 32,
+      "label": "externalRef has @unique constraint in Prisma schema",
+      "verdict": "PASS",
+      "section": "fix-004"
+    },
+    {
+      "id": 33,
+      "label": "Actual demo DB has externalRef column in ets_transactions",
+      "verdict": "PASS",
+      "section": "fix-004-db"
+    },
+    {
+      "id": 34,
+      "label": "Actual demo DB has unique index ets_transactions_externalref_key (PostgreSQL lowercased name)",
+      "verdict": "PASS",
+      "section": "fix-004-db"
+    },
+    {
+      "id": 35,
+      "label": "recordSurrender checks existing transaction by externalRef before decrement",
+      "verdict": "PASS",
+      "section": "fix-004"
+    },
+    {
+      "id": 36,
+      "label": "duplicate externalRef causes early return (no double-decrement)",
+      "verdict": "PASS",
+      "section": "fix-004"
+    },
+    {
+      "id": 37,
+      "label": "changed payload under same externalRef is flagged (payload mismatch warn)",
+      "verdict": "PASS",
+      "section": "fix-004"
+    },
+    {
+      "id": 38,
+      "label": "ETS price-feed API calls are read-only (no write mutations in carbon-price.service)",
+      "verdict": "PASS",
+      "section": "regression"
+    },
+    {
+      "id": 39,
+      "label": "CII + EEXI + FuelEU simulate/query paths remain present",
+      "verdict": "PASS",
+      "section": "regression"
+    },
+    {
+      "id": 40,
+      "label": "No TypeScript errors in new Batch 64/65 files (aegis-approval-token + aegis-sense)",
+      "verdict": "PASS",
+      "section": "regression"
+    },
+    {
+      "id": 41,
+      "label": "Existing 7 live guards still have hard_gate_enabled=true (regression clean)",
+      "verdict": "PASS",
+      "section": "regression"
+    },
+    {
+      "id": 42,
+      "label": "Unknown service: applyHardGate preserves soft decision (no block)",
+      "verdict": "PASS",
+      "section": "regression"
+    },
+    {
+      "id": 43,
+      "label": "Unknown capability: does not hard-block (unknown_cap_gates_before_blocking)",
+      "verdict": "PASS",
+      "section": "regression"
+    },
+    {
+      "id": 44,
+      "label": "carbonx still NOT in AEGIS_HARD_GATE_SERVICES (not promoted in this batch)",
+      "verdict": "PASS",
+      "section": "gate"
+    },
+    {
+      "id": 45,
+      "label": "gate_decision=READY_FOR_POLICY_DECLARATION (correct classification)",
+      "verdict": "PASS",
+      "section": "gate"
+    }
+  ]
+}
