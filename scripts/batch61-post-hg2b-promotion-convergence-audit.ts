@@ -99,7 +99,8 @@ check(1, "batch60 artifact loaded", !!b60, true, "artifact");
 check(1, "batch60 verdict=PASS", b60.verdict, "PASS", "artifact");
 
 section("Check 2: Batch 60 checks=152 and failed=0");
-check(2, "batch60 checks=152", b60.checks, 152, "artifact");
+const b60TotalChecks = (b60.checks ?? b60.total_checks) as number;
+check(2, "batch60 checks=152", b60TotalChecks, 152, "artifact");
 check(2, "batch60 failed=0", b60.failed, 0, "artifact");
 
 section("Check 3: Batch 60 promotion fields");
@@ -117,7 +118,10 @@ check(3, "batch60 previous_phase=soft_canary", b60.previous_phase, "soft_canary"
 check(3, "batch60 new_phase=hard_gate", b60.new_phase, "hard_gate", "artifact");
 
 section("Check 4: Batch 60 live roster contains all 7 expected services");
-const b60Roster: string[] = (b60.live_hard_gate_roster as string[]) ?? [];
+const rawRoster = (b60.live_hard_gate_roster as unknown[]) ?? [];
+const b60Roster: string[] = rawRoster.map((x: unknown) =>
+  typeof x === "string" ? x : (x as { service: string }).service
+);
 check(4, "batch60 roster length=7", b60Roster.length, 7, "artifact");
 for (const svc of EXPECTED_LIVE_7) {
   check(4, `batch60 roster contains ${svc}`, b60Roster.includes(svc), true, "artifact");
@@ -201,16 +205,17 @@ for (const cap of [
   check(14, `parali-central ${cap}: hard_gate_applied=true`, r.hard_gate_applied, true, "runtime");
 }
 
-section("Check 15: Approval tokens remain scoped keys (AEG-E-016)");
-// Simulate: token bound to parali-central, tried against chirpee → AEG-E-016
-// We validate the doctrine is structurally enforced in the policy
-check(15, "parali-central: approval_required_for_irreversible_action=true",
+section("Check 15: AEG-E-016 scoped-key doctrine — verified via Batch 60 artifact (structural fields only)");
+// NOTE: actual wrong-service token rejection is tested in Batch 60.
+// Check 5 above confirms token_scoping_pass=true in the Batch 60 artifact.
+// These checks verify the structural doctrine fields are present in the policy — labels reflect what is actually proved.
+check(15, "token_scoping_verified_by_batch60_artifact — approval_required_for_irreversible_action=true",
   PARALI_CENTRAL_HG2B_POLICY.approval_required_for_irreversible_action, true, "doctrine");
-check(15, "parali-central: external_state_touch=true",
+check(15, "token_scoping_verified_by_batch60_artifact — external_state_touch=true",
   PARALI_CENTRAL_HG2B_POLICY.external_state_touch, true, "doctrine");
-check(15, "parali-central: observability_required=true",
+check(15, "token_scoping_verified_by_batch60_artifact — observability_required=true",
   PARALI_CENTRAL_HG2B_POLICY.observability_required, true, "doctrine");
-check(15, "parali-central: audit_artifact_required=true",
+check(15, "token_scoping_verified_by_batch60_artifact — audit_artifact_required=true",
   PARALI_CENTRAL_HG2B_POLICY.audit_artifact_required, true, "doctrine");
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -326,25 +331,41 @@ check(21, "VIVECHANA mentions Batch 60 outcome",
 // SECTION 10 — No stale "candidate" / "soft_canary" claims post-Batch 60
 // ═══════════════════════════════════════════════════════════════════════════════
 
-section("Check 22: No doc still claims parali-central is only candidate after Batch 60");
-// Policy stage is the authoritative source — already checked it says HG-2B LIVE
-check(22, "stage does NOT say 'candidate' or 'NOT PROMOTED'",
+section("Check 22: No non-historical living doc claims parali-central is only candidate/soft_canary");
+// Policy stage is the authoritative source
+check(22, "policy stage does NOT say 'candidate' or 'NOT PROMOTED'",
   !PARALI_CENTRAL_HG2B_POLICY.stage.includes("NOT PROMOTED") &&
   !PARALI_CENTRAL_HG2B_POLICY.stage.includes("candidate"),
   true, "convergence");
-// Wiki should not say soft_canary for parali-central in its current-state section
-// (historical sections may mention it — we only care about the live roster table)
+// Wiki current-state section must not mention soft_canary for parali-central
 const wikiLiveSection = wikiContent.split("## Enforcement Rollout")[1] ?? "";
 check(22, "wiki enforcement section does not say 'soft_canary' for parali-central",
   !wikiLiveSection.includes("soft_canary"), true, "convergence");
+// Deep-knowledge latest session note must confirm promoted state
+const deepKnowledgeContent = readFile(PATHS.deepKnowledge);
+const dkLatestSection = deepKnowledgeContent.split("## Session Note").slice(-1)[0] ?? "";
+check(22, "deep-knowledge latest session note does NOT claim parali-central is still soft_canary",
+  !dkLatestSection.includes("soft_canary") || dkLatestSection.includes("promot"),
+  true, "convergence");
+check(22, "deep-knowledge latest session note confirms parali-central live/promoted/HG-2B",
+  dkLatestSection.includes("promot") || dkLatestSection.includes("live") || dkLatestSection.includes("HG-2B"),
+  true, "convergence");
+// LOGICS latest session note must not mark parali-central as candidate
+const logicsLatestSection = logicsContent.split("## Session Note").slice(-1)[0] ?? "";
+check(22, "LOGICS latest session note does NOT mark parali-central as soft_canary candidate",
+  !logicsLatestSection.includes("soft_canary") || logicsLatestSection.includes("live"),
+  true, "convergence");
 
-section("Check 23: Zenodo paper / product brief — historical accuracy");
-// Product brief is in proposals — check it doesn't make false live claims
-// We only verify the policy file stage is now correct; paper is read-only after publication
-check(23, "policy stage correct for post-Batch60 state",
+section("Check 23: Zenodo paper and product brief — historical snapshot, not live authority");
+// Zenodo paper is frozen at publication time — a historical snapshot.
+// Batch 60 artifact is the live source of truth; we verify that framing is intact here.
+check(23, "policy stage correct for post-Batch60 state (primary source of truth)",
   PARALI_CENTRAL_HG2B_POLICY.stage.startsWith("Stage 5 — HG-2B LIVE"), true, "convergence");
 check(23, "soak evidence reference intact (Batch 53-59 7/7)",
   PARALI_CENTRAL_HG2B_POLICY.stage.includes("Batch 53-59 7/7"), true, "convergence");
+// Batch 60 artifact carries the hard evidence that Zenodo paper (written earlier) does not need to repeat
+check(23, "batch60 artifact is source of truth — hard_gate_enabled=true + promotion_is_separate_human_act=true",
+  b60.hard_gate_enabled === true && b60.promotion_is_separate_human_act === true, true, "convergence");
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // SUMMARY
@@ -393,11 +414,15 @@ const artifact = {
   },
   live_roster: EXPECTED_LIVE_7,
   live_roster_size: EXPECTED_LIVE_7.length,
+  runtime_env_mode: "simulated_expected_live_roster",
   hg1_count: HG1_SERVICES.length,
   hg2a_count: HG2A_SERVICES.length,
   hg2b_count: 1,
   hg2c_count: 0,
   next_candidate: "carbonx (rollout_order=8, authority_class=external_call, BR-3)",
+  zenodo_paper_status: "historical_snapshot_pre_batch60",
+  product_brief_status: "requires_update_if_used_commercially_after_batch60",
+  batch60_artifact_is_source_of_truth: true,
 };
 
 writeFileSync(

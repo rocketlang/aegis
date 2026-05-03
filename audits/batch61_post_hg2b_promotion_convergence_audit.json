@@ -2,10 +2,10 @@
   "batch": 61,
   "type": "convergence_audit",
   "purpose": "Verify Batch 60 parali-central HG-2B promotion converged across all records",
-  "timestamp": "2026-05-03T11:33:36.357Z",
+  "timestamp": "2026-05-03T11:42:04.744Z",
   "verdict": "PASS",
-  "checks": 111,
-  "passed": 111,
+  "checks": 115,
+  "passed": 115,
   "failed": 0,
   "failures": [],
   "convergence_surfaces": {
@@ -36,9 +36,13 @@
     "parali-central"
   ],
   "live_roster_size": 7,
+  "runtime_env_mode": "simulated_expected_live_roster",
   "hg1_count": 4,
   "hg2a_count": 2,
   "hg2b_count": 1,
   "hg2c_count": 0,
-  "next_candidate": "carbonx (rollout_order=8, authority_class=external_call, BR-3)"
+  "next_candidate": "carbonx (rollout_order=8, authority_class=external_call, BR-3)",
+  "zenodo_paper_status": "historical_snapshot_pre_batch60",
+  "product_brief_status": "requires_update_if_used_commercially_after_batch60",
+  "batch60_artifact_is_source_of_truth": true
 }
