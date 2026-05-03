@@ -182,22 +182,23 @@ export const CHIEF_SLM_HG1_POLICY: ServiceHardGatePolicy = {
 
 // ── puranic-os HG-1 policy ────────────────────────────────────────────────────
 //
-// Stage 3 candidate. Profile: read_only authority + BR-1 (slightly higher blast
-// radius than BR-0 HG-1 services, still fully HG-1 eligible).
+// Stage 3. Profile: read_only authority + BR-1.
 // Registry confirmed Batch 37, 2026-05-03: TIER-A, authority_class=read_only, BR-1.
-// Not live — hard_gate_enabled=false until 7-run soak.
-// Promotion requires: AEGIS_HARD_GATE_SERVICES includes puranic-os (manual act, Batch 40).
+// Soak: Batch 38 7/7 PASS (917 checks, FP=0, prod_fires=0, promotion_permitted=true).
+// LIVE: Batch 39, 2026-05-03. AEGIS_HARD_GATE_SERVICES includes puranic-os.
 //
-// BR-1 vs BR-0 note: BR-1 means slightly broader internal reach than chirpee/ship-slm.
-// Policy is identical — hard-block scope stays IMPOSSIBLE_OP + EMPTY_CAPABILITY_ON_WRITE.
-// Soak validates false-positive surface under BR-1 conditions before promotion.
+// IMPORTANT INVARIANT (confirmed Batch 38 Run 5):
+// AEGIS_HARD_GATE_SERVICES is the runtime gate switch.
+// hard_gate_enabled is documentary alignment — gate.ts checks the env var only.
+// These two must always agree: if in env → hard_gate_enabled=true here.
 //
-// @rule:AEG-HG-001 hard_gate_enabled=false — runtime enabling is AEGIS_HARD_GATE_SERVICES
+// @rule:AEG-HG-001 hard_gate_enabled=true — in sync with AEGIS_HARD_GATE_SERVICES
+// @rule:AEG-HG-003 env var is the gate switch; policy flag is advisory
 
 export const PURANIC_OS_HG1_POLICY: ServiceHardGatePolicy = {
   service_id: "puranic-os",
   hg_group: "HG-1",
-  hard_gate_enabled: false, // @rule:AEG-HG-001
+  hard_gate_enabled: true, // @rule:AEG-HG-001 — in env, documentary alignment
   hard_block_capabilities: new Set([
     "IMPOSSIBLE_OP",
     "EMPTY_CAPABILITY_ON_WRITE",
@@ -214,13 +215,14 @@ export const PURANIC_OS_HG1_POLICY: ServiceHardGatePolicy = {
     "READ", // @rule:AEG-HG-002
   ]),
   rollout_order: 4,
-  stage: "Stage 3 — HG-1 prep — NOT LIVE (Batch 37, 2026-05-03)",
+  stage: "Stage 3 — HG-1 LIVE 2026-05-03 (Batch 39) — soak: Batch 38 7/7",
 };
 
 // ── Policy registry ───────────────────────────────────────────────────────────
 // Batch 34: ship-slm + chief-slm added (disabled). Chirpee = Stage 1 live.
 // Batch 36: ship-slm + chief-slm promoted live.
 // Batch 37: puranic-os added (disabled). Stage 3 candidate.
+// Batch 39: puranic-os promoted live. All 4 HG-1 services now live.
 
 export const HARD_GATE_POLICIES: Readonly<Record<string, ServiceHardGatePolicy>> = {
   chirpee:       CHIRPEE_HG1_POLICY,
