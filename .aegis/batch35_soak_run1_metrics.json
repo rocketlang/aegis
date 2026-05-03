@@ -1,0 +1,68 @@
+{
+  "batch": 35,
+  "soak_run": 1,
+  "date": "2026-05-03T00:58:43.395Z",
+  "verdict": "PASS",
+  "ready_to_promote_ship_chief": false,
+  "soak_runs_complete": 1,
+  "soak_runs_required": 7,
+  "services": [
+    "ship-slm",
+    "chief-slm"
+  ],
+  "chirpee_status": "live hard-gate — unaffected",
+  "total_checks": 423,
+  "passed": 423,
+  "failed": 0,
+  "total_decisions": 68,
+  "true_positives": 16,
+  "false_positives": 0,
+  "production_gate_fires": 0,
+  "per_service": {
+    "ship-slm": {
+      "decisions": 34,
+      "true_positives": 8,
+      "false_positives": 0,
+      "production_gate_fires": 0,
+      "invariant_violations": 0,
+      "soft": {
+        "ALLOW": 31,
+        "WARN": 0,
+        "GATE": 3,
+        "BLOCK": 0
+      },
+      "sim_dry": {
+        "ALLOW": 23,
+        "WARN": 0,
+        "GATE": 3,
+        "BLOCK": 8
+      }
+    },
+    "chief-slm": {
+      "decisions": 34,
+      "true_positives": 8,
+      "false_positives": 0,
+      "production_gate_fires": 0,
+      "invariant_violations": 0,
+      "soft": {
+        "ALLOW": 31,
+        "WARN": 0,
+        "GATE": 3,
+        "BLOCK": 0
+      },
+      "sim_dry": {
+        "ALLOW": 23,
+        "WARN": 0,
+        "GATE": 3,
+        "BLOCK": 8
+      }
+    }
+  },
+  "invariants": {
+    "read_never_blocks": true,
+    "unknown_service_never_blocks": true,
+    "still_gate_no_allow_upgrade": true,
+    "kill_switch_wins": true,
+    "rollback_config_only": true
+  }
+}

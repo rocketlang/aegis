@@ -1,0 +1,11 @@
+{
+  "batch": 32,
+  "date": "2026-05-03T00:10:12.417Z",
+  "rollback_mechanism": "Remove chirpee from AEGIS_HARD_GATE_SERVICES env var",
+  "rollback_tested": true,
+  "chirpee_returns_to_soft_canary": true,
+  "impossible_op_no_longer_blocks_on_rollback": true,
+  "hard_gate_globally_enabled_not_changed": true,
+  "restore_mechanism": "Re-add chirpee to AEGIS_HARD_GATE_SERVICES",
+  "note": "Rollback does NOT require changing HARD_GATE_GLOBALLY_ENABLED. Env var is sufficient."
+}

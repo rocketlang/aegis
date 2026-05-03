@@ -1,0 +1,60 @@
+{
+  "soak_run": 4,
+  "date": "2026-05-02T23:56:18.026Z",
+  "verdict": "PASS",
+  "soft_decisions": {
+    "ALLOW": 58,
+    "WARN": 0,
+    "GATE": 15,
+    "BLOCK": 0
+  },
+  "sim_production": {
+    "fires": 0,
+    "no_fires": 43
+  },
+  "sim_dryrun": {
+    "ALLOW": 0,
+    "WARN": 0,
+    "GATE": 23,
+    "BLOCK": 20
+  },
+  "false_positives": 0,
+  "true_positives": 20,
+  "invariant_violations": 0,
+  "production_gate_fires": 0,
+  "waves": {
+    "wave1_mixcase": {
+      "decisions": 21,
+      "false_positives": 0,
+      "true_positives": 0
+    },
+    "wave2_alias": {
+      "decisions": 8,
+      "false_positives": 0,
+      "true_positives": 0
+    },
+    "wave3_ai_exec": {
+      "decisions": 5,
+      "false_positives": 0,
+      "true_positives": 0
+    },
+    "wave4_critical": {
+      "decisions": 10,
+      "false_positives": 0,
+      "true_positives": 0
+    },
+    "wave5_malformed": {
+      "decisions": 20,
+      "false_positives": 0,
+      "true_positives": 20
+    },
+    "wave6_garbage": {
+      "decisions": 9,
+      "false_positives": 0,
+      "true_positives": 0
+    }
+  },
+  "total_checks": 273,
+  "passed": 273,
+  "failed": 0
+}

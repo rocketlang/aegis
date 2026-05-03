@@ -1,0 +1,40 @@
+{
+  "soak_run": 6,
+  "date": "2026-05-02T23:56:26.205Z",
+  "verdict": "PASS",
+  "soft_decisions": {
+    "ALLOW": 17,
+    "WARN": 0,
+    "GATE": 8,
+    "BLOCK": 0
+  },
+  "sim_production": {
+    "fires": 0,
+    "no_fires": 16
+  },
+  "sim_dryrun": {
+    "ALLOW": 5,
+    "WARN": 0,
+    "GATE": 1,
+    "BLOCK": 10
+  },
+  "false_positives": 0,
+  "true_positives": 10,
+  "invariant_violations": 0,
+  "production_gate_fires": 0,
+  "waves": {
+    "wave1_baseline": {
+      "decisions": 6,
+      "false_positives": 0,
+      "true_positives": 0
+    },
+    "wave5_malformed": {
+      "decisions": 10,
+      "false_positives": 0,
+      "true_positives": 10
+    }
+  },
+  "total_checks": 97,
+  "passed": 97,
+  "failed": 0
+}

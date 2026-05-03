@@ -1,0 +1,12 @@
+{
+  "soak_run": 2,
+  "date": "2026-05-03T00:57:59.756Z",
+  "verdict": "PASS",
+  "checks": 301,
+  "passed": 301,
+  "failed": 0,
+  "true_positives": 12,
+  "false_positives": 0,
+  "production_gate_fires": 0,
+  "ready_to_promote": false
+}

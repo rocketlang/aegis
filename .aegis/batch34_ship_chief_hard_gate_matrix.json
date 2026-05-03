@@ -1,0 +1,389 @@
+{
+  "batch": 34,
+  "date": "2026-05-03T00:37:35.288Z",
+  "verdict": "PASS",
+  "services": [
+    "ship-slm",
+    "chief-slm"
+  ],
+  "mode": "dry_run_simulation",
+  "hard_gate_live_services": [
+    "chirpee"
+  ],
+  "hard_gate_prepared_not_live": [
+    "ship-slm",
+    "chief-slm"
+  ],
+  "simulation_matrix": [
+    {
+      "service": "ship-slm",
+      "op": "read",
+      "cap": "READ",
+      "soft_decision": "ALLOW",
+      "simulated_hard": "ALLOW",
+      "hard_gate_would_apply": false,
+      "invariant": "AEG-HG-002",
+      "reason": "READ/GET/LIST/QUERY/SEARCH/HEALTH — never_block invariant (AEG-E-002 extended)"
+    },
+    {
+      "service": "ship-slm",
+      "op": "get",
+      "cap": "GET",
+      "soft_decision": "ALLOW",
+      "simulated_hard": "ALLOW",
+      "hard_gate_would_apply": false,
+      "invariant": "AEG-HG-002",
+      "reason": "READ/GET/LIST/QUERY/SEARCH/HEALTH — never_block invariant (AEG-E-002 extended)"
+    },
+    {
+      "service": "ship-slm",
+      "op": "list",
+      "cap": "LIST",
+      "soft_decision": "ALLOW",
+      "simulated_hard": "ALLOW",
+      "hard_gate_would_apply": false,
+      "invariant": "AEG-HG-002",
+      "reason": "READ/GET/LIST/QUERY/SEARCH/HEALTH — never_block invariant (AEG-E-002 extended)"
+    },
+    {
+      "service": "ship-slm",
+      "op": "write",
+      "cap": "WRITE",
+      "soft_decision": "ALLOW",
+      "simulated_hard": "ALLOW",
+      "hard_gate_would_apply": false,
+      "invariant": "unknown_cap_gates_before_blocking",
+      "reason": "WRITE not in any hard-gate list — unknown capability stays GATE/WARN (canonical registry incomplete)"
+    },
+    {
+      "service": "ship-slm",
+      "op": "create",
+      "cap": "WRITE",
+      "soft_decision": "ALLOW",
+      "simulated_hard": "ALLOW",
+      "hard_gate_would_apply": false,
+      "invariant": "unknown_cap_gates_before_blocking",
+      "reason": "WRITE not in any hard-gate list — unknown capability stays GATE/WARN (canonical registry incomplete)"
+    },
+    {
+      "service": "ship-slm",
+      "op": "patch",
+      "cap": "WRITE",
+      "soft_decision": "ALLOW",
+      "simulated_hard": "ALLOW",
+      "hard_gate_would_apply": false,
+      "invariant": "unknown_cap_gates_before_blocking",
+      "reason": "WRITE not in any hard-gate list — unknown capability stays GATE/WARN (canonical registry incomplete)"
+    },
+    {
+      "service": "ship-slm",
+      "op": "frob_impossible",
+      "cap": "IMPOSSIBLE_OP",
+      "soft_decision": "ALLOW",
+      "simulated_hard": "BLOCK",
+      "hard_gate_would_apply": true,
+      "invariant": null,
+      "reason": "IMPOSSIBLE_OP is in hard_block_capabilities for ship-slm (HG-1) — hard BLOCK"
+    },
+    {
+      "service": "ship-slm",
+      "op": "write",
+      "cap": "EMPTY_CAPABILITY_ON_WRITE",
+      "soft_decision": "ALLOW",
+      "simulated_hard": "BLOCK",
+      "hard_gate_would_apply": true,
+      "invariant": null,
+      "reason": "EMPTY_CAPABILITY_ON_WRITE is in hard_block_capabilities for ship-slm (HG-1) — hard BLOCK"
+    },
+    {
+      "service": "ship-slm",
+      "op": "deploy",
+      "cap": "CI_DEPLOY",
+      "soft_decision": "GATE",
+      "simulated_hard": "GATE",
+      "hard_gate_would_apply": false,
+      "invariant": "unknown_cap_gates_before_blocking",
+      "reason": "CI_DEPLOY not in any hard-gate list — unknown capability stays GATE/WARN (canonical registry incomplete)"
+    },
+    {
+      "service": "ship-slm",
+      "op": "delete",
+      "cap": "DELETE",
+      "soft_decision": "GATE",
+      "simulated_hard": "GATE",
+      "hard_gate_would_apply": false,
+      "invariant": "unknown_cap_gates_before_blocking",
+      "reason": "DELETE not in any hard-gate list — unknown capability stays GATE/WARN (canonical registry incomplete)"
+    },
+    {
+      "service": "ship-slm",
+      "op": "ai-execute",
+      "cap": "AI_EXECUTE",
+      "soft_decision": "GATE",
+      "simulated_hard": "GATE",
+      "hard_gate_would_apply": false,
+      "invariant": "unknown_cap_gates_before_blocking",
+      "reason": "AI_EXECUTE not in any hard-gate list — unknown capability stays GATE/WARN (canonical registry incomplete)"
+    },
+    {
+      "service": "ship-slm",
+      "op": "execute",
+      "cap": "EXECUTE",
+      "soft_decision": "ALLOW",
+      "simulated_hard": "ALLOW",
+      "hard_gate_would_apply": false,
+      "invariant": "unknown_cap_gates_before_blocking",
+      "reason": "EXECUTE not in any hard-gate list — unknown capability stays GATE/WARN (canonical registry incomplete)"
+    },
+    {
+      "service": "ship-slm",
+      "op": "approve",
+      "cap": "APPROVE",
+      "soft_decision": "ALLOW",
+      "simulated_hard": "ALLOW",
+      "hard_gate_would_apply": false,
+      "invariant": "unknown_cap_gates_before_blocking",
+      "reason": "APPROVE not in any hard-gate list — unknown capability stays GATE/WARN (canonical registry incomplete)"
+    },
+    {
+      "service": "ship-slm",
+      "op": "trigger",
+      "cap": "TRIGGER",
+      "soft_decision": "ALLOW",
+      "simulated_hard": "ALLOW",
+      "hard_gate_would_apply": false,
+      "invariant": "unknown_cap_gates_before_blocking",
+      "reason": "TRIGGER not in any hard-gate list — unknown capability stays GATE/WARN (canonical registry incomplete)"
+    },
+    {
+      "service": "ship-slm",
+      "op": "spawn",
+      "cap": "SPAWN_AGENTS",
+      "soft_decision": "ALLOW",
+      "simulated_hard": "ALLOW",
+      "hard_gate_would_apply": false,
+      "invariant": "unknown_cap_gates_before_blocking",
+      "reason": "SPAWN_AGENTS not in any hard-gate list — unknown capability stays GATE/WARN (canonical registry incomplete)"
+    },
+    {
+      "service": "ship-slm",
+      "op": "execute",
+      "cap": "FUTURE_SLM_CAP",
+      "soft_decision": "ALLOW",
+      "simulated_hard": "ALLOW",
+      "hard_gate_would_apply": false,
+      "invariant": "unknown_cap_gates_before_blocking",
+      "reason": "FUTURE_SLM_CAP not in any hard-gate list — unknown capability stays GATE/WARN (canonical registry incomplete)"
+    },
+    {
+      "service": "ship-slm",
+      "op": "execute",
+      "cap": "VESSEL_CLASSIFY",
+      "soft_decision": "ALLOW",
+      "simulated_hard": "ALLOW",
+      "hard_gate_would_apply": false,
+      "invariant": "unknown_cap_gates_before_blocking",
+      "reason": "VESSEL_CLASSIFY not in any hard-gate list — unknown capability stays GATE/WARN (canonical registry incomplete)"
+    },
+    {
+      "service": "ship-slm",
+      "op": "execute",
+      "cap": "BUNKERING_OP",
+      "soft_decision": "ALLOW",
+      "simulated_hard": "ALLOW",
+      "hard_gate_would_apply": false,
+      "invariant": "unknown_cap_gates_before_blocking",
+      "reason": "BUNKERING_OP not in any hard-gate list — unknown capability stays GATE/WARN (canonical registry incomplete)"
+    },
+    {
+      "service": "chief-slm",
+      "op": "read",
+      "cap": "READ",
+      "soft_decision": "ALLOW",
+      "simulated_hard": "ALLOW",
+      "hard_gate_would_apply": false,
+      "invariant": "AEG-HG-002",
+      "reason": "READ/GET/LIST/QUERY/SEARCH/HEALTH — never_block invariant (AEG-E-002 extended)"
+    },
+    {
+      "service": "chief-slm",
+      "op": "get",
+      "cap": "GET",
+      "soft_decision": "ALLOW",
+      "simulated_hard": "ALLOW",
+      "hard_gate_would_apply": false,
+      "invariant": "AEG-HG-002",
+      "reason": "READ/GET/LIST/QUERY/SEARCH/HEALTH — never_block invariant (AEG-E-002 extended)"
+    },
+    {
+      "service": "chief-slm",
+      "op": "list",
+      "cap": "LIST",
+      "soft_decision": "ALLOW",
+      "simulated_hard": "ALLOW",
+      "hard_gate_would_apply": false,
+      "invariant": "AEG-HG-002",
+      "reason": "READ/GET/LIST/QUERY/SEARCH/HEALTH — never_block invariant (AEG-E-002 extended)"
+    },
+    {
+      "service": "chief-slm",
+      "op": "write",
+      "cap": "WRITE",
+      "soft_decision": "ALLOW",
+      "simulated_hard": "ALLOW",
+      "hard_gate_would_apply": false,
+      "invariant": "unknown_cap_gates_before_blocking",
+      "reason": "WRITE not in any hard-gate list — unknown capability stays GATE/WARN (canonical registry incomplete)"
+    },
+    {
+      "service": "chief-slm",
+      "op": "create",
+      "cap": "WRITE",
+      "soft_decision": "ALLOW",
+      "simulated_hard": "ALLOW",
+      "hard_gate_would_apply": false,
+      "invariant": "unknown_cap_gates_before_blocking",
+      "reason": "WRITE not in any hard-gate list — unknown capability stays GATE/WARN (canonical registry incomplete)"
+    },
+    {
+      "service": "chief-slm",
+      "op": "patch",
+      "cap": "WRITE",
+      "soft_decision": "ALLOW",
+      "simulated_hard": "ALLOW",
+      "hard_gate_would_apply": false,
+      "invariant": "unknown_cap_gates_before_blocking",
+      "reason": "WRITE not in any hard-gate list — unknown capability stays GATE/WARN (canonical registry incomplete)"
+    },
+    {
+      "service": "chief-slm",
+      "op": "frob_impossible",
+      "cap": "IMPOSSIBLE_OP",
+      "soft_decision": "ALLOW",
+      "simulated_hard": "BLOCK",
+      "hard_gate_would_apply": true,
+      "invariant": null,
+      "reason": "IMPOSSIBLE_OP is in hard_block_capabilities for chief-slm (HG-1) — hard BLOCK"
+    },
+    {
+      "service": "chief-slm",
+      "op": "write",
+      "cap": "EMPTY_CAPABILITY_ON_WRITE",
+      "soft_decision": "ALLOW",
+      "simulated_hard": "BLOCK",
+      "hard_gate_would_apply": true,
+      "invariant": null,
+      "reason": "EMPTY_CAPABILITY_ON_WRITE is in hard_block_capabilities for chief-slm (HG-1) — hard BLOCK"
+    },
+    {
+      "service": "chief-slm",
+      "op": "deploy",
+      "cap": "CI_DEPLOY",
+      "soft_decision": "GATE",
+      "simulated_hard": "GATE",
+      "hard_gate_would_apply": false,
+      "invariant": "unknown_cap_gates_before_blocking",
+      "reason": "CI_DEPLOY not in any hard-gate list — unknown capability stays GATE/WARN (canonical registry incomplete)"
+    },
+    {
+      "service": "chief-slm",
+      "op": "delete",
+      "cap": "DELETE",
+      "soft_decision": "GATE",
+      "simulated_hard": "GATE",
+      "hard_gate_would_apply": false,
+      "invariant": "unknown_cap_gates_before_blocking",
+      "reason": "DELETE not in any hard-gate list — unknown capability stays GATE/WARN (canonical registry incomplete)"
+    },
+    {
+      "service": "chief-slm",
+      "op": "ai-execute",
+      "cap": "AI_EXECUTE",
+      "soft_decision": "GATE",
+      "simulated_hard": "GATE",
+      "hard_gate_would_apply": false,
+      "invariant": "unknown_cap_gates_before_blocking",
+      "reason": "AI_EXECUTE not in any hard-gate list — unknown capability stays GATE/WARN (canonical registry incomplete)"
+    },
+    {
+      "service": "chief-slm",
+      "op": "execute",
+      "cap": "EXECUTE",
+      "soft_decision": "ALLOW",
+      "simulated_hard": "ALLOW",
+      "hard_gate_would_apply": false,
+      "invariant": "unknown_cap_gates_before_blocking",
+      "reason": "EXECUTE not in any hard-gate list — unknown capability stays GATE/WARN (canonical registry incomplete)"
+    },
+    {
+      "service": "chief-slm",
+      "op": "approve",
+      "cap": "APPROVE",
+      "soft_decision": "ALLOW",
+      "simulated_hard": "ALLOW",
+      "hard_gate_would_apply": false,
+      "invariant": "unknown_cap_gates_before_blocking",
+      "reason": "APPROVE not in any hard-gate list — unknown capability stays GATE/WARN (canonical registry incomplete)"
+    },
+    {
+      "service": "chief-slm",
+      "op": "trigger",
+      "cap": "TRIGGER",
+      "soft_decision": "ALLOW",
+      "simulated_hard": "ALLOW",
+      "hard_gate_would_apply": false,
+      "invariant": "unknown_cap_gates_before_blocking",
+      "reason": "TRIGGER not in any hard-gate list — unknown capability stays GATE/WARN (canonical registry incomplete)"
+    },
+    {
+      "service": "chief-slm",
+      "op": "spawn",
+      "cap": "SPAWN_AGENTS",
+      "soft_decision": "ALLOW",
+      "simulated_hard": "ALLOW",
+      "hard_gate_would_apply": false,
+      "invariant": "unknown_cap_gates_before_blocking",
+      "reason": "SPAWN_AGENTS not in any hard-gate list — unknown capability stays GATE/WARN (canonical registry incomplete)"
+    },
+    {
+      "service": "chief-slm",
+      "op": "execute",
+      "cap": "OFFICER_BRIEF",
+      "soft_decision": "ALLOW",
+      "simulated_hard": "ALLOW",
+      "hard_gate_would_apply": false,
+      "invariant": "unknown_cap_gates_before_blocking",
+      "reason": "OFFICER_BRIEF not in any hard-gate list — unknown capability stays GATE/WARN (canonical registry incomplete)"
+    },
+    {
+      "service": "chief-slm",
+      "op": "execute",
+      "cap": "CARGO_MANIFEST_REVIEW",
+      "soft_decision": "ALLOW",
+      "simulated_hard": "ALLOW",
+      "hard_gate_would_apply": false,
+      "invariant": "unknown_cap_gates_before_blocking",
+      "reason": "CARGO_MANIFEST_REVIEW not in any hard-gate list — unknown capability stays GATE/WARN (canonical registry incomplete)"
+    },
+    {
+      "service": "chief-slm",
+      "op": "execute",
+      "cap": "PORT_CLEARANCE",
+      "soft_decision": "ALLOW",
+      "simulated_hard": "ALLOW",
+      "hard_gate_would_apply": false,
+      "invariant": "unknown_cap_gates_before_blocking",
+      "reason": "PORT_CLEARANCE not in any hard-gate list — unknown capability stays GATE/WARN (canonical registry incomplete)"
+    }
+  ],
+  "summary": {
+    "total_sim_entries": 36,
+    "true_positive_blocks": 4,
+    "still_gate_violations": 0,
+    "unexpected_blocks": 0,
+    "read_blocks": 0
+  },
+  "total_checks": 123,
+  "passed": 123,
+  "failed": 0
+}

@@ -1,0 +1,25 @@
+{
+  "batch": 32,
+  "date": "2026-05-03T00:10:12.417Z",
+  "verdict": "PASS",
+  "service": "chirpee",
+  "stage": "Stage 1 — HG-1 pilot — LIVE",
+  "hard_gate_globally_enabled": true,
+  "aegis_hard_gate_services": "chirpee",
+  "total_checks": 120,
+  "passed": 120,
+  "failed": 0,
+  "hard_block_fires": 6,
+  "hard_gate_active_decisions": 22,
+  "unexpected_blocks": 0,
+  "hard_block_capabilities": [
+    "IMPOSSIBLE_OP",
+    "EMPTY_CAPABILITY_ON_WRITE"
+  ],
+  "never_block_confirmed": true,
+  "unknown_service_confirmed_no_block": true,
+  "unknown_cap_confirmed_no_block": true,
+  "gate_decisions_unaffected": true,
+  "rollback_verified": true,
+  "promotion_note": "Hard gate is now LIVE for chirpee. IMPOSSIBLE_OP and EMPTY_CAPABILITY_ON_WRITE are blocked. All other decisions unchanged."
+}

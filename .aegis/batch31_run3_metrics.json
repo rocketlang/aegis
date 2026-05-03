@@ -1,0 +1,60 @@
+{
+  "soak_run": 3,
+  "date": "2026-05-02T23:56:13.547Z",
+  "verdict": "PASS",
+  "soft_decisions": {
+    "ALLOW": 189,
+    "WARN": 0,
+    "GATE": 15,
+    "BLOCK": 0
+  },
+  "sim_production": {
+    "fires": 0,
+    "no_fires": 198
+  },
+  "sim_dryrun": {
+    "ALLOW": 138,
+    "WARN": 0,
+    "GATE": 30,
+    "BLOCK": 30
+  },
+  "false_positives": 0,
+  "true_positives": 30,
+  "invariant_violations": 0,
+  "production_gate_fires": 0,
+  "waves": {
+    "wave1_read_burst": {
+      "decisions": 90,
+      "false_positives": 0,
+      "true_positives": 0
+    },
+    "wave2_write_burst": {
+      "decisions": 48,
+      "false_positives": 0,
+      "true_positives": 0
+    },
+    "wave3_highrisk": {
+      "decisions": 20,
+      "false_positives": 0,
+      "true_positives": 0
+    },
+    "wave4_critical": {
+      "decisions": 10,
+      "false_positives": 0,
+      "true_positives": 0
+    },
+    "wave5_malformed": {
+      "decisions": 30,
+      "false_positives": 0,
+      "true_positives": 30
+    },
+    "wave6_boundary": {
+      "decisions": 7,
+      "false_positives": 0,
+      "true_positives": 0
+    }
+  },
+  "total_checks": 837,
+  "passed": 837,
+  "failed": 0
+}

@@ -1,0 +1,54 @@
+{
+  "batch": 35,
+  "verdict_date": "2026-05-03T00:59:18.040Z",
+  "services": [
+    "ship-slm",
+    "chief-slm"
+  ],
+  "soak_runs_required": 7,
+  "soak_runs_complete": 7,
+  "all_seven_pass": true,
+  "promotion_permitted_ship_chief": true,
+  "hard_gate_enabled_ship_slm": false,
+  "hard_gate_enabled_chief_slm": false,
+  "promotion_requires": "Add ship-slm,chief-slm to AEGIS_HARD_GATE_SERVICES — manual act (Batch 36)",
+  "chirpee_status": "live hard-gate — unaffected",
+  "run_results": [
+    {
+      "run": 1,
+      "pass": true
+    },
+    {
+      "run": 2,
+      "pass": true
+    },
+    {
+      "run": 3,
+      "pass": true
+    },
+    {
+      "run": 4,
+      "pass": true
+    },
+    {
+      "run": 5,
+      "pass": true
+    },
+    {
+      "run": 6,
+      "pass": true
+    },
+    {
+      "run": 7,
+      "pass": true
+    }
+  ],
+  "run7": {
+    "checks": 310,
+    "passed": 310,
+    "failed": 0,
+    "true_positives": 20,
+    "false_positives": 0
+  },
+  "note": "7/7 soak complete. Policies are proven stable. Promotion is a human decision in Batch 36."
+}

@@ -1,0 +1,8 @@
+{
+  "soak_complete": true,
+  "runs_passed": 7,
+  "false_positives_this_run": 0,
+  "promotion_permitted": true,
+  "promotion_requires": "HARD_GATE_GLOBALLY_ENABLED=true AND AEGIS_HARD_GATE_SERVICES=chirpee — manual human act",
+  "date": "2026-05-02T23:56:30.051Z"
+}

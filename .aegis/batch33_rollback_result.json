@@ -1,0 +1,20 @@
+{
+  "batch": 33,
+  "date": "2026-05-03T00:29:37.908Z",
+  "rollback_via_runtime_kill": {
+    "tested": true,
+    "phase_during_kill": "shadow",
+    "hard_gate_suppressed": true
+  },
+  "rollback_via_env_var": {
+    "tested": true,
+    "service_restored_to": "soft_canary",
+    "immediate": true
+  },
+  "rollback_drill": {
+    "verdict": "PASS",
+    "phase_after_kill": "shadow"
+  },
+  "restore_mechanism": "Re-add chirpee to AEGIS_HARD_GATE_SERVICES",
+  "note": "Rollback is config-only. No code change, no restart, no migration."
+}

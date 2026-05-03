@@ -1,0 +1,293 @@
+[
+  {
+    "service_id": "chirpee",
+    "operation": "read",
+    "capability": "READ",
+    "decision": "ALLOW",
+    "enforcement_phase": "hard_gate",
+    "hard_gate_active": true,
+    "hard_gate_applied": false,
+    "hard_gate_service": "chirpee",
+    "hard_gate_policy_version": "HG-1"
+  },
+  {
+    "service_id": "chirpee",
+    "operation": "get",
+    "capability": "READ",
+    "decision": "ALLOW",
+    "enforcement_phase": "hard_gate",
+    "hard_gate_active": true,
+    "hard_gate_applied": false,
+    "hard_gate_service": "chirpee",
+    "hard_gate_policy_version": "HG-1"
+  },
+  {
+    "service_id": "chirpee",
+    "operation": "list",
+    "capability": "READ",
+    "decision": "ALLOW",
+    "enforcement_phase": "hard_gate",
+    "hard_gate_active": true,
+    "hard_gate_applied": false,
+    "hard_gate_service": "chirpee",
+    "hard_gate_policy_version": "HG-1"
+  },
+  {
+    "service_id": "chirpee",
+    "operation": "query",
+    "capability": "QUERY",
+    "decision": "ALLOW",
+    "enforcement_phase": "hard_gate",
+    "hard_gate_active": true,
+    "hard_gate_applied": false,
+    "hard_gate_service": "chirpee",
+    "hard_gate_policy_version": "HG-1"
+  },
+  {
+    "service_id": "chirpee",
+    "operation": "search",
+    "capability": "QUERY",
+    "decision": "ALLOW",
+    "enforcement_phase": "hard_gate",
+    "hard_gate_active": true,
+    "hard_gate_applied": false,
+    "hard_gate_service": "chirpee",
+    "hard_gate_policy_version": "HG-1"
+  },
+  {
+    "service_id": "chirpee",
+    "operation": "health",
+    "capability": "HEALTH",
+    "decision": "ALLOW",
+    "enforcement_phase": "hard_gate",
+    "hard_gate_active": true,
+    "hard_gate_applied": false,
+    "hard_gate_service": "chirpee",
+    "hard_gate_policy_version": "HG-1"
+  },
+  {
+    "service_id": "chirpee",
+    "operation": "write",
+    "capability": "WRITE",
+    "decision": "ALLOW",
+    "enforcement_phase": "hard_gate",
+    "hard_gate_active": true,
+    "hard_gate_applied": false,
+    "hard_gate_service": "chirpee",
+    "hard_gate_policy_version": "HG-1"
+  },
+  {
+    "service_id": "chirpee",
+    "operation": "create",
+    "capability": "WRITE",
+    "decision": "ALLOW",
+    "enforcement_phase": "hard_gate",
+    "hard_gate_active": true,
+    "hard_gate_applied": false,
+    "hard_gate_service": "chirpee",
+    "hard_gate_policy_version": "HG-1"
+  },
+  {
+    "service_id": "chirpee",
+    "operation": "patch",
+    "capability": "WRITE",
+    "decision": "ALLOW",
+    "enforcement_phase": "hard_gate",
+    "hard_gate_active": true,
+    "hard_gate_applied": false,
+    "hard_gate_service": "chirpee",
+    "hard_gate_policy_version": "HG-1"
+  },
+  {
+    "service_id": "chirpee",
+    "operation": "update",
+    "capability": "WRITE",
+    "decision": "ALLOW",
+    "enforcement_phase": "hard_gate",
+    "hard_gate_active": true,
+    "hard_gate_applied": false,
+    "hard_gate_service": "chirpee",
+    "hard_gate_policy_version": "HG-1"
+  },
+  {
+    "service_id": "chirpee",
+    "operation": "frob_impossible",
+    "capability": "IMPOSSIBLE_OP",
+    "decision": "BLOCK",
+    "enforcement_phase": "hard_gate",
+    "hard_gate_active": true,
+    "hard_gate_applied": true,
+    "hard_gate_service": "chirpee",
+    "hard_gate_policy_version": "HG-1"
+  },
+  {
+    "service_id": "chirpee",
+    "operation": "frob_impossible",
+    "capability": "IMPOSSIBLE_OP",
+    "decision": "BLOCK",
+    "enforcement_phase": "hard_gate",
+    "hard_gate_active": true,
+    "hard_gate_applied": true,
+    "hard_gate_service": "chirpee",
+    "hard_gate_policy_version": "HG-1"
+  },
+  {
+    "service_id": "chirpee",
+    "operation": "frob_impossible",
+    "capability": "IMPOSSIBLE_OP",
+    "decision": "BLOCK",
+    "enforcement_phase": "hard_gate",
+    "hard_gate_active": true,
+    "hard_gate_applied": true,
+    "hard_gate_service": "chirpee",
+    "hard_gate_policy_version": "HG-1"
+  },
+  {
+    "service_id": "chirpee",
+    "operation": "write",
+    "capability": "EMPTY_CAPABILITY_ON_WRITE",
+    "decision": "BLOCK",
+    "enforcement_phase": "hard_gate",
+    "hard_gate_active": true,
+    "hard_gate_applied": true,
+    "hard_gate_service": "chirpee",
+    "hard_gate_policy_version": "HG-1"
+  },
+  {
+    "service_id": "chirpee",
+    "operation": "write",
+    "capability": "EMPTY_CAPABILITY_ON_WRITE",
+    "decision": "BLOCK",
+    "enforcement_phase": "hard_gate",
+    "hard_gate_active": true,
+    "hard_gate_applied": true,
+    "hard_gate_service": "chirpee",
+    "hard_gate_policy_version": "HG-1"
+  },
+  {
+    "service_id": "chirpee",
+    "operation": "write",
+    "capability": "EMPTY_CAPABILITY_ON_WRITE",
+    "decision": "BLOCK",
+    "enforcement_phase": "hard_gate",
+    "hard_gate_active": true,
+    "hard_gate_applied": true,
+    "hard_gate_service": "chirpee",
+    "hard_gate_policy_version": "HG-1"
+  },
+  {
+    "service_id": "chirpee",
+    "operation": "deploy",
+    "capability": "CI_DEPLOY",
+    "decision": "GATE",
+    "enforcement_phase": "hard_gate",
+    "hard_gate_active": true,
+    "hard_gate_applied": false,
+    "hard_gate_service": "chirpee",
+    "hard_gate_policy_version": "HG-1"
+  },
+  {
+    "service_id": "chirpee",
+    "operation": "delete",
+    "capability": "DELETE",
+    "decision": "GATE",
+    "enforcement_phase": "hard_gate",
+    "hard_gate_active": true,
+    "hard_gate_applied": false,
+    "hard_gate_service": "chirpee",
+    "hard_gate_policy_version": "HG-1"
+  },
+  {
+    "service_id": "chirpee",
+    "operation": "ai-execute",
+    "capability": "AI_EXECUTE",
+    "decision": "GATE",
+    "enforcement_phase": "hard_gate",
+    "hard_gate_active": true,
+    "hard_gate_applied": false,
+    "hard_gate_service": "chirpee",
+    "hard_gate_policy_version": "HG-1"
+  },
+  {
+    "service_id": "unknown-service-xyz",
+    "operation": "deploy",
+    "capability": "CI_DEPLOY",
+    "decision": "WARN",
+    "enforcement_phase": "shadow"
+  },
+  {
+    "service_id": "future-service-2030",
+    "operation": "deploy",
+    "capability": "CI_DEPLOY",
+    "decision": "WARN",
+    "enforcement_phase": "shadow"
+  },
+  {
+    "service_id": "ship-slm",
+    "operation": "deploy",
+    "capability": "CI_DEPLOY",
+    "decision": "GATE",
+    "enforcement_phase": "soft_canary"
+  },
+  {
+    "service_id": "chirpee",
+    "operation": "execute",
+    "capability": "FUTURE_CAP_2030",
+    "decision": "ALLOW",
+    "enforcement_phase": "hard_gate",
+    "hard_gate_active": true,
+    "hard_gate_applied": false,
+    "hard_gate_service": "chirpee",
+    "hard_gate_policy_version": "HG-1"
+  },
+  {
+    "service_id": "chirpee",
+    "operation": "execute",
+    "capability": "LIFECYCLE_UNKNOWN",
+    "decision": "ALLOW",
+    "enforcement_phase": "hard_gate",
+    "hard_gate_active": true,
+    "hard_gate_applied": false,
+    "hard_gate_service": "chirpee",
+    "hard_gate_policy_version": "HG-1"
+  },
+  {
+    "service_id": "chirpee",
+    "operation": "execute",
+    "capability": "CUSTOM_OP_XYZ",
+    "decision": "ALLOW",
+    "enforcement_phase": "hard_gate",
+    "hard_gate_active": true,
+    "hard_gate_applied": false,
+    "hard_gate_service": "chirpee",
+    "hard_gate_policy_version": "HG-1"
+  },
+  {
+    "service_id": "ship-slm",
+    "operation": "deploy",
+    "capability": "CI_DEPLOY",
+    "decision": "GATE",
+    "enforcement_phase": "soft_canary"
+  },
+  {
+    "service_id": "granthx",
+    "operation": "frob_impossible",
+    "capability": "IMPOSSIBLE_OP",
+    "decision": "ALLOW",
+    "enforcement_phase": "soft_canary"
+  },
+  {
+    "service_id": "chirpee",
+    "operation": "frob_impossible",
+    "capability": "IMPOSSIBLE_OP",
+    "decision": "ALLOW",
+    "enforcement_phase": "soft_canary"
+  },
+  {
+    "service_id": "chirpee",
+    "operation": "deploy",
+    "capability": "CI_DEPLOY",
+    "decision": "GATE",
+    "enforcement_phase": "soft_canary"
+  }
+]

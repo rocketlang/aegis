@@ -1,0 +1,67 @@
+{
+  "soak_run": 7,
+  "date": "2026-05-02T23:56:30.051Z",
+  "verdict": "PASS",
+  "promotion_permitted": true,
+  "note": "7/7 complete. Human promote decision required per AEG-HG-003.",
+  "soft_decisions": {
+    "ALLOW": 144,
+    "WARN": 0,
+    "GATE": 15,
+    "BLOCK": 0
+  },
+  "sim_production": {
+    "fires": 0,
+    "no_fires": 147
+  },
+  "sim_dryrun": {
+    "ALLOW": 92,
+    "WARN": 0,
+    "GATE": 35,
+    "BLOCK": 20
+  },
+  "false_positives": 0,
+  "true_positives": 20,
+  "invariant_violations": 0,
+  "production_gate_fires": 0,
+  "waves": {
+    "wave1_read": {
+      "decisions": 60,
+      "false_positives": 0,
+      "true_positives": 0
+    },
+    "wave2_mixcase": {
+      "decisions": 6,
+      "false_positives": 0,
+      "true_positives": 0
+    },
+    "wave3_write": {
+      "decisions": 32,
+      "false_positives": 0,
+      "true_positives": 0
+    },
+    "wave4_highrisk": {
+      "decisions": 25,
+      "false_positives": 0,
+      "true_positives": 0
+    },
+    "wave5_critical": {
+      "decisions": 10,
+      "false_positives": 0,
+      "true_positives": 0
+    },
+    "wave6_malformed": {
+      "decisions": 20,
+      "false_positives": 0,
+      "true_positives": 20
+    },
+    "wave7_boundary": {
+      "decisions": 7,
+      "false_positives": 0,
+      "true_positives": 0
+    }
+  },
+  "total_checks": 653,
+  "passed": 653,
+  "failed": 0
+}
