@@ -39,7 +39,7 @@ export type HGGroup = "HG-0" | "HG-1" | "HG-2" | "HG-3" | "HG-4";
 export interface ServiceHardGatePolicy {
   service_id: string;
   hg_group: HGGroup;
-  hard_gate_enabled: false; // policy object default is always false; runtime enabling is via env var
+  hard_gate_enabled: boolean; // false until promoted; true = documentary alignment with env var
   hard_block_capabilities: ReadonlySet<string>; // BLOCK when hard-gate is active
   still_gate_capabilities: ReadonlySet<string>; // GATE even when hard-gate active (not BLOCK)
   always_allow_capabilities: ReadonlySet<string>; // ALLOW regardless
@@ -218,17 +218,64 @@ export const PURANIC_OS_HG1_POLICY: ServiceHardGatePolicy = {
   stage: "Stage 3 — HG-1 LIVE 2026-05-03 (Batch 39) — soak: Batch 38 7/7",
 };
 
+// ── pramana HG-2A policy ─────────────────────────────────────────────────────
+//
+// Stage 4. HG-2A: read_only + BR-5 (higher blast radius than HG-1's BR-0/BR-1).
+// Policy prep: Batch 42, 2026-05-03. Soak: 7/7 required before promotion.
+// NOT LIVE: hard_gate_enabled=false; NOT in AEGIS_HARD_GATE_SERVICES.
+//
+// TP gap confirmed Batch 41:
+//   IMPOSSIBLE_OP             → soft=ALLOW, sim(on)=BLOCK (TP)
+//   EMPTY_CAPABILITY_ON_WRITE → soft=ALLOW, sim(on)=BLOCK (TP)
+//
+// BR-5 vs HG-1:
+//   HG-1 services were BR-0/BR-1. Pramana is BR-5. Higher blast but same
+//   authority_class (read_only) and same TP gap. Doctrine: identical hard-block
+//   surface, same 7-run soak discipline. The blast radius changes the
+//   consequence of an error; it does not change what the gate should block.
+//
+// Rollback: remove pramana from AEGIS_HARD_GATE_SERVICES — immediate.
+//
+// @rule:AEG-HG-001 hard_gate_enabled=false — runtime enabling is env var only
+// @rule:AEG-HG-002 READ is in never_block — AEG-E-002 extended to HG-2
+
+export const PRAMANA_HG2A_POLICY: ServiceHardGatePolicy = {
+  service_id: "pramana",
+  hg_group: "HG-2",
+  hard_gate_enabled: false, // @rule:AEG-HG-001 — NOT LIVE; enabling requires Batch 42 7/7 soak
+  hard_block_capabilities: new Set([
+    "IMPOSSIBLE_OP",             // demonstrably invalid sentinel — same justification as HG-1
+    "EMPTY_CAPABILITY_ON_WRITE", // empty capability string on write-class op — same as HG-1
+  ]),
+  still_gate_capabilities: new Set([
+    // High-consequence proof/governance ops stay GATE in hard mode — never BLOCK for HG-2A
+    "CI_DEPLOY", "DELETE", "EXECUTE", "APPROVE", "AI_EXECUTE",
+    "FULL_AUTONOMY", "SPAWN_AGENTS", "MEMORY_WRITE", "AUDIT_WRITE",
+    "TRIGGER", "EMIT",
+  ]),
+  always_allow_capabilities: new Set([
+    "READ", "GET", "LIST", "QUERY", "SEARCH", "HEALTH",
+  ]),
+  never_block_capabilities: new Set([
+    "READ", // @rule:AEG-HG-002 — AEG-E-002 extended to hard mode
+  ]),
+  rollout_order: 5,
+  stage: "Stage 4 — HG-2A prep — NOT LIVE (Batch 42, 2026-05-03)",
+};
+
 // ── Policy registry ───────────────────────────────────────────────────────────
 // Batch 34: ship-slm + chief-slm added (disabled). Chirpee = Stage 1 live.
 // Batch 36: ship-slm + chief-slm promoted live.
 // Batch 37: puranic-os added (disabled). Stage 3 candidate.
 // Batch 39: puranic-os promoted live. All 4 HG-1 services now live.
+// Batch 42: pramana added (HG-2A, disabled). Stage 4 soak in progress.
 
 export const HARD_GATE_POLICIES: Readonly<Record<string, ServiceHardGatePolicy>> = {
   chirpee:       CHIRPEE_HG1_POLICY,
   "ship-slm":    SHIP_SLM_HG1_POLICY,
   "chief-slm":   CHIEF_SLM_HG1_POLICY,
   "puranic-os":  PURANIC_OS_HG1_POLICY,
+  pramana:       PRAMANA_HG2A_POLICY,
 };
 
 // ── Live hard-gate enforcement ────────────────────────────────────────────────
