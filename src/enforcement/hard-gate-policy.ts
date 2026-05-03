@@ -222,11 +222,14 @@ export const PURANIC_OS_HG1_POLICY: ServiceHardGatePolicy = {
 //
 // Stage 4. HG-2A: read_only + BR-5 (higher blast radius than HG-1's BR-0/BR-1).
 // Policy prep: Batch 42, 2026-05-03. Soak: 7/7 required before promotion.
-// NOT LIVE: hard_gate_enabled=false; NOT in AEGIS_HARD_GATE_SERVICES.
+// LIVE: hard_gate_enabled=true; IN AEGIS_HARD_GATE_SERVICES (Batch 43, 2026-05-03).
 //
-// TP gap confirmed Batch 41:
-//   IMPOSSIBLE_OP             → soft=ALLOW, sim(on)=BLOCK (TP)
-//   EMPTY_CAPABILITY_ON_WRITE → soft=ALLOW, sim(on)=BLOCK (TP)
+// Soak: Batch 42 7/7 PASS, 838 total checks, 0 production fires.
+//   promotion_permitted_pramana=true (.aegis/batch42_pramana_final_verdict.json)
+//
+// TP gap confirmed Batch 41, validated across Batch 42:
+//   IMPOSSIBLE_OP             → soft=ALLOW, hard=BLOCK (TP)
+//   EMPTY_CAPABILITY_ON_WRITE → soft=ALLOW, hard=BLOCK (TP)
 //
 // BR-5 vs HG-1:
 //   HG-1 services were BR-0/BR-1. Pramana is BR-5. Higher blast but same
@@ -234,15 +237,20 @@ export const PURANIC_OS_HG1_POLICY: ServiceHardGatePolicy = {
 //   surface, same 7-run soak discipline. The blast radius changes the
 //   consequence of an error; it does not change what the gate should block.
 //
+// still_gate gotcha (locked Batch 42 Run 7):
+//   MEMORY_WRITE / AUDIT_WRITE / SPAWN_AGENTS are downgrade-guard caps only.
+//   The soft layer returns ALLOW for them (not soft-gated). still_gate only fires
+//   when soft=BLOCK — these caps are not guaranteed soft-gated through evaluate().
+//
 // Rollback: remove pramana from AEGIS_HARD_GATE_SERVICES — immediate.
 //
-// @rule:AEG-HG-001 hard_gate_enabled=false — runtime enabling is env var only
+// @rule:AEG-HG-001 hard_gate_enabled=true — in sync with AEGIS_HARD_GATE_SERVICES
 // @rule:AEG-HG-002 READ is in never_block — AEG-E-002 extended to HG-2
 
 export const PRAMANA_HG2A_POLICY: ServiceHardGatePolicy = {
   service_id: "pramana",
   hg_group: "HG-2",
-  hard_gate_enabled: false, // @rule:AEG-HG-001 — NOT LIVE; enabling requires Batch 42 7/7 soak
+  hard_gate_enabled: true, // @rule:AEG-HG-001 — LIVE (Batch 43, 2026-05-03); soak: Batch 42 7/7
   hard_block_capabilities: new Set([
     "IMPOSSIBLE_OP",             // demonstrably invalid sentinel — same justification as HG-1
     "EMPTY_CAPABILITY_ON_WRITE", // empty capability string on write-class op — same as HG-1
@@ -260,7 +268,7 @@ export const PRAMANA_HG2A_POLICY: ServiceHardGatePolicy = {
     "READ", // @rule:AEG-HG-002 — AEG-E-002 extended to hard mode
   ]),
   rollout_order: 5,
-  stage: "Stage 4 — HG-2A prep — NOT LIVE (Batch 42, 2026-05-03)",
+  stage: "Stage 4 — HG-2A LIVE 2026-05-03 (Batch 43) — soak: Batch 42 7/7",
 };
 
 // ── Policy registry ───────────────────────────────────────────────────────────
@@ -268,7 +276,8 @@ export const PRAMANA_HG2A_POLICY: ServiceHardGatePolicy = {
 // Batch 36: ship-slm + chief-slm promoted live.
 // Batch 37: puranic-os added (disabled). Stage 3 candidate.
 // Batch 39: puranic-os promoted live. All 4 HG-1 services now live.
-// Batch 42: pramana added (HG-2A, disabled). Stage 4 soak in progress.
+// Batch 42: pramana added (HG-2A, disabled). Stage 4 soak — 7/7 PASS, promotion permitted.
+// Batch 43: pramana promoted live (HG-2A). 5 live hard-gate services total.
 
 export const HARD_GATE_POLICIES: Readonly<Record<string, ServiceHardGatePolicy>> = {
   chirpee:       CHIRPEE_HG1_POLICY,
