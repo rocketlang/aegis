@@ -278,32 +278,39 @@ export const PRAMANA_HG2A_POLICY: ServiceHardGatePolicy = {
 // Registry repaired Batch 45: codex.json now has authority_class=read_only,
 // governance_blast_radius=BR-5, runtime_readiness TIER-A, hg_group=HG-2A.
 // Soft blocker from Batch 41 cleared: portPath backend.domainCapture → 4650.
-// Policy prep: Batch 46, 2026-05-03. Soak: 7/7 required before promotion.
-// NOT LIVE: hard_gate_enabled=false. NOT in AEGIS_HARD_GATE_SERVICES.
+// Policy prep: Batch 46, 2026-05-03. Soak: Batch 47 7/7 PASS (promotion_permitted=true).
+// LIVE: hard_gate_enabled=true; IN AEGIS_HARD_GATE_SERVICES (Batch 48, 2026-05-03).
 //
-// TP gap (locked Batch 46 soak run 1):
-//   IMPOSSIBLE_OP             → soft=ALLOW, sim(on)=BLOCK (TP)
-//   EMPTY_CAPABILITY_ON_WRITE → soft=ALLOW, sim(on)=BLOCK (TP)
+// Soak: Batch 46 run 1 (123 checks) + Batch 47 runs 2–7 (349 checks) = 472 total.
+//   0 false positives, 0 production fires, promotion_permitted_domain_capture=true.
+//   Verdict: .aegis/batch47_domain_capture_final_verdict.json
+//
+// TP gap confirmed Batch 46, validated across Batch 47 (all 7 runs):
+//   IMPOSSIBLE_OP             → soft=ALLOW, hard=BLOCK (TP)
+//   EMPTY_CAPABILITY_ON_WRITE → soft=ALLOW, hard=BLOCK (TP)
 //
 // Domain operations (CAPTURE_DOMAIN/CLASSIFY_DOMAIN/EXTRACT_RULES/etc):
 //   Not in hard_block_capabilities — soft decision preserved.
 //   These are legitimate domain-capture operations, not malformed calls.
+//
+// Approval lifecycle doctrine (locked Batch 46 soak + promoted Batch 48):
+//   Soft_canary GATE: approval_token present, but approve/deny/revoke methods absent.
+//   Hard_gate GATE: approval_token present, approve/deny/revoke lifecycle LIVE.
 //
 // still_gate gotcha (inherited from pramana doctrine, locked Batch 42 Run 7):
 //   MEMORY_WRITE / AUDIT_WRITE / SPAWN_AGENTS are downgrade-guard caps only.
 //   Soft layer returns ALLOW for them (not soft-gated). still_gate only fires
 //   when soft=BLOCK — these caps are not guaranteed soft-gated through evaluate().
 //
-// Rollback (when eventually promoted): remove domain-capture from
-//   AEGIS_HARD_GATE_SERVICES — immediately returns to soft_canary.
+// Rollback: remove domain-capture from AEGIS_HARD_GATE_SERVICES — immediate.
 //
-// @rule:AEG-HG-001 hard_gate_enabled=false — NOT in AEGIS_HARD_GATE_SERVICES (Batch 46)
+// @rule:AEG-HG-001 hard_gate_enabled=true — in sync with AEGIS_HARD_GATE_SERVICES (Batch 48)
 // @rule:AEG-HG-002 READ is in never_block — AEG-E-002 extended to HG-2
 
 export const DOMAIN_CAPTURE_HG2A_POLICY: ServiceHardGatePolicy = {
   service_id: "domain-capture",
   hg_group: "HG-2",
-  hard_gate_enabled: false, // @rule:AEG-HG-001 — NOT LIVE (Batch 46). Promotion after 7/7 soak.
+  hard_gate_enabled: true, // @rule:AEG-HG-001 — LIVE (Batch 48, 2026-05-03); soak: Batch 47 7/7
   hard_block_capabilities: new Set([
     "IMPOSSIBLE_OP",             // demonstrably invalid sentinel — same justification as pramana/HG-1
     "EMPTY_CAPABILITY_ON_WRITE", // empty capability string on write-class op — same as pramana
@@ -321,7 +328,7 @@ export const DOMAIN_CAPTURE_HG2A_POLICY: ServiceHardGatePolicy = {
     "READ", // @rule:AEG-HG-002 — AEG-E-002 extended to hard mode
   ]),
   rollout_order: 6,
-  stage: "Stage 4 — HG-2A prep — NOT LIVE (Batch 46, 2026-05-03)",
+  stage: "Stage 4 — HG-2A LIVE 2026-05-03 (Batch 48) — soak: Batch 47 7/7",
 };
 
 // ── Policy registry ───────────────────────────────────────────────────────────
@@ -331,7 +338,8 @@ export const DOMAIN_CAPTURE_HG2A_POLICY: ServiceHardGatePolicy = {
 // Batch 39: puranic-os promoted live. All 4 HG-1 services now live.
 // Batch 42: pramana added (HG-2A, disabled). Stage 4 soak — 7/7 PASS, promotion permitted.
 // Batch 43: pramana promoted live (HG-2A). 5 live hard-gate services total.
-// Batch 46: domain-capture added (HG-2A, disabled). Stage 4 soak — run 1/7 underway.
+// Batch 46: domain-capture added (HG-2A, disabled). Stage 4 soak — 7/7 PASS (Batch 47).
+// Batch 48: domain-capture promoted live (HG-2A). 6 live hard-gate services total.
 
 export const HARD_GATE_POLICIES: Readonly<Record<string, ServiceHardGatePolicy>> = {
   chirpee:           CHIRPEE_HG1_POLICY,
