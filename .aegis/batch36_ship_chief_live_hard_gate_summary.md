@@ -1,6 +1,6 @@
 # Batch 36 — ship-slm + chief-slm HG-1 Live Hard-Gate Promotion
 
-**Date:** 2026-05-03T01:21:53.458Z
+**Date:** 2026-05-03T01:22:46.681Z
 **Verdict:** PASS
 
 ## Promotion
