@@ -1,0 +1,376 @@
+{
+  "batch": 67,
+  "title": "carbonx HG-2B Financial Soft-Canary Soak Run 2/7",
+  "run_at": "2026-05-03T14:35:33.103Z",
+  "verdict": "PASS",
+  "checks_passed": 57,
+  "checks_total": 57,
+  "soak_run": {
+    "run": 2,
+    "of": 7,
+    "false_positives": 0,
+    "production_fires": 0
+  },
+  "scope_enforcement": {
+    "happy_path_verified": true,
+    "replay_blocked": true,
+    "wrong_scope_rejections": 13,
+    "pre_db_rejection_ordering": true
+  },
+  "policy_confirmed": {
+    "service_id": "carbonx-backend",
+    "hg_group": "HG-2",
+    "hard_gate_enabled": false,
+    "rollout_order": 8,
+    "financial_settlement_doctrine": true
+  },
+  "live_roster_count": 7,
+  "hg2b_live_count": 1,
+  "carbonx_in_aegis_env": false,
+  "promotion_permitted_carbonx": false,
+  "next_batch": "Batch 68 — carbonx HG-2B financial soft-canary soak run 3/7",
+  "results": [
+    {
+      "id": 1,
+      "label": "Batch 66 artifact exists",
+      "verdict": "PASS",
+      "section": "prereq"
+    },
+    {
+      "id": 2,
+      "label": "Batch 66 verdict=PASS",
+      "verdict": "PASS",
+      "section": "prereq"
+    },
+    {
+      "id": 3,
+      "label": "Batch 66 soak_run.run=1, soak_run.of=7",
+      "verdict": "PASS",
+      "section": "prereq"
+    },
+    {
+      "id": 4,
+      "label": "Batch 66 promotion_permitted_carbonx=false",
+      "verdict": "PASS",
+      "section": "prereq"
+    },
+    {
+      "id": 5,
+      "label": "CARBONX_HG2B_POLICY exists in hard-gate-policy",
+      "verdict": "PASS",
+      "section": "prereq"
+    },
+    {
+      "id": 6,
+      "label": "CARBONX_HG2B_POLICY.hard_gate_enabled=false",
+      "verdict": "PASS",
+      "section": "prereq"
+    },
+    {
+      "id": 7,
+      "label": "carbonx-backend NOT in AEGIS_HARD_GATE_SERVICES",
+      "verdict": "PASS",
+      "section": "prereq"
+    },
+    {
+      "id": 8,
+      "label": "rollout_order=8",
+      "verdict": "PASS",
+      "section": "prereq"
+    },
+    {
+      "id": 9,
+      "label": "financial_settlement_doctrine=true",
+      "verdict": "PASS",
+      "section": "prereq"
+    },
+    {
+      "id": 10,
+      "label": "approval_scope_fields contains all 10 required financial fields",
+      "verdict": "PASS",
+      "section": "prereq"
+    },
+    {
+      "id": 11,
+      "label": "aegis-approval-token.ts exports mintApprovalToken + verifyFinancialApprovalToken",
+      "verdict": "PASS",
+      "section": "happy-path"
+    },
+    {
+      "id": 12,
+      "label": "Token with all 10 financial fields verifies for exact scope match",
+      "verdict": "PASS",
+      "section": "happy-path"
+    },
+    {
+      "id": 13,
+      "label": "Token nonce consumed: second consume returns false (replay prevention)",
+      "verdict": "PASS",
+      "section": "happy-path"
+    },
+    {
+      "id": 14,
+      "label": "Consumed nonce is flagged in registry — replay path correctly blocked",
+      "verdict": "PASS",
+      "section": "happy-path"
+    },
+    {
+      "id": 15,
+      "label": "Wrong service_id rejects (IRR-NOAPPROVAL)",
+      "verdict": "PASS",
+      "section": "scope-reject"
+    },
+    {
+      "id": 16,
+      "label": "Wrong capability rejects (IRR-NOAPPROVAL)",
+      "verdict": "PASS",
+      "section": "scope-reject"
+    },
+    {
+      "id": 17,
+      "label": "Wrong operation rejects (IRR-NOAPPROVAL)",
+      "verdict": "PASS",
+      "section": "scope-reject"
+    },
+    {
+      "id": 18,
+      "label": "Wrong org_id rejects — token scoped to org_A, presented for org_B",
+      "verdict": "PASS",
+      "section": "scope-reject"
+    },
+    {
+      "id": 19,
+      "label": "Wrong vessel_id rejects — token scoped to vessel_001, presented for vessel_002",
+      "verdict": "PASS",
+      "section": "scope-reject"
+    },
+    {
+      "id": 20,
+      "label": "Wrong ets_account_id rejects — token scoped to ets_A, presented for ets_B",
+      "verdict": "PASS",
+      "section": "scope-reject"
+    },
+    {
+      "id": 21,
+      "label": "Wrong compliance_year rejects — token for 2026, context requests 2025",
+      "verdict": "PASS",
+      "section": "scope-reject"
+    },
+    {
+      "id": 22,
+      "label": "Wrong eua_amount rejects — token for 100 EUA, context requests 200",
+      "verdict": "PASS",
+      "section": "scope-reject"
+    },
+    {
+      "id": 23,
+      "label": "Wrong externalRef rejects — token bound to carbonx-run2-ok-001, presented for -ok-002",
+      "verdict": "PASS",
+      "section": "scope-reject"
+    },
+    {
+      "id": 24,
+      "label": "Wrong actor_user_id rejects — token issued to user_A, presented by user_B",
+      "verdict": "PASS",
+      "section": "scope-reject"
+    },
+    {
+      "id": 25,
+      "label": "Expired token rejects (expires_at in the past)",
+      "verdict": "PASS",
+      "section": "scope-reject"
+    },
+    {
+      "id": 26,
+      "label": "Revoked token rejects (status=revoked)",
+      "verdict": "PASS",
+      "section": "scope-reject"
+    },
+    {
+      "id": 27,
+      "label": "Denied token rejects (status=denied)",
+      "verdict": "PASS",
+      "section": "scope-reject"
+    },
+    {
+      "id": 28,
+      "label": "Missing/empty token triggers IRR-NOAPPROVAL before any DB operation",
+      "verdict": "PASS",
+      "section": "missing-token"
+    },
+    {
+      "id": 29,
+      "label": "Source: verifyApprovalToken called before recordSurrender (pre-DB rejection)",
+      "verdict": "PASS",
+      "section": "missing-token"
+    },
+    {
+      "id": 30,
+      "label": "SURRENDER_ETS_ALLOWANCES → GATE (still_gate, scoped approval required)",
+      "verdict": "PASS",
+      "section": "surface"
+    },
+    {
+      "id": 31,
+      "label": "SUBMIT_ETS_SURRENDER → GATE (still_gate, scoped approval required)",
+      "verdict": "PASS",
+      "section": "surface"
+    },
+    {
+      "id": 32,
+      "label": "SETTLE_CARBON_POSITION → GATE (still_gate, scoped approval required)",
+      "verdict": "PASS",
+      "section": "surface"
+    },
+    {
+      "id": 33,
+      "label": "TRANSFER_EUA → GATE (still_gate, scoped approval required)",
+      "verdict": "PASS",
+      "section": "surface"
+    },
+    {
+      "id": 34,
+      "label": "SUBMIT_ETS_SURRENDER_UNAPPROVED → BLOCK (hard_block_capabilities)",
+      "verdict": "PASS",
+      "section": "surface"
+    },
+    {
+      "id": 35,
+      "label": "SURRENDER_EUA_WITHOUT_TOKEN → BLOCK (hard_block_capabilities)",
+      "verdict": "PASS",
+      "section": "surface"
+    },
+    {
+      "id": 36,
+      "label": "BYPASS_EUA_IDEMPOTENCY → BLOCK (hard_block_capabilities)",
+      "verdict": "PASS",
+      "section": "surface"
+    },
+    {
+      "id": 37,
+      "label": "MUTATE_EUA_BALANCE_WITHOUT_EXTERNAL_REF → BLOCK (hard_block_capabilities)",
+      "verdict": "PASS",
+      "section": "surface"
+    },
+    {
+      "id": 38,
+      "label": "Approved path SENSE includes correlation_id (pramana receipt chain)",
+      "verdict": "PASS",
+      "section": "sense"
+    },
+    {
+      "id": 39,
+      "label": "Rejected path triggers IrrNoApprovalError before recordSurrender (source)",
+      "verdict": "PASS",
+      "section": "sense"
+    },
+    {
+      "id": 40,
+      "label": "gate_phase field in AegisSenseEvent interface (soft_canary | live_hard_gate)",
+      "verdict": "PASS",
+      "section": "sense"
+    },
+    {
+      "id": 41,
+      "label": "SENSE event irreversible=true for ETS_SURRENDER (AEG-HG-2B-003)",
+      "verdict": "PASS",
+      "section": "sense"
+    },
+    {
+      "id": 42,
+      "label": "SENSE event approval_token_ref wired (approval scope in pramana trail)",
+      "verdict": "PASS",
+      "section": "sense"
+    },
+    {
+      "id": 43,
+      "label": "correlationId variable links SENSE event to externalRef or timestamp (rollback anchor)",
+      "verdict": "PASS",
+      "section": "sense"
+    },
+    {
+      "id": 44,
+      "label": "gate_phase is dynamically computed — not hardcoded as live_hard_gate in SENSE emission",
+      "verdict": "PASS",
+      "section": "sense"
+    },
+    {
+      "id": 45,
+      "label": "No SENSE emission sets promotion_permitted_carbonx (source clean)",
+      "verdict": "PASS",
+      "section": "sense"
+    },
+    {
+      "id": 46,
+      "label": "simulateSurrender remains ALLOW/DRY_RUN (in always_allow_capabilities)",
+      "verdict": "PASS",
+      "section": "regression"
+    },
+    {
+      "id": 47,
+      "label": "simulateSurrender source: no recordSurrender call (no DB write in dry-run)",
+      "verdict": "PASS",
+      "section": "regression"
+    },
+    {
+      "id": 48,
+      "label": "idempotency externalRef: findFirst check prevents double-surrender",
+      "verdict": "PASS",
+      "section": "regression"
+    },
+    {
+      "id": 49,
+      "label": "duplicate externalRef with changed euaAmount: payload mismatch warning path present",
+      "verdict": "PASS",
+      "section": "regression"
+    },
+    {
+      "id": 50,
+      "label": "parali-central remains HG-2B live (hard_gate_enabled=true, hg_group=HG-2)",
+      "verdict": "PASS",
+      "section": "regression"
+    },
+    {
+      "id": 51,
+      "label": "Existing 7 live guards: hard_gate_enabled=true count = 7",
+      "verdict": "PASS",
+      "section": "regression"
+    },
+    {
+      "id": 52,
+      "label": "Unknown service never blocks (no policy → soft decision preserved)",
+      "verdict": "PASS",
+      "section": "regression"
+    },
+    {
+      "id": 53,
+      "label": "Unknown capability does not hard-block (unknown_cap_gates_before_blocking)",
+      "verdict": "PASS",
+      "section": "regression"
+    },
+    {
+      "id": 54,
+      "label": "Kill switch: clearing AEGIS_HARD_GATE_SERVICES suppresses chirpee hard gate",
+      "verdict": "PASS",
+      "section": "regression"
+    },
+    {
+      "id": 55,
+      "label": "carbonx candidate-inert under kill switch (not in env → gate never activated)",
+      "verdict": "PASS",
+      "section": "regression"
+    },
+    {
+      "id": 56,
+      "label": "False positives=0 — every wrong-scope token correctly rejected",
+      "verdict": "PASS",
+      "section": "regression"
+    },
+    {
+      "id": 57,
+      "label": "Production fires=0 — carbonx gate not active (not in AEGIS_HARD_GATE_SERVICES)",
+      "verdict": "PASS",
+      "section": "regression"
+    }
+  ]
+}
