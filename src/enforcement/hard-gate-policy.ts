@@ -59,6 +59,11 @@ export interface ServiceHardGatePolicy {
   rollback_path?: string;
   observability_required?: boolean;
   audit_artifact_required?: boolean;
+  // Financial addendum fields (Batch 66, 2026-05-03 — carbonx HG-2B financial doctrine)
+  // @rule:AEG-HG-FIN-001 financial_settlement_doctrine=true forces Five Locks before promotion
+  // @rule:AEG-HG-FIN-002 approval_scope_fields lists every field an approval token must bind to
+  financial_settlement_doctrine?: boolean;
+  approval_scope_fields?: ReadonlyArray<string>;
 }
 
 export interface SimulationResult {
@@ -442,6 +447,135 @@ export const PARALI_CENTRAL_HG2B_POLICY: ServiceHardGatePolicy = {
   audit_artifact_required: true,
 };
 
+// ── carbonx HG-2B financial policy ───────────────────────────────────────────
+//
+// HG-2B financial candidate. NOT LIVE. NOT PROMOTED.
+// Candidate status: Batch 62 (authority_class=financial, BR-5, TIER-C).
+// Code-scan blocked: Batch 63 (4 controls missing).
+// Remediation: Batch 64 (approval, SENSE, dry-run, idempotency).
+// Re-scan passed: Batch 65 (46/46, gate_decision=READY_FOR_POLICY_DECLARATION).
+// Soft-canary begins: Batch 66, 2026-05-03.
+//
+// HG-2B FINANCIAL PROFILE (extends parali-central baseline):
+//   financial_settlement_doctrine=true — Five Locks required before any promotion
+//   approval_scope_fields — approval token must bind to: service_id, capability,
+//     operation, org_id, vessel_id, ets_account_id, compliance_year, eua_amount,
+//     externalRef, actor_user_id
+//
+// The five locks required before promotion (Batch 65 verified):
+//   LOCK-1 Decision:     approvalToken required on surrenderEtsAllowances
+//   LOCK-2 Identity:     AEG-E-016 scoped key (service_id + capability + operation)
+//   LOCK-3 Observability: SENSE event (before/after/delta + correlation_id + irreversible)
+//   LOCK-4 Rollback:     simulateSurrender dry-run path present
+//   LOCK-5 Idempotency:  externalRef unique key on EtsTransaction
+//
+// Financial hard-block surface (Batch 66 — financial addendum to HG-2B doctrine):
+//   SUBMIT_ETS_SURRENDER_UNAPPROVED — surrender without approval token
+//   SURRENDER_EUA_WITHOUT_TOKEN     — alias for the above (normalizeCapability handles)
+//   BULK_EUA_SURRENDER              — batch surrender without individual approval per EUA
+//   FORCE_EUA_OVERWRITE             — CA-003 violation: no before_snapshot
+//   BACKDATE_ETS_SURRENDER          — backdating is regulatory fraud
+//   DELETE_ETS_TRANSACTION          — ETS transaction log is tamper-evident (LOCK-3)
+//   BYPASS_EUA_IDEMPOTENCY          — explicit idempotency bypass → double-decrement risk
+//   MUTATE_EUA_BALANCE_WITHOUT_EXTERNAL_REF — LOCK-5 violation
+//
+// @rule:AEG-HG-001 hard_gate_enabled=false — NOT YET IN AEGIS_HARD_GATE_SERVICES
+// @rule:AEG-HG-002 READ is in never_block — AEG-E-002 extended to hard mode
+// @rule:AEG-HG-2B-001 external_state_touch=true
+// @rule:AEG-HG-2B-002 approval_required_for_irreversible_action=true (non-negotiable)
+// @rule:AEG-HG-2B-003 observability_required=true (correlation_id + irreversible required)
+// @rule:AEG-HG-2B-004 audit_artifact_required=true
+// @rule:AEG-HG-FIN-001 financial_settlement_doctrine=true
+// @rule:AEG-HG-FIN-002 approval_scope_fields declared
+
+export const CARBONX_HG2B_POLICY: ServiceHardGatePolicy = {
+  service_id: "carbonx-backend",
+  hg_group: "HG-2",
+  hard_gate_enabled: false, // @rule:AEG-HG-001 — NOT PROMOTED; soft_canary only (Batch 66)
+  rollout_order: 8,
+  stage: "Stage 5 — HG-2B financial candidate — soft_canary 2026-05-03 (Batch 66) — NOT PROMOTED",
+
+  // HG-2B doctrine fields
+  external_state_touch: true,
+  boundary_crossing: true,
+  reversible_actions_only: false,
+  approval_required_for_irreversible_action: true, // @rule:AEG-HG-2B-002
+  kill_switch_scope: "service",
+  observability_required: true,    // @rule:AEG-HG-2B-003
+  audit_artifact_required: true,   // @rule:AEG-HG-2B-004
+  rollback_path:
+    "Remove carbonx-backend from AEGIS_HARD_GATE_SERVICES (immediate soft_canary return). " +
+    "ETS surrenders are local-DB only — no external registry writes. " +
+    "Rollback: void EtsTransaction + restore euaBalance via DAN-4 dual-control approval. " +
+    "Document in audits/batchNN_carbonx_rollback.json.",
+
+  // Financial addendum fields (HG-2B financial doctrine, Batch 66)
+  financial_settlement_doctrine: true, // @rule:AEG-HG-FIN-001 — Five Locks required
+  approval_scope_fields: [
+    "service_id",
+    "capability",
+    "operation",
+    "org_id",
+    "vessel_id",
+    "ets_account_id",
+    "compliance_year",
+    "eua_amount",
+    "externalRef",
+    "actor_user_id",
+  ] as const,
+
+  always_allow_capabilities: new Set([
+    // Standard read-class — always ALLOW (AEG-HG-002)
+    "READ", "GET", "LIST", "QUERY", "SEARCH", "HEALTH",
+    // External read-class — safe, idempotent
+    "EXTERNAL_READ",
+    "FETCH_STATUS",
+    "CHECK_CONNECTION",
+    "DRY_RUN",
+    // Financial read-class — no state mutation
+    "SIMULATE_ETS_SURRENDER",  // simulateSurrender dry-run: no DB write, no EUA deduction
+    "GET_ETS_BALANCE",         // read current EUA balance
+    "GET_CARBON_PRICE",        // read carbon price feed
+    "CALCULATE_OBLIGATION",    // calculate ETS obligation from voyages (read-only)
+  ]),
+
+  never_block_capabilities: new Set([
+    "READ", // @rule:AEG-HG-002 — AEG-E-002 extended to hard mode
+  ]),
+
+  still_gate_capabilities: new Set([
+    // Financial settlement ops — require GATE + scoped approval token (AEG-HG-2B-002)
+    "SURRENDER_ETS_ALLOWANCES",       // EUA surrender against obligation
+    "SUBMIT_ETS_SURRENDER",           // alias: submit surrender to compliance registry
+    "RECORD_ETS_SURRENDER",           // alias: record surrender in local DB
+    "UPDATE_EUA_BALANCE",             // manual EUA balance adjustment
+    "ADJUST_COMPLIANCE_POSITION",     // adjust reported compliance position
+    "SETTLE_CARBON_POSITION",         // mark annual obligation as settled
+    "TRANSFER_EUA",                   // EUA transfer between accounts
+    "UPDATE_ETS_ACCOUNT",             // modify ETS account details
+    "LINK_REGISTRY_ACCOUNT",          // link to EU ETS registry account (external)
+    "GENERATE_COMPLIANCE_FILING",     // generate AER/MRV regulatory filing
+    // Standard high-consequence ops (inherited from HG-2B baseline)
+    "CI_DEPLOY", "DELETE", "EXECUTE", "APPROVE", "AI_EXECUTE",
+    "FULL_AUTONOMY", "SPAWN_AGENTS", "MEMORY_WRITE", "AUDIT_WRITE", "EMIT",
+  ]),
+
+  hard_block_capabilities: new Set([
+    // Universal malformed sentinels (all HG groups)
+    "IMPOSSIBLE_OP",
+    "EMPTY_CAPABILITY_ON_WRITE",
+    // Financial HG-2B hard-blocks — IRR-NOAPPROVAL doctrine (no approval possible)
+    "SUBMIT_ETS_SURRENDER_UNAPPROVED",      // surrender path that skips approval token
+    "SURRENDER_EUA_WITHOUT_TOKEN",           // alias; normalizeCapability maps to above
+    "BULK_EUA_SURRENDER",                    // batch surrender without per-EUA approval
+    "FORCE_EUA_OVERWRITE",                   // overwrites EUA balance without before_snapshot (CA-003 violation)
+    "BACKDATE_ETS_SURRENDER",               // backdating ETS transactions (regulatory fraud)
+    "DELETE_ETS_TRANSACTION",               // tamper with immutable transaction log
+    "BYPASS_EUA_IDEMPOTENCY",              // explicit idempotency bypass → double-decrement risk
+    "MUTATE_EUA_BALANCE_WITHOUT_EXTERNAL_REF", // LOCK-5 violation — no idempotency key
+  ]),
+};
+
 // ── Policy registry ───────────────────────────────────────────────────────────
 // Batch 34: ship-slm + chief-slm added (disabled). Chirpee = Stage 1 live.
 // Batch 36: ship-slm + chief-slm promoted live.
@@ -453,6 +587,7 @@ export const PARALI_CENTRAL_HG2B_POLICY: ServiceHardGatePolicy = {
 // Batch 48: domain-capture promoted live (HG-2A). 6 live hard-gate services total.
 // Batch 53: parali-central added (HG-2B candidate, soft_canary). Live roster unchanged at 6.
 // Batch 60: parali-central promoted live (HG-2B). 7 live hard-gate services total.
+// Batch 66: carbonx-backend added (HG-2B financial candidate, soft_canary). Roster unchanged at 7.
 
 export const HARD_GATE_POLICIES: Readonly<Record<string, ServiceHardGatePolicy>> = {
   chirpee:             CHIRPEE_HG1_POLICY,
@@ -461,8 +596,11 @@ export const HARD_GATE_POLICIES: Readonly<Record<string, ServiceHardGatePolicy>>
   "puranic-os":        PURANIC_OS_HG1_POLICY,
   pramana:             PRAMANA_HG2A_POLICY,
   "domain-capture":    DOMAIN_CAPTURE_HG2A_POLICY,
-  // HG-2B candidate (soft_canary — NOT in AEGIS_HARD_GATE_SERVICES)
+  // HG-2B live (promoted Batch 60)
   "parali-central":    PARALI_CENTRAL_HG2B_POLICY,
+  // HG-2B financial candidate (soft_canary Batch 66 — NOT in AEGIS_HARD_GATE_SERVICES)
+  "carbonx-backend":   CARBONX_HG2B_POLICY,
+  "carbonx":           CARBONX_HG2B_POLICY, // alias — services.json uses "carbonx" as service key
 };
 
 // ── Live hard-gate enforcement ────────────────────────────────────────────────

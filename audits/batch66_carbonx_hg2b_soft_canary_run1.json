@@ -1,0 +1,524 @@
+{
+  "batch": 66,
+  "title": "carbonx HG-2B Financial Soft-Canary Soak Run 1/7",
+  "run_at": "2026-05-03T13:44:42.632Z",
+  "verdict": "PASS",
+  "checks_passed": 81,
+  "checks_total": 81,
+  "soak_run": {
+    "run": 1,
+    "of": 7,
+    "false_positives": 0,
+    "production_fires": 0
+  },
+  "policy_declared": {
+    "service_id": "carbonx-backend",
+    "hg_group": "HG-2",
+    "hard_gate_enabled": false,
+    "rollout_order": 8,
+    "stage": "Stage 5 — HG-2B financial candidate — soft_canary 2026-05-03 (Batch 66) — NOT PROMOTED",
+    "financial_settlement_doctrine": true
+  },
+  "live_roster_count": 7,
+  "hg2b_live_count": 1,
+  "hg2c_live_count": 0,
+  "carbonx_in_aegis_env": false,
+  "promotion_permitted_carbonx": false,
+  "surface_simulation": {
+    "allow_surface_checks": 14,
+    "gate_surface_checks": 10,
+    "block_surface_checks": 10,
+    "all_allow_pass": 14,
+    "all_gate_pass": 10,
+    "all_block_pass": 10
+  },
+  "next_batch": "Batch 67 — carbonx HG-2B financial soft-canary soak run 2/7",
+  "results": [
+    {
+      "id": 1,
+      "label": "CARBONX_HG2B_POLICY exported from hard-gate-policy.ts",
+      "verdict": "PASS",
+      "section": "policy"
+    },
+    {
+      "id": 2,
+      "label": "service_id=\"carbonx-backend\" (matches approval token scope)",
+      "verdict": "PASS",
+      "section": "policy"
+    },
+    {
+      "id": 3,
+      "label": "hg_group=\"HG-2\"",
+      "verdict": "PASS",
+      "section": "policy"
+    },
+    {
+      "id": 4,
+      "label": "rollout_order=8",
+      "verdict": "PASS",
+      "section": "policy"
+    },
+    {
+      "id": 5,
+      "label": "hard_gate_enabled=false (NOT promoted)",
+      "verdict": "PASS",
+      "section": "policy"
+    },
+    {
+      "id": 6,
+      "label": "stage contains \"soft_canary\"",
+      "verdict": "PASS",
+      "section": "policy"
+    },
+    {
+      "id": 7,
+      "label": "external_state_touch=true",
+      "verdict": "PASS",
+      "section": "policy"
+    },
+    {
+      "id": 8,
+      "label": "boundary_crossing=true",
+      "verdict": "PASS",
+      "section": "policy"
+    },
+    {
+      "id": 9,
+      "label": "reversible_actions_only=false",
+      "verdict": "PASS",
+      "section": "policy"
+    },
+    {
+      "id": 10,
+      "label": "approval_required_for_irreversible_action=true",
+      "verdict": "PASS",
+      "section": "policy"
+    },
+    {
+      "id": 11,
+      "label": "kill_switch_scope=\"service\"",
+      "verdict": "PASS",
+      "section": "policy"
+    },
+    {
+      "id": 12,
+      "label": "observability_required=true",
+      "verdict": "PASS",
+      "section": "policy"
+    },
+    {
+      "id": 13,
+      "label": "audit_artifact_required=true",
+      "verdict": "PASS",
+      "section": "policy"
+    },
+    {
+      "id": 14,
+      "label": "financial_settlement_doctrine=true",
+      "verdict": "PASS",
+      "section": "policy"
+    },
+    {
+      "id": 15,
+      "label": "approval_scope_fields contains all 10 required financial fields",
+      "verdict": "PASS",
+      "section": "policy"
+    },
+    {
+      "id": 16,
+      "label": "READ → ALLOW (hard-gate active, soft=BLOCK)",
+      "verdict": "PASS",
+      "section": "surface-allow"
+    },
+    {
+      "id": 17,
+      "label": "GET → ALLOW (hard-gate active, soft=BLOCK)",
+      "verdict": "PASS",
+      "section": "surface-allow"
+    },
+    {
+      "id": 18,
+      "label": "LIST → ALLOW (hard-gate active, soft=BLOCK)",
+      "verdict": "PASS",
+      "section": "surface-allow"
+    },
+    {
+      "id": 19,
+      "label": "QUERY → ALLOW (hard-gate active, soft=BLOCK)",
+      "verdict": "PASS",
+      "section": "surface-allow"
+    },
+    {
+      "id": 20,
+      "label": "SEARCH → ALLOW (hard-gate active, soft=BLOCK)",
+      "verdict": "PASS",
+      "section": "surface-allow"
+    },
+    {
+      "id": 21,
+      "label": "HEALTH → ALLOW (hard-gate active, soft=BLOCK)",
+      "verdict": "PASS",
+      "section": "surface-allow"
+    },
+    {
+      "id": 22,
+      "label": "EXTERNAL_READ → ALLOW (hard-gate active, soft=BLOCK)",
+      "verdict": "PASS",
+      "section": "surface-allow"
+    },
+    {
+      "id": 23,
+      "label": "FETCH_STATUS → ALLOW (hard-gate active, soft=BLOCK)",
+      "verdict": "PASS",
+      "section": "surface-allow"
+    },
+    {
+      "id": 24,
+      "label": "CHECK_CONNECTION → ALLOW (hard-gate active, soft=BLOCK)",
+      "verdict": "PASS",
+      "section": "surface-allow"
+    },
+    {
+      "id": 25,
+      "label": "DRY_RUN → ALLOW (hard-gate active, soft=BLOCK)",
+      "verdict": "PASS",
+      "section": "surface-allow"
+    },
+    {
+      "id": 26,
+      "label": "SIMULATE_ETS_SURRENDER → ALLOW (hard-gate active, soft=BLOCK)",
+      "verdict": "PASS",
+      "section": "surface-allow"
+    },
+    {
+      "id": 27,
+      "label": "GET_ETS_BALANCE → ALLOW (hard-gate active, soft=BLOCK)",
+      "verdict": "PASS",
+      "section": "surface-allow"
+    },
+    {
+      "id": 28,
+      "label": "GET_CARBON_PRICE → ALLOW (hard-gate active, soft=BLOCK)",
+      "verdict": "PASS",
+      "section": "surface-allow"
+    },
+    {
+      "id": 29,
+      "label": "CALCULATE_OBLIGATION → ALLOW (hard-gate active, soft=BLOCK)",
+      "verdict": "PASS",
+      "section": "surface-allow"
+    },
+    {
+      "id": 30,
+      "label": "SURRENDER_ETS_ALLOWANCES → GATE (still_gate: soft=BLOCK → GATE not BLOCK)",
+      "verdict": "PASS",
+      "section": "surface-gate"
+    },
+    {
+      "id": 31,
+      "label": "SUBMIT_ETS_SURRENDER → GATE (still_gate: soft=BLOCK → GATE not BLOCK)",
+      "verdict": "PASS",
+      "section": "surface-gate"
+    },
+    {
+      "id": 32,
+      "label": "RECORD_ETS_SURRENDER → GATE (still_gate: soft=BLOCK → GATE not BLOCK)",
+      "verdict": "PASS",
+      "section": "surface-gate"
+    },
+    {
+      "id": 33,
+      "label": "UPDATE_EUA_BALANCE → GATE (still_gate: soft=BLOCK → GATE not BLOCK)",
+      "verdict": "PASS",
+      "section": "surface-gate"
+    },
+    {
+      "id": 34,
+      "label": "ADJUST_COMPLIANCE_POSITION → GATE (still_gate: soft=BLOCK → GATE not BLOCK)",
+      "verdict": "PASS",
+      "section": "surface-gate"
+    },
+    {
+      "id": 35,
+      "label": "SETTLE_CARBON_POSITION → GATE (still_gate: soft=BLOCK → GATE not BLOCK)",
+      "verdict": "PASS",
+      "section": "surface-gate"
+    },
+    {
+      "id": 36,
+      "label": "TRANSFER_EUA → GATE (still_gate: soft=BLOCK → GATE not BLOCK)",
+      "verdict": "PASS",
+      "section": "surface-gate"
+    },
+    {
+      "id": 37,
+      "label": "UPDATE_ETS_ACCOUNT → GATE (still_gate: soft=BLOCK → GATE not BLOCK)",
+      "verdict": "PASS",
+      "section": "surface-gate"
+    },
+    {
+      "id": 38,
+      "label": "LINK_REGISTRY_ACCOUNT → GATE (still_gate: soft=BLOCK → GATE not BLOCK)",
+      "verdict": "PASS",
+      "section": "surface-gate"
+    },
+    {
+      "id": 39,
+      "label": "GENERATE_COMPLIANCE_FILING → GATE (still_gate: soft=BLOCK → GATE not BLOCK)",
+      "verdict": "PASS",
+      "section": "surface-gate"
+    },
+    {
+      "id": 40,
+      "label": "IMPOSSIBLE_OP → BLOCK (hard_block_capabilities, overrides soft=ALLOW)",
+      "verdict": "PASS",
+      "section": "surface-block"
+    },
+    {
+      "id": 41,
+      "label": "EMPTY_CAPABILITY_ON_WRITE → BLOCK (hard_block_capabilities, overrides soft=ALLOW)",
+      "verdict": "PASS",
+      "section": "surface-block"
+    },
+    {
+      "id": 42,
+      "label": "SUBMIT_ETS_SURRENDER_UNAPPROVED → BLOCK (hard_block_capabilities, overrides soft=ALLOW)",
+      "verdict": "PASS",
+      "section": "surface-block"
+    },
+    {
+      "id": 43,
+      "label": "SURRENDER_EUA_WITHOUT_TOKEN → BLOCK (hard_block_capabilities, overrides soft=ALLOW)",
+      "verdict": "PASS",
+      "section": "surface-block"
+    },
+    {
+      "id": 44,
+      "label": "BULK_EUA_SURRENDER → BLOCK (hard_block_capabilities, overrides soft=ALLOW)",
+      "verdict": "PASS",
+      "section": "surface-block"
+    },
+    {
+      "id": 45,
+      "label": "FORCE_EUA_OVERWRITE → BLOCK (hard_block_capabilities, overrides soft=ALLOW)",
+      "verdict": "PASS",
+      "section": "surface-block"
+    },
+    {
+      "id": 46,
+      "label": "BACKDATE_ETS_SURRENDER → BLOCK (hard_block_capabilities, overrides soft=ALLOW)",
+      "verdict": "PASS",
+      "section": "surface-block"
+    },
+    {
+      "id": 47,
+      "label": "DELETE_ETS_TRANSACTION → BLOCK (hard_block_capabilities, overrides soft=ALLOW)",
+      "verdict": "PASS",
+      "section": "surface-block"
+    },
+    {
+      "id": 48,
+      "label": "BYPASS_EUA_IDEMPOTENCY → BLOCK (hard_block_capabilities, overrides soft=ALLOW)",
+      "verdict": "PASS",
+      "section": "surface-block"
+    },
+    {
+      "id": 49,
+      "label": "MUTATE_EUA_BALANCE_WITHOUT_EXTERNAL_REF → BLOCK (hard_block_capabilities, overrides soft=ALLOW)",
+      "verdict": "PASS",
+      "section": "surface-block"
+    },
+    {
+      "id": 50,
+      "label": "Batch 65 artifact exists",
+      "verdict": "PASS",
+      "section": "soak"
+    },
+    {
+      "id": 51,
+      "label": "Batch 65 verdict=PASS",
+      "verdict": "PASS",
+      "section": "soak"
+    },
+    {
+      "id": 52,
+      "label": "Batch 65 gate_decision=READY_FOR_POLICY_DECLARATION",
+      "verdict": "PASS",
+      "section": "soak"
+    },
+    {
+      "id": 53,
+      "label": "CARBONX_HG2B_POLICY in HARD_GATE_POLICIES under \"carbonx-backend\"",
+      "verdict": "PASS",
+      "section": "soak"
+    },
+    {
+      "id": 54,
+      "label": "CARBONX_HG2B_POLICY.hard_gate_enabled=false (confirmed at soak)",
+      "verdict": "PASS",
+      "section": "soak"
+    },
+    {
+      "id": 55,
+      "label": "carbonx-backend NOT in AEGIS_HARD_GATE_SERVICES env var",
+      "verdict": "PASS",
+      "section": "soak"
+    },
+    {
+      "id": 56,
+      "label": "rollout_order=8 (confirmed at soak)",
+      "verdict": "PASS",
+      "section": "soak"
+    },
+    {
+      "id": 57,
+      "label": "financial_settlement_doctrine=true (confirmed at soak)",
+      "verdict": "PASS",
+      "section": "soak"
+    },
+    {
+      "id": 58,
+      "label": "approval_scope_fields includes ets_account_id + compliance_year + eua_amount",
+      "verdict": "PASS",
+      "section": "soak"
+    },
+    {
+      "id": 59,
+      "label": "ALLOW surface: READ + DRY_RUN + SIMULATE_ETS_SURRENDER all ALLOW under dry-run",
+      "verdict": "PASS",
+      "section": "soak"
+    },
+    {
+      "id": 60,
+      "label": "GATE surface: SURRENDER_ETS_ALLOWANCES + TRANSFER_EUA → GATE under dry-run",
+      "verdict": "PASS",
+      "section": "soak"
+    },
+    {
+      "id": 61,
+      "label": "BLOCK surface: SURRENDER_EUA_WITHOUT_TOKEN + BULK_EUA_SURRENDER → BLOCK under dry-run",
+      "verdict": "PASS",
+      "section": "soak"
+    },
+    {
+      "id": 62,
+      "label": "SUBMIT_ETS_SURRENDER in still_gate (requires scoped approval, not unconditional block)",
+      "verdict": "PASS",
+      "section": "soak"
+    },
+    {
+      "id": 63,
+      "label": "Missing approval token triggers IrrNoApprovalError (approvalToken required in mutation)",
+      "verdict": "PASS",
+      "section": "soak"
+    },
+    {
+      "id": 64,
+      "label": "Wrong service_id scope rejects (AEG-E-016: service_id !== expectedServiceId)",
+      "verdict": "PASS",
+      "section": "soak"
+    },
+    {
+      "id": 65,
+      "label": "simulateSurrender remains ALLOW / DRY_RUN (in always_allow_capabilities)",
+      "verdict": "PASS",
+      "section": "soak"
+    },
+    {
+      "id": 66,
+      "label": "simulateSurrender does not call recordSurrender (no DB writes in source)",
+      "verdict": "PASS",
+      "section": "soak"
+    },
+    {
+      "id": 67,
+      "label": "idempotency externalRef prevents double-surrender (findFirst check in recordSurrender)",
+      "verdict": "PASS",
+      "section": "soak"
+    },
+    {
+      "id": 68,
+      "label": "duplicate externalRef with changed euaAmount warns (payload mismatch warn path)",
+      "verdict": "PASS",
+      "section": "soak"
+    },
+    {
+      "id": 69,
+      "label": "SENSE event includes correlation_id (pramana receipt chain)",
+      "verdict": "PASS",
+      "section": "soak"
+    },
+    {
+      "id": 70,
+      "label": "SENSE event includes irreversible=true for surrender (AEG-HG-2B-003)",
+      "verdict": "PASS",
+      "section": "soak"
+    },
+    {
+      "id": 71,
+      "label": "SENSE event includes before_snapshot + after_snapshot + delta (CA-003)",
+      "verdict": "PASS",
+      "section": "soak"
+    },
+    {
+      "id": 72,
+      "label": "Unknown capability does not hard-block (unknown_cap_gates_before_blocking)",
+      "verdict": "PASS",
+      "section": "soak"
+    },
+    {
+      "id": 73,
+      "label": "Unknown service never blocks (no policy = soft decision preserved)",
+      "verdict": "PASS",
+      "section": "soak"
+    },
+    {
+      "id": 74,
+      "label": "parali-central remains HG-2B live (hard_gate_enabled=true, policy clean)",
+      "verdict": "PASS",
+      "section": "soak"
+    },
+    {
+      "id": 75,
+      "label": "Existing 7 live guards all have hard_gate_enabled=true (regression clean)",
+      "verdict": "PASS",
+      "section": "soak"
+    },
+    {
+      "id": 76,
+      "label": "Kill switch: clearing AEGIS_HARD_GATE_SERVICES suppresses chirpee hard gate",
+      "verdict": "PASS",
+      "section": "soak"
+    },
+    {
+      "id": 77,
+      "label": "carbonx candidate-inert: AEGIS_HARD_GATE_SERVICES absent → gate not active",
+      "verdict": "PASS",
+      "section": "soak"
+    },
+    {
+      "id": 78,
+      "label": "HG-2C/HG-3 live count remains 0",
+      "verdict": "PASS",
+      "section": "soak"
+    },
+    {
+      "id": 79,
+      "label": "promotion_permitted_carbonx=false — hard_gate_enabled=false, not in env var",
+      "verdict": "PASS",
+      "section": "soak"
+    },
+    {
+      "id": 80,
+      "label": "False positives=0 — no ALLOW capability was blocked in soak run 1",
+      "verdict": "PASS",
+      "section": "soak"
+    },
+    {
+      "id": 81,
+      "label": "Production fires=0 — carbonx gate not active (not in AEGIS_HARD_GATE_SERVICES)",
+      "verdict": "PASS",
+      "section": "soak"
+    }
+  ]
+}
