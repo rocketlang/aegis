@@ -1,0 +1,135 @@
+{
+  "batch": 54,
+  "date": "2026-05-03T08:06:08.751Z",
+  "type": "hg2b_soft_canary_soak",
+  "soak_run": 2,
+  "soak_total": 7,
+  "verdict": "PASS",
+  "total_checks": 181,
+  "passed": 181,
+  "failed": 0,
+  "failures": [],
+  "service": "parali-central",
+  "hg_group": "HG-2B",
+  "phase": "soft_canary",
+  "hard_gate_enabled": false,
+  "in_aegis_hard_gate_services": false,
+  "live_roster": [
+    "chirpee",
+    "ship-slm",
+    "chief-slm",
+    "puranic-os",
+    "pramana",
+    "domain-capture"
+  ],
+  "live_roster_size": 6,
+  "hg2b_in_live_roster": 0,
+  "hg2c_in_live_roster": 0,
+  "promotion_permitted_parali_central": false,
+  "false_positives": 0,
+  "production_fires": 0,
+  "run2_focus": {
+    "expanded_gate_surface": [
+      "BOUNDARY_MUTATION",
+      "SYNC_PUSH",
+      "EXTERNAL_NOTIFY",
+      "PUSH_EVENT",
+      "BROADCAST_EXTERNAL",
+      "REPLICATE_STATE"
+    ],
+    "expanded_irreversible": [
+      "CANCEL_EXTERNAL_ORDER",
+      "REVOKE_EXTERNAL_PERMISSION",
+      "OVERRIDE_COMPLIANCE_FLAG",
+      "ARCHIVE_EXTERNAL_RECORD"
+    ],
+    "token_happy_path": {
+      "SYNC_PUSH": "issue → approve — PASS",
+      "BOUNDARY_MUTATION": "issue → deny — PASS",
+      "EXTERNAL_NOTIFY": "issue → revoke (IRR-NOAPPROVAL) — PASS"
+    },
+    "concurrent_tokens_verified": true,
+    "cross_group_isolation_verified": true
+  },
+  "doctrine_fields_verified": {
+    "external_state_touch": true,
+    "boundary_crossing": true,
+    "reversible_actions_only": false,
+    "approval_required_for_irreversible_action": true,
+    "kill_switch_scope": "service",
+    "observability_required": true,
+    "audit_artifact_required": true
+  },
+  "approval_lifecycle": {
+    "happy_path": "issue → approve (SYNC_PUSH) — PASS",
+    "deny_path": "issue → deny (BOUNDARY_MUTATION) — PASS",
+    "revoke_path": "issue → revoke (EXTERNAL_NOTIFY, IRR-NOAPPROVAL) — PASS",
+    "concurrent_tokens": "two tokens co-exist without interference — PASS",
+    "irr_noapproval_finding": {
+      "service": "parali-central",
+      "cap": "EXTERNAL_NOTIFY",
+      "doctrine_code": "IRR-NOAPPROVAL",
+      "finding": "external_boundary_not_crossed_without_valid_token"
+    }
+  },
+  "sense_events_run2": [
+    {
+      "cap": "BOUNDARY_MUTATION",
+      "decision": "GATE",
+      "ca003_compliant": true
+    },
+    {
+      "cap": "SYNC_PUSH",
+      "decision": "GATE",
+      "ca003_compliant": true
+    },
+    {
+      "cap": "EXTERNAL_NOTIFY",
+      "decision": "GATE",
+      "ca003_compliant": true
+    },
+    {
+      "cap": "PUSH_EVENT",
+      "decision": "GATE",
+      "ca003_compliant": true
+    },
+    {
+      "cap": "CANCEL_EXTERNAL_ORDER",
+      "decision": "GATE",
+      "ca003_compliant": true
+    },
+    {
+      "cap": "REVOKE_EXTERNAL_PERMISSION",
+      "decision": "GATE",
+      "ca003_compliant": true
+    }
+  ],
+  "sense_boundary_class_field_verified": true,
+  "soak_criteria_status": {
+    "run1": "COMPLETE — baseline ALLOW/BLOCK surface, approval lifecycle, SENSE events",
+    "run2": "COMPLETE — expanded GATE surface, token happy path, concurrent tokens, cross-group isolation",
+    "run3": "PENDING — SENSE event completeness on all irreversible paths",
+    "run4": "PENDING — approval token TTL expiry + re-issue",
+    "run5": "PENDING — mixed still_gate + hard_block + unknown cap",
+    "run6": "PENDING — cross-group isolation extended (HG-2A services)",
+    "run7": "PENDING — full lifecycle + rollback drill + promotion readiness gate"
+  },
+  "summary": [
+    "Live roster=6 — parali-central absent — PASS",
+    "hard_gate_enabled=false — NOT in AEGIS_HARD_GATE_SERVICES — PASS",
+    "ALLOW surface: READ/GET/LIST/QUERY/SEARCH/HEALTH/STATUS — no FP",
+    "Safe external-read: EXTERNAL_READ/FETCH_STATUS/CHECK_CONNECTION/DRY_RUN — ALLOW",
+    "Expanded GATE surface: BOUNDARY_MUTATION/SYNC_PUSH/EXTERNAL_NOTIFY/PUSH_EVENT — GATE",
+    "still_gate defense: soft=BLOCK on all expanded caps → GATE (not BLOCK) — PASS",
+    "EXTERNAL_NOTIFY: GATE not ALLOW (boundary-crossing verified) — PASS",
+    "Expanded irreversible: CANCEL_EXTERNAL_ORDER/REVOKE_EXTERNAL_PERMISSION — GATE",
+    "Token happy path: SYNC_PUSH issue → approve — PASS",
+    "Concurrent tokens: SYNC_PUSH (approved) + BOUNDARY_MUTATION (denied) co-exist — PASS",
+    "EXTERNAL_NOTIFY IRR-NOAPPROVAL: revoked token prevents boundary crossing — PASS",
+    "SENSE events: 6 boundary-mutation cases, delta.boundary_crossed=true — PASS",
+    "Cross-group isolation: HG-2B policy does not bleed into HG-1 services — PASS",
+    "Six live guards regression: READ=ALLOW, IMPOSSIBLE_OP=BLOCK, hard_gate_enabled=true — PASS",
+    "Kill switch: boundary-mutation class suppressed cleanly — PASS",
+    "promotion_permitted_parali_central=false (2/7 soak runs complete)"
+  ]
+}
