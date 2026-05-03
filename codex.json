@@ -205,7 +205,8 @@
     "enforcement_stage2_promote": "✅ run — Batch 36: ship-slm + chief-slm HG-1 live promotion (121/121 PASS); AEGIS_HARD_GATE_SERVICES=chirpee,ship-slm,chief-slm; live BLOCK verified for all 3; puranic-os isolation confirmed",
     "enforcement_stage3_prep": "✅ run — Batch 37: puranic-os HG-1 policy prep (118/118 PASS); PURANIC_OS_HG1_POLICY added (hard_gate_enabled=false, rollout_order=4, BR-1); still_gate downgrade semantics verified for BR-1 profile",
     "enforcement_stage3_soak": "✅ run — Batch 38: puranic-os 7/7 soak (917/917 PASS); 11 traffic waves per run; approval lifecycle FSM; kill+rollback extended; boundary conditions; 20 TPs; FP=0; production_fires=0; promotion_permitted_puranic_os=true",
-    "enforcement_env_gate_switch": "✅ confirmed — AEGIS_HARD_GATE_SERVICES env var is the live gate switch. policy.hard_gate_enabled is advisory; gate.ts checks env, not policy flag. Adding service to env immediately activates live BLOCK for hard_block caps regardless of policy flag value."
+    "enforcement_env_gate_switch": "✅ confirmed — AEGIS_HARD_GATE_SERVICES env var is the live gate switch. policy.hard_gate_enabled is advisory; gate.ts checks env, not policy flag. Adding service to env immediately activates live BLOCK for hard_block caps regardless of policy flag value.",
+    "enforcement_hg1_closure": "✅ complete — Batch 40: all 4 HG-1 services live (chirpee/ship-slm/chief-slm/puranic-os); 6225 lifetime checks; 0 FP; 0 prod_fires; rollback config-only; HG-2 armoury open"
   },
   "protocol": "bitmask-os-v1",
   "bitmask_os_layer": 4,
@@ -255,24 +256,33 @@
   },
   "granthx_indexed": true,
   "enforcement_rollout": {
-    "batch_history": "28 (rough-weather) → 29 (HG policy) → 30 (HG-1 pilot) → 31 (chirpee soak 7/7) → 32/33 (chirpee promote+live-observe) → 34 (ship/chief policy prep) → 35 (ship/chief soak 7/7) → 36 (ship/chief promote) → 37 (puranic-os HG-1 prep) → 38 (puranic-os soak 7/7 COMPLETE 2026-05-03)",
+    "batch_history": "28 (rough-weather) → 29 (HG policy) → 30 (HG-1 pilot) → 31 (chirpee soak 7/7) → 32/33 (chirpee promote+observe) → 34 (ship/chief prep) → 35 (ship/chief soak 7/7) → 36 (ship/chief promote) → 37 (puranic-os prep) → 38 (puranic-os soak 7/7) → 39 (puranic-os promote) → 40 (HG-1 closure)",
     "soak_runs_complete": "28/28 (chirpee:7 + ship-slm:7 + chief-slm:7 + puranic-os:7)",
     "false_positives_lifetime": 0,
     "true_positives_lifetime": 242,
     "invariant_violations_lifetime": 0,
     "production_gate_fires_lifetime": 0,
-    "total_checks_lifetime": 6118,
-    "services_live_hg1": ["chirpee", "ship-slm", "chief-slm"],
+    "total_checks_lifetime": 6225,
+    "services_live_hg1": [
+      "chirpee",
+      "ship-slm",
+      "chief-slm",
+      "puranic-os"
+    ],
     "stage1_promoted": true,
     "stage2_promoted": true,
     "stage3_soak_complete": true,
-    "stage3_promotion_pending": true,
+    "stage3_promotion_pending": false,
     "promotion_permitted_chirpee": true,
     "promotion_permitted_ship_chief": true,
     "promotion_permitted_puranic_os": true,
     "hard_gate_enabled_new_services": false,
     "hg1_justification": "IMPOSSIBLE_OP/EMPTY_CAP: soft=ALLOW (unknown medium-risk cap on read_only+BR-0 passes), hard-sim=BLOCK (in hard_block_capabilities). The gap soft allows + hard blocks = the closed surface HG-1 adds.",
     "env_gate_invariant": "AEGIS_HARD_GATE_SERVICES env var is the live gate switch. policy.hard_gate_enabled is advisory — not checked by gate.ts. Confirmed Batch 38 Run 5.",
-    "rollout_order": "chirpee(1)→ship-slm(2)→chief-slm(3)→puranic-os(4)→pramana(5)→domain-capture(6)→parali-central(7)→carbonx(8)→ankr-doctor(9)→stackpilot(10)→granthx(11)→ankrclaw(12)"
+    "rollout_order": "chirpee(1)→ship-slm(2)→chief-slm(3)→puranic-os(4)→pramana(5)→domain-capture(6)→parali-central(7)→carbonx(8)→ankr-doctor(9)→stackpilot(10)→granthx(11)→ankrclaw(12)",
+    "stage3_promoted": true,
+    "hg1_closed": true,
+    "hg2_open": true,
+    "hg1_closure_date": "2026-05-03T02:07:07.858Z"
   }
 }
