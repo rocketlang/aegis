@@ -1,0 +1,150 @@
+{
+  "batch": 58,
+  "date": "2026-05-03T08:54:41.045Z",
+  "type": "hg2b_soft_canary_soak",
+  "soak_run": 6,
+  "soak_total": 7,
+  "verdict": "PASS",
+  "total_checks": 331,
+  "passed": 331,
+  "failed": 0,
+  "failures": [],
+  "service": "parali-central",
+  "hg_group": "HG-2B",
+  "phase": "soft_canary",
+  "hard_gate_enabled": false,
+  "in_aegis_hard_gate_services": false,
+  "live_roster": [
+    "chirpee",
+    "ship-slm",
+    "chief-slm",
+    "puranic-os",
+    "pramana",
+    "domain-capture"
+  ],
+  "live_roster_size": 6,
+  "hg2b_in_live_roster": 0,
+  "hg2c_in_live_roster": 0,
+  "promotion_permitted_parali_central": false,
+  "false_positives": 0,
+  "production_fires": 0,
+  "run6_focus": {
+    "hg1_regression": {
+      "services": [
+        "chirpee",
+        "ship-slm",
+        "chief-slm",
+        "puranic-os"
+      ],
+      "read_class_caps_verified": [
+        "READ",
+        "GET",
+        "LIST",
+        "QUERY",
+        "SEARCH",
+        "HEALTH"
+      ],
+      "impossible_op_block_confirmed": true,
+      "empty_cap_block_confirmed": true,
+      "hg2b_cap_bleed_into_hg1": false
+    },
+    "hg2a_regression": {
+      "services": [
+        "pramana",
+        "domain-capture"
+      ],
+      "read_class_caps_verified": [
+        "READ",
+        "GET",
+        "LIST",
+        "QUERY",
+        "SEARCH",
+        "HEALTH"
+      ],
+      "impossible_op_block_confirmed": true,
+      "hg2b_external_state_bleed_into_hg2a": false,
+      "pramana_remains_hg2a": true,
+      "domain_capture_remains_hg2a": true
+    },
+    "parali_self_regression": {
+      "allow_caps": [
+        "READ",
+        "GET",
+        "LIST",
+        "QUERY",
+        "SEARCH",
+        "HEALTH",
+        "EXTERNAL_READ",
+        "FETCH_STATUS",
+        "CHECK_CONNECTION",
+        "DRY_RUN"
+      ],
+      "gate_caps": [
+        "EXTERNAL_WRITE",
+        "EXTERNAL_NOTIFY",
+        "BOUNDARY_MUTATION",
+        "SYNC_PUSH",
+        "DELETE_EXTERNAL_STATE",
+        "APPROVE_TRANSACTION",
+        "DEPLOY_TO_EXTERNAL",
+        "RELEASE_DOCUMENT",
+        "FINALIZE_RECORD",
+        "TRIGGER_WORKFLOW",
+        "SEND_MESSAGE",
+        "SYNC_RECORD",
+        "UPDATE_EXTERNAL_STATE"
+      ],
+      "block_caps": [
+        "IMPOSSIBLE_OP",
+        "EMPTY_CAPABILITY_ON_WRITE",
+        "EXTERNAL_WRITE_UNAUTHENTICATED",
+        "EXTERNAL_DELETE_UNAPPROVED",
+        "BULK_EXTERNAL_MUTATION",
+        "FORCE_EXTERNAL_OVERWRITE"
+      ],
+      "allow_fp": 0
+    },
+    "cross_group_token_isolation": {
+      "hg2b_token_rejected_by_all_live_services": true,
+      "live_services_tested": [
+        "chirpee",
+        "ship-slm",
+        "chief-slm",
+        "puranic-os",
+        "pramana",
+        "domain-capture"
+      ],
+      "hg1_token_rejected_by_parali_central": true,
+      "hg2a_token_rejected_by_parali_central": true,
+      "correct_binding_approved": true
+    },
+    "sense_events_emitted": 19,
+    "irr_noapproval_findings": 19,
+    "all_correlation_ids_unique": true
+  },
+  "soak_criteria_status": {
+    "run1": "COMPLETE — baseline surface, approval lifecycle",
+    "run2": "COMPLETE — expanded GATE surface, concurrent tokens, cross-group isolation",
+    "run3": "COMPLETE — irreversible-path SENSE completeness, IRR-NOAPPROVAL, doctrine_block_reason",
+    "run4": "COMPLETE — TTL expiry, re-issue, replay protection, cross-authorization, all token states",
+    "run5": "COMPLETE — mixed ALLOW/GATE/BLOCK/unknown/alias stress; normalization layer verified",
+    "run6": "COMPLETE — extended cross-group isolation + full HG-1 + HG-2A regression suite",
+    "run7": "PENDING — rollback drill + full lifecycle + promotion readiness gate"
+  },
+  "summary": [
+    "HG-1 regression (4 services × 6 read-class + 2 block-class): all clean — PASS",
+    "HG-2B cap bleed into HG-1: none — PASS",
+    "HG-2A regression (pramana + domain-capture): read-class ALLOW, IMPOSSIBLE_OP BLOCK — PASS",
+    "HG-2B external-state hard-block bleed into HG-2A: none — PASS",
+    "pramana + domain-capture identity confirmed as HG-2A (not HG-2B) — PASS",
+    "HG-2A approval tokens rejected for parali-central (AEG-E-016) — PASS",
+    "parali-central self-regression: 10 ALLOW + 13 GATE + 6 BLOCK clean — PASS",
+    "BLOCK SENSE: doctrine_block_reason set on all 6 — PASS",
+    "GATE SENSE: approval_required=true on all 13 — PASS",
+    "HG-2B token rejected by all 6 live services (AEG-E-016) — PASS",
+    "HG-1/HG-2A tokens rejected for parali-central (AEG-E-016) — PASS",
+    "19 SENSE events, all unique correlation_ids — PASS",
+    "Kill switch: 6 live guards suppressed, parali-central candidate inert — PASS",
+    "promotion_permitted_parali_central=false (6/7 soak runs complete)"
+  ]
+}
