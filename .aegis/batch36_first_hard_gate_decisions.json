@@ -1,0 +1,258 @@
+[
+  {
+    "service_id": "ship-slm",
+    "operation": "read",
+    "capability": "READ",
+    "decision": "ALLOW",
+    "phase": "hard_gate",
+    "hard_gate_applied": false
+  },
+  {
+    "service_id": "ship-slm",
+    "operation": "get",
+    "capability": "GET",
+    "decision": "ALLOW",
+    "phase": "hard_gate",
+    "hard_gate_applied": false
+  },
+  {
+    "service_id": "ship-slm",
+    "operation": "list",
+    "capability": "LIST",
+    "decision": "ALLOW",
+    "phase": "hard_gate",
+    "hard_gate_applied": false
+  },
+  {
+    "service_id": "ship-slm",
+    "operation": "query",
+    "capability": "QUERY",
+    "decision": "ALLOW",
+    "phase": "hard_gate",
+    "hard_gate_applied": false
+  },
+  {
+    "service_id": "ship-slm",
+    "operation": "frob",
+    "capability": "IMPOSSIBLE_OP",
+    "decision": "BLOCK",
+    "phase": "hard_gate",
+    "hard_gate_applied": true
+  },
+  {
+    "service_id": "ship-slm",
+    "operation": "write",
+    "capability": "EMPTY_CAPABILITY_ON_WRITE",
+    "decision": "BLOCK",
+    "phase": "hard_gate",
+    "hard_gate_applied": true
+  },
+  {
+    "service_id": "ship-slm",
+    "operation": "ai-execute",
+    "capability": "AI_EXECUTE",
+    "decision": "GATE",
+    "phase": "hard_gate",
+    "hard_gate_applied": false
+  },
+  {
+    "service_id": "ship-slm",
+    "operation": "deploy",
+    "capability": "CI_DEPLOY",
+    "decision": "GATE",
+    "phase": "hard_gate",
+    "hard_gate_applied": false
+  },
+  {
+    "service_id": "ship-slm",
+    "operation": "delete",
+    "capability": "DELETE",
+    "decision": "GATE",
+    "phase": "hard_gate",
+    "hard_gate_applied": false
+  },
+  {
+    "service_id": "chief-slm",
+    "operation": "read",
+    "capability": "READ",
+    "decision": "ALLOW",
+    "phase": "hard_gate",
+    "hard_gate_applied": false
+  },
+  {
+    "service_id": "chief-slm",
+    "operation": "get",
+    "capability": "GET",
+    "decision": "ALLOW",
+    "phase": "hard_gate",
+    "hard_gate_applied": false
+  },
+  {
+    "service_id": "chief-slm",
+    "operation": "list",
+    "capability": "LIST",
+    "decision": "ALLOW",
+    "phase": "hard_gate",
+    "hard_gate_applied": false
+  },
+  {
+    "service_id": "chief-slm",
+    "operation": "query",
+    "capability": "QUERY",
+    "decision": "ALLOW",
+    "phase": "hard_gate",
+    "hard_gate_applied": false
+  },
+  {
+    "service_id": "chief-slm",
+    "operation": "frob",
+    "capability": "IMPOSSIBLE_OP",
+    "decision": "BLOCK",
+    "phase": "hard_gate",
+    "hard_gate_applied": true
+  },
+  {
+    "service_id": "chief-slm",
+    "operation": "write",
+    "capability": "EMPTY_CAPABILITY_ON_WRITE",
+    "decision": "BLOCK",
+    "phase": "hard_gate",
+    "hard_gate_applied": true
+  },
+  {
+    "service_id": "chief-slm",
+    "operation": "ai-execute",
+    "capability": "AI_EXECUTE",
+    "decision": "GATE",
+    "phase": "hard_gate",
+    "hard_gate_applied": false
+  },
+  {
+    "service_id": "chief-slm",
+    "operation": "deploy",
+    "capability": "CI_DEPLOY",
+    "decision": "GATE",
+    "phase": "hard_gate",
+    "hard_gate_applied": false
+  },
+  {
+    "service_id": "chief-slm",
+    "operation": "delete",
+    "capability": "DELETE",
+    "decision": "GATE",
+    "phase": "hard_gate",
+    "hard_gate_applied": false
+  },
+  {
+    "service_id": "chirpee",
+    "operation": "read",
+    "capability": "READ",
+    "decision": "ALLOW",
+    "phase": "hard_gate",
+    "hard_gate_applied": false
+  },
+  {
+    "service_id": "chirpee",
+    "operation": "frob",
+    "capability": "IMPOSSIBLE_OP",
+    "decision": "BLOCK",
+    "phase": "hard_gate",
+    "hard_gate_applied": true
+  },
+  {
+    "service_id": "chirpee",
+    "operation": "write",
+    "capability": "EMPTY_CAPABILITY_ON_WRITE",
+    "decision": "BLOCK",
+    "phase": "hard_gate",
+    "hard_gate_applied": true
+  },
+  {
+    "service_id": "chirpee",
+    "operation": "ai-execute",
+    "capability": "AI_EXECUTE",
+    "decision": "GATE",
+    "phase": "hard_gate",
+    "hard_gate_applied": false
+  },
+  {
+    "service_id": "ship-slm",
+    "operation": "execute",
+    "capability": "SUMMARIZE_VOYAGE",
+    "decision": "ALLOW",
+    "phase": "hard_gate",
+    "hard_gate_applied": false
+  },
+  {
+    "service_id": "ship-slm",
+    "operation": "execute",
+    "capability": "ANALYZE_WATCH",
+    "decision": "ALLOW",
+    "phase": "hard_gate",
+    "hard_gate_applied": false
+  },
+  {
+    "service_id": "ship-slm",
+    "operation": "execute",
+    "capability": "AUTONOMOUS_NAVIGATE",
+    "decision": "ALLOW",
+    "phase": "hard_gate",
+    "hard_gate_applied": false
+  },
+  {
+    "service_id": "ship-slm",
+    "operation": "execute",
+    "capability": "CREW_OVERRIDE",
+    "decision": "ALLOW",
+    "phase": "hard_gate",
+    "hard_gate_applied": false
+  },
+  {
+    "service_id": "ship-slm",
+    "operation": "execute",
+    "capability": "ROUTE_VESSEL",
+    "decision": "ALLOW",
+    "phase": "hard_gate",
+    "hard_gate_applied": false
+  },
+  {
+    "service_id": "chief-slm",
+    "operation": "execute",
+    "capability": "SUMMARIZE_VOYAGE",
+    "decision": "ALLOW",
+    "phase": "hard_gate",
+    "hard_gate_applied": false
+  },
+  {
+    "service_id": "chief-slm",
+    "operation": "execute",
+    "capability": "ANALYZE_WATCH",
+    "decision": "ALLOW",
+    "phase": "hard_gate",
+    "hard_gate_applied": false
+  },
+  {
+    "service_id": "chief-slm",
+    "operation": "execute",
+    "capability": "AUTONOMOUS_NAVIGATE",
+    "decision": "ALLOW",
+    "phase": "hard_gate",
+    "hard_gate_applied": false
+  },
+  {
+    "service_id": "chief-slm",
+    "operation": "execute",
+    "capability": "CREW_OVERRIDE",
+    "decision": "ALLOW",
+    "phase": "hard_gate",
+    "hard_gate_applied": false
+  },
+  {
+    "service_id": "chief-slm",
+    "operation": "execute",
+    "capability": "ROUTE_VESSEL",
+    "decision": "ALLOW",
+    "phase": "hard_gate",
+    "hard_gate_applied": false
+  }
+]

@@ -114,11 +114,14 @@ export const CHIRPEE_HG1_POLICY: ServiceHardGatePolicy = {
 
 // ── ship-slm HG-1 policy ─────────────────────────────────────────────────────
 //
-// Stage 2 candidate. Identical profile to chirpee: read_only authority + BR-0.
-// Policy prepared Batch 34. Not live — hard_gate_enabled=false until 7-run soak.
-// Promotion requires: AEGIS_HARD_GATE_SERVICES=ship-slm (manual act, after soak).
+// Stage 2. Identical profile to chirpee: read_only authority + BR-0.
+// Policy prepared Batch 34. Soak: Batch 35 7/7 complete (promotion_permitted=true).
+// Promoted live: Batch 36, 2026-05-03. AEGIS_HARD_GATE_SERVICES=chirpee,ship-slm,chief-slm
 //
-// @rule:AEG-HG-001 hard_gate_enabled=false — changed only by AEGIS_HARD_GATE_SERVICES
+// Evidence: 7 soak runs, 1403 total checks, 0 false positives.
+// Rollback: remove ship-slm from AEGIS_HARD_GATE_SERVICES — immediately returns to soft-canary.
+//
+// @rule:AEG-HG-001 hard_gate_enabled=false — runtime enabling is AEGIS_HARD_GATE_SERVICES
 
 export const SHIP_SLM_HG1_POLICY: ServiceHardGatePolicy = {
   service_id: "ship-slm",
@@ -140,16 +143,19 @@ export const SHIP_SLM_HG1_POLICY: ServiceHardGatePolicy = {
     "READ", // @rule:AEG-HG-002
   ]),
   rollout_order: 2,
-  stage: "Stage 2 — HG-1 prep — NOT LIVE (Batch 34, 2026-05-03)",
+  stage: "Stage 2 — HG-1 LIVE 2026-05-03 (Batch 36) — soak: Batch 35 7/7",
 };
 
 // ── chief-slm HG-1 policy ─────────────────────────────────────────────────────
 //
-// Stage 2 candidate. Identical profile to chirpee: read_only authority + BR-0.
-// Policy prepared Batch 34. Not live — hard_gate_enabled=false until 7-run soak.
-// Promotion requires: AEGIS_HARD_GATE_SERVICES=chief-slm (manual act, after soak).
+// Stage 2. Identical profile to chirpee: read_only authority + BR-0.
+// Policy prepared Batch 34. Soak: Batch 35 7/7 complete (promotion_permitted=true).
+// Promoted live: Batch 36, 2026-05-03. AEGIS_HARD_GATE_SERVICES=chirpee,ship-slm,chief-slm
 //
-// @rule:AEG-HG-001 hard_gate_enabled=false — changed only by AEGIS_HARD_GATE_SERVICES
+// Evidence: 7 soak runs, 1403 total checks, 0 false positives.
+// Rollback: remove chief-slm from AEGIS_HARD_GATE_SERVICES — immediately returns to soft-canary.
+//
+// @rule:AEG-HG-001 hard_gate_enabled=false — runtime enabling is AEGIS_HARD_GATE_SERVICES
 
 export const CHIEF_SLM_HG1_POLICY: ServiceHardGatePolicy = {
   service_id: "chief-slm",
@@ -171,7 +177,7 @@ export const CHIEF_SLM_HG1_POLICY: ServiceHardGatePolicy = {
     "READ", // @rule:AEG-HG-002
   ]),
   rollout_order: 3,
-  stage: "Stage 2 — HG-1 prep — NOT LIVE (Batch 34, 2026-05-03)",
+  stage: "Stage 2 — HG-1 LIVE 2026-05-03 (Batch 36) — soak: Batch 35 7/7",
 };
 
 // ── Policy registry ───────────────────────────────────────────────────────────

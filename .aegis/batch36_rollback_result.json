@@ -1,0 +1,10 @@
+{
+  "batch": 36,
+  "date": "2026-05-03T01:21:53.458Z",
+  "rollback_config_only": true,
+  "ship_slm_returned_to_soft_canary": true,
+  "chief_slm_returned_to_soft_canary": true,
+  "chirpee_unaffected": true,
+  "drill_verdict": "PASS",
+  "env_var_to_rollback": "Remove ship-slm,chief-slm from AEGIS_HARD_GATE_SERVICES"
+}
