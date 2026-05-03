@@ -1,0 +1,277 @@
+{
+  "batch": 52,
+  "date": "2026-05-03T07:04:13.174Z",
+  "type": "hg2b_doctrine_readiness",
+  "verdict": "PASS",
+  "total_checks": 107,
+  "passed": 107,
+  "failed": 0,
+  "failures": [],
+  "live_roster": [
+    "chirpee",
+    "ship-slm",
+    "chief-slm",
+    "puranic-os",
+    "pramana",
+    "domain-capture"
+  ],
+  "live_roster_size": 6,
+  "candidate": "parali-central",
+  "candidate_phase": "pre-soak",
+  "candidate_in_env": false,
+  "candidate_hard_gate_enabled": false,
+  "hg2b_in_live_roster": [],
+  "hg2c_in_live_roster": [],
+  "hg2b_doctrine": {
+    "schema": "aegis-hg2b-doctrine-v1",
+    "defined_at": "2026-05-03",
+    "defined_in_batch": 52,
+    "candidate": "parali-central",
+    "candidate_status": "pre-soak — NOT in AEGIS_HARD_GATE_SERVICES",
+    "hg_group": "HG-2B",
+    "hg_group_description": "External-state / boundary-crossing services. May touch external APIs, third-party systems, or shared mutable state outside the ANKR monorepo. Higher governance friction than HG-1/HG-2A because reversibility cannot be assumed at the policy layer.",
+    "doctrine_fields": {
+      "external_state_touch": {
+        "type": "boolean",
+        "description": "Service may write to or read from a system that lives outside the ANKR runtime boundary (external API, partner endpoint, third-party DB). If true, rollback_path must be declared and audit_artifact_required=true.",
+        "required_in_policy": true
+      },
+      "boundary_crossing": {
+        "type": "boolean",
+        "description": "Service crosses a trust boundary on at least one code path: inbound (receiving external input that affects internal state) or outbound (emitting commands that change external state). Both directions require explicit capability registration.",
+        "required_in_policy": true
+      },
+      "reversible_actions_only": {
+        "type": "boolean",
+        "description": "When true, all hard-blocked actions are reversible within the rollback_window. When false, at least one action in the policy scope is irreversible — approval_required_for_irreversible_action must also be true.",
+        "required_in_policy": true
+      },
+      "approval_required_for_irreversible_action": {
+        "type": "boolean",
+        "description": "Any action that cannot be rolled back (external API mutation, ledger write, external email/SMS send, webhook fire) requires explicit human approval token before execution. GATE verdict must never be bypassed to ALLOW on these paths.",
+        "required_in_policy": true
+      },
+      "kill_switch_scope": {
+        "type": "enum",
+        "values": [
+          "global",
+          "service",
+          "capability_class"
+        ],
+        "description": "Minimum scope at which the kill switch must be effective. 'global' = HARD_GATE_GLOBALLY_ENABLED=false restores safe state. 'service' = removing from AEGIS_HARD_GATE_SERVICES restores safe state. 'capability_class' = individual capability removal suffices for safety.",
+        "required_in_policy": true
+      },
+      "rollback_path": {
+        "type": "string",
+        "description": "Human-readable description of how to roll back hard-gate for this service. Must cover: config change, expected latency to safe state, any external cleanup required. Cannot be 'remove from env' if external_state_touch=true — must also describe external state cleanup.",
+        "required_in_policy": true
+      },
+      "observability_required": {
+        "type": "boolean",
+        "description": "If true, every hard-gate decision must emit a SENSE event with before_snapshot, after_snapshot, delta. External-state services require observability_required=true — silent boundary crossings are a governance violation (CA-003).",
+        "required_in_policy": true
+      },
+      "audit_artifact_required": {
+        "type": "boolean",
+        "description": "If true, every promotion, soak run, and rollback must produce a tracked artifact in audits/. External-state services always require audit_artifact_required=true. Non-negotiable for HG-2B.",
+        "required_in_policy": true
+      }
+    },
+    "allowed_action_classes": {
+      "always_allow": [
+        "READ — idempotent reads from external state; no mutation",
+        "GET — same as READ",
+        "LIST — enumeration without side-effects",
+        "QUERY — read-only queries (external or internal)",
+        "SEARCH — read-only search across external index",
+        "HEALTH — liveness/readiness probe; no state mutation",
+        "STATUS — status check of external system (read-only)"
+      ],
+      "allow_with_approval_token": [
+        "EXTERNAL_READ_SENSITIVE — reads external PII/financial data (requires scoped token)",
+        "BOUNDARY_PROBE — one-time connectivity check with audit trail"
+      ],
+      "gate_required": [
+        "EXTERNAL_WRITE — write to any external system (approval lifecycle required)",
+        "EXTERNAL_DELETE — delete from external system (irreversible; explicit token required)",
+        "EXTERNAL_NOTIFY — send external notification (email/SMS/webhook; irreversible)",
+        "BOUNDARY_MUTATION — mutate shared state across trust boundary",
+        "SYNC_PUSH — push internal state to external endpoint",
+        "SYNC_PULL_MUTATE — pull external data and mutate internal record",
+        "EXTERNAL_EXECUTE — trigger execution on external system",
+        "APPROVE_EXTERNAL — approve an action in an external workflow"
+      ]
+    },
+    "forbidden_action_classes": {
+      "hard_block_always": [
+        "IMPOSSIBLE_OP — demonstrably invalid sentinel; blocked in all HG groups",
+        "EMPTY_CAPABILITY_ON_WRITE — empty cap string on write-class op; blocked in all HG groups",
+        "EXTERNAL_WRITE_UNAUTHENTICATED — write to external system with no auth token",
+        "EXTERNAL_DELETE_UNAPPROVED — delete from external system without approval token",
+        "BULK_EXTERNAL_MUTATION — batch write/delete to external system (blast radius too high for hard-gate)",
+        "FORCE_EXTERNAL_OVERWRITE — overwrite external record without snapshot (CA-003 violation)"
+      ],
+      "hard_block_in_hg2b": [
+        "EXTERNAL_WRITE — when approval token absent",
+        "EXTERNAL_NOTIFY — when approval token absent",
+        "BOUNDARY_MUTATION — when external_state_touch=true and approval token absent",
+        "SYNC_PUSH — when destination is external and audit trail absent",
+        "CROSS_GROUP_PROMOTION — no HG-2B service may trigger promotion of another service"
+      ],
+      "never_block_invariant": [
+        "READ — AEG-HG-002; holds for all HG groups including HG-2B"
+      ]
+    },
+    "soft_canary_entry_criteria": {
+      "description": "Conditions that must hold before parali-central enters soft_canary phase",
+      "required": [
+        "HG-2B policy declared in hard-gate-policy.ts with all doctrine_fields populated",
+        "authority_class and governance_blast_radius declared in codex.json",
+        "runtime_readiness.tier assessed (TIER-A or TIER-B required for HG-2B)",
+        "external_state_touch and boundary_crossing declared as booleans in policy",
+        "rollback_path written as prose — must describe external cleanup if applicable",
+        "observability_required=true and audit_artifact_required=true confirmed",
+        "approval lifecycle stubs present: approveToken / denyToken / revokeToken exist",
+        "soft_canary does NOT appear in AEGIS_HARD_GATE_SERVICES",
+        "hard_gate_enabled=false in policy (not yet promoted)",
+        "pre-soak doctrine readiness batch (Batch 52) PASS on record"
+      ]
+    },
+    "soak_criteria": {
+      "description": "Conditions that must hold throughout soak before promotion is considered",
+      "required": [
+        "7 consecutive soak runs minimum (same standard as HG-1 and HG-2A)",
+        "0 false positives across all runs (ALLOW path must never misfire)",
+        "0 production fires (hard-gate must not activate on live traffic during soak)",
+        "External-state action classes: GATE fires correctly on each run",
+        "Approval lifecycle exercised: approveToken/denyToken/revokeToken confirmed in run 7",
+        "SENSE events verified: before_snapshot + after_snapshot + delta present on boundary-crossing ops",
+        "Rollback drill performed in run 7: remove from env, verify soft_canary return, restore",
+        "Existing 6 live guards must pass regression in every soak run",
+        "HG-2B/HG-2C isolation check: no HG-2B cap leaks into HG-1 or HG-2A policy space",
+        "Each soak run emits tracked artifact in audits/"
+      ],
+      "minimum_soak_runs": 7,
+      "minimum_fp_budget": 0,
+      "minimum_prod_fires": 0,
+      "approval_lifecycle_soak_run": 7
+    },
+    "promotion_criteria": {
+      "description": "All conditions required before parali-central enters hard_gate phase",
+      "required": [
+        "7/7 soak PASS with 0 false positives and 0 production fires",
+        "promotion_permitted_parali_central=true declared in final soak artifact",
+        "Approval lifecycle LIVE confirmed in final soak run",
+        "Rollback drill PASS in final soak run",
+        "Regression against all 6 existing live guards: PASS",
+        "hard_gate_enabled set to true in PARALI_CENTRAL_HG2B_POLICY",
+        "parali-central added to AEGIS_HARD_GATE_SERVICES",
+        "codex.json updated: hg_group_status=LIVE, aegis_batchNN_promotion block added",
+        "Tracked promotion artifact emitted to audits/batchNN_parali_central_hg2b_promotion.json",
+        "SENSE observability verified: no silent boundary crossings in promotion batch",
+        "Live roster size becomes 7 after promotion"
+      ]
+    },
+    "rollback_criteria": {
+      "description": "When and how to roll back parali-central from hard_gate phase",
+      "trigger_conditions": [
+        "Any false positive on a live request (immediate rollback — no threshold)",
+        "External state mutation without approval token (immediate rollback)",
+        "SENSE event missing on boundary-crossing operation",
+        "Approval lifecycle malfunction (approveToken/denyToken/revokeToken fails)",
+        "Any production fire within 24h of promotion",
+        "Cross-group contamination (HG-2B policy affects HG-1/HG-2A decisions)"
+      ],
+      "rollback_path": {
+        "step_1": "Remove parali-central from AEGIS_HARD_GATE_SERVICES",
+        "step_2": "Verify parali-central returns to soft_canary (GATE not BLOCK on hard-blocked caps)",
+        "step_3": "Verify READ still returns ALLOW (AEG-HG-002 must hold during rollback)",
+        "step_4": "If external_state_touch=true: audit external system for mutations during hard-gate window; document in rollback artifact",
+        "step_5": "Emit audits/batchNN_parali_central_rollback.json with cause and external cleanup record",
+        "step_6": "Do not re-promote until root cause is understood and doctrine updated"
+      },
+      "external_state_cleanup_required": true,
+      "rollback_artifact_required": true
+    },
+    "failure_taxonomy": {
+      "schema": "aegis-hg2b-failure-taxonomy-v1",
+      "classes": {
+        "false_positive_block": {
+          "code": "FP-BLOCK",
+          "description": "Hard-gate fired BLOCK on a legitimate operation that should have passed. Trigger: any FP on live traffic. Severity: CRITICAL — immediate rollback.",
+          "example": "An authenticated EXTERNAL_WRITE with valid approval token was blocked because the policy did not recognise the token format.",
+          "mitigation": "Rollback immediately. Fix capability classification. Re-soak from run 1."
+        },
+        "missed_true_positive": {
+          "code": "TP-MISS",
+          "description": "Hard-gate did NOT fire BLOCK on an operation that should have been blocked. Trigger: policy audit finds hard_block_capabilities missing a dangerous cap class. Severity: HIGH — fix policy before next soak run.",
+          "example": "EXTERNAL_WRITE_UNAUTHENTICATED reached the external endpoint because the capability string was submitted in lowercase ('external_write_unauthenticated') and normalisation was not applied.",
+          "mitigation": "Audit capability normalisation path. Expand hard_block_capabilities."
+        },
+        "external_state_mutation": {
+          "code": "EXT-MUT",
+          "description": "External system state was changed without an audit trail or approval token. Trigger: SENSE event missing on boundary-crossing op, OR external system confirms write that has no corresponding approval token in the record. Severity: CRITICAL — immediate rollback + external cleanup.",
+          "example": "parali-central pushed a rule candidate to an external partner API during a soak run without emitting a SENSE event. State at partner is now unknown.",
+          "mitigation": "Rollback. Audit external system. Document cleanup. Enforce observability_required=true gate before re-soak."
+        },
+        "irreversible_action_without_approval": {
+          "code": "IRR-NOAPPROVAL",
+          "description": "An irreversible external action (notification, ledger write, webhook) was executed without an explicit approval token. Severity: CRITICAL — rollback if possible; external audit mandatory.",
+          "example": "An EXTERNAL_NOTIFY cap fired an SMS to a customer record. No approval token was present. Action cannot be reversed.",
+          "mitigation": "Rollback hard-gate. Block EXTERNAL_NOTIFY cap in policy until approval lifecycle is verified. External cleanup as possible."
+        },
+        "unknown_service_block": {
+          "code": "UNK-SVC-BLOCK",
+          "description": "Hard-gate fired BLOCK on an unknown service (not in HARD_GATE_POLICIES). This violates AEG-HG-001 — unknown services must never hard-block. Severity: HIGH — indicates a policy registry corruption.",
+          "example": "A new service named 'parali-staging' was added to AEGIS_HARD_GATE_SERVICES by mistake before its policy was declared. Calls to it were BLOCKed silently.",
+          "mitigation": "Remove unknown service from AEGIS_HARD_GATE_SERVICES immediately. Audit how it was added (AEG-HG-003 requires explicit manual step)."
+        },
+        "unknown_capability_block": {
+          "code": "UNK-CAP-BLOCK",
+          "description": "Hard-gate fired BLOCK on an unknown capability for a live service. Unknown capabilities must remain GATE/WARN, never BLOCK. Severity: HIGH — false-positive factory for new feature rollouts.",
+          "example": "A new capability 'SYNC_HYBRID' was introduced. Because it wasn't in hard_block_capabilities or always_allow_capabilities, the policy defaulted to BLOCK rather than GATE.",
+          "mitigation": "Add SYNC_HYBRID to still_gate_capabilities or always_allow_capabilities. Never let unknown capabilities default to BLOCK."
+        },
+        "cross_group_promotion_leak": {
+          "code": "XGRP-LEAK",
+          "description": "An HG-2B policy decision leaked into or overrode an HG-1 or HG-2A verdict. Groups must be isolated — the policy for parali-central must not affect chirpee, ship-slm, chief-slm, puranic-os, pramana, or domain-capture. Severity: HIGH — undermines HG group isolation guarantee.",
+          "example": "A shared capability string 'EMIT' was added to parali-central's hard_block_capabilities. Because chirpee also uses 'EMIT', both services were blocked on EMIT — cross-group contamination.",
+          "mitigation": "Scope all HG-2B capability strings to parali-central's domain. Run cross-group isolation check after every policy update."
+        }
+      }
+    },
+    "doctrine_readiness": {
+      "fields_defined": 8,
+      "allowed_classes_defined": 3,
+      "forbidden_classes_defined": 3,
+      "entry_criteria_count": 10,
+      "soak_criteria_count": 10,
+      "promotion_criteria_count": 11,
+      "rollback_criteria_count": 6,
+      "failure_taxonomy_classes": 7,
+      "doctrine_complete": true,
+      "next_gate": "HG-2B policy declaration in hard-gate-policy.ts",
+      "next_gate_batch": "Batch 53 — parali-central policy declaration + soak run 1"
+    }
+  },
+  "governance_boundary": {
+    "pre_batch49": "runtime evidence in .aegis/ (ephemeral, legacy acceptable)",
+    "from_batch49": "promotion evidence in audits/ (tracked, mandatory)",
+    "hg2b_requirement": "all HG-2B soak + promotion artifacts must be in audits/ (audit_artifact_required=true)"
+  },
+  "rollback_doctrine_confirmed": {
+    "read_safe_during_rollback": true,
+    "aeg_hg_002_invariant": "READ never hard-blocks in any mode or group",
+    "external_state_cleanup_required": true,
+    "rollback_artifact_required": true
+  },
+  "summary": [
+    "Live roster: 6 services — unchanged",
+    "parali-central: absent from env, no policy, hard_gate_enabled=false",
+    "HG-2B/HG-2C in live roster: 0",
+    "Unknown service/cap safety: PASS",
+    "Six live guards regression: PASS",
+    "HG-2B doctrine: fully defined (8 fields, 3 action classes, 7 failure codes)",
+    "Next gate: Batch 53 — parali-central policy declaration + soak run 1"
+  ]
+}
