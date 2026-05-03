@@ -1,0 +1,138 @@
+{
+  "batch": 59,
+  "date": "2026-05-03T09:09:13.880Z",
+  "type": "hg2b_soft_canary_soak_final_verdict",
+  "soak_run": 7,
+  "soak_total": 7,
+  "verdict": "PASS",
+  "total_checks": 372,
+  "passed": 372,
+  "failed": 0,
+  "failures": [],
+  "service": "parali-central",
+  "hg_group": "HG-2B",
+  "phase": "soft_canary",
+  "hard_gate_enabled": false,
+  "in_aegis_hard_gate_services": false,
+  "in_AEGIS_HARD_GATE_SERVICES": false,
+  "live_roster": [
+    "chirpee",
+    "ship-slm",
+    "chief-slm",
+    "puranic-os",
+    "pramana",
+    "domain-capture"
+  ],
+  "live_roster_size": 6,
+  "hg2b_in_live_roster": 0,
+  "hg2c_in_live_roster": 0,
+  "false_positives": 0,
+  "production_fires": 0,
+  "promotion_permitted_parali_central": true,
+  "promotion_is_separate_human_act": true,
+  "parali_central_promoted": false,
+  "next_batch": "Batch 60 — human promotion decision for parali-central HG-2B",
+  "soak_evidence": {
+    "run1": {
+      "batch": 53,
+      "verdict": "PASS",
+      "checks": 153,
+      "failed": 0
+    },
+    "run2": {
+      "batch": 54,
+      "verdict": "PASS",
+      "checks": 181,
+      "failed": 0
+    },
+    "run3": {
+      "batch": 55,
+      "verdict": "PASS",
+      "checks": 476,
+      "failed": 0
+    },
+    "run4": {
+      "batch": 56,
+      "verdict": "PASS",
+      "checks": 155,
+      "failed": 0
+    },
+    "run5": {
+      "batch": 57,
+      "verdict": "PASS",
+      "checks": 239,
+      "failed": 0
+    },
+    "run6": {
+      "batch": 58,
+      "verdict": "PASS",
+      "checks": 331,
+      "failed": 0
+    },
+    "run7": {
+      "batch": 59,
+      "verdict": "PASS",
+      "checks": 364,
+      "failed": 0
+    }
+  },
+  "rollback_drill": {
+    "scenarios_tested": 3,
+    "results": [
+      {
+        "trigger": "IRR_NOAPPROVAL_MISSING_TOKEN",
+        "capability": "RELEASE_DOCUMENT",
+        "external_state_mutated": false,
+        "rollback_success": true
+      },
+      {
+        "trigger": "IRR_NOAPPROVAL_EXPIRED_TOKEN",
+        "capability": "APPROVE_TRANSACTION",
+        "external_state_mutated": false,
+        "rollback_success": true
+      },
+      {
+        "trigger": "DOCTRINE_HARD_BLOCK",
+        "capability": "BULK_EXTERNAL_MUTATION",
+        "external_state_mutated": false,
+        "rollback_success": true
+      }
+    ],
+    "external_state_mutated": false,
+    "note": "soft_canary rollback drill — no actual external state was touched during 7-run soak"
+  },
+  "soak_criteria_status": {
+    "run1": "COMPLETE — baseline surface, approval lifecycle",
+    "run2": "COMPLETE — expanded GATE surface, concurrent tokens, cross-group isolation",
+    "run3": "COMPLETE — irreversible-path SENSE completeness, IRR-NOAPPROVAL, doctrine_block_reason",
+    "run4": "COMPLETE — TTL expiry, re-issue, replay protection, cross-authorization, all token states",
+    "run5": "COMPLETE — mixed ALLOW/GATE/BLOCK/unknown/alias stress; normalization layer verified",
+    "run6": "COMPLETE — extended cross-group isolation + full HG-1 + HG-2A regression suite",
+    "run7": "COMPLETE — rollback drill + full lifecycle + promotion readiness gate"
+  },
+  "promotion_conditions": {
+    "runs_7_of_7_pass": true,
+    "total_false_positives": 0,
+    "total_production_fires": 0,
+    "hg2b_live_count_during_soak": 0,
+    "no_live_hard_block_fired": true,
+    "cross_group_isolation_verified": true,
+    "rollback_drill_passed": true,
+    "scoped_key_doctrine_verified": true
+  },
+  "summary": [
+    "6 prior soak artifacts verified: all PASS, 0 FP, 0 production fires — PASS",
+    "Candidate state: hard_gate_enabled=false, not in env, rollout_order=7 — PASS",
+    "10 ALLOW caps: all ALLOW, 0 FP — PASS",
+    "13 GATE caps: in still_gate, sim=GATE — PASS",
+    "6 BLOCK caps: sim=BLOCK, hard_gate_would_apply=true — PASS",
+    "Full approval lifecycle: issue→approve→replay reject → expiry→revoke→deny→cross-cap→cross-service — PASS",
+    "HG-2B token rejected by all 6 live services (AEG-E-016) — PASS",
+    "HG-1/HG-2A tokens rejected for parali-central (AEG-E-016) — PASS",
+    "19 SENSE events: unique correlation_ids, correct fields, phase=soft_canary — PASS",
+    "Rollback drill: 3 scenarios, 0 external state mutations, rollback_success=true — PASS",
+    "HG-1 + HG-2A live regression: all clean, no HG-2B bleed — PASS",
+    "Kill switch: 6 live guards suppressed, parali-central inert, restore verified — PASS",
+    "promotion_permitted_parali_central=true — 7/7 soak complete"
+  ]
+}

@@ -380,16 +380,16 @@ console.log("── Check 18: domain-capture remains HG-2A (not HG-2B) ──");
 check(18, "domain-capture hg_group=HG-2 (HG-2A class)", DOMAIN_CAPTURE_HG2A_POLICY.hg_group, "HG-2", "hg2a_identity");
 check(18, "domain-capture rollout_order=6 (not 7)", DOMAIN_CAPTURE_HG2A_POLICY.rollout_order, 6, "hg2a_identity");
 check(18, "domain-capture hard_gate_enabled=true (live)", DOMAIN_CAPTURE_HG2A_POLICY.hard_gate_enabled, true, "hg2a_identity");
-check(18, "domain-capture external_state_touch absent (HG-2A has no ext-state doctrine)",
-  DOMAIN_CAPTURE_HG2A_POLICY.external_state_touch, undefined, "hg2a_identity");
+check(18, "domain-capture boundary_crossing absent (HG-2A has no ext-state doctrine)",
+  DOMAIN_CAPTURE_HG2A_POLICY.boundary_crossing, undefined, "hg2a_identity");
 console.log();
 
 console.log("── Check 19: pramana remains HG-2A (not HG-2B) ──");
 check(19, "pramana hg_group=HG-2 (HG-2A class)", PRAMANA_HG2A_POLICY.hg_group, "HG-2", "hg2a_identity");
 check(19, "pramana rollout_order=5 (not 7)", PRAMANA_HG2A_POLICY.rollout_order, 5, "hg2a_identity");
 check(19, "pramana hard_gate_enabled=true (live)", PRAMANA_HG2A_POLICY.hard_gate_enabled, true, "hg2a_identity");
-check(19, "pramana external_state_touch absent (HG-2A has no ext-state doctrine)",
-  PRAMANA_HG2A_POLICY.external_state_touch, undefined, "hg2a_identity");
+check(19, "pramana boundary_crossing absent (HG-2A has no ext-state doctrine)",
+  PRAMANA_HG2A_POLICY.boundary_crossing, undefined, "hg2a_identity");
 console.log();
 
 // ── Checks 20-25: HG-2B candidate self-regression ────────────────────────────
