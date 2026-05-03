@@ -1,0 +1,99 @@
+{
+  "batch": 56,
+  "date": "2026-05-03T08:33:07.566Z",
+  "type": "hg2b_soft_canary_soak",
+  "soak_run": 4,
+  "soak_total": 7,
+  "verdict": "PASS",
+  "total_checks": 155,
+  "passed": 155,
+  "failed": 0,
+  "failures": [],
+  "service": "parali-central",
+  "hg_group": "HG-2B",
+  "phase": "soft_canary",
+  "hard_gate_enabled": false,
+  "in_aegis_hard_gate_services": false,
+  "live_roster": [
+    "chirpee",
+    "ship-slm",
+    "chief-slm",
+    "puranic-os",
+    "pramana",
+    "domain-capture"
+  ],
+  "live_roster_size": 6,
+  "hg2b_in_live_roster": 0,
+  "hg2c_in_live_roster": 0,
+  "promotion_permitted_parali_central": false,
+  "false_positives": 0,
+  "production_fires": 0,
+  "expiry_simulation_method": "test_only_backdated_expires_at",
+  "production_mutability_allowed": false,
+  "expired_token_rejected": true,
+  "fresh_token_reissue_pass": true,
+  "cross_authorization_rejected": true,
+  "run4_focus": {
+    "ttl_expiry_tested": [
+      "RELEASE_DOCUMENT"
+    ],
+    "reissue_after_expiry": [
+      "RELEASE_DOCUMENT"
+    ],
+    "replay_protection_verified": [
+      "RELEASE_DOCUMENT (expired)",
+      "ARCHIVE_EXTERNAL_RECORD (revoked)",
+      "FINALIZE_RECORD (denied)"
+    ],
+    "cross_authorization_checks": {
+      "cross_capability": "RELEASE_DOCUMENT token rejected for APPROVE_TRANSACTION binding",
+      "cross_service": "parali-central token rejected for chirpee service_id",
+      "hg2b_to_hg2a": "parali-central token rejected for pramana service_id (AEG-E-016)"
+    },
+    "token_scenario_coverage": [
+      "absent",
+      "expired",
+      "approved",
+      "revoked",
+      "denied"
+    ],
+    "sense_schema_v1_fields_verified": [
+      "approval_token_present",
+      "approval_token_status",
+      "approval_consumed",
+      "rollback_reason",
+      "doctrine_block_reason"
+    ]
+  },
+  "approval_rules_exercised": [
+    "AEG-E-013: 15-min TTL — expired token lazy-transitioned on read",
+    "AEG-E-015: expired/revoked/denied tokens rejected — replay protection",
+    "AEG-E-016: cross-capability, cross-service, HG-2B→HG-2A binding mismatch rejected"
+  ],
+  "doctrine_block_reason_carried_forward": true,
+  "soak_criteria_status": {
+    "run1": "COMPLETE — baseline surface, approval lifecycle",
+    "run2": "COMPLETE — expanded GATE surface, concurrent tokens, cross-group isolation",
+    "run3": "COMPLETE — irreversible-path SENSE completeness, IRR-NOAPPROVAL, doctrine_block_reason",
+    "run4": "COMPLETE — TTL expiry, re-issue, replay protection, cross-authorization, all token states",
+    "run5": "PENDING — mixed still_gate + hard_block + unknown cap stress",
+    "run6": "PENDING — cross-group isolation extended (full HG-1 + HG-2A regression suite)",
+    "run7": "PENDING — rollback drill + full lifecycle + promotion readiness gate"
+  },
+  "summary": [
+    "Token lifecycle: pending → expired (lazy via getApproval) — PASS",
+    "Expired token rejected: approveToken ok=false with 'expired' error — PASS",
+    "Expired SENSE: approval_token_present=true (token exists), approval_token_status=expired, rollback_reason=expired_approval_token — PASS",
+    "Re-issue: fresh token distinct, approved cleanly — PASS",
+    "Approved SENSE: approval_consumed=true, rollback_required=false — PASS",
+    "Replay protection: expired/revoked/denied tokens each rejected — PASS",
+    "Cross-capability: RELEASE_DOCUMENT token rejected for APPROVE_TRANSACTION (AEG-E-016) — PASS",
+    "Cross-service: parali-central token rejected for chirpee/pramana (AEG-E-016) — PASS",
+    "IRR-NOAPPROVAL: all findings link to SENSE correlation_id — PASS",
+    "HARD-BLOCK: doctrine_block_reason=doctrinally_forbidden_no_approval_possible — PASS",
+    "HG-2A isolation: pramana/domain-capture do not inherit HG-2B token doctrine — PASS",
+    "Six live guards regression clean — PASS",
+    "Kill switch: all 6 suppressed, parali-central candidate inert — PASS",
+    "promotion_permitted_parali_central=false (4/7 soak runs complete)"
+  ]
+}
