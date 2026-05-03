@@ -1,0 +1,70 @@
+{
+  "batch": 60,
+  "service": "parali-central",
+  "hg_group": "HG-2B",
+  "previous_phase": "soft_canary",
+  "new_phase": "hard_gate",
+  "promotion_basis": "Batch 59 7/7 soak PASS",
+  "soak_runs_passed": 7,
+  "soak_batches": "Batch 53–59",
+  "false_positives": 0,
+  "production_fires": 0,
+  "hard_gate_enabled": true,
+  "added_to_AEGIS_HARD_GATE_SERVICES": true,
+  "live_hard_gate_roster_size": 7,
+  "live_hard_gate_roster": [
+    "chirpee",
+    "ship-slm",
+    "chief-slm",
+    "puranic-os",
+    "pramana",
+    "domain-capture",
+    "parali-central"
+  ],
+  "hg1_live_count": 4,
+  "hg2a_live_count": 2,
+  "hg2b_live_count": 1,
+  "hg2c_live_count": 0,
+  "promotion_performed_by": "human_authorized_batch",
+  "promotion_permitted_parali_central": true,
+  "promotion_is_separate_human_act": true,
+  "rollout_order": 7,
+  "stage": "Stage 5 — HG-2B LIVE 2026-05-03 (Batch 60) — soak: Batch 53-59 7/7",
+  "rollback_drill": {
+    "verdict": "PASS",
+    "scenarios_tested": 3,
+    "scenarios": [
+      {
+        "scenario": "remove_from_roster",
+        "result": "hard_gate_active=false confirmed"
+      },
+      {
+        "scenario": "six_guards_stable",
+        "result": "all 6 prior guards remained BLOCK"
+      },
+      {
+        "scenario": "restore_to_roster",
+        "result": "hard_gate_active=true confirmed"
+      }
+    ],
+    "external_state_mutated": false,
+    "rollback_success": true
+  },
+  "token_scoping_pass": true,
+  "sense_observability_pass": true,
+  "cross_group_isolation_pass": true,
+  "sense_events_emitted": 26,
+  "hg2b_doctrine": {
+    "external_state_touch": true,
+    "boundary_crossing": true,
+    "reversible_actions_only": false,
+    "approval_required_for_irreversible_action": true,
+    "observability_required": true,
+    "audit_artifact_required": true
+  },
+  "checks": 152,
+  "passed": 152,
+  "failed": 0,
+  "verdict": "PASS",
+  "timestamp": "2026-05-03T09:19:59.997Z"
+}

@@ -347,9 +347,10 @@ export const DOMAIN_CAPTURE_HG2A_POLICY: ServiceHardGatePolicy = {
 // ── Policy registry ───────────────────────────────────────────────────────────
 // ── parali-central HG-2B policy ───────────────────────────────────────────────
 //
-// HG-2B — first external-state / boundary-crossing candidate.
+// HG-2B — first external-state / boundary-crossing service. LIVE.
 // Doctrine defined: Batch 52 (aegis-hg2b-doctrine-v1, 2026-05-03).
-// Soft-canary started: Batch 53 (run 1/7, 2026-05-03).
+// Soft-canary: Batch 53–59, 7/7 PASS, 0 FP, 0 fires.
+// PROMOTED LIVE: Batch 60, 2026-05-03. AEGIS_HARD_GATE_SERVICES includes parali-central.
 //
 // HG-2B PROFILE:
 //   external_state_touch=true — may touch APIs/DBs outside ANKR runtime
@@ -369,14 +370,20 @@ export const DOMAIN_CAPTURE_HG2A_POLICY: ServiceHardGatePolicy = {
 //   READ and safe external-read paths (FETCH_STATUS/CHECK_CONNECTION/DRY_RUN)
 //   always remain ALLOW — AEG-HG-002 invariant extended to all read-class ops.
 //
-// NOT PROMOTED. hard_gate_enabled=false. Not in AEGIS_HARD_GATE_SERVICES.
-// Rollout order 7 is the candidate slot — will become live order on promotion.
-// @rule:AEG-HG-001 — hard_gate_enabled=false until manual promotion act.
+// SCOPED KEY DOCTRINE (locked Batch 56, AEG-E-016):
+//   Approval tokens are bound to service_id + capability + operation.
+//   Wrong service_id → AEG-E-016 rejection.
+//   Wrong capability → AEG-E-016 rejection.
+//   Expired/revoked/denied → rollback_required=true.
+//
+// @rule:AEG-HG-001 hard_gate_enabled=true — in sync with AEGIS_HARD_GATE_SERVICES (Batch 60)
+// @rule:AEG-HG-002 READ is in never_block — AEG-E-002 extended to hard mode
+// @rule:AEG-HG-003 env var is the gate switch; policy flag is advisory
 
 export const PARALI_CENTRAL_HG2B_POLICY: ServiceHardGatePolicy = {
   service_id: "parali-central",
   hg_group: "HG-2",
-  hard_gate_enabled: false, // @rule:AEG-HG-001 — candidate only; NOT in AEGIS_HARD_GATE_SERVICES
+  hard_gate_enabled: true, // @rule:AEG-HG-001 — LIVE (Batch 60, 2026-05-03); soak: Batch 53-59 7/7
   hard_block_capabilities: new Set([
     // Universal malformed sentinels (all HG groups)
     "IMPOSSIBLE_OP",
@@ -420,7 +427,7 @@ export const PARALI_CENTRAL_HG2B_POLICY: ServiceHardGatePolicy = {
     "READ", // @rule:AEG-HG-002 — AEG-E-002 extended to hard mode
   ]),
   rollout_order: 7,
-  stage: "Stage 5 — HG-2B candidate — soft_canary 2026-05-03 (Batch 53) — NOT PROMOTED",
+  stage: "Stage 5 — HG-2B LIVE 2026-05-03 (Batch 60) — soak: Batch 53-59 7/7",
   // HG-2B doctrine fields (Batch 52, aegis-hg2b-doctrine-v1)
   external_state_touch: true,
   boundary_crossing: true,
@@ -445,6 +452,7 @@ export const PARALI_CENTRAL_HG2B_POLICY: ServiceHardGatePolicy = {
 // Batch 46: domain-capture added (HG-2A, disabled). Stage 4 soak — 7/7 PASS (Batch 47).
 // Batch 48: domain-capture promoted live (HG-2A). 6 live hard-gate services total.
 // Batch 53: parali-central added (HG-2B candidate, soft_canary). Live roster unchanged at 6.
+// Batch 60: parali-central promoted live (HG-2B). 7 live hard-gate services total.
 
 export const HARD_GATE_POLICIES: Readonly<Record<string, ServiceHardGatePolicy>> = {
   chirpee:             CHIRPEE_HG1_POLICY,
