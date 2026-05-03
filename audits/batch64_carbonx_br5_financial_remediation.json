@@ -1,0 +1,214 @@
+{
+  "batch": 64,
+  "title": "carbonx BR-5 Financial Remediation",
+  "run_at": "2026-05-03T13:03:53.160Z",
+  "verdict": "PASS",
+  "checks_passed": 30,
+  "checks_total": 30,
+  "gate_decision": "READY_FOR_CODE_SCAN_RECHECK",
+  "fixes_implemented": {
+    "CARBONX-FIX-001": true,
+    "CARBONX-FIX-002": true,
+    "CARBONX-FIX-003": true,
+    "CARBONX-FIX-004": true
+  },
+  "files_created": [
+    "src/lib/aegis-approval-token.ts",
+    "src/lib/aegis-sense.ts"
+  ],
+  "files_modified": [
+    "src/services/ets/ets-service.ts",
+    "src/schema/types/ets.ts",
+    "prisma/schema.prisma"
+  ],
+  "schema_change": {
+    "table": "ets_transactions",
+    "column": "externalRef",
+    "type": "TEXT NULL UNIQUE",
+    "method": "psql direct (demo class, non-interactive env)",
+    "destructive": false
+  },
+  "next_batch": "Batch 65 — re-run code-scan gate to confirm gate_decision=READY_FOR_POLICY_DECLARATION",
+  "results": [
+    {
+      "id": 1,
+      "label": "aegis-approval-token.ts file exists",
+      "verdict": "PASS",
+      "section": "fix-001"
+    },
+    {
+      "id": 2,
+      "label": "IrrNoApprovalError class defined",
+      "verdict": "PASS",
+      "section": "fix-001"
+    },
+    {
+      "id": 3,
+      "label": "verifyApprovalToken function exported",
+      "verdict": "PASS",
+      "section": "fix-001"
+    },
+    {
+      "id": 4,
+      "label": "@rule:AEG-E-016 annotation present in aegis-approval-token.ts",
+      "verdict": "PASS",
+      "section": "fix-001"
+    },
+    {
+      "id": 5,
+      "label": "surrenderEtsAllowances has approvalToken arg",
+      "verdict": "PASS",
+      "section": "fix-001"
+    },
+    {
+      "id": 6,
+      "label": "verifyApprovalToken called in surrenderEtsAllowances resolve",
+      "verdict": "PASS",
+      "section": "fix-001"
+    },
+    {
+      "id": 7,
+      "label": "verifyApprovalToken imported from aegis-approval-token.js in ets.ts",
+      "verdict": "PASS",
+      "section": "fix-001"
+    },
+    {
+      "id": 8,
+      "label": "IrrNoApprovalError also imported (for type completeness)",
+      "verdict": "PASS",
+      "section": "fix-001"
+    },
+    {
+      "id": 9,
+      "label": "aegis-sense.ts file exists",
+      "verdict": "PASS",
+      "section": "fix-002"
+    },
+    {
+      "id": 10,
+      "label": "emitAegisSenseEvent function exported",
+      "verdict": "PASS",
+      "section": "fix-002"
+    },
+    {
+      "id": 11,
+      "label": "@rule:CA-003 annotation present in aegis-sense.ts",
+      "verdict": "PASS",
+      "section": "fix-002"
+    },
+    {
+      "id": 12,
+      "label": "AegisSenseEvent interface has before_snapshot",
+      "verdict": "PASS",
+      "section": "fix-002"
+    },
+    {
+      "id": 13,
+      "label": "AegisSenseEvent interface has after_snapshot",
+      "verdict": "PASS",
+      "section": "fix-002"
+    },
+    {
+      "id": 14,
+      "label": "AegisSenseEvent interface has delta",
+      "verdict": "PASS",
+      "section": "fix-002"
+    },
+    {
+      "id": 15,
+      "label": "emitAegisSenseEvent imported in ets-service.ts",
+      "verdict": "PASS",
+      "section": "fix-002"
+    },
+    {
+      "id": 16,
+      "label": "emitAegisSenseEvent called inside recordSurrender with ETS_SURRENDER event type",
+      "verdict": "PASS",
+      "section": "fix-002"
+    },
+    {
+      "id": 17,
+      "label": "simulateSurrender queryField defined in ets.ts",
+      "verdict": "PASS",
+      "section": "fix-003"
+    },
+    {
+      "id": 18,
+      "label": "simulateSurrender has vesselId arg",
+      "verdict": "PASS",
+      "section": "fix-003"
+    },
+    {
+      "id": 19,
+      "label": "simulateSurrender has year arg",
+      "verdict": "PASS",
+      "section": "fix-003"
+    },
+    {
+      "id": 20,
+      "label": "simulateSurrender has euaAmount arg",
+      "verdict": "PASS",
+      "section": "fix-003"
+    },
+    {
+      "id": 21,
+      "label": "simulateSurrender returns projectedNewSurrendered",
+      "verdict": "PASS",
+      "section": "fix-003"
+    },
+    {
+      "id": 22,
+      "label": "simulateSurrender returns approvalScopeRequired",
+      "verdict": "PASS",
+      "section": "fix-003"
+    },
+    {
+      "id": 23,
+      "label": "simulateSurrender returns rollbackNote",
+      "verdict": "PASS",
+      "section": "fix-003"
+    },
+    {
+      "id": 24,
+      "label": "externalRef field in EtsTransaction model in schema.prisma",
+      "verdict": "PASS",
+      "section": "fix-004"
+    },
+    {
+      "id": 25,
+      "label": "externalRef has @unique constraint in schema.prisma",
+      "verdict": "PASS",
+      "section": "fix-004"
+    },
+    {
+      "id": 26,
+      "label": "externalRef exposed in EtsTransaction GQL object",
+      "verdict": "PASS",
+      "section": "fix-004"
+    },
+    {
+      "id": 27,
+      "label": "recordSurrender signature has externalRef parameter",
+      "verdict": "PASS",
+      "section": "fix-004"
+    },
+    {
+      "id": 28,
+      "label": "idempotency check (findFirst by externalRef) present in recordSurrender",
+      "verdict": "PASS",
+      "section": "fix-004"
+    },
+    {
+      "id": 29,
+      "label": "surrenderEtsAllowances mutation passes externalRef to recordSurrender",
+      "verdict": "PASS",
+      "section": "fix-004"
+    },
+    {
+      "id": 30,
+      "label": "all four fixes present → gate_decision=READY_FOR_CODE_SCAN_RECHECK",
+      "verdict": "PASS",
+      "section": "integration"
+    }
+  ]
+}
