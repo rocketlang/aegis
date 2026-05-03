@@ -111,6 +111,7 @@ interface IrreversibleSenseEvent {
   before_snapshot_required: boolean;
   after_snapshot_required: boolean;
   rollback_required: boolean;
+  doctrine_block_reason?: string;
   timestamp: string;
   correlation_id: string;
   doctrine_version: string;
@@ -139,7 +140,15 @@ function simulateIrreversibleHG2BSenseEvent(
   const normalizedCap = cap.toLowerCase().replace(/_/g, "-");
   const correlationId = newCorrelationId();
   const approvalRequired = decision === "GATE";
-  const rollbackRequired = approvalRequired && !approvalTokenPresent;
+  // GATE path: rollback required when token is absent (IRR-NOAPPROVAL).
+  // BLOCK path: action was doctrinally forbidden and stopped outright — nothing
+  // crossed the boundary, but the attempt itself is a governance event. We set
+  // rollback_required=true for BLOCK to signal that this class of attempt must
+  // trigger a governance response (doctrine_block_reason carries the reason).
+  const rollbackRequired = decision === "GATE" ? !approvalTokenPresent : true;
+  const doctrineBlockReason = decision === "BLOCK"
+    ? "doctrinally_forbidden_no_approval_possible"
+    : undefined;
 
   const before: Record<string, unknown> = {
     service_id: "parali-central",
@@ -149,6 +158,7 @@ function simulateIrreversibleHG2BSenseEvent(
     irreversible: true,
     approval_required: approvalRequired,
     approval_token_present: approvalTokenPresent,
+    ...(doctrineBlockReason ? { doctrine_block_reason: doctrineBlockReason } : {}),
   };
   const after: Record<string, unknown> = {
     service_id: "parali-central",
@@ -158,6 +168,7 @@ function simulateIrreversibleHG2BSenseEvent(
     boundary_crossed: true,
     rollback_triggered: rollbackRequired,
     approval_consumed: approvalRequired && approvalTokenPresent,
+    ...(doctrineBlockReason ? { doctrine_block_reason: doctrineBlockReason } : {}),
   };
   const delta: Record<string, unknown> = {
     gate_status_changed: true,
@@ -168,6 +179,7 @@ function simulateIrreversibleHG2BSenseEvent(
     approval_token_present: approvalTokenPresent,
     rollback_required: rollbackRequired,
     hg2b_doctrine_applied: true,
+    ...(doctrineBlockReason ? { doctrine_block_reason: doctrineBlockReason } : {}),
   };
 
   return {
@@ -185,6 +197,7 @@ function simulateIrreversibleHG2BSenseEvent(
     before_snapshot_required: true,
     after_snapshot_required: true,
     rollback_required: rollbackRequired,
+    ...(doctrineBlockReason ? { doctrine_block_reason: doctrineBlockReason } : {}),
     timestamp: new Date().toISOString(),
     correlation_id: correlationId,
     doctrine_version: "aegis-hg2b-doctrine-v1",
@@ -453,8 +466,13 @@ for (const [cap, op] of HARD_BLOCK_PATHS) {
   allSenseEvents.push(event);
 
   check(cg, `${cap}: not silent ALLOW`, event.decision === "ALLOW", false, "irreversible_surface");
-  verifySenseFields(cg, event, "BLOCK", false, false, false);
+  // BLOCK paths: rollback_required=true (attempted doctrinally forbidden op is a governance event)
+  verifySenseFields(cg, event, "BLOCK", false, false, true);
   check(cg, `${cap}: delta.hg2b_doctrine_applied=true`, event.delta.hg2b_doctrine_applied, true, "sense_completeness");
+  check(cg, `${cap}: doctrine_block_reason=doctrinally_forbidden_no_approval_possible`,
+    event.doctrine_block_reason, "doctrinally_forbidden_no_approval_possible", "sense_completeness");
+  check(cg, `${cap}: delta.doctrine_block_reason set`,
+    event.delta.doctrine_block_reason, "doctrinally_forbidden_no_approval_possible", "sense_completeness");
 
   console.log();
 }
