@@ -1,0 +1,390 @@
+{
+  "batch": 68,
+  "title": "carbonx HG-2B Financial Soft-Canary Soak Run 3/7",
+  "run_at": "2026-05-03T14:46:30.829Z",
+  "verdict": "PASS",
+  "checks_passed": 57,
+  "checks_total": 57,
+  "soak_run": {
+    "run": 3,
+    "of": 7,
+    "false_positives": 0,
+    "production_fires": 0
+  },
+  "pramana_trace": {
+    "digest_stable": true,
+    "digest_discriminating": true,
+    "raw_token_in_sense": false,
+    "gate_phase_soft_canary": true,
+    "gate_phase_live_simulated": true,
+    "no_sense_on_reject": true,
+    "pramana_fields_present": [
+      "correlation_id",
+      "approval_token_ref",
+      "before_snapshot",
+      "after_snapshot",
+      "delta",
+      "service_id"
+    ]
+  },
+  "soak_limitations": {
+    "nonce_registry": "test-harness only (proven in Batch 67); production requires AEGIS PROOF / Redis SET NX",
+    "token_format": "dev base64url JSON (Run 2-3 validate semantics); cryptographic JWT validation = future AEGIS PROOF gate",
+    "eua_amount_comparison": "integer EUA units; fractional accounting requires string/bigint representation"
+  },
+  "policy_confirmed": {
+    "service_id": "carbonx-backend",
+    "hard_gate_enabled": false,
+    "rollout_order": 8,
+    "financial_settlement_doctrine": true
+  },
+  "live_roster_count": 7,
+  "hg2b_live_count": 1,
+  "carbonx_in_aegis_env": false,
+  "promotion_permitted_carbonx": false,
+  "next_batch": "Batch 69 — carbonx HG-2B financial soft-canary soak run 4/7",
+  "results": [
+    {
+      "id": 1,
+      "label": "Batch 67 artifact exists",
+      "verdict": "PASS",
+      "section": "prereq"
+    },
+    {
+      "id": 2,
+      "label": "Batch 67 verdict=PASS",
+      "verdict": "PASS",
+      "section": "prereq"
+    },
+    {
+      "id": 3,
+      "label": "Batch 67 soak_run.run=2, soak_run.of=7",
+      "verdict": "PASS",
+      "section": "prereq"
+    },
+    {
+      "id": 4,
+      "label": "Batch 67 promotion_permitted_carbonx=false",
+      "verdict": "PASS",
+      "section": "prereq"
+    },
+    {
+      "id": 5,
+      "label": "Batch 67 scope_enforcement.happy_path_verified=true",
+      "verdict": "PASS",
+      "section": "prereq"
+    },
+    {
+      "id": 6,
+      "label": "Batch 67 scope_enforcement.wrong_scope_rejections=13",
+      "verdict": "PASS",
+      "section": "prereq"
+    },
+    {
+      "id": 7,
+      "label": "CARBONX_HG2B_POLICY.hard_gate_enabled=false",
+      "verdict": "PASS",
+      "section": "prereq"
+    },
+    {
+      "id": 8,
+      "label": "carbonx-backend NOT in AEGIS_HARD_GATE_SERVICES",
+      "verdict": "PASS",
+      "section": "prereq"
+    },
+    {
+      "id": 9,
+      "label": "financial_settlement_doctrine=true",
+      "verdict": "PASS",
+      "section": "prereq"
+    },
+    {
+      "id": 10,
+      "label": "rollout_order=8",
+      "verdict": "PASS",
+      "section": "prereq"
+    },
+    {
+      "id": 11,
+      "label": "digestApprovalToken exported from aegis-approval-token.ts",
+      "verdict": "PASS",
+      "section": "digest"
+    },
+    {
+      "id": 12,
+      "label": "digestApprovalToken is deterministic — same token yields same digest",
+      "verdict": "PASS",
+      "section": "digest"
+    },
+    {
+      "id": 13,
+      "label": "digestApprovalToken different tokens → different digests",
+      "verdict": "PASS",
+      "section": "digest"
+    },
+    {
+      "id": 14,
+      "label": "digest is 24 hex chars (96 bits — sufficient for correlation, not reconstruction)",
+      "verdict": "PASS",
+      "section": "digest"
+    },
+    {
+      "id": 15,
+      "label": "digest of non-empty token is non-empty",
+      "verdict": "PASS",
+      "section": "digest"
+    },
+    {
+      "id": 16,
+      "label": "Source: SENSE approval_token_ref uses digestApprovalToken (not raw token)",
+      "verdict": "PASS",
+      "section": "digest"
+    },
+    {
+      "id": 17,
+      "label": "Source: raw approvalTokenRef never directly assigned to approval_token_ref in SENSE",
+      "verdict": "PASS",
+      "section": "digest"
+    },
+    {
+      "id": 18,
+      "label": "gate_phase field present in AegisSenseEvent interface",
+      "verdict": "PASS",
+      "section": "gate-phase"
+    },
+    {
+      "id": 19,
+      "label": "gate_phase=soft_canary when carbonx absent from AEGIS_HARD_GATE_SERVICES",
+      "verdict": "PASS",
+      "section": "gate-phase"
+    },
+    {
+      "id": 20,
+      "label": "gate_phase=live_hard_gate when carbonx IS in AEGIS_HARD_GATE_SERVICES (simulated)",
+      "verdict": "PASS",
+      "section": "gate-phase"
+    },
+    {
+      "id": 21,
+      "label": "Source: gate_phase computed via AEGIS_HARD_GATE_SERVICES split+includes (not hardcoded)",
+      "verdict": "PASS",
+      "section": "gate-phase"
+    },
+    {
+      "id": 22,
+      "label": "Source: both live_hard_gate and soft_canary strings present in ternary (never just one)",
+      "verdict": "PASS",
+      "section": "gate-phase"
+    },
+    {
+      "id": 23,
+      "label": "approval_token_ref in AegisSenseEvent interface",
+      "verdict": "PASS",
+      "section": "token-ref"
+    },
+    {
+      "id": 24,
+      "label": "approvalToken is required arg in surrenderEtsAllowances mutation",
+      "verdict": "PASS",
+      "section": "token-ref"
+    },
+    {
+      "id": 25,
+      "label": "approvalToken passed to recordSurrender from resolver (args.approvalToken)",
+      "verdict": "PASS",
+      "section": "token-ref"
+    },
+    {
+      "id": 26,
+      "label": "SENSE approval_token_ref is conditionally spread from approvalTokenRef",
+      "verdict": "PASS",
+      "section": "token-ref"
+    },
+    {
+      "id": 27,
+      "label": "approval_token_ref absent from simulateSurrender (dry-run path has no token emission)",
+      "verdict": "PASS",
+      "section": "token-ref"
+    },
+    {
+      "id": 28,
+      "label": "AegisSenseEvent interface has before_snapshot",
+      "verdict": "PASS",
+      "section": "sense-completeness"
+    },
+    {
+      "id": 29,
+      "label": "AegisSenseEvent interface has after_snapshot",
+      "verdict": "PASS",
+      "section": "sense-completeness"
+    },
+    {
+      "id": 30,
+      "label": "AegisSenseEvent interface has delta",
+      "verdict": "PASS",
+      "section": "sense-completeness"
+    },
+    {
+      "id": 31,
+      "label": "before_snapshot populated in ETS_SURRENDER: euaSurrendered + isSettled + euaBalance",
+      "verdict": "PASS",
+      "section": "sense-completeness"
+    },
+    {
+      "id": 32,
+      "label": "after_snapshot populated: newSurrendered + isSettled + euaBalance - euaAmount",
+      "verdict": "PASS",
+      "section": "sense-completeness"
+    },
+    {
+      "id": 33,
+      "label": "delta populated: euaAmount + settledTransition",
+      "verdict": "PASS",
+      "section": "sense-completeness"
+    },
+    {
+      "id": 34,
+      "label": "irreversible=true in ETS_SURRENDER SENSE emission (AEG-HG-2B-003)",
+      "verdict": "PASS",
+      "section": "sense-completeness"
+    },
+    {
+      "id": 35,
+      "label": "idempotency_key from externalRef in SENSE emission",
+      "verdict": "PASS",
+      "section": "sense-completeness"
+    },
+    {
+      "id": 36,
+      "label": "Source: verifyApprovalToken called before etsService.recordSurrender in resolver",
+      "verdict": "PASS",
+      "section": "no-sense-on-reject"
+    },
+    {
+      "id": 37,
+      "label": "Source: emitAegisSenseEvent after prisma.$transaction in recordSurrender",
+      "verdict": "PASS",
+      "section": "no-sense-on-reject"
+    },
+    {
+      "id": 38,
+      "label": "Source: idempotency early return before prisma.$transaction",
+      "verdict": "PASS",
+      "section": "no-sense-on-reject"
+    },
+    {
+      "id": 39,
+      "label": "Source: payload mismatch path returns early (before transaction)",
+      "verdict": "PASS",
+      "section": "no-sense-on-reject"
+    },
+    {
+      "id": 40,
+      "label": "IrrNoApprovalError position in resolver is before recordSurrender position",
+      "verdict": "PASS",
+      "section": "no-sense-on-reject"
+    },
+    {
+      "id": 41,
+      "label": "SENSE correlation_id: computed from externalRef ?? timestamp (anchors the trail)",
+      "verdict": "PASS",
+      "section": "pramana"
+    },
+    {
+      "id": 42,
+      "label": "SENSE approval_token_ref links event to the authorization that permitted it (digest form)",
+      "verdict": "PASS",
+      "section": "pramana"
+    },
+    {
+      "id": 43,
+      "label": "SENSE before/after_snapshot provide full ledger audit baseline for PRAMANA diff",
+      "verdict": "PASS",
+      "section": "pramana"
+    },
+    {
+      "id": 44,
+      "label": "SENSE delta.euaAmount is the financial consequence of the surrender",
+      "verdict": "PASS",
+      "section": "pramana"
+    },
+    {
+      "id": 45,
+      "label": "SENSE service_id='carbonx-backend' identifies the acting service",
+      "verdict": "PASS",
+      "section": "pramana"
+    },
+    {
+      "id": 46,
+      "label": "Batch 67 artifact confirms replay_blocked=true (nonce proven in test harness)",
+      "verdict": "PASS",
+      "section": "limitation"
+    },
+    {
+      "id": 47,
+      "label": "Source: externalRef unique constraint is the production DB-level replay guard",
+      "verdict": "PASS",
+      "section": "limitation"
+    },
+    {
+      "id": 48,
+      "label": "Source: mintApprovalToken marked dev/test only (production = AEGIS PROOF at port 4850)",
+      "verdict": "PASS",
+      "section": "limitation"
+    },
+    {
+      "id": 49,
+      "label": "SURRENDER_ETS_ALLOWANCES → GATE (still_gate, approval required)",
+      "verdict": "PASS",
+      "section": "regression"
+    },
+    {
+      "id": 50,
+      "label": "SURRENDER_EUA_WITHOUT_TOKEN → BLOCK (hard_block, no approval path exists)",
+      "verdict": "PASS",
+      "section": "regression"
+    },
+    {
+      "id": 51,
+      "label": "SIMULATE_ETS_SURRENDER → ALLOW (dry-run always permitted)",
+      "verdict": "PASS",
+      "section": "regression"
+    },
+    {
+      "id": 52,
+      "label": "parali-central remains HG-2B live (hard_gate_enabled=true)",
+      "verdict": "PASS",
+      "section": "regression"
+    },
+    {
+      "id": 53,
+      "label": "Live roster = 7 (unchanged)",
+      "verdict": "PASS",
+      "section": "regression"
+    },
+    {
+      "id": 54,
+      "label": "Kill switch: clearing env suppresses chirpee hard gate",
+      "verdict": "PASS",
+      "section": "promotion-guard"
+    },
+    {
+      "id": 55,
+      "label": "carbonx candidate-inert (not in AEGIS_HARD_GATE_SERVICES → gate not active)",
+      "verdict": "PASS",
+      "section": "promotion-guard"
+    },
+    {
+      "id": 56,
+      "label": "False positives=0 — digest checks did not flip any wrong token to PASS",
+      "verdict": "PASS",
+      "section": "promotion-guard"
+    },
+    {
+      "id": 57,
+      "label": "promotion_permitted_carbonx=false — hard_gate_enabled=false, not in env",
+      "verdict": "PASS",
+      "section": "promotion-guard"
+    }
+  ]
+}
