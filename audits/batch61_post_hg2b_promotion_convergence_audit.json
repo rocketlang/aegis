@@ -1,0 +1,44 @@
+{
+  "batch": 61,
+  "type": "convergence_audit",
+  "purpose": "Verify Batch 60 parali-central HG-2B promotion converged across all records",
+  "timestamp": "2026-05-03T11:33:36.357Z",
+  "verdict": "PASS",
+  "checks": 111,
+  "passed": 111,
+  "failed": 0,
+  "failures": [],
+  "convergence_surfaces": {
+    "batch60_artifact": true,
+    "policy_runtime": true,
+    "codex_json": true,
+    "services_json": true,
+    "wiki": true,
+    "todo": true,
+    "logics": true,
+    "vivechana": true,
+    "doctrine_fields": true
+  },
+  "parali_central_state": {
+    "hard_gate_enabled": true,
+    "rollout_order": 7,
+    "stage": "Stage 5 — HG-2B LIVE 2026-05-03 (Batch 60) — soak: Batch 53-59 7/7",
+    "external_state_touch": true,
+    "approval_required": true
+  },
+  "live_roster": [
+    "chirpee",
+    "ship-slm",
+    "chief-slm",
+    "puranic-os",
+    "pramana",
+    "domain-capture",
+    "parali-central"
+  ],
+  "live_roster_size": 7,
+  "hg1_count": 4,
+  "hg2a_count": 2,
+  "hg2b_count": 1,
+  "hg2c_count": 0,
+  "next_candidate": "carbonx (rollout_order=8, authority_class=external_call, BR-3)"
+}
