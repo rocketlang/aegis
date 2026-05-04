@@ -1,0 +1,35 @@
+{
+  "audit_id": "batch75a-carbonx-source-control-provenance-repair",
+  "batch": "75A",
+  "type": "provenance_repair",
+  "service": "carbonx-backend",
+  "date": "2026-05-05",
+  "checks_total": 15,
+  "checks_passed": 15,
+  "checks_failed": 0,
+  "verdict": "PASS",
+  "finding": "Batch 71 carbonx fixes (GAP-1: 10-field binding; GAP-2: positive-amount guard) were present in the working tree when AEGIS Batch 71–74 audits ran, but the carbonx source commit was made after Batch 74 promotion.",
+  "dirty_tree_gap": true,
+  "dirty_tree_gap_batches": [
+    "71",
+    "72",
+    "73",
+    "74"
+  ],
+  "functional_promotion_valid": true,
+  "functional_promotion_valid_reason": "AEGIS Batch 71–74 ran against the corrected ets.ts in the working tree. Code, runtime, and behavior were correct throughout. Only source-control evidence sequencing lagged.",
+  "source_control_provenance_repaired": true,
+  "repaired_by_commit": "e13094b",
+  "repaired_by_commit_message": "fix(carbonx): Batch 71 enforce financial approval scope and positive surrender amount",
+  "repaired_by_commit_files": [
+    "backend/src/schema/types/ets.ts"
+  ],
+  "repaired_by_commit_rules": [
+    "AEG-HG-FIN-002",
+    "AEG-HG-FIN-003"
+  ],
+  "carbonx_promotion_status": "LIVE (Batch 74 — 2026-05-04). Promotion remains valid. Provenance is now complete.",
+  "doctrine_rule_added": "AEG-PROV-001",
+  "doctrine_rule_text": "No hard-gate promotion may rely on uncommitted source changes unless the promotion artifact explicitly records a dirty-tree waiver.",
+  "recommendation": "Future hard-gate promotion batches must assert clean source tree, or explicitly record a dirty_tree_waiver in the promotion audit artifact (AEG-PROV-001)."
+}

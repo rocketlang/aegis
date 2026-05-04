@@ -15,6 +15,9 @@
  * @rule:AEG-HG-001 hard_gate_enabled=false is the default for all services
  * @rule:AEG-HG-002 READ is in never_block for every service in every HG group
  * @rule:AEG-HG-003 hard-gate promotion requires explicit env var — not automatic
+ * @rule:AEG-PROV-001 no hard-gate promotion may rely on uncommitted source changes
+ *   unless the promotion artifact explicitly records a dirty-tree waiver.
+ *   Added Batch 75A (2026-05-05) — derived from carbonx dirty-tree evidence gap.
  */
 
 // ── Global kill switch ────────────────────────────────────────────────────────
