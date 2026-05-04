@@ -1,0 +1,49 @@
+{
+  "audit_id": "batch80-aeg-prov-001-adoption-audit",
+  "batch": 80,
+  "type": "adoption_audit",
+  "rule": "AEG-PROV-001",
+  "date": "2026-05-05",
+  "checks_total": 24,
+  "checks_passed": 24,
+  "checks_failed": 0,
+  "verdict": "PASS",
+  "note": "User spec called this Batch 79; renumbered to 80 — Batch 79 = retroactive annotation registry.",
+  "maturity_chain": {
+    "Batch 75A": "doctrine created — AEG-PROV-001 rule born from carbonx dirty-tree gap",
+    "Batch 77": "enforcement proven — assertCleanSourceTree in code",
+    "Batch 78": "multi-repo enforcement — assertSourceControlProvenance + promotion template",
+    "Batch 79": "retroactive annotation — all 8 live promotions classified as pre_AEG_PROV_001_legacy",
+    "Batch 80": "adoption audit — template is institutional default, coverage = 100%"
+  },
+  "promotion_census": {
+    "actual_promotion_scripts": 4,
+    "pre_batch78_scripts": 4,
+    "post_batch78_scripts": 0,
+    "pre_batch78_artifacts": 3,
+    "post_batch78_artifacts": 0
+  },
+  "coverage": {
+    "pre_AEG_PROV_001_legacy": 8,
+    "provenance_verified": 0,
+    "total": 8,
+    "gap": 0,
+    "coverage_pct": "100%"
+  },
+  "data_notes": [
+    "[20] DATA NOTE: pramana promotion_batch in B79 registry = 38; batch43 script + batch51 primary audit both record actual batch = 43 — B79 artifact is immutable — discrepancy documented in B80 for future auditors. Correct value: 43 (batch43-pramana-live-promotion.ts + batch51 provenance_table)"
+  ],
+  "data_integrity": {
+    "pramana_b79_registry_batch": 38,
+    "pramana_primary_source_batch": 43,
+    "discrepancy": true,
+    "resolution": "B79 artifact is immutable. Primary source (batch43 script + batch51 audit) is authoritative. B80 is the correction record."
+  },
+  "template_adoption": {
+    "template_file": "scripts/promotion-template.ts",
+    "institutional_default": true,
+    "assertSourceControlProvenance_is_section0": true,
+    "next_promotion_starting_point": "copy promotion-template.ts, fill SERVICE_KEY + REPO_PATH + BATCH"
+  },
+  "doctrine": "The template is not a suggestion. It is the door. Every promotion starts from §0 — source-control provenance — or it does not start."
+}
