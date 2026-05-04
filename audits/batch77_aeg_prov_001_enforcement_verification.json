@@ -1,0 +1,21 @@
+{
+  "audit_id": "batch77-aeg-prov-001-enforcement-verification",
+  "batch": 77,
+  "type": "enforcement_verification",
+  "rule": "AEG-PROV-001",
+  "date": "2026-05-05",
+  "checks_total": 24,
+  "checks_passed": 24,
+  "checks_failed": 0,
+  "verdict": "PASS",
+  "cases_verified": [
+    "Case A: clean repo → promotion_permitted=true",
+    "Case B: dirty repo, no waiver → ProvenanceError (promotion blocked)",
+    "Case C: dirty repo + explicit waiver → promotion_permitted=true, waiver recorded",
+    "Case D: artifact validation (clean, waived, missing, blocked, repaired)",
+    "Retroactive: carbonx Batch 74 would have been blocked without waiver"
+  ],
+  "enforcement_status": "ACTIVE — provenance.ts in src/enforcement/",
+  "template_status": "ACTIVE — promotion-template.ts calls assertCleanSourceTree in §0",
+  "doctrine": "Behavioral truth is not enough. Source-control truth must agree. Audit truth must say exactly when they diverged and how they were repaired."
+}
