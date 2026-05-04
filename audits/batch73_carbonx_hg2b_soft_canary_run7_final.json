@@ -1,0 +1,442 @@
+{
+  "audit_id": "batch73-carbonx-hg2b-soft-canary-run7-final",
+  "batch": 73,
+  "soak_run": "7/7",
+  "soak_phase": "soft_canary",
+  "service": "carbonx-backend",
+  "date": "2026-05-04",
+  "focus": "End-to-end regression full cycle — final soak gate",
+  "hard_gate_enabled": false,
+  "promotion_permitted_carbonx": true,
+  "live_hg2b_count": 1,
+  "live_hg2b_service": "parali-central",
+  "checks_total": 80,
+  "checks_passed": 80,
+  "checks_failed": 0,
+  "verdict": "PASS",
+  "sections_covered": [
+    "§1 Five Locks source integrity (LOCK-1 to LOCK-5)",
+    "§2 Happy path: full surrender approval chain",
+    "§3 Full rejection chain: 10-field binding",
+    "§4 Expiry and replay rejection chain",
+    "§5 Status gate (revoked/denied) before nonce",
+    "§6 Guard ordering (zero/negative before DB)",
+    "§7 Non-negotiables + promotion criteria assessment"
+  ],
+  "promotion_criteria": {
+    "soak_runs_complete": "7/7",
+    "gap_closure_complete": true,
+    "five_locks_verified": true,
+    "double_spend_prevention_verified": true,
+    "binding_chain_verified": true,
+    "status_gate_verified": true,
+    "guard_ordering_verified": true,
+    "live_roster_unchanged": true,
+    "non_negotiables_hold": true,
+    "all_soak_artifacts_present": true,
+    "promotion_permitted": true,
+    "promotion_action_required": "Set AEGIS_HARD_GATE_SERVICES=carbonx-backend in production env (manual deliberate step). Then set hard_gate_enabled=true in CARBONX_HG2B_POLICY. Live roster will increment from 7 to 8."
+  },
+  "results": [
+    {
+      "id": 1,
+      "label": "1. LOCK-1: approvalToken is a required arg in surrenderEtsAllowances",
+      "status": "PASS"
+    },
+    {
+      "id": 2,
+      "label": "2. LOCK-1: CARBONX-FIX-001 annotation on approvalToken",
+      "status": "PASS"
+    },
+    {
+      "id": 3,
+      "label": "3. LOCK-2: verifyFinancialApprovalToken present in surrenderEtsAllowances resolver",
+      "status": "PASS"
+    },
+    {
+      "id": 4,
+      "label": "4. LOCK-2: AEG-HG-FIN-002 annotation on verifyFinancialApprovalToken usage",
+      "status": "PASS"
+    },
+    {
+      "id": 5,
+      "label": "5. LOCK-2: verifyFinancialApprovalToken before verifyAndConsumeNonce",
+      "status": "PASS"
+    },
+    {
+      "id": 6,
+      "label": "6. LOCK-3: verifyAndConsumeNonce before recordSurrender",
+      "status": "PASS"
+    },
+    {
+      "id": 7,
+      "label": "7. LOCK-3: AEG-HG-2B-006 annotation in resolver",
+      "status": "PASS"
+    },
+    {
+      "id": 8,
+      "label": "8. LOCK-4: simulateSurrender contains no prisma mutations",
+      "status": "PASS"
+    },
+    {
+      "id": 9,
+      "label": "9. LOCK-4: CARBONX-FIX-003 annotation on simulateSurrender",
+      "status": "PASS"
+    },
+    {
+      "id": 10,
+      "label": "10. LOCK-5: externalRef is a required arg in surrenderEtsAllowances",
+      "status": "PASS"
+    },
+    {
+      "id": 11,
+      "label": "11. LOCK-5: CARBONX-FIX-004 annotation on externalRef",
+      "status": "PASS"
+    },
+    {
+      "id": 12,
+      "label": "12. LOCK-5: externalRef passed to recordSurrender (required, not optional)",
+      "status": "PASS"
+    },
+    {
+      "id": 13,
+      "label": "13. Full ordering: verify → nonce → mutation",
+      "status": "PASS"
+    },
+    {
+      "id": 14,
+      "label": "14. verifyFinancialApprovalToken imported from aegis-approval-token",
+      "status": "PASS"
+    },
+    {
+      "id": 15,
+      "label": "15. verifyAndConsumeNonce imported from aegis-approval-token",
+      "status": "PASS"
+    },
+    {
+      "id": 16,
+      "label": "16. IrrNoApprovalError imported from aegis-approval-token",
+      "status": "PASS"
+    },
+    {
+      "id": 17,
+      "label": "17. AEG-HG-FIN-003: simulateSurrender euaAmount guard present",
+      "status": "PASS"
+    },
+    {
+      "id": 18,
+      "label": "18. AEG-HG-FIN-003: guard uses Number.isFinite + euaAmount <= 0",
+      "status": "PASS"
+    },
+    {
+      "id": 19,
+      "label": "19. digestApprovalToken returns 24-char hex digest",
+      "status": "PASS"
+    },
+    {
+      "id": 20,
+      "label": "20. verifyApprovalToken (base 3-field): passes",
+      "status": "PASS"
+    },
+    {
+      "id": 21,
+      "label": "21. verifyFinancialApprovalToken (10-field): passes with exact context",
+      "status": "PASS"
+    },
+    {
+      "id": 22,
+      "label": "22. Returned payload carries nonce",
+      "status": "PASS"
+    },
+    {
+      "id": 23,
+      "label": "23. Returned payload carries all financial fields",
+      "status": "PASS"
+    },
+    {
+      "id": 24,
+      "label": "24. verifyAndConsumeNonce: first call succeeds",
+      "status": "PASS"
+    },
+    {
+      "id": 25,
+      "label": "25. After nonce consumed: surrender approved for execution",
+      "status": "PASS"
+    },
+    {
+      "id": 26,
+      "label": "26. Replay: same nonce rejected after consumption",
+      "status": "PASS"
+    },
+    {
+      "id": 27,
+      "label": "27. Digest of same token is deterministic",
+      "status": "PASS"
+    },
+    {
+      "id": 28,
+      "label": "28. Token without nonce: verifyAndConsumeNonce rejects",
+      "status": "PASS"
+    },
+    {
+      "id": 29,
+      "label": "29. Expired token: verifyFinancialApprovalToken rejects",
+      "status": "PASS"
+    },
+    {
+      "id": 30,
+      "label": "30. Wrong service_id: verifyFinancialApprovalToken rejects",
+      "status": "PASS"
+    },
+    {
+      "id": 31,
+      "label": "31. org_id mismatch",
+      "status": "PASS"
+    },
+    {
+      "id": 32,
+      "label": "32. vessel_id mismatch",
+      "status": "PASS"
+    },
+    {
+      "id": 33,
+      "label": "33. ets_account_id mismatch",
+      "status": "PASS"
+    },
+    {
+      "id": 34,
+      "label": "34. compliance_year mismatch",
+      "status": "PASS"
+    },
+    {
+      "id": 35,
+      "label": "35. eua_amount mismatch",
+      "status": "PASS"
+    },
+    {
+      "id": 36,
+      "label": "36. externalRef mismatch",
+      "status": "PASS"
+    },
+    {
+      "id": 37,
+      "label": "37. actor_user_id mismatch",
+      "status": "PASS"
+    },
+    {
+      "id": 38,
+      "label": "38. Token still valid with correct context after rejection tests",
+      "status": "PASS"
+    },
+    {
+      "id": 39,
+      "label": "39. All field mismatches throw IrrNoApprovalError (spot check: eua_amount)",
+      "status": "PASS"
+    },
+    {
+      "id": 40,
+      "label": "40. Wrong capability: rejected",
+      "status": "PASS"
+    },
+    {
+      "id": 41,
+      "label": "41. Wrong operation: rejected",
+      "status": "PASS"
+    },
+    {
+      "id": 42,
+      "label": "42. Malformed token (random bytes): IrrNoApprovalError on decode",
+      "status": "PASS"
+    },
+    {
+      "id": 43,
+      "label": "43. Empty token string: IrrNoApprovalError on decode",
+      "status": "PASS"
+    },
+    {
+      "id": 44,
+      "label": "44. Truncated token: IrrNoApprovalError",
+      "status": "PASS"
+    },
+    {
+      "id": 45,
+      "label": "45. Token expired 1ms ago: rejected",
+      "status": "PASS"
+    },
+    {
+      "id": 46,
+      "label": "46. Token expires in 1ms: still valid (not yet expired)",
+      "status": "PASS"
+    },
+    {
+      "id": 47,
+      "label": "47. Future issued_at beyond CLOCK_SKEW_MS (60s): rejected",
+      "status": "PASS"
+    },
+    {
+      "id": 48,
+      "label": "48. issued_at 30s in future (within CLOCK_SKEW_MS): accepted",
+      "status": "PASS"
+    },
+    {
+      "id": 49,
+      "label": "49. Replay chain: first consumption succeeds",
+      "status": "PASS"
+    },
+    {
+      "id": 50,
+      "label": "50. Replay chain: second consumption fails",
+      "status": "PASS"
+    },
+    {
+      "id": 51,
+      "label": "51. Replay chain: third consumption also fails",
+      "status": "PASS"
+    },
+    {
+      "id": 52,
+      "label": "52. Different nonce on same store: succeeds (no contamination)",
+      "status": "PASS"
+    },
+    {
+      "id": 53,
+      "label": "53. Revoked token: verifyFinancialApprovalToken throws",
+      "status": "PASS"
+    },
+    {
+      "id": 54,
+      "label": "54. Revoked token: nonce NOT consumed (status check before nonce lock)",
+      "status": "PASS"
+    },
+    {
+      "id": 55,
+      "label": "55. Denied token: verifyFinancialApprovalToken throws",
+      "status": "PASS"
+    },
+    {
+      "id": 56,
+      "label": "56. Denied token: nonce NOT consumed",
+      "status": "PASS"
+    },
+    {
+      "id": 57,
+      "label": "57. Explicitly approved status: accepted (status field may be absent or approved)",
+      "status": "PASS"
+    },
+    {
+      "id": 58,
+      "label": "58. Unknown status string (not revoked/denied): does NOT throw",
+      "status": "PASS"
+    },
+    {
+      "id": 59,
+      "label": "59. IrrNoApprovalError.code always = IRR-NOAPPROVAL",
+      "status": "PASS"
+    },
+    {
+      "id": 60,
+      "label": "60. IrrNoApprovalError.doctrine always = AEG-E-016",
+      "status": "PASS"
+    },
+    {
+      "id": 61,
+      "label": "61. simulateSurrender: euaAmount=0 guard annotation present",
+      "status": "PASS"
+    },
+    {
+      "id": 62,
+      "label": "62. simulateSurrender: Number.isFinite check present",
+      "status": "PASS"
+    },
+    {
+      "id": 63,
+      "label": "63. simulateSurrender: guard precedes findUniqueOrThrow",
+      "status": "PASS"
+    },
+    {
+      "id": 64,
+      "label": "64. Guard fires for euaAmount=0: inline proof",
+      "status": "PASS"
+    },
+    {
+      "id": 65,
+      "label": "65. Guard fires for euaAmount=NaN: inline proof",
+      "status": "PASS"
+    },
+    {
+      "id": 66,
+      "label": "66. Guard passes for euaAmount=1: inline proof",
+      "status": "PASS"
+    },
+    {
+      "id": 67,
+      "label": "67. hard_gate_enabled=false (unchanged)",
+      "status": "PASS"
+    },
+    {
+      "id": 68,
+      "label": "68. rollout_order=8",
+      "status": "PASS"
+    },
+    {
+      "id": 69,
+      "label": "69. financial_settlement_doctrine=true",
+      "status": "PASS"
+    },
+    {
+      "id": 70,
+      "label": "70. approval_scope_fields: all 10 present",
+      "status": "PASS"
+    },
+    {
+      "id": 71,
+      "label": "71. external_state_touch=true",
+      "status": "PASS"
+    },
+    {
+      "id": 72,
+      "label": "72. approval_required_for_irreversible_action=true",
+      "status": "PASS"
+    },
+    {
+      "id": 73,
+      "label": "73. observability_required=true",
+      "status": "PASS"
+    },
+    {
+      "id": 74,
+      "label": "74. audit_artifact_required=true",
+      "status": "PASS"
+    },
+    {
+      "id": 75,
+      "label": "75. parali-central remains live",
+      "status": "PASS"
+    },
+    {
+      "id": 76,
+      "label": "76. Exactly 7 services live (no unintended promotion)",
+      "status": "PASS"
+    },
+    {
+      "id": 77,
+      "label": "77. carbonx NOT in AEGIS_HARD_GATE_SERVICES",
+      "status": "PASS"
+    },
+    {
+      "id": 78,
+      "label": "78. SIMULATE_ETS_SURRENDER always ALLOW",
+      "status": "PASS"
+    },
+    {
+      "id": 79,
+      "label": "79. MUTATE_EUA_BALANCE_WITHOUT_EXTERNAL_REF always BLOCK",
+      "status": "PASS"
+    },
+    {
+      "id": 80,
+      "label": "80. All 7 prior soak artifacts exist (runs 1–6 + gap closure)",
+      "status": "PASS"
+    }
+  ]
+}
