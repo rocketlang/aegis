@@ -1,0 +1,25 @@
+{
+  "audit_id": "batch78-aeg-prov-001-promotion-template-enforcement",
+  "batch": 78,
+  "type": "enforcement_verification",
+  "rule": "AEG-PROV-001",
+  "date": "2026-05-05",
+  "checks_total": 24,
+  "checks_passed": 24,
+  "checks_failed": 0,
+  "verdict": "PASS",
+  "note": "User spec called this Batch 76; renumbered to 78 to preserve chain after Batch 76 (fleet scan) and Batch 77 (single-repo verification).",
+  "cases_verified": [
+    "§1 Doctrine: AEG-PROV-001 in policy + provenance.ts + promotion-template.ts",
+    "§2 Clean path: two clean repos → promotion_permitted=true, HEAD captured",
+    "§3 Fail-closed: one dirty repo no waiver → ProvenanceError, promotion blocked",
+    "§4 Waiver path: dirty repo + RepoWaiver → permitted, expiry+approver recorded",
+    "§5 Artifact structure: validateProvenanceArtifact handles multi-repo format",
+    "§6 Real repos: e13094b in carbonx history; required_commits verification works"
+  ],
+  "real_repo_heads": {
+    "aegis": "7e8e2b2180ac5b8deaa48c355efbfe2d5bab6d17",
+    "carbonx": "e13094b0d06f41035a462a7228f15eeafc4eb30a"
+  },
+  "doctrine": "No future key is turned unless the git ledger signs the order."
+}
