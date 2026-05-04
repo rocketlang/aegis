@@ -1,0 +1,323 @@
+{
+  "audit_id": "batch71-carbonx-financial-scope-gap-closure",
+  "batch": 71,
+  "type": "gap_closure",
+  "soak_phase": "soft_canary",
+  "service": "carbonx-backend",
+  "date": "2026-05-04",
+  "hard_gate_enabled": false,
+  "promotion_permitted_carbonx": false,
+  "live_hg2b_count": 1,
+  "live_hg2b_service": "parali-central",
+  "checks_total": 57,
+  "checks_passed": 57,
+  "checks_failed": 0,
+  "verdict": "PASS",
+  "gaps_closed": [
+    {
+      "id": "GAP-1",
+      "description": "Resolver now calls verifyFinancialApprovalToken with all 10 financial scope fields instead of verifyApprovalToken (3-field base)",
+      "rule": "AEG-HG-FIN-002"
+    },
+    {
+      "id": "GAP-2",
+      "description": "Production simulateSurrender now rejects zero, negative, and non-finite euaAmount with IrrNoApprovalError before any DB read",
+      "rule": "AEG-HG-FIN-003"
+    }
+  ],
+  "soak_status": {
+    "runs_complete": "5/7 (Runs 1–5 PASS + Gap Closure PASS)",
+    "runs_remaining": [
+      "6/7 — concurrent settlement race",
+      "7/7 — end-to-end regression full cycle"
+    ],
+    "next": "Batch 72 / Run 6 — concurrent settlement race now unblocked"
+  },
+  "results": [
+    {
+      "id": 1,
+      "label": "1. Batch 70 audit artifact exists",
+      "status": "PASS"
+    },
+    {
+      "id": 2,
+      "label": "2. Batch 70 verdict = PASS",
+      "status": "PASS"
+    },
+    {
+      "id": 3,
+      "label": "3. Batch 70 soak_run=5",
+      "status": "PASS"
+    },
+    {
+      "id": 4,
+      "label": "4. Batch 70 pre_promotion_gaps records both GAP-1 (3-field binding) and GAP-2 (zero amount)",
+      "status": "PASS"
+    },
+    {
+      "id": 5,
+      "label": "5. Batch 70 promotion_permitted_carbonx=false",
+      "status": "PASS"
+    },
+    {
+      "id": 6,
+      "label": "6. CARBONX_HG2B_POLICY.hard_gate_enabled=false (unchanged)",
+      "status": "PASS"
+    },
+    {
+      "id": 7,
+      "label": "7. carbonx is not in AEGIS_HARD_GATE_SERVICES (unchanged)",
+      "status": "PASS"
+    },
+    {
+      "id": 8,
+      "label": "8. ets.ts imports verifyFinancialApprovalToken (not verifyApprovalToken)",
+      "status": "PASS"
+    },
+    {
+      "id": 9,
+      "label": "9. Import block carries @rule:AEG-HG-FIN-002 annotation",
+      "status": "PASS"
+    },
+    {
+      "id": 10,
+      "label": "10. surrenderEtsAllowances resolver calls verifyFinancialApprovalToken",
+      "status": "PASS"
+    },
+    {
+      "id": 11,
+      "label": "11. Financial context includes org_id from ctx.orgId()",
+      "status": "PASS"
+    },
+    {
+      "id": 12,
+      "label": "12. Financial context includes vessel_id from args.vesselId",
+      "status": "PASS"
+    },
+    {
+      "id": 13,
+      "label": "13. Financial context includes ets_account_id from args.accountId",
+      "status": "PASS"
+    },
+    {
+      "id": 14,
+      "label": "14. Financial context includes compliance_year from args.year",
+      "status": "PASS"
+    },
+    {
+      "id": 15,
+      "label": "15. Financial context includes eua_amount from args.euaAmount",
+      "status": "PASS"
+    },
+    {
+      "id": 16,
+      "label": "16. Financial context includes externalRef from args.externalRef",
+      "status": "PASS"
+    },
+    {
+      "id": 17,
+      "label": "17. Financial context includes actor_user_id from ctx.user?.id",
+      "status": "PASS"
+    },
+    {
+      "id": 18,
+      "label": "18. externalRef is a required arg in surrenderEtsAllowances mutation",
+      "status": "PASS"
+    },
+    {
+      "id": 19,
+      "label": "19. externalRef arg carries LOCK-5 + 10-field binding annotation",
+      "status": "PASS"
+    },
+    {
+      "id": 20,
+      "label": "20. recordSurrender receives args.externalRef (not args.externalRef ?? undefined)",
+      "status": "PASS"
+    },
+    {
+      "id": 21,
+      "label": "21. Full 10-field token passes exact context",
+      "status": "PASS"
+    },
+    {
+      "id": 22,
+      "label": "22. Token rejects wrong org_id",
+      "status": "PASS"
+    },
+    {
+      "id": 23,
+      "label": "23. Token rejects wrong vessel_id",
+      "status": "PASS"
+    },
+    {
+      "id": 24,
+      "label": "24. Token rejects wrong ets_account_id",
+      "status": "PASS"
+    },
+    {
+      "id": 25,
+      "label": "25. Token rejects wrong eua_amount (250 vs 251)",
+      "status": "PASS"
+    },
+    {
+      "id": 26,
+      "label": "26. Token rejects wrong externalRef",
+      "status": "PASS"
+    },
+    {
+      "id": 27,
+      "label": "27. Token rejects wrong actor_user_id",
+      "status": "PASS"
+    },
+    {
+      "id": 28,
+      "label": "28. Wrong-field rejection throws IrrNoApprovalError with code=IRR-NOAPPROVAL",
+      "status": "PASS"
+    },
+    {
+      "id": 29,
+      "label": "29. simulateSurrender resolver contains positive-amount guard",
+      "status": "PASS"
+    },
+    {
+      "id": 30,
+      "label": "30. simulateSurrender guard references AEG-HG-FIN-003 rule annotation",
+      "status": "PASS"
+    },
+    {
+      "id": 31,
+      "label": "31. simulateSurrender guard uses Number.isFinite check",
+      "status": "PASS"
+    },
+    {
+      "id": 32,
+      "label": "32. simulateSurrender guard throws IrrNoApprovalError on zero amount",
+      "status": "PASS"
+    },
+    {
+      "id": 33,
+      "label": "33. simulateSurrender guard throws IrrNoApprovalError on negative amount",
+      "status": "PASS"
+    },
+    {
+      "id": 34,
+      "label": "34. simulateSurrender guard throws IrrNoApprovalError on NaN",
+      "status": "PASS"
+    },
+    {
+      "id": 35,
+      "label": "35. simulateSurrender guard triggers before DB read (guard before Promise.all)",
+      "status": "PASS"
+    },
+    {
+      "id": 36,
+      "label": "36. simulateSurrender remains read-only (no prisma mutation calls)",
+      "status": "PASS"
+    },
+    {
+      "id": 37,
+      "label": "37. verifyFinancialApprovalToken call precedes verifyAndConsumeNonce in resolver",
+      "status": "PASS"
+    },
+    {
+      "id": 38,
+      "label": "38. verifyAndConsumeNonce precedes etsService.recordSurrender in resolver",
+      "status": "PASS"
+    },
+    {
+      "id": 39,
+      "label": "39. Full ordering: verifyFinancialApprovalToken < verifyAndConsumeNonce < recordSurrender",
+      "status": "PASS"
+    },
+    {
+      "id": 40,
+      "label": "40. verifyFinancialApprovalToken imported from aegis-approval-token (not inline)",
+      "status": "PASS"
+    },
+    {
+      "id": 41,
+      "label": "41. verifyAndConsumeNonce still imported from aegis-approval-token",
+      "status": "PASS"
+    },
+    {
+      "id": 42,
+      "label": "42. IrrNoApprovalError still imported (used by simulateSurrender guard)",
+      "status": "PASS"
+    },
+    {
+      "id": 43,
+      "label": "43. verifyFinancialApprovalToken is exported from aegis-approval-token.ts",
+      "status": "PASS"
+    },
+    {
+      "id": 44,
+      "label": "44. verifyApprovalToken is still exported (used by verifyFinancialApprovalToken internally)",
+      "status": "PASS"
+    },
+    {
+      "id": 45,
+      "label": "45. verifyFinancialApprovalToken checks all 7 financial fields",
+      "status": "PASS"
+    },
+    {
+      "id": 46,
+      "label": "46. verifyFinancialApprovalToken checks revoked/denied status",
+      "status": "PASS"
+    },
+    {
+      "id": 47,
+      "label": "47. verifyAndConsumeNonce exported and contains nonce check + consumeNonce call",
+      "status": "PASS"
+    },
+    {
+      "id": 48,
+      "label": "48. digestApprovalToken exported (PRAMANA-safe ref, 24-char SHA-256)",
+      "status": "PASS"
+    },
+    {
+      "id": 49,
+      "label": "49. CARBONX_HG2B_POLICY.hard_gate_enabled=false (unchanged by gap closure)",
+      "status": "PASS"
+    },
+    {
+      "id": 50,
+      "label": "50. rollout_order=8 (unchanged)",
+      "status": "PASS"
+    },
+    {
+      "id": 51,
+      "label": "51. financial_settlement_doctrine=true (unchanged)",
+      "status": "PASS"
+    },
+    {
+      "id": 52,
+      "label": "52. parali-central remains live (hard_gate_enabled=true)",
+      "status": "PASS"
+    },
+    {
+      "id": 53,
+      "label": "53. Exactly 7 services have hard_gate_enabled=true (no unintended promotion)",
+      "status": "PASS"
+    },
+    {
+      "id": 54,
+      "label": "54. carbonx not in AEGIS_HARD_GATE_SERVICES",
+      "status": "PASS"
+    },
+    {
+      "id": 55,
+      "label": "55. approval_scope_fields still contains all 10 fields",
+      "status": "PASS"
+    },
+    {
+      "id": 56,
+      "label": "56. SIMULATE_ETS_SURRENDER remains ALLOW (simulateSurrender is still safe path)",
+      "status": "PASS"
+    },
+    {
+      "id": 57,
+      "label": "57. MUTATE_EUA_BALANCE_WITHOUT_EXTERNAL_REF remains BLOCK (externalRef now required)",
+      "status": "PASS"
+    }
+  ]
+}
