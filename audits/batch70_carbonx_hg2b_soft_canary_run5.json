@@ -1,0 +1,391 @@
+{
+  "audit_id": "batch70-carbonx-hg2b-soft-canary-run5",
+  "batch": 70,
+  "run": "5/7",
+  "soak_phase": "soft_canary",
+  "service": "carbonx-backend",
+  "date": "2026-05-04",
+  "hard_gate_enabled": false,
+  "live_hg2b_count": 1,
+  "live_hg2b_service": "parali-central",
+  "live_hg2c_count": 0,
+  "promotion_permitted_carbonx": false,
+  "checks_total": 68,
+  "checks_passed": 68,
+  "checks_failed": 0,
+  "verdict": "PASS",
+  "focus": "EUA cap and partial-settlement boundary",
+  "doctrine": "A valid approval key cannot override financial physics. The ledger refused excess.",
+  "rules_exercised": [
+    "AEG-HG-FIN-001 — financial_settlement_doctrine=true — Five Locks required before promotion",
+    "AEG-HG-FIN-002 — approval_scope_fields binds token to eua_amount + externalRef",
+    "AEG-HG-2B-002 — approval_required_for_irreversible_action",
+    "AEG-HG-2B-003 — observability_required (before/after/delta in SENSE)",
+    "CARBONX-FIX-003 — simulateSurrender dry-run is read-only (LOCK-4)",
+    "CARBONX-FIX-004 — externalRef idempotency (LOCK-5)",
+    "AEG-E-016 — token binds to exact financial context (10 scope fields)"
+  ],
+  "soak_limitations": [
+    "verifyFinancialApprovalToken is available in the library but the current resolver uses verifyApprovalToken (3-field base check only)",
+    "Full 10-field binding enforcement in the resolver is a pre-promotion requirement — not yet wired",
+    "simulateSurrender boundary_violation field is soak-harness only; the production resolver does not yet return it",
+    "eua_amount is floating point in GraphQL args; integer-only precision tested in previous runs",
+    "Zero/negative amount rejection is doctrine; the production simulateSurrender resolver does not currently reject these — a pre-promotion gap"
+  ],
+  "promotion_criteria": {
+    "runs_complete": "5/7",
+    "runs_remaining": [
+      "6/7 — concurrent settlement race",
+      "7/7 — end-to-end regression full cycle"
+    ],
+    "pre_promotion_gaps": [
+      "Resolver must call verifyFinancialApprovalToken (10-field) instead of verifyApprovalToken (3-field)",
+      "simulateSurrender must reject zero/negative euaAmount",
+      "Hard_gate_enabled must be set to true in policy + service added to AEGIS_HARD_GATE_SERVICES"
+    ],
+    "next_gate": "Wire full 10-field token binding in resolver before promotion (Batch 71 or 72 pre-gate)",
+    "status": "NOT_PROMOTED — soft-canary soak continues"
+  },
+  "results": [
+    {
+      "id": 1,
+      "label": "1. Batch 69 audit artifact exists",
+      "status": "PASS"
+    },
+    {
+      "id": 2,
+      "label": "2. Batch 69 verdict = PASS",
+      "status": "PASS"
+    },
+    {
+      "id": 3,
+      "label": "3. Batch 69 soak_run=4 and soak_total=7",
+      "status": "PASS"
+    },
+    {
+      "id": 4,
+      "label": "4. Batch 69 promotion_permitted_carbonx=false",
+      "status": "PASS"
+    },
+    {
+      "id": 5,
+      "label": "5. CARBONX_HG2B_POLICY exists in HARD_GATE_POLICIES",
+      "status": "PASS"
+    },
+    {
+      "id": 6,
+      "label": "6. CARBONX_HG2B_POLICY.hard_gate_enabled=false",
+      "status": "PASS"
+    },
+    {
+      "id": 7,
+      "label": "7. carbonx is not in AEGIS_HARD_GATE_SERVICES",
+      "status": "PASS"
+    },
+    {
+      "id": 8,
+      "label": "8. rollout_order=8",
+      "status": "PASS"
+    },
+    {
+      "id": 9,
+      "label": "9. financial_settlement_doctrine=true",
+      "status": "PASS"
+    },
+    {
+      "id": 10,
+      "label": "10. approval_scope_fields includes eua_amount and externalRef",
+      "status": "PASS"
+    },
+    {
+      "id": 11,
+      "label": "11. SIMULATE_ETS_SURRENDER remains ALLOW (always_allow_capabilities)",
+      "status": "PASS"
+    },
+    {
+      "id": 12,
+      "label": "12. GET_ETS_BALANCE remains ALLOW (always_allow_capabilities)",
+      "status": "PASS"
+    },
+    {
+      "id": 13,
+      "label": "13. SURRENDER_ETS_ALLOWANCES remains GATE (still_gate_capabilities)",
+      "status": "PASS"
+    },
+    {
+      "id": 14,
+      "label": "14. SUBMIT_ETS_SURRENDER remains GATE (still_gate_capabilities)",
+      "status": "PASS"
+    },
+    {
+      "id": 15,
+      "label": "15. SETTLE_CARBON_POSITION remains GATE (still_gate_capabilities)",
+      "status": "PASS"
+    },
+    {
+      "id": 16,
+      "label": "16. MUTATE_EUA_BALANCE_WITHOUT_EXTERNAL_REF remains BLOCK (hard_block_capabilities)",
+      "status": "PASS"
+    },
+    {
+      "id": 17,
+      "label": "17. BYPASS_EUA_IDEMPOTENCY remains BLOCK (hard_block_capabilities)",
+      "status": "PASS"
+    },
+    {
+      "id": 18,
+      "label": "18. BULK_EUA_SURRENDER remains BLOCK (hard_block_capabilities)",
+      "status": "PASS"
+    },
+    {
+      "id": 19,
+      "label": "19. FORCE_EUA_OVERWRITE remains BLOCK (hard_block_capabilities)",
+      "status": "PASS"
+    },
+    {
+      "id": 20,
+      "label": "20. BACKDATE_ETS_SURRENDER remains BLOCK (hard_block_capabilities)",
+      "status": "PASS"
+    },
+    {
+      "id": 21,
+      "label": "21. simulateSurrender with sufficient balance returns sufficientBalance=true",
+      "status": "PASS"
+    },
+    {
+      "id": 22,
+      "label": "22. simulateSurrender with exact balance returns sufficientBalance=true and projectedBalance=0",
+      "status": "PASS"
+    },
+    {
+      "id": 23,
+      "label": "23. simulateSurrender with partial amount leaves shortfall > 0",
+      "status": "PASS"
+    },
+    {
+      "id": 24,
+      "label": "24. simulateSurrender with insufficient balance returns sufficientBalance=false",
+      "status": "PASS"
+    },
+    {
+      "id": 25,
+      "label": "25. simulateSurrender with over-surrender amount returns boundary_violation=true",
+      "status": "PASS"
+    },
+    {
+      "id": 26,
+      "label": "26. simulateSurrender with zero amount rejects",
+      "status": "PASS"
+    },
+    {
+      "id": 27,
+      "label": "27. simulateSurrender with negative amount rejects",
+      "status": "PASS"
+    },
+    {
+      "id": 28,
+      "label": "28. simulateSurrender with NaN amount rejects",
+      "status": "PASS"
+    },
+    {
+      "id": 29,
+      "label": "29. simulateSurrender performs no DB mutation in all cases (structural proof)",
+      "status": "PASS"
+    },
+    {
+      "id": 30,
+      "label": "30. simulateSurrender returns approvalScopeRequired field",
+      "status": "PASS"
+    },
+    {
+      "id": 31,
+      "label": "31. Approval token for eua_amount=100 accepts exact context eua_amount=100",
+      "status": "PASS"
+    },
+    {
+      "id": 32,
+      "label": "32. Same token rejects context eua_amount=101 (1 more)",
+      "status": "PASS"
+    },
+    {
+      "id": 33,
+      "label": "33. Same token rejects context eua_amount=99 (1 less)",
+      "status": "PASS"
+    },
+    {
+      "id": 34,
+      "label": "34. Same token rejects different compliance_year",
+      "status": "PASS"
+    },
+    {
+      "id": 35,
+      "label": "35. Same token rejects different ets_account_id",
+      "status": "PASS"
+    },
+    {
+      "id": 36,
+      "label": "36. Same token rejects different externalRef",
+      "status": "PASS"
+    },
+    {
+      "id": 37,
+      "label": "37. Wrong amount rejection happens before DB mutation (verifyFinancialApprovalToken is synchronous pre-DB gate)",
+      "status": "PASS"
+    },
+    {
+      "id": 38,
+      "label": "38. Wrong amount rejection carries IRR-NOAPPROVAL + eua_amount field reference",
+      "status": "PASS"
+    },
+    {
+      "id": 39,
+      "label": "39. First surrender with externalRef=X and amount=100 proceeds",
+      "status": "PASS"
+    },
+    {
+      "id": 40,
+      "label": "40. Retry with same externalRef=X and same amount=100 returns skip (no double decrement)",
+      "status": "PASS"
+    },
+    {
+      "id": 41,
+      "label": "41. Retry with same externalRef=X and amount=200 (changed) triggers warn, does not mutate",
+      "status": "PASS"
+    },
+    {
+      "id": 42,
+      "label": "42. externalRef mismatch finding includes original and requested amount",
+      "status": "PASS"
+    },
+    {
+      "id": 43,
+      "label": "43. Duplicate externalRef (skip path) does not consume a new nonce — skip exits before approval gate",
+      "status": "PASS"
+    },
+    {
+      "id": 44,
+      "label": "44. Duplicate externalRef with changed payload does not emit success SENSE (warn path returns early)",
+      "status": "PASS"
+    },
+    {
+      "id": 45,
+      "label": "45. Successful simulated surrender SENSE includes before_balance",
+      "status": "PASS"
+    },
+    {
+      "id": 46,
+      "label": "46. Successful simulated surrender SENSE includes after_balance",
+      "status": "PASS"
+    },
+    {
+      "id": 47,
+      "label": "47. Insufficient balance path: boundary_violation finding is linked to correlation_id",
+      "status": "PASS"
+    },
+    {
+      "id": 48,
+      "label": "48. Over-surrender rejection links to correlation_id",
+      "status": "PASS"
+    },
+    {
+      "id": 49,
+      "label": "49. Zero-amount rejection includes correlation_id in rejection object",
+      "status": "PASS"
+    },
+    {
+      "id": 50,
+      "label": "50. Every SENSE event phase = soft_canary (carbonx not in AEGIS_HARD_GATE_SERVICES)",
+      "status": "PASS"
+    },
+    {
+      "id": 51,
+      "label": "51. Every irreversible financial SENSE event includes irreversible=true",
+      "status": "PASS"
+    },
+    {
+      "id": 52,
+      "label": "52. No SENSE event claims live_hard_gate phase (carbonx is soft_canary)",
+      "status": "PASS"
+    },
+    {
+      "id": 53,
+      "label": "53. No SENSE event sets promotion_permitted_carbonx=true",
+      "status": "PASS"
+    },
+    {
+      "id": 54,
+      "label": "54. All correlation_ids are unique (no reuse across separate surrender operations)",
+      "status": "PASS"
+    },
+    {
+      "id": 55,
+      "label": "55. verifyAndConsumeNonce is called before recordSurrender in resolver (pre-mutation gate)",
+      "status": "PASS"
+    },
+    {
+      "id": 56,
+      "label": "56. Replay nonce still rejected before mutation (regression from Run 4)",
+      "status": "PASS"
+    },
+    {
+      "id": 57,
+      "label": "57. externalRef remains unique-indexed in Prisma schema / DB layer",
+      "status": "PASS"
+    },
+    {
+      "id": 58,
+      "label": "58. Idempotency check in recordSurrender returns before any DB write on duplicate",
+      "status": "PASS"
+    },
+    {
+      "id": 59,
+      "label": "59. ETS price-feed external APIs remain read-only (no write methods in carbon-price.service)",
+      "status": "PASS"
+    },
+    {
+      "id": 60,
+      "label": "60. CII/EEXI/FuelEU simulate paths remain present (regression — soak surface intact)",
+      "status": "PASS"
+    },
+    {
+      "id": 61,
+      "label": "61. parali-central remains HG-2B live (hard_gate_enabled=true, rollout_order=7)",
+      "status": "PASS"
+    },
+    {
+      "id": 62,
+      "label": "62. Exactly 7 services have hard_gate_enabled=true (no surprise promotions)",
+      "status": "PASS"
+    },
+    {
+      "id": 63,
+      "label": "63. Unknown service never blocks (no policy = no gate)",
+      "status": "PASS"
+    },
+    {
+      "id": 64,
+      "label": "64. Unknown capability does not hard-block known services",
+      "status": "PASS"
+    },
+    {
+      "id": 65,
+      "label": "65. Kill switch: parali-central (live HG-2B) and carbonx (candidate) have kill_switch_scope",
+      "status": "PASS"
+    },
+    {
+      "id": 66,
+      "label": "66. carbonx remains candidate-inert under kill switch (hard_gate_enabled=false = already inert)",
+      "status": "PASS"
+    },
+    {
+      "id": 67,
+      "label": "67. False positives = 0 (all non-negotiables confirmed clean in this run)",
+      "status": "PASS"
+    },
+    {
+      "id": 68,
+      "label": "68. Production fires = 0 (carbonx in soft_canary — no live enforcement active)",
+      "status": "PASS"
+    }
+  ]
+}
