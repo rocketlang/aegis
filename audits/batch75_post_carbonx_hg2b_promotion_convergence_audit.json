@@ -1,0 +1,34 @@
+{
+  "audit_id": "batch75-post-carbonx-hg2b-promotion-convergence-audit",
+  "batch": 75,
+  "type": "convergence_audit",
+  "service": "carbonx-backend",
+  "date": "2026-05-05",
+  "checks_total": 75,
+  "checks_passed": 75,
+  "checks_failed": 0,
+  "verdict": "PASS",
+  "documentation_drift": [],
+  "layers_audited": [
+    "§1 Batch 74 audit artifact",
+    "§2 Policy convergence",
+    "§3 Runtime convergence",
+    "§4 Carbonx source controls",
+    "§5 Audit chain 62–74",
+    "§6 Rollback / kill switch",
+    "§7 Knowledge convergence"
+  ],
+  "live_roster_confirmed": [
+    "chirpee (HG-1)",
+    "ship-slm (HG-1)",
+    "chief-slm (HG-1)",
+    "puranic-os (HG-1)",
+    "pramana (HG-2A)",
+    "domain-capture (HG-2A)",
+    "parali-central (HG-2B)",
+    "carbonx-backend (HG-2B financial)"
+  ],
+  "hg2c_live_count": 0,
+  "five_locks_verified": true,
+  "financial_settlement_doctrine_enforced": true
+}
