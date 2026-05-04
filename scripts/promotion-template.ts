@@ -1,40 +1,48 @@
 /**
- * AEGIS Promotion Script Template
+ * AEGIS Promotion Script Template (Batch 78+)
  *
  * Copy this file and fill in the SERVICE_KEY, REPO_PATH, and service-specific
  * sections. Every promotion script must follow this structure to satisfy
  * AEG-PROV-001 and the hard-gate promotion doctrine.
  *
  * Mandatory pre-promotion checklist (non-negotiable):
- *   1. assertCleanSourceTree — AEG-PROV-001: source must be committed
- *   2. All soak artifacts exist and verdict=PASS
- *   3. Final soak artifact has promotion_permitted=true
- *   4. Human has added SERVICE_KEY to AEGIS_HARD_GATE_SERVICES (env var)
- *   5. hard_gate_enabled=true in the service's policy object
+ *   §0. assertSourceControlProvenance — AEG-PROV-001: ALL repos must be clean
+ *       or carry an explicit RepoWaiver. This runs BEFORE everything else.
+ *       A dirty tree without a waiver exits the script immediately.
+ *   §1. Policy doctrine — hard_gate_enabled=true in policy object
+ *   §2. Runtime roster — service is in AEGIS_HARD_GATE_SERVICES
+ *   §3. Soak chain — all soak artifacts PASS, final has promotion_permitted=true
+ *   §4. Domain controls — service-specific source checks (Five Locks if HG-2B-financial)
  *
  * The deliberate act:
- *   Adding the env var is the human ceremony. This script verifies the state
- *   that results from that ceremony. It does not perform the ceremony itself.
+ *   Adding the service to AEGIS_HARD_GATE_SERVICES is the human ceremony.
+ *   This script verifies the state that results from that ceremony.
  *
- * @rule:AEG-PROV-001 no hard-gate promotion without committed source
+ * Retroactive coverage note:
+ *   Promotions before Batch 78 (chirpee, ship-slm, chief-slm, puranic-os,
+ *   pramana, domain-capture, parali-central, carbonx-backend) did not carry
+ *   source_control_provenance. The carbonx gap was repaired retroactively
+ *   via Batch 75A (e13094b). No future promotion may skip §0.
+ *
+ * @rule:AEG-PROV-001 no hard-gate promotion without committed source in all repos
  * @rule:AEG-HG-001   hard_gate_enabled is the policy declaration
  * @rule:AEG-HG-003   env var addition is the deliberate act
  */
 
 import { writeFileSync } from "fs";
 import { join } from "path";
-import { assertCleanSourceTree } from "../src/enforcement/provenance.js";
+import {
+  assertSourceControlProvenance,
+  type SourceControlProvenance,
+} from "../src/enforcement/provenance.js";
 import { HARD_GATE_POLICIES, HARD_GATE_GLOBALLY_ENABLED } from "../src/enforcement/hard-gate-policy.js";
 
 // ── FILL IN: service identity ──────────────────────────────────────────────────
-const SERVICE_KEY = "REPLACE_ME";          // e.g. "my-service"
-const REPO_PATH   = "REPLACE_ME";          // e.g. "/root/apps/my-service"
-const BATCH       = 0;                     // batch number
+const SERVICE_KEY = "REPLACE_ME";          // e.g. "my-svc"
+const REPO_PATH   = "REPLACE_ME";          // e.g. "/root/apps/my-svc"
+const BATCH       = 0;                     // batch number for this promotion
 const AUDITS      = "/root/aegis/audits";
-
-// ── FILL IN: soak artifact filenames (last 2 are always required) ─────────────
-const FINAL_SOAK_ARTIFACT  = `REPLACE_ME_batchNN_${SERVICE_KEY}_soak_final.json`;
-const PROMOTION_ARTIFACT   = `batch${BATCH}_${SERVICE_KEY}_promotion.json`;
+const PROMOTION_ARTIFACT = `batch${BATCH}_${SERVICE_KEY}_promotion.json`;
 
 // ── Harness ───────────────────────────────────────────────────────────────────
 
@@ -60,77 +68,115 @@ function section(title: string): void {
 }
 
 // ════════════════════════════════════════════════════════════════════════════
-// STEP 1 — AEG-PROV-001: Assert clean source tree
-// This check happens BEFORE anything else. A dirty tree stops promotion.
-// To override: supply an explicit DirtyTreeWaiver (see provenance.ts).
+// §0 — AEG-PROV-001: Source-control provenance (MANDATORY FIRST CHECK)
+//
+// All repos in the promotion scope must be clean, or each dirty repo must
+// carry an explicit RepoWaiver with reason, approver, expiry, and
+// acknowledged_risk. A dirty tree without a waiver exits here — immediately.
 // ════════════════════════════════════════════════════════════════════════════
 
-section("§0 Provenance pre-check (AEG-PROV-001)");
+section("§0 Source-control provenance (AEG-PROV-001)");
 
-let provenance;
+let scp: SourceControlProvenance;
 try {
-  provenance = assertCleanSourceTree(REPO_PATH);
-  // Uncomment to supply a waiver when tree is intentionally dirty:
-  // provenance = assertCleanSourceTree(REPO_PATH, {
-  //   reason: "explain why the tree is dirty",
-  //   authorized_by: "founder",
-  //   waiver_id: `waiver-${new Date().toISOString().slice(0,10)}-001`,
-  //   acknowledged_risk: "audited; will repair post-promotion per AEG-PROV-001 Batch 75A pattern",
-  // });
-  console.log(`  ✓ [ 0] AEG-PROV-001 source tree clean (${REPO_PATH})              actual=true`);
+  scp = assertSourceControlProvenance({
+    repos: [
+      { name: "aegis",      path: "/root/aegis" },
+      { name: SERVICE_KEY,  path: REPO_PATH },
+      // Add more repos if the service spans multiple sub-repos, e.g.:
+      // { name: "service-frontend", path: "/root/apps/my-svc-frontend" },
+      //
+      // To waive a dirty repo (exceptional path — requires explicit text):
+      // {
+      //   name: "my-svc",
+      //   path: REPO_PATH,
+      //   waiver: {
+      //     reason: "explain exactly why the tree is dirty",
+      //     approver: "founder",
+      //     expiry: "2026-05-12",
+      //     waiver_id: `waiver-batch${BATCH}-${SERVICE_KEY}-001`,
+      //     acknowledged_risk: "repair artifact required within one batch (Batch 75A pattern)",
+      //   },
+      // },
+    ],
+    batch: BATCH,
+    service_id: SERVICE_KEY,
+  });
+  console.log(`  ✓ [ 0] AEG-PROV-001 all repos clean (aegis + ${SERVICE_KEY})         actual=true`);
+  if (scp.dirty_tree_waiver_used) {
+    console.log(`  ⚠      dirty_tree_waiver_used=true — waiver recorded, repair artifact required`);
+  }
   passed++;
 } catch (e: unknown) {
   const err = e as Error;
   console.error(`  ✗ [ 0] AEG-PROV-001 FAILED — ${err.message}`);
-  console.error("\n  PROMOTION BLOCKED: commit all source changes before promoting.\n");
+  // Write a failed artifact so the block is recorded
+  writeFileSync(
+    join(AUDITS, PROMOTION_ARTIFACT),
+    JSON.stringify({
+      audit_id: `batch${BATCH}-${SERVICE_KEY}-promotion`,
+      batch: BATCH,
+      service: SERVICE_KEY,
+      date: new Date().toISOString().slice(0, 10),
+      verdict: "FAIL",
+      checks_passed: 0,
+      checks_failed: 1,
+      source_control_provenance_failed: true,
+      source_control_provenance_error: err.message,
+    }, null, 2) + "\n",
+  );
+  console.error("\n  PROMOTION BLOCKED: commit all source changes or add RepoWaiver.\n");
   process.exit(1);
 }
 
 // ════════════════════════════════════════════════════════════════════════════
-// STEP 2 — Policy doctrine checks
+// §1 — Policy doctrine
 // ════════════════════════════════════════════════════════════════════════════
 
 section("§1 Policy doctrine");
 
 const policy = HARD_GATE_POLICIES[SERVICE_KEY];
-
-check(1, `HARD_GATE_POLICIES["${SERVICE_KEY}"] exists`,       policy !== undefined, true, "policy");
-check(2, "hard_gate_enabled=true in policy",                   policy?.hard_gate_enabled, true, "policy");
-check(3, "HARD_GATE_GLOBALLY_ENABLED=true",                    HARD_GATE_GLOBALLY_ENABLED, true, "policy");
-// FILL IN: add service-specific policy checks here
-// check(4, "service_id matches",                               policy?.service_id, SERVICE_KEY, "policy");
+check(1, `HARD_GATE_POLICIES["${SERVICE_KEY}"] exists`,   policy !== undefined, true, "policy");
+check(2, "hard_gate_enabled=true in policy",               policy?.hard_gate_enabled, true, "policy");
+check(3, "HARD_GATE_GLOBALLY_ENABLED=true",                HARD_GATE_GLOBALLY_ENABLED, true, "policy");
+// FILL IN additional service-specific policy checks:
+// check(4, "rollout_order=N",                             policy?.rollout_order, N, "policy");
+// check(5, "financial_settlement_doctrine=true",          policy?.financial_settlement_doctrine, true, "policy");
 
 // ════════════════════════════════════════════════════════════════════════════
-// STEP 3 — Runtime: service is in AEGIS_HARD_GATE_SERVICES
+// §2 — Runtime roster
 // ════════════════════════════════════════════════════════════════════════════
 
 section("§2 Runtime roster");
 
-const liveServices = (process.env.AEGIS_HARD_GATE_SERVICES ?? "").split(",").map(s => s.trim()).filter(Boolean);
-check(5, `${SERVICE_KEY} is in AEGIS_HARD_GATE_SERVICES`,
+const liveServices = (process.env.AEGIS_HARD_GATE_SERVICES ?? "")
+  .split(",").map(s => s.trim()).filter(Boolean);
+check(10, `${SERVICE_KEY} is in AEGIS_HARD_GATE_SERVICES`,
   liveServices.includes(SERVICE_KEY), true, "runtime");
-// FILL IN: assert expected roster count
-// check(6, "Live roster count", liveServices.length, EXPECTED_COUNT, "runtime");
+// FILL IN: check(11, "live roster count=N", liveServices.length, N, "runtime");
 
 // ════════════════════════════════════════════════════════════════════════════
-// STEP 4 — Soak chain: final soak artifact has promotion_permitted=true
-// FILL IN: replace artifact paths, add checks for each soak run
+// §3 — Soak chain
 // ════════════════════════════════════════════════════════════════════════════
 
-section("§3 Soak chain verification");
+section("§3 Soak chain");
 
-// FILL IN: import readAudit and check each batch artifact
-// const finalSoak = readAudit(FINAL_SOAK_ARTIFACT);
-// check(10, "Final soak verdict=PASS", finalSoak.verdict, "PASS", "chain");
-// check(11, "Final soak promotion_permitted=true", finalSoak.promotion_permitted, true, "chain");
+// FILL IN: import readAudit and verify each batch artifact, e.g.:
+// const finalSoak = readAudit("batchNN_final_soak.json");
+// check(20, "Final soak verdict=PASS",           finalSoak.verdict, "PASS", "chain");
+// check(21, "Final soak promotion_permitted=true", finalSoak.promotion_permitted, true, "chain");
 
 // ════════════════════════════════════════════════════════════════════════════
-// STEP 5 — Domain-specific checks (FILL IN per service)
+// §4 — Service domain controls (FILL IN per HG-group)
 // ════════════════════════════════════════════════════════════════════════════
 
 section("§4 Service domain controls");
 
-// FILL IN: source-file checks, Five Locks (if HG-2B-financial), etc.
+// HG-1: no domain-specific checks needed beyond policy
+// HG-2A: verify external state cleanup path exists
+// HG-2B: verify approval_required source annotations
+// HG-2B-financial: verify Five Locks in source (verifyFinancialApprovalToken,
+//   externalRef @unique, positive-amount guard, SENSE irreversible=true, simulateSurrender)
 
 // ════════════════════════════════════════════════════════════════════════════
 // Summary + artifact
@@ -145,6 +191,7 @@ if (failed > 0) {
 
 const verdict = failed === 0 ? "PASS" : "FAIL";
 
+// source_control_provenance is mandatory in every promotion artifact (Batch 78+)
 const artifact = {
   audit_id: `batch${BATCH}-${SERVICE_KEY}-promotion`,
   batch: BATCH,
@@ -155,19 +202,17 @@ const artifact = {
   checks_passed: passed,
   checks_failed: failed,
   verdict,
-  // AEG-PROV-001: provenance field is mandatory in every promotion artifact
-  provenance: provenance
-    ? {
-        rule: provenance.rule,
-        source_tree_clean: provenance.source_tree_clean,
-        uncommitted_files: provenance.uncommitted_files,
-        waiver: provenance.waiver,
-        waiver_applied: provenance.waiver_applied,
-        promotion_permitted: provenance.promotion_permitted,
-        checked_at: provenance.checked_at,
-      }
-    : null,
-  // FILL IN: hard_gate_enabled, live_roster_count, etc.
+  hard_gate_enabled: true,
+  // FILL IN: live_roster_count_after, live_services_after, etc.
+  source_control_provenance: {
+    rule:                           scp.rule,
+    verified:                       scp.verified,
+    repos:                          scp.repos,
+    dirty_tree_waiver_used:         scp.dirty_tree_waiver_used,
+    promotion_permitted:            scp.promotion_permitted,
+    source_control_provenance_failed: scp.source_control_provenance_failed,
+    checked_at:                     scp.checked_at,
+  },
 };
 
 writeFileSync(
