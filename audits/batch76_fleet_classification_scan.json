@@ -1,0 +1,642 @@
+{
+  "audit_id": "batch76-fleet-classification-scan",
+  "batch": 76,
+  "type": "fleet_scan",
+  "date": "2026-05-05",
+  "fleet_size_services_json": 280,
+  "codex_files_found": 62,
+  "unique_services_classified": 51,
+  "fleet_coverage_percent": 18,
+  "classification_gap": 229,
+  "high_confidence_count": 11,
+  "distribution": {
+    "HG-2B-financial": 11,
+    "HG-2A": 3,
+    "HG-1": 37
+  },
+  "financial_candidates": [
+    "mari8x-backend",
+    "ankr-maritime",
+    "carbonx-backend",
+    "ankr-ebl",
+    "ankr-ebl-frontend",
+    "maribfc",
+    "maribfc-frontend",
+    "ankrgrid-maritime",
+    "feeder8x",
+    "annapurna",
+    "powerpbox"
+  ],
+  "hg2b_candidates": [],
+  "live_services_confirmed": [
+    "chirpee",
+    "ship-slm",
+    "chief-slm",
+    "puranic-os",
+    "pramana",
+    "domain-capture",
+    "parali-central",
+    "carbonx-backend"
+  ],
+  "fleet_map": [
+    {
+      "service_key": "mari8x-backend",
+      "aegis_hg_group_existing": null,
+      "aegis_hg_group_candidate": "HG-2B-financial",
+      "confidence": "HIGH",
+      "reason": "Financial settlement capability detected",
+      "matched_verbs": [
+        "EBL_SURRENDER"
+      ],
+      "can_do_count": 31,
+      "trust_mask": 156762095,
+      "already_live": false
+    },
+    {
+      "service_key": "ankr-maritime",
+      "aegis_hg_group_existing": null,
+      "aegis_hg_group_candidate": "HG-2B-financial",
+      "confidence": "HIGH",
+      "reason": "Financial settlement capability detected",
+      "matched_verbs": [
+        "EBL_SURRENDER"
+      ],
+      "can_do_count": 31,
+      "trust_mask": 402654239,
+      "already_live": false
+    },
+    {
+      "service_key": "carbonx-backend",
+      "aegis_hg_group_existing": "HG-2B",
+      "aegis_hg_group_candidate": "HG-2B-financial",
+      "confidence": "HIGH",
+      "reason": "Financial settlement capability detected",
+      "matched_verbs": [
+        "SUBMIT_ETS_SURRENDER"
+      ],
+      "can_do_count": 4,
+      "trust_mask": 15,
+      "already_live": true
+    },
+    {
+      "service_key": "ankr-ebl",
+      "aegis_hg_group_existing": null,
+      "aegis_hg_group_candidate": "HG-2B-financial",
+      "confidence": "HIGH",
+      "reason": "Financial settlement capability detected",
+      "matched_verbs": [
+        "EBL_SURRENDER_FROM_DISCHARGE"
+      ],
+      "can_do_count": 18,
+      "trust_mask": 1135,
+      "already_live": false
+    },
+    {
+      "service_key": "ankr-ebl-frontend",
+      "aegis_hg_group_existing": null,
+      "aegis_hg_group_candidate": "HG-2B-financial",
+      "confidence": "HIGH",
+      "reason": "Financial settlement capability detected",
+      "matched_verbs": [
+        "SURRENDER_EBL"
+      ],
+      "can_do_count": 4,
+      "trust_mask": 1047,
+      "already_live": false
+    },
+    {
+      "service_key": "maribfc",
+      "aegis_hg_group_existing": null,
+      "aegis_hg_group_candidate": "HG-2B-financial",
+      "confidence": "HIGH",
+      "reason": "Financial settlement capability detected",
+      "matched_verbs": [
+        "ASSESS_MARITIME_CREDIT",
+        "RECORD_REPAYMENT"
+      ],
+      "can_do_count": 10,
+      "trust_mask": 31,
+      "already_live": false
+    },
+    {
+      "service_key": "maribfc-frontend",
+      "aegis_hg_group_existing": null,
+      "aegis_hg_group_candidate": "HG-2B-financial",
+      "confidence": "HIGH",
+      "reason": "Financial settlement capability detected",
+      "matched_verbs": [
+        "VIEW_CREDIT_SCORE",
+        "SUBMIT_REPAYMENT"
+      ],
+      "can_do_count": 4,
+      "trust_mask": 15,
+      "already_live": false
+    },
+    {
+      "service_key": "ankrgrid-maritime",
+      "aegis_hg_group_existing": null,
+      "aegis_hg_group_candidate": "HG-2B-financial",
+      "confidence": "HIGH",
+      "reason": "Financial settlement capability detected",
+      "matched_verbs": [
+        "TRIGGER_SETTLEMENT"
+      ],
+      "can_do_count": 6,
+      "trust_mask": 79,
+      "already_live": false
+    },
+    {
+      "service_key": "feeder8x",
+      "aegis_hg_group_existing": null,
+      "aegis_hg_group_candidate": "HG-2B-financial",
+      "confidence": "HIGH",
+      "reason": "Financial settlement capability detected",
+      "matched_verbs": [
+        "SURRENDER_HOUSE_BL",
+        "GENERATE_SLOT_CHARTER_SETTLEMENT"
+      ],
+      "can_do_count": 10,
+      "trust_mask": 4367,
+      "already_live": false
+    },
+    {
+      "service_key": "annapurna",
+      "aegis_hg_group_existing": null,
+      "aegis_hg_group_candidate": "HG-2B-financial",
+      "confidence": "HIGH",
+      "reason": "Financial settlement capability detected",
+      "matched_verbs": [
+        "RECORD_PREMIUM_PAYMENT"
+      ],
+      "can_do_count": 7,
+      "trust_mask": 15,
+      "already_live": false
+    },
+    {
+      "service_key": "powerpbox",
+      "aegis_hg_group_existing": null,
+      "aegis_hg_group_candidate": "HG-2B-financial",
+      "confidence": "HIGH",
+      "reason": "Financial settlement capability detected",
+      "matched_verbs": [
+        "SETTLE_POWER_TRANSACTION"
+      ],
+      "can_do_count": 7,
+      "trust_mask": 1,
+      "already_live": false
+    },
+    {
+      "service_key": "corals-astrology",
+      "aegis_hg_group_existing": null,
+      "aegis_hg_group_candidate": "HG-2A",
+      "confidence": "MEDIUM",
+      "reason": "Stateful external write capability detected",
+      "matched_verbs": [
+        "SEND_HOROSCOPE_WA"
+      ],
+      "can_do_count": 10,
+      "trust_mask": 117440527,
+      "already_live": false
+    },
+    {
+      "service_key": "dharma-panel",
+      "aegis_hg_group_existing": null,
+      "aegis_hg_group_candidate": "HG-2A",
+      "confidence": "MEDIUM",
+      "reason": "Stateful external write capability detected",
+      "matched_verbs": [
+        "SEND_FATIGUE_ALERT"
+      ],
+      "can_do_count": 5,
+      "trust_mask": 31,
+      "already_live": false
+    },
+    {
+      "service_key": "drone8x-os",
+      "aegis_hg_group_existing": null,
+      "aegis_hg_group_candidate": "HG-2A",
+      "confidence": "MEDIUM",
+      "reason": "Stateful external write capability detected",
+      "matched_verbs": [
+        "SEND_WAYPOINT"
+      ],
+      "can_do_count": 12,
+      "trust_mask": 1,
+      "already_live": false
+    },
+    {
+      "service_key": "ankr-maritime-frontend",
+      "aegis_hg_group_existing": null,
+      "aegis_hg_group_candidate": "HG-1",
+      "confidence": "MEDIUM",
+      "reason": "Mutation capabilities — internal state only (no external signals detected)",
+      "matched_verbs": [],
+      "can_do_count": 5,
+      "trust_mask": 3,
+      "already_live": false
+    },
+    {
+      "service_key": "corals-astrology-frontend",
+      "aegis_hg_group_existing": null,
+      "aegis_hg_group_candidate": "HG-1",
+      "confidence": "MEDIUM",
+      "reason": "Mutation capabilities — internal state only (no external signals detected)",
+      "matched_verbs": [],
+      "can_do_count": 5,
+      "trust_mask": 1,
+      "already_live": false
+    },
+    {
+      "service_key": "carbonx-frontend",
+      "aegis_hg_group_existing": null,
+      "aegis_hg_group_candidate": "HG-1",
+      "confidence": "MEDIUM",
+      "reason": "Mutation capabilities — internal state only (no external signals detected)",
+      "matched_verbs": [],
+      "can_do_count": 4,
+      "trust_mask": 1,
+      "already_live": false
+    },
+    {
+      "service_key": "portwatch",
+      "aegis_hg_group_existing": null,
+      "aegis_hg_group_candidate": "HG-1",
+      "confidence": "MEDIUM",
+      "reason": "Mutation capabilities — internal state only (no external signals detected)",
+      "matched_verbs": [],
+      "can_do_count": 10,
+      "trust_mask": 15,
+      "already_live": false
+    },
+    {
+      "service_key": "portwatch-frontend",
+      "aegis_hg_group_existing": null,
+      "aegis_hg_group_candidate": "HG-1",
+      "confidence": "MEDIUM",
+      "reason": "Mutation capabilities — internal state only (no external signals detected)",
+      "matched_verbs": [],
+      "can_do_count": 4,
+      "trust_mask": 15,
+      "already_live": false
+    },
+    {
+      "service_key": "owneros",
+      "aegis_hg_group_existing": null,
+      "aegis_hg_group_candidate": "HG-1",
+      "confidence": "MEDIUM",
+      "reason": "Mutation capabilities — internal state only (no external signals detected)",
+      "matched_verbs": [],
+      "can_do_count": 6,
+      "trust_mask": 31,
+      "already_live": false
+    },
+    {
+      "service_key": "owneros-frontend",
+      "aegis_hg_group_existing": null,
+      "aegis_hg_group_candidate": "HG-1",
+      "confidence": "MEDIUM",
+      "reason": "Mutation capabilities — internal state only (no external signals detected)",
+      "matched_verbs": [],
+      "can_do_count": 4,
+      "trust_mask": 31,
+      "already_live": false
+    },
+    {
+      "service_key": "maribfc-api",
+      "aegis_hg_group_existing": null,
+      "aegis_hg_group_candidate": "HG-1",
+      "confidence": "MEDIUM",
+      "reason": "Mutation capabilities — internal state only (no external signals detected)",
+      "matched_verbs": [],
+      "can_do_count": 1,
+      "trust_mask": 1,
+      "already_live": false
+    },
+    {
+      "service_key": "trademitra-api",
+      "aegis_hg_group_existing": null,
+      "aegis_hg_group_candidate": "HG-1",
+      "confidence": "MEDIUM",
+      "reason": "Mutation capabilities — internal state only (no external signals detected)",
+      "matched_verbs": [],
+      "can_do_count": 28,
+      "trust_mask": 15,
+      "already_live": false
+    },
+    {
+      "service_key": "trademitra-frontend",
+      "aegis_hg_group_existing": null,
+      "aegis_hg_group_candidate": "HG-1",
+      "confidence": "MEDIUM",
+      "reason": "Mutation capabilities — internal state only (no external signals detected)",
+      "matched_verbs": [],
+      "can_do_count": 4,
+      "trust_mask": 2063,
+      "already_live": false
+    },
+    {
+      "service_key": "ankrgrid-repoex",
+      "aegis_hg_group_existing": null,
+      "aegis_hg_group_candidate": "HG-1",
+      "confidence": "MEDIUM",
+      "reason": "Mutation capabilities — internal state only (no external signals detected)",
+      "matched_verbs": [],
+      "can_do_count": 6,
+      "trust_mask": 135205871,
+      "already_live": false
+    },
+    {
+      "service_key": "ankrgrid-maritime-frontend",
+      "aegis_hg_group_existing": null,
+      "aegis_hg_group_candidate": "HG-1",
+      "confidence": "MEDIUM",
+      "reason": "Mutation capabilities — internal state only (no external signals detected)",
+      "matched_verbs": [],
+      "can_do_count": 3,
+      "trust_mask": 7,
+      "already_live": false
+    },
+    {
+      "service_key": "liner8x",
+      "aegis_hg_group_existing": null,
+      "aegis_hg_group_candidate": "HG-1",
+      "confidence": "MEDIUM",
+      "reason": "Mutation capabilities — internal state only (no external signals detected)",
+      "matched_verbs": [],
+      "can_do_count": 11,
+      "trust_mask": 1807,
+      "already_live": false
+    },
+    {
+      "service_key": "liner8x-solver",
+      "aegis_hg_group_existing": null,
+      "aegis_hg_group_candidate": "HG-1",
+      "confidence": "MEDIUM",
+      "reason": "Mutation capabilities — internal state only (no external signals detected)",
+      "matched_verbs": [],
+      "can_do_count": 3,
+      "trust_mask": 1,
+      "already_live": false
+    },
+    {
+      "service_key": "liner8x-frontend",
+      "aegis_hg_group_existing": null,
+      "aegis_hg_group_candidate": "HG-1",
+      "confidence": "MEDIUM",
+      "reason": "Mutation capabilities — internal state only (no external signals detected)",
+      "matched_verbs": [],
+      "can_do_count": 5,
+      "trust_mask": 1,
+      "already_live": false
+    },
+    {
+      "service_key": "mpv8x",
+      "aegis_hg_group_existing": null,
+      "aegis_hg_group_candidate": "HG-1",
+      "confidence": "MEDIUM",
+      "reason": "Mutation capabilities — internal state only (no external signals detected)",
+      "matched_verbs": [],
+      "can_do_count": 12,
+      "trust_mask": 31,
+      "already_live": false
+    },
+    {
+      "service_key": "paros-hub",
+      "aegis_hg_group_existing": null,
+      "aegis_hg_group_candidate": "HG-1",
+      "confidence": "MEDIUM",
+      "reason": "Mutation capabilities — internal state only (no external signals detected)",
+      "matched_verbs": [],
+      "can_do_count": 7,
+      "trust_mask": 15,
+      "already_live": false
+    },
+    {
+      "service_key": "parali-central",
+      "aegis_hg_group_existing": null,
+      "aegis_hg_group_candidate": "HG-1",
+      "confidence": "MEDIUM",
+      "reason": "Mutation capabilities — internal state only (no external signals detected)",
+      "matched_verbs": [],
+      "can_do_count": 5,
+      "trust_mask": 31,
+      "already_live": true
+    },
+    {
+      "service_key": "atlas",
+      "aegis_hg_group_existing": null,
+      "aegis_hg_group_candidate": "HG-1",
+      "confidence": "MEDIUM",
+      "reason": "Mutation capabilities — internal state only (no external signals detected)",
+      "matched_verbs": [],
+      "can_do_count": 3,
+      "trust_mask": 15,
+      "already_live": false
+    },
+    {
+      "service_key": "atlas-frontend",
+      "aegis_hg_group_existing": null,
+      "aegis_hg_group_candidate": "HG-1",
+      "confidence": "MEDIUM",
+      "reason": "Mutation capabilities — internal state only (no external signals detected)",
+      "matched_verbs": [],
+      "can_do_count": 4,
+      "trust_mask": 1,
+      "already_live": false
+    },
+    {
+      "service_key": "sarvekshan",
+      "aegis_hg_group_existing": null,
+      "aegis_hg_group_candidate": "HG-1",
+      "confidence": "MEDIUM",
+      "reason": "Mutation capabilities — internal state only (no external signals detected)",
+      "matched_verbs": [],
+      "can_do_count": 9,
+      "trust_mask": 15,
+      "already_live": false
+    },
+    {
+      "service_key": "pramana",
+      "aegis_hg_group_existing": null,
+      "aegis_hg_group_candidate": "HG-1",
+      "confidence": "MEDIUM",
+      "reason": "Mutation capabilities — internal state only (no external signals detected)",
+      "matched_verbs": [],
+      "can_do_count": 5,
+      "trust_mask": 1,
+      "already_live": true
+    },
+    {
+      "service_key": "sakshi",
+      "aegis_hg_group_existing": null,
+      "aegis_hg_group_candidate": "HG-1",
+      "confidence": "MEDIUM",
+      "reason": "Mutation capabilities — internal state only (no external signals detected)",
+      "matched_verbs": [],
+      "can_do_count": 3,
+      "trust_mask": 1,
+      "already_live": false
+    },
+    {
+      "service_key": "ankr-gurukul",
+      "aegis_hg_group_existing": null,
+      "aegis_hg_group_candidate": "HG-1",
+      "confidence": "MEDIUM",
+      "reason": "Mutation capabilities — internal state only (no external signals detected)",
+      "matched_verbs": [],
+      "can_do_count": 6,
+      "trust_mask": 1,
+      "already_live": false
+    },
+    {
+      "service_key": "anvilos-slm",
+      "aegis_hg_group_existing": null,
+      "aegis_hg_group_candidate": "HG-1",
+      "confidence": "MEDIUM",
+      "reason": "Mutation capabilities — internal state only (no external signals detected)",
+      "matched_verbs": [],
+      "can_do_count": 6,
+      "trust_mask": 1,
+      "already_live": false
+    },
+    {
+      "service_key": "ankr-compliance-cert",
+      "aegis_hg_group_existing": null,
+      "aegis_hg_group_candidate": "HG-1",
+      "confidence": "MEDIUM",
+      "reason": "Mutation capabilities — internal state only (no external signals detected)",
+      "matched_verbs": [],
+      "can_do_count": 8,
+      "trust_mask": 1,
+      "already_live": false
+    },
+    {
+      "service_key": "darshan",
+      "aegis_hg_group_existing": null,
+      "aegis_hg_group_candidate": "HG-1",
+      "confidence": "MEDIUM",
+      "reason": "Mutation capabilities — internal state only (no external signals detected)",
+      "matched_verbs": [],
+      "can_do_count": 5,
+      "trust_mask": 1,
+      "already_live": false
+    },
+    {
+      "service_key": "ship-slm",
+      "aegis_hg_group_existing": null,
+      "aegis_hg_group_candidate": "HG-1",
+      "confidence": "MEDIUM",
+      "reason": "Mutation capabilities — internal state only (no external signals detected)",
+      "matched_verbs": [],
+      "can_do_count": 6,
+      "trust_mask": 1,
+      "already_live": true
+    },
+    {
+      "service_key": "chief-slm",
+      "aegis_hg_group_existing": null,
+      "aegis_hg_group_candidate": "HG-1",
+      "confidence": "MEDIUM",
+      "reason": "Mutation capabilities — internal state only (no external signals detected)",
+      "matched_verbs": [],
+      "can_do_count": 6,
+      "trust_mask": 1,
+      "already_live": true
+    },
+    {
+      "service_key": "ankr-slm-router",
+      "aegis_hg_group_existing": null,
+      "aegis_hg_group_candidate": "HG-1",
+      "confidence": "MEDIUM",
+      "reason": "Mutation capabilities — internal state only (no external signals detected)",
+      "matched_verbs": [],
+      "can_do_count": 5,
+      "trust_mask": 1,
+      "already_live": false
+    },
+    {
+      "service_key": "medslm",
+      "aegis_hg_group_existing": null,
+      "aegis_hg_group_candidate": "HG-1",
+      "confidence": "MEDIUM",
+      "reason": "Mutation capabilities — internal state only (no external signals detected)",
+      "matched_verbs": [],
+      "can_do_count": 4,
+      "trust_mask": 1,
+      "already_live": false
+    },
+    {
+      "service_key": "chirpee",
+      "aegis_hg_group_existing": null,
+      "aegis_hg_group_candidate": "HG-1",
+      "confidence": "MEDIUM",
+      "reason": "Mutation capabilities — internal state only (no external signals detected)",
+      "matched_verbs": [],
+      "can_do_count": 9,
+      "trust_mask": 1,
+      "already_live": true
+    },
+    {
+      "service_key": "puranic-os",
+      "aegis_hg_group_existing": null,
+      "aegis_hg_group_candidate": "HG-1",
+      "confidence": "MEDIUM",
+      "reason": "Mutation capabilities — internal state only (no external signals detected)",
+      "matched_verbs": [],
+      "can_do_count": 8,
+      "trust_mask": 1,
+      "already_live": true
+    },
+    {
+      "service_key": "chetna",
+      "aegis_hg_group_existing": null,
+      "aegis_hg_group_candidate": "HG-1",
+      "confidence": "MEDIUM",
+      "reason": "Mutation capabilities — internal state only (no external signals detected)",
+      "matched_verbs": [],
+      "can_do_count": 10,
+      "trust_mask": 1,
+      "already_live": false
+    },
+    {
+      "service_key": "bitmaskos",
+      "aegis_hg_group_existing": null,
+      "aegis_hg_group_candidate": "HG-1",
+      "confidence": "MEDIUM",
+      "reason": "Mutation capabilities — internal state only (no external signals detected)",
+      "matched_verbs": [],
+      "can_do_count": 6,
+      "trust_mask": 1,
+      "already_live": false
+    },
+    {
+      "service_key": "kavachos",
+      "aegis_hg_group_existing": null,
+      "aegis_hg_group_candidate": "HG-1",
+      "confidence": "MEDIUM",
+      "reason": "Mutation capabilities — internal state only (no external signals detected)",
+      "matched_verbs": [],
+      "can_do_count": 6,
+      "trust_mask": 452984891,
+      "already_live": false
+    },
+    {
+      "service_key": "discovery",
+      "aegis_hg_group_existing": null,
+      "aegis_hg_group_candidate": "HG-1",
+      "confidence": "MEDIUM",
+      "reason": "Mutation capabilities — internal state only (no external signals detected)",
+      "matched_verbs": [],
+      "can_do_count": 9,
+      "trust_mask": 1,
+      "already_live": false
+    }
+  ],
+  "next_step": "Human confirmation pass: review fleet_map, confirm or override aegis_hg_group_candidate, write aegis_hg_group to codex.json. Start with HIGH confidence classifications.",
+  "platform_phases": [
+    "Phase 1 DONE — Classification Oracle (this scan)",
+    "Phase 2 TODO — Policy Templates (refactor hard-gate-policy.ts)",
+    "Phase 3 TODO — Soak Runner CLI",
+    "Phase 4 TODO — Convergence Audit + Promotion Gate CLI"
+  ]
+}
