@@ -1,0 +1,321 @@
+{
+  "audit_id": "batch69-carbonx-hg2b-soft-canary-run4",
+  "batch": 69,
+  "run": "4/7",
+  "soak_phase": "soft_canary",
+  "service": "carbonx-backend",
+  "date": "2026-05-04",
+  "hard_gate_enabled": false,
+  "live_hg2b_count": 1,
+  "live_hg2b_service": "parali-central",
+  "promotion_permitted_carbonx": false,
+  "checks_total": 57,
+  "checks_passed": 57,
+  "checks_failed": 0,
+  "verdict": "PASS",
+  "focus": "runtime nonce consumption + idempotency boundary",
+  "doctrine": "AEG-HG-2B-006 — nonce protects the approval; idempotency protects the operation (separate locks)",
+  "soak_limitations": [
+    "NonceStore under test is InMemoryNonceStore — single-process only; Redis (SET NX EX) required for multi-instance",
+    "Token format is dev base64url JSON; production tokens are JWT signed by AEGIS PROOF at port 4850",
+    "Concurrent serialisation check uses Promise.allSettled — in-process race; Redis is the true mutex in prod",
+    "Expired-nonce TTL test uses 1ms sleep window — timing-sensitive on loaded CI systems"
+  ],
+  "results": [
+    {
+      "id": 1,
+      "label": "1. consumeNonce returns true on first use",
+      "status": "PASS"
+    },
+    {
+      "id": 2,
+      "label": "2. consumeNonce returns false on second use (same nonce)",
+      "status": "PASS"
+    },
+    {
+      "id": 3,
+      "label": "3. consumeNonce is nonce-scoped — different nonces are independent",
+      "status": "PASS"
+    },
+    {
+      "id": 4,
+      "label": "4. expired nonce can be consumed again (TTL expired)",
+      "status": "PASS"
+    },
+    {
+      "id": 5,
+      "label": "5. consumeNonce ttlMs=0 is accepted (token already at boundary)",
+      "status": "PASS"
+    },
+    {
+      "id": 6,
+      "label": "6. triple call: first=true, second=false, third=false",
+      "status": "PASS"
+    },
+    {
+      "id": 7,
+      "label": "7. store is per-instance — separate instances do not share state",
+      "status": "PASS"
+    },
+    {
+      "id": 8,
+      "label": "8. consumeNonce is async (returns Promise)",
+      "status": "PASS"
+    },
+    {
+      "id": 9,
+      "label": "9. high-frequency nonces do not collide with each other",
+      "status": "PASS"
+    },
+    {
+      "id": 10,
+      "label": "10. happy path — token with nonce is accepted on first call",
+      "status": "PASS"
+    },
+    {
+      "id": 11,
+      "label": "11. replay — same payload rejected on second call",
+      "status": "PASS"
+    },
+    {
+      "id": 12,
+      "label": "12. missing nonce — token without nonce field rejected",
+      "status": "PASS"
+    },
+    {
+      "id": 13,
+      "label": "13. replay error carries IRR-NOAPPROVAL code",
+      "status": "PASS"
+    },
+    {
+      "id": 14,
+      "label": "14. IrrNoApprovalError on replay has code=IRR-NOAPPROVAL and doctrine=AEG-E-016",
+      "status": "PASS"
+    },
+    {
+      "id": 15,
+      "label": "15. two different nonces in same store are independently accepted",
+      "status": "PASS"
+    },
+    {
+      "id": 16,
+      "label": "16. two different nonces: second replay still rejected",
+      "status": "PASS"
+    },
+    {
+      "id": 17,
+      "label": "17. nonce consumption happens before DB mutation — rejection is pre-commit",
+      "status": "PASS"
+    },
+    {
+      "id": 18,
+      "label": "18. nonce in error message matches token nonce",
+      "status": "PASS"
+    },
+    {
+      "id": 19,
+      "label": "19. verifyAndConsumeNonce does not emit SENSE on its own (observability separation)",
+      "status": "PASS"
+    },
+    {
+      "id": 20,
+      "label": "20. nonce replay on expired token still rejected (cannot reuse expired approval)",
+      "status": "PASS"
+    },
+    {
+      "id": 21,
+      "label": "21. nonce prevents approval replay (same token, second call rejects)",
+      "status": "PASS"
+    },
+    {
+      "id": 22,
+      "label": "22. idempotency key (externalRef) is not the nonce — different fields, different purposes",
+      "status": "PASS"
+    },
+    {
+      "id": 23,
+      "label": "23. a fresh nonce is required for each new approval, even for same operation",
+      "status": "PASS"
+    },
+    {
+      "id": 24,
+      "label": "24. same externalRef with different nonces — idempotency layer is separate from nonce layer",
+      "status": "PASS"
+    },
+    {
+      "id": 25,
+      "label": "25. nonce absent on token → rejected before DB regardless of externalRef presence",
+      "status": "PASS"
+    },
+    {
+      "id": 26,
+      "label": "26. nonce is part of the approval scope — it binds to this specific approval instance",
+      "status": "PASS"
+    },
+    {
+      "id": 27,
+      "label": "27. replay rejected even when externalRef is new (nonce gate is independent)",
+      "status": "PASS"
+    },
+    {
+      "id": 28,
+      "label": "28. non-negotiable: promotion_permitted_carbonx = false",
+      "status": "PASS"
+    },
+    {
+      "id": 29,
+      "label": "29. token issued_at far in future is rejected (forged timestamp)",
+      "status": "PASS"
+    },
+    {
+      "id": 30,
+      "label": "30. token issued_at within CLOCK_SKEW_MS tolerance is accepted",
+      "status": "PASS"
+    },
+    {
+      "id": 31,
+      "label": "31. token issued_at exactly at CLOCK_SKEW_MS boundary is accepted",
+      "status": "PASS"
+    },
+    {
+      "id": 32,
+      "label": "32. future-token error message contains doctrine reference",
+      "status": "PASS"
+    },
+    {
+      "id": 33,
+      "label": "33. non-negotiable: hard_gate_enabled = false (soft-canary enforced)",
+      "status": "PASS"
+    },
+    {
+      "id": 34,
+      "label": "34. rejected replay throws before SENSE emission point (pre-mutation gate)",
+      "status": "PASS"
+    },
+    {
+      "id": 35,
+      "label": "35. approved path (first use) does not throw — SENSE proceeds normally",
+      "status": "PASS"
+    },
+    {
+      "id": 36,
+      "label": "36. nonce error carries IRR-NOAPPROVAL — distinguishable from generic errors",
+      "status": "PASS"
+    },
+    {
+      "id": 37,
+      "label": "37. missing-nonce error is also IRR-NOAPPROVAL — same doctrine gate",
+      "status": "PASS"
+    },
+    {
+      "id": 38,
+      "label": "38. non-negotiable: live HG-2B roster = 1 (parali-central only)",
+      "status": "PASS"
+    },
+    {
+      "id": 39,
+      "label": "39. ttlMs = max(0, expires_at - now) — cannot be negative",
+      "status": "PASS"
+    },
+    {
+      "id": 40,
+      "label": "40. ttlMs for valid token is positive (bounded by remaining lifetime)",
+      "status": "PASS"
+    },
+    {
+      "id": 41,
+      "label": "41. nonce TTL ≤ token expiry — store cannot hold nonce past token lifetime",
+      "status": "PASS"
+    },
+    {
+      "id": 42,
+      "label": "42. nonce TTL of 0 does not panic — max(0, ...) guard works",
+      "status": "PASS"
+    },
+    {
+      "id": 43,
+      "label": "43. token with 5-min lifetime produces nonce TTL of ~300s (tolerance ±2s)",
+      "status": "PASS"
+    },
+    {
+      "id": 44,
+      "label": "44. store throws → verifyAndConsumeNonce propagates the throw (fails CLOSED)",
+      "status": "PASS"
+    },
+    {
+      "id": 45,
+      "label": "45. failing store does not return false (ambiguous) — it throws (unambiguous)",
+      "status": "PASS"
+    },
+    {
+      "id": 46,
+      "label": "46. store throw is not swallowed — caller receives the error",
+      "status": "PASS"
+    },
+    {
+      "id": 47,
+      "label": "47. operation gate: failing store blocks execution (no state mutation reaches DB)",
+      "status": "PASS"
+    },
+    {
+      "id": 48,
+      "label": "48. InMemoryNonceStore never throws (in-process — always available)",
+      "status": "PASS"
+    },
+    {
+      "id": 49,
+      "label": "49. token consumed on first obligation — second obligation with same token rejected",
+      "status": "PASS"
+    },
+    {
+      "id": 50,
+      "label": "50. each obligation requires its own freshly-minted token (new nonce)",
+      "status": "PASS"
+    },
+    {
+      "id": 51,
+      "label": "51. nonce serialises concurrent approvals — two goroutines cannot both win",
+      "status": "PASS"
+    },
+    {
+      "id": 52,
+      "label": "52. digest of approval token is deterministic — same token always produces same ref",
+      "status": "PASS"
+    },
+    {
+      "id": 53,
+      "label": "53. regression [Run 1]: hard_gate_enabled=false confirmed for this run",
+      "status": "PASS"
+    },
+    {
+      "id": 54,
+      "label": "54. regression [Run 2]: wrong-scope token rejected before nonce check (scope is outer gate)",
+      "status": "PASS"
+    },
+    {
+      "id": 55,
+      "label": "55. regression [Run 3]: digestApprovalToken produces 24-char hex (PRAMANA-safe ref)",
+      "status": "PASS"
+    },
+    {
+      "id": 56,
+      "label": "56. regression [Run 3]: digest is not the raw token (secret hygiene)",
+      "status": "PASS"
+    },
+    {
+      "id": 57,
+      "label": "57. overall: nonce and idempotency are separate locks — confirmed by type structure",
+      "status": "PASS"
+    }
+  ],
+  "promotion_criteria": {
+    "runs_complete": "4/7",
+    "runs_remaining": [
+      "5/7 — EUA cap + partial settlement boundary",
+      "6/7 — concurrent settlement race",
+      "7/7 — end-to-end regression full cycle"
+    ],
+    "next_gate": "hard_gate_enabled=true + add carbonx-backend to AEGIS_HARD_GATE_SERVICES",
+    "status": "NOT_PROMOTED — soft-canary soak continues"
+  }
+}
