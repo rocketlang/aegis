@@ -1,0 +1,50 @@
+{
+  "audit_id": "batch74-carbonx-hg2b-promotion",
+  "batch": 74,
+  "type": "promotion",
+  "service": "carbonx-backend",
+  "date": "2026-05-04",
+  "hg_group": "HG-2",
+  "hg_level": "HG-2B",
+  "financial_doctrine": true,
+  "hard_gate_enabled": true,
+  "promotion_from": "soft_canary",
+  "promotion_to": "hard_gate_live",
+  "live_hg2b_count_before": 1,
+  "live_hg2b_count_after": 2,
+  "live_roster_count_before": 7,
+  "live_roster_count_after": 8,
+  "live_services_after": [
+    "chirpee",
+    "ship-slm",
+    "chief-slm",
+    "puranic-os",
+    "pramana",
+    "domain-capture",
+    "parali-central",
+    "carbonx-backend"
+  ],
+  "prerequisite_chain": [
+    "Batch 62 — HG-2B candidate readiness",
+    "Batch 63 — BR-5 financial code-scan gate",
+    "Batch 64 — BR-5 financial remediation",
+    "Batch 65 — BR-5 re-scan (46/46 PASS)",
+    "Batch 66-70 — soft-canary runs 1-5 PASS",
+    "Batch 71 — gap closure (GAP-1: 10-field binding, GAP-2: positive-amount guard) PASS",
+    "Batch 72 — run 6/7 concurrent settlement race (61/61 PASS)",
+    "Batch 73 — run 7/7 end-to-end regression (80/80 PASS, promotion gate OPEN)",
+    "Batch 74 — promotion (THIS BATCH)"
+  ],
+  "five_locks_status": {
+    "LOCK_1_decision": "PASS — approvalToken required on surrenderEtsAllowances",
+    "LOCK_2_identity": "PASS — verifyFinancialApprovalToken (10-field, AEG-HG-FIN-002)",
+    "LOCK_3_observability": "PASS — SENSE event with before/after/delta",
+    "LOCK_4_rollback": "PASS — simulateSurrender dry-run path",
+    "LOCK_5_idempotency": "PASS — externalRef required arg (AEG-HG-FIN-003)"
+  },
+  "checks_total": 63,
+  "checks_passed": 63,
+  "checks_failed": 0,
+  "verdict": "PASS",
+  "rollback_note": "To demote: remove carbonx-backend from AEGIS_HARD_GATE_SERVICES env var. No DB migration needed. ETS surrenders revert to soft_canary immediately."
+}

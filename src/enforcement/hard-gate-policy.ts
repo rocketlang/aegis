@@ -449,7 +449,7 @@ export const PARALI_CENTRAL_HG2B_POLICY: ServiceHardGatePolicy = {
 
 // ── carbonx HG-2B financial policy ───────────────────────────────────────────
 //
-// HG-2B financial candidate. NOT LIVE. NOT PROMOTED.
+// LIVE: hard_gate_enabled=true; IN AEGIS_HARD_GATE_SERVICES (Batch 74, 2026-05-04).
 // Candidate status: Batch 62 (authority_class=financial, BR-5, TIER-C).
 // Code-scan blocked: Batch 63 (4 controls missing).
 // Remediation: Batch 64 (approval, SENSE, dry-run, idempotency).
@@ -479,7 +479,7 @@ export const PARALI_CENTRAL_HG2B_POLICY: ServiceHardGatePolicy = {
 //   BYPASS_EUA_IDEMPOTENCY          — explicit idempotency bypass → double-decrement risk
 //   MUTATE_EUA_BALANCE_WITHOUT_EXTERNAL_REF — LOCK-5 violation
 //
-// @rule:AEG-HG-001 hard_gate_enabled=false — NOT YET IN AEGIS_HARD_GATE_SERVICES
+// @rule:AEG-HG-001 hard_gate_enabled=true — IN AEGIS_HARD_GATE_SERVICES (Batch 74)
 // @rule:AEG-HG-002 READ is in never_block — AEG-E-002 extended to hard mode
 // @rule:AEG-HG-2B-001 external_state_touch=true
 // @rule:AEG-HG-2B-002 approval_required_for_irreversible_action=true (non-negotiable)
@@ -491,9 +491,9 @@ export const PARALI_CENTRAL_HG2B_POLICY: ServiceHardGatePolicy = {
 export const CARBONX_HG2B_POLICY: ServiceHardGatePolicy = {
   service_id: "carbonx-backend",
   hg_group: "HG-2",
-  hard_gate_enabled: false, // @rule:AEG-HG-001 — NOT PROMOTED; soft_canary only (Batch 66)
+  hard_gate_enabled: true, // @rule:AEG-HG-001 — LIVE (Batch 74, 2026-05-04); soak: Batch 66-73 7/7 + gap closure
   rollout_order: 8,
-  stage: "Stage 5 — HG-2B financial candidate — soft_canary 2026-05-03 (Batch 66) — NOT PROMOTED",
+  stage: "Stage 5 — HG-2B financial — LIVE 2026-05-04 (Batch 74); soak 7/7 + gap closure PASS",
 
   // HG-2B doctrine fields
   external_state_touch: true,
@@ -588,6 +588,7 @@ export const CARBONX_HG2B_POLICY: ServiceHardGatePolicy = {
 // Batch 53: parali-central added (HG-2B candidate, soft_canary). Live roster unchanged at 6.
 // Batch 60: parali-central promoted live (HG-2B). 7 live hard-gate services total.
 // Batch 66: carbonx-backend added (HG-2B financial candidate, soft_canary). Roster unchanged at 7.
+// Batch 74: carbonx-backend promoted live (HG-2B financial). 8 live hard-gate services total.
 
 export const HARD_GATE_POLICIES: Readonly<Record<string, ServiceHardGatePolicy>> = {
   chirpee:             CHIRPEE_HG1_POLICY,
@@ -598,7 +599,7 @@ export const HARD_GATE_POLICIES: Readonly<Record<string, ServiceHardGatePolicy>>
   "domain-capture":    DOMAIN_CAPTURE_HG2A_POLICY,
   // HG-2B live (promoted Batch 60)
   "parali-central":    PARALI_CENTRAL_HG2B_POLICY,
-  // HG-2B financial candidate (soft_canary Batch 66 — NOT in AEGIS_HARD_GATE_SERVICES)
+  // HG-2B financial live (promoted Batch 74, 2026-05-04 — IN AEGIS_HARD_GATE_SERVICES)
   "carbonx-backend":   CARBONX_HG2B_POLICY,
   "carbonx":           CARBONX_HG2B_POLICY, // alias — services.json uses "carbonx" as service key
 };
