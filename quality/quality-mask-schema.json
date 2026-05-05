@@ -1,0 +1,54 @@
+{
+  "schema": "aegis-quality-16bit-v1",
+  "version": 1,
+  "date": "2026-05-05",
+  "batch": 89,
+  "doctrine": "Safety is permission. Quality is survival. Drift is the audit of time.",
+  "description": "Machine-verifiable quality evidence mask for AEGIS-governed services. Two time horizons: point_in_time (bits 0-11, set at promotion) and longitudinal (bits 12-15, set post-promotion). Never conflate them.",
+  "time_horizons": {
+    "quality_mask_at_promotion": {
+      "bits": "0-11",
+      "set_when": "At the moment of promotion, by the promotion script",
+      "rule": "AEG-Q-001"
+    },
+    "quality_drift_score": {
+      "bits": "12-15",
+      "set_when": "Post-promotion, during observation window",
+      "rule": "AEG-Q-003",
+      "never": "Bits 12-15 must never be set in quality_mask_at_promotion (AEG-Q-002)"
+    }
+  },
+  "bits": [
+    { "id":"Q-001", "bit":0,  "value":1,     "horizon":"point_in_time", "name":"typecheck_passed",      "verified_by":"tsc --noEmit exits 0" },
+    { "id":"Q-002", "bit":1,  "value":2,     "horizon":"point_in_time", "name":"tests_passed",          "verified_by":"test runner exits 0" },
+    { "id":"Q-003", "bit":2,  "value":4,     "horizon":"point_in_time", "name":"lint_passed",           "verified_by":"eslint / biome exits 0" },
+    { "id":"Q-004", "bit":3,  "value":8,     "horizon":"point_in_time", "name":"no_unrelated_diff",     "verified_by":"git diff --name-only ⊆ declared scope" },
+    { "id":"Q-005", "bit":4,  "value":16,    "horizon":"point_in_time", "name":"migration_verified",    "verified_by":"prisma migrate diff: no DROP/ALTER without migration" },
+    { "id":"Q-006", "bit":5,  "value":32,    "horizon":"point_in_time", "name":"rollback_verified",     "verified_by":"audit artifact has rollback_path field" },
+    { "id":"Q-007", "bit":6,  "value":64,    "horizon":"point_in_time", "name":"docs_updated",          "verified_by":"doc hash changed when code changed" },
+    { "id":"Q-008", "bit":7,  "value":128,   "horizon":"point_in_time", "name":"codex_updated",         "verified_by":"codex.json classification_batch = this batch" },
+    { "id":"Q-009", "bit":8,  "value":256,   "horizon":"point_in_time", "name":"audit_artifact_written","verified_by":"audits/batchN_*.json exists with verdict=PASS" },
+    { "id":"Q-010", "bit":9,  "value":512,   "horizon":"point_in_time", "name":"source_clean",          "verified_by":"assertSourceControlProvenance passes (AEG-PROV-001)" },
+    { "id":"Q-011", "bit":10, "value":1024,  "horizon":"point_in_time", "name":"no_secret_detected",    "verified_by":"secret scanner exits 0 on git diff" },
+    { "id":"Q-012", "bit":11, "value":2048,  "horizon":"point_in_time", "name":"human_reviewed",        "verified_by":"human_override_applied=true OR human_review_status=confirmed" },
+    { "id":"Q-013", "bit":12, "value":4096,  "horizon":"longitudinal",  "name":"idempotency_verified",  "verified_by":"second run of batch script exits PASS" },
+    { "id":"Q-014", "bit":13, "value":8192,  "horizon":"longitudinal",  "name":"observability_verified", "verified_by":"SENSE event audit confirms expected schema" },
+    { "id":"Q-015", "bit":14, "value":16384, "horizon":"longitudinal",  "name":"regression_clean",      "verified_by":"test suite: 0 new failures in 7-day window" },
+    { "id":"Q-016", "bit":15, "value":32768, "horizon":"longitudinal",  "name":"production_fire_zero",  "verified_by":"0 incidents in 7-day observation window" }
+  ],
+  "required_by_hg_group": {
+    "HG-1":            { "mask": 770,  "hex":"0x0302", "bits_required":[1,8,9],          "names":["tests_passed","audit_artifact_written","source_clean"] },
+    "HG-2A":           { "mask": 2947, "hex":"0x0B83", "bits_required":[0,1,7,8,9,11],   "names":["typecheck_passed","tests_passed","codex_updated","audit_artifact_written","source_clean","human_reviewed"] },
+    "HG-2B":           { "mask": 4011, "hex":"0x0FAB", "bits_required":[0,1,3,5,7,8,9,10,11], "names":["typecheck_passed","tests_passed","no_unrelated_diff","rollback_verified","codex_updated","audit_artifact_written","source_clean","no_secret_detected","human_reviewed"] },
+    "HG-2B-financial": { "mask": 4095, "hex":"0x0FFF", "bits_required":[0,1,2,3,4,5,6,7,8,9,10,11], "names":["all 12 point-in-time bits"] }
+  },
+  "superset_invariant": "required_mask(HG-2B-financial) ⊃ required_mask(HG-2B) ⊃ required_mask(HG-2A) ⊃ required_mask(HG-1)",
+  "confidence_tiers": {
+    "high":     "quality_mask_at_promotion satisfies required mask for service HG group",
+    "medium":   "satisfies HG-1 minimum but not full required mask for HG group",
+    "low":      "below HG-1 minimum — quality evidence insufficient",
+    "unaudited":"quality_mask_at_promotion = 0 (field absent or not yet captured)"
+  },
+  "enforcement_function": "src/enforcement/quality.ts:assertQualityEvidence()",
+  "reference_implementation": "pramana (proof_config maps to bits 8+9: audit_artifact_written + source_clean)"
+}

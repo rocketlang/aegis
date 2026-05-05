@@ -178,6 +178,34 @@ section("§4 Service domain controls");
 // HG-2B-financial: verify Five Locks in source (verifyFinancialApprovalToken,
 //   externalRef @unique, positive-amount guard, SENSE irreversible=true, simulateSurrender)
 
+
+// ════════════════════════════════════════════════════════════════════════════
+// §5 — AEGIS-Q Quality evidence (Batch 89+)
+//
+// Compute quality_mask_at_promotion from what the promotion script can verify.
+// Only bits 0–11 (point-in-time) may be set here — AEG-Q-002.
+// quality_drift_score (bits 12–15) is set post-promotion only — AEG-Q-003.
+//
+// Required masks: HG-1=0x0302 · HG-2A=0x0B83 · HG-2B=0x0FAB · HG-2B-financial=0x0FFF
+// ════════════════════════════════════════════════════════════════════════════
+
+// FILL IN: set bits that the promotion script can verify mechanically.
+// Example (HG-2A service with tests, typecheck, audit, source clean, codex, human review):
+//   const QUALITY_MASK_AT_PROMOTION =
+//     (1 << 0)  |   // Q-001 typecheck_passed
+//     (1 << 1)  |   // Q-002 tests_passed
+//     (1 << 7)  |   // Q-008 codex_updated
+//     (1 << 8)  |   // Q-009 audit_artifact_written
+//     (1 << 9)  |   // Q-010 source_clean  (AEG-PROV-001 passed above)
+//     (1 << 11);    // Q-012 human_reviewed
+
+// const qualityResult = assertQualityEvidence(policy?.hg_group ?? "HG-1", QUALITY_MASK_AT_PROMOTION);
+// check(N, "Quality evidence satisfies HG group minimum",
+//   qualityResult.verdict, "PASS", "quality");
+// if (qualityResult.verdict === "FAIL") {
+//   console.log(`  Missing: ${qualityResult.missing_bits.join(", ")}`);
+// }
+
 // ════════════════════════════════════════════════════════════════════════════
 // Summary + artifact
 // ════════════════════════════════════════════════════════════════════════════

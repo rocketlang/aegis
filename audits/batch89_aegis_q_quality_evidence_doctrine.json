@@ -1,0 +1,78 @@
+{
+  "audit_id": "batch89-aegis-q-quality-evidence-doctrine",
+  "batch": 89,
+  "type": "quality_doctrine",
+  "date": "2026-05-05",
+  "checks_total": 24,
+  "checks_passed": 24,
+  "checks_failed": 0,
+  "verdict": "PASS",
+  "safety_verdict": "PASS",
+  "quality_verdict": "PASS",
+  "schema": "aegis-quality-16bit-v1",
+  "enforcement_module": "src/enforcement/quality.ts",
+  "schema_file": "quality/quality-mask-schema.json",
+  "doctrine": {
+    "line1": "Safety is permission. Quality is survival. Drift is the audit of time.",
+    "line2": "Safety says the agent may act. Quality says the work deserves to survive.",
+    "positioning": "AEGIS turns AI agent activity into governed, testable, auditable work."
+  },
+  "required_masks": {
+    "HG-1": "0x0302",
+    "HG-2A": "0x0B83",
+    "HG-2B": "0x0FAB",
+    "HG-2B-financial": "0x0FFF"
+  },
+  "superset_invariant": "HG-1 ⊂ HG-2A ⊂ HG-2B ⊂ HG-2B-financial (each tier requires strict superset of evidence)",
+  "retroactive_audit": {
+    "annotation": "pre_AEG_Q_001_legacy",
+    "note": "promotions before Batch 89 are legacy — not violations. Batch 89 draws the line.",
+    "carbonx_backend": {
+      "hg_group": "HG-2B-financial",
+      "promotion_batch": 74,
+      "quality_mask_retroactive": "0x0102",
+      "required_mask": "0x0fff",
+      "retroactive_verdict": "FAIL",
+      "known_missing": [
+        "typecheck_passed",
+        "lint_passed",
+        "no_unrelated_diff",
+        "migration_verified",
+        "rollback_verified",
+        "docs_updated",
+        "codex_updated",
+        "source_clean",
+        "no_secret_detected",
+        "human_reviewed"
+      ],
+      "primary_gap": "source_clean (repaired retroactively via Batch 75A)"
+    },
+    "parali_central": {
+      "hg_group": "HG-2B",
+      "promotion_batch": 60,
+      "quality_mask_retroactive": "0x0102",
+      "required_mask": "0x0fab",
+      "retroactive_verdict": "FAIL",
+      "known_missing": [
+        "typecheck_passed",
+        "no_unrelated_diff",
+        "rollback_verified",
+        "codex_updated",
+        "source_clean",
+        "no_secret_detected",
+        "human_reviewed"
+      ],
+      "primary_gap": "source_clean + codex_updated (both pre-doctrine)"
+    }
+  },
+  "next_batch": {
+    "batch90": "Quality audit on carbonx full promotion chain (Batches 62-74)",
+    "batch91": "Quality drift scanner — detect quality degradation post-promotion",
+    "batch92": "Fleet quality dashboard — quality_mask distribution across 61 services"
+  },
+  "rules": [
+    "AEG-Q-001",
+    "AEG-Q-002",
+    "AEG-Q-003"
+  ]
+}
