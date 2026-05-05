@@ -1,0 +1,67 @@
+{
+  "audit_id": "batch85-wave2-critical-classification-overrides",
+  "batch": 85,
+  "type": "human_classification_override",
+  "date": "2026-05-05",
+  "rule": "AEG-PROV-001",
+  "checks_total": 24,
+  "checks_passed": 24,
+  "checks_failed": 0,
+  "verdict": "PASS",
+  "source_queue": "batch84_fleet_human_review_queue.json",
+  "overrides": [
+    {
+      "label": "pramana/codex.json",
+      "machine_hg_before": "HG-1",
+      "machine_conf_before": "medium",
+      "new_hg": "HG-2A"
+    },
+    {
+      "label": "pramana/backend/codex.json",
+      "machine_hg_before": "HG-1",
+      "machine_conf_before": "low",
+      "new_hg": "HG-2A"
+    },
+    {
+      "label": "parali-central/backend/codex.json",
+      "machine_hg_before": "HG-1",
+      "machine_conf_before": "medium",
+      "new_hg": "HG-2B"
+    }
+  ],
+  "override_summary": {
+    "files_modified": 3,
+    "critical_false_negatives_before": 3,
+    "critical_false_negatives_after": 0,
+    "requires_human_review_before": 46,
+    "requires_human_review_after": 43,
+    "financial_bucket_size": 0
+  },
+  "live_hard_gate_roster": {
+    "HG-1": [
+      "chirpee",
+      "ship-slm",
+      "chief-slm",
+      "puranic-os"
+    ],
+    "HG-2A": [
+      "pramana",
+      "domain-capture"
+    ],
+    "HG-2B": [
+      "parali-central"
+    ],
+    "HG-2B-financial": [
+      "carbonx-backend"
+    ]
+  },
+  "invariants": [
+    "Only 3 codex.json files were modified — exactly the Batch 84 critical queue",
+    "can_do / can_answer / trust_mask on all services are unchanged",
+    "No financial classification was altered",
+    "Machine classification preserved in machine_*_before_override fields",
+    "override_batch=85 distinguishes this correction from any promotion artifact",
+    "This is classification correction only — no service is promotion-ready as a result"
+  ],
+  "doctrine": "The machine made the queue. The human corrected the known edge cases."
+}
