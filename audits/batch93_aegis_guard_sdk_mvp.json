@@ -1,0 +1,83 @@
+{
+  "batch": 93,
+  "batch_name": "aegis-guard-sdk-mvp",
+  "batch_date": "2026-05-05",
+  "doctrine": "Carbonx proved the locks. Batch 93 makes the locks reusable.",
+  "sdk_package": "@ankr/aegis-guard",
+  "sdk_version": "0.1.0",
+  "sdk_path": "packages/aegis-guard",
+  "five_locks": [
+    "LOCK_1_decision",
+    "LOCK_2_identity",
+    "LOCK_3_observability",
+    "LOCK_4_rollback",
+    "LOCK_5_idempotency"
+  ],
+  "primitives": {
+    "errors.ts": {
+      "exports": [
+        "IrrNoApprovalError",
+        "AegisNonceError"
+      ],
+      "doctrine": "AEG-E-016"
+    },
+    "approval-token.ts": {
+      "exports": [
+        "verifyApprovalToken",
+        "verifyScopedApprovalToken",
+        "verifyAndConsumeNonce",
+        "digestApprovalToken",
+        "mintApprovalToken"
+      ],
+      "scope_binding": "Record<string,unknown>"
+    },
+    "nonce.ts": {
+      "exports": [
+        "NonceStore",
+        "defaultNonceStore"
+      ],
+      "semantics": "fail-closed"
+    },
+    "idempotency.ts": {
+      "exports": [
+        "checkIdempotency",
+        "buildIdempotencyFingerprint"
+      ],
+      "layer": "functional-no-db"
+    },
+    "sense.ts": {
+      "exports": [
+        "AegisSenseEvent",
+        "SenseTransport",
+        "configureSenseTransport",
+        "emitAegisSenseEvent"
+      ],
+      "transport": "configurable"
+    },
+    "quality.ts": {
+      "exports": [
+        "buildQualityMaskAtPromotion",
+        "buildQualityDriftScore",
+        "HG_REQUIRED_MASKS",
+        "meetsHgQualityRequirement"
+      ],
+      "bits_promotion": "0-11",
+      "bits_drift": "12-15"
+    }
+  },
+  "script_checks": {
+    "total": 63,
+    "passed": 63,
+    "failed": 0
+  },
+  "bun_test_passed": true,
+  "no_service_promoted": true,
+  "no_live_roster_changed": true,
+  "extraction_only": true,
+  "next_batches": {
+    "94": "carbonx SDK migration dry-run",
+    "95": "carbonx SDK migration implementation",
+    "96": "re-run carbonx Five Locks regression",
+    "97": "update dashboard to show SDK adoption coverage"
+  }
+}

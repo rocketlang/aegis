@@ -1,0 +1,37 @@
+{
+  "name": "@ankr/aegis-guard",
+  "version": "0.1.0",
+  "description": "AEGIS Guard SDK — reusable approval-token, nonce, idempotency, SENSE, and quality-evidence primitives for AEGIS-governed services",
+  "license": "AGPL-3.0",
+  "type": "module",
+  "author": "Capt. Anil Sharma <capt.anil.sharma@powerpbox.org>",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/rocketlang/aegis.git",
+    "directory": "packages/aegis-guard"
+  },
+  "keywords": [
+    "aegis", "aegis-guard", "approval-token", "nonce", "idempotency",
+    "sense", "quality-mask", "hg-2b", "five-locks", "agentic-ai", "governance"
+  ],
+  "exports": {
+    ".": {
+      "import": "./src/index.ts",
+      "types": "./src/index.ts"
+    }
+  },
+  "main": "./src/index.ts",
+  "scripts": {
+    "test": "bun test tests/aegis-guard.test.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "typescript": "^5.4.0",
+    "@types/node": "^20.0.0"
+  },
+  "aegis": {
+    "batch": 93,
+    "five_locks_proof": "carbonx-backend batches 62-74",
+    "doctrine": "Carbonx proved the locks. Batch 93 makes the locks reusable."
+  }
+}
