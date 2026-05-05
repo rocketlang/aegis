@@ -1,0 +1,34 @@
+{
+  "batch": 98,
+  "batch_name": "sdk-adoption-registry",
+  "batch_date": "2026-05-05",
+  "doctrine": "One service adopted the locks. Batch 98 tells the fleet who is next.",
+  "sdk_package": "@ankr/aegis-guard",
+  "fleet_size": 8,
+  "adoption_summary": {
+    "adopted": 1,
+    "candidate": 4,
+    "adopted_services": [
+      "carbonx-backend"
+    ],
+    "candidate_services": [
+      "parali-central",
+      "pramana",
+      "domain-capture",
+      "puranic-os"
+    ]
+  },
+  "p0_next": "parali-central",
+  "no_policy_change": true,
+  "no_roster_change": true,
+  "no_promotion_change": true,
+  "script_checks": {
+    "total": 24,
+    "passed": 24,
+    "failed": 0
+  },
+  "failures": [],
+  "verdict": "PASS",
+  "verdict_rationale": "SDK adoption registry created. carbonx confirmed as sole adopted service. parali-central identified as P0 next candidate. No governance state changed.",
+  "next": "Batch 99 — parali-central SDK adoption dry-run (mirror Batch 94 arc)"
+}
