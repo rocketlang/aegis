@@ -1,6 +1,9 @@
 {
   "service_key": "ankr-aegis",
   "display_name": "KAVACH \u2014 AEGIS v2 \u2014 xShieldAI Agent Execution Safety",
+  "zenodo_doi": "10.5281/zenodo.20034061",
+  "zenodo_title": "AEGIS: An Evidence, Quality, and Authority Control Plane for Agentic AI Systems",
+  "zenodo_published": "2026-05-05",
   "product_family": {
     "umbrella": "Black Box for AI Agents",
     "role": "STOP",
