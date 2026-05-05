@@ -1,0 +1,41 @@
+{
+  "batch": 96,
+  "batch_name": "carbonx-sdk-five-locks-regression",
+  "batch_date": "2026-05-05",
+  "doctrine": "The engine changed. The locks still hold under load.",
+  "sdk_package": "@ankr/aegis-guard",
+  "carbonx_service": "carbonx-backend",
+  "carbonx_hg_group": "HG-2B-financial",
+  "live_roster_count": 8,
+  "live_roster": [
+    "chirpee (HG-1)",
+    "ship-slm (HG-1)",
+    "chief-slm (HG-1)",
+    "puranic-os (HG-1)",
+    "pramana (HG-2A)",
+    "domain-capture (HG-2A)",
+    "parali-central (HG-2B)",
+    "carbonx-backend (HG-2B financial)"
+  ],
+  "five_locks_regression": {
+    "LOCK_1_decision": "INTACT",
+    "LOCK_2_identity": "INTACT",
+    "LOCK_3_observability": "INTACT",
+    "LOCK_4_rollback": "INTACT",
+    "LOCK_5_idempotency": "INTACT"
+  },
+  "no_policy_change": true,
+  "no_roster_change": true,
+  "no_promotion_change": true,
+  "old_helpers_kept": true,
+  "sdk_source_unchanged": true,
+  "script_checks": {
+    "total": 35,
+    "passed": 35,
+    "failed": 0
+  },
+  "failures": [],
+  "verdict": "PASS",
+  "verdict_rationale": "Five Locks behavioral equivalence confirmed post-Batch-95 SDK migration. No regression. Batch 97 may now remove deprecated helpers.",
+  "next": "Batch 97 — remove deprecated local helpers (aegis-approval-token.ts, aegis-sense.ts); update SDK adoption dashboard"
+}
