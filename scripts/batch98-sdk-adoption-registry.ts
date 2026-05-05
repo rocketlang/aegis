@@ -303,7 +303,7 @@ check('B98-023', 'batch98_sdk_adoption_registry.json written',
 
 section('§7 Emit human-readable adoption registry document');
 
-const PROPOSALS = resolve(AEGIS_ROOT, '../../proposals');
+const PROPOSALS = resolve(AEGIS_ROOT, '../proposals'); // /root/aegis/../proposals = /root/proposals
 const mdPath    = resolve(PROPOSALS, 'aegis--sdk-adoption-registry--formal--2026-05-05.md');
 mkdirSync(PROPOSALS, { recursive: true });
 
