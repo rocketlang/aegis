@@ -1,0 +1,241 @@
+{
+  "audit_id": "batch87-fleet-codex-v2-enrichment",
+  "batch": 87,
+  "type": "v2_enrichment_confirmation_queue",
+  "date": "2026-05-05",
+  "checks_total": 24,
+  "checks_passed": 24,
+  "checks_failed": 0,
+  "verdict": "PASS",
+  "vocabulary": "fleet-classifier-v2 (batch86)",
+  "summary": {
+    "total_files": 61,
+    "human_overrides_preserved": 3,
+    "machine_upgrades_applied": 18,
+    "source_updates_only": 40,
+    "downgrades": 0,
+    "total_requires_review": 43,
+    "batch86_dry_run_side_effects": 19,
+    "already_elevated_via_batch76": 1,
+    "already_elevated_service": "powerpbox",
+    "already_elevated_note": "powerpbox was HG-2B-financial in codex before batch87 ran (batch76 elevation). v2 dry run showed HG-1→HG-2B-financial but current codex was already at correct tier."
+  },
+  "hg_distribution_post_v2": {
+    "HG-1": 24,
+    "HG-2A": 10,
+    "HG-2B": 12,
+    "HG-2B-financial": 15
+  },
+  "human_overrides_preserved": [
+    {
+      "service": "pramana",
+      "file": "/root/apps/pramana/codex.json",
+      "hg_group": "HG-2A",
+      "preserved_from_batch": 85
+    },
+    {
+      "service": "pramana/backend",
+      "file": "/root/apps/pramana/backend/codex.json",
+      "hg_group": "HG-2A",
+      "preserved_from_batch": 85
+    },
+    {
+      "service": "parali-central",
+      "file": "/root/apps/parali-central/backend/codex.json",
+      "hg_group": "HG-2B",
+      "preserved_from_batch": 85
+    }
+  ],
+  "confirmation_queue": [
+    {
+      "service": "kavachos",
+      "file": "/root/apps/kavachos/codex.json",
+      "v2_hg_group": "HG-2A",
+      "machine_hg_before_v2": "HG-1",
+      "requires_human_review": true,
+      "classification_source": "batch87_v2_machine_enrichment",
+      "review_reason": "v2_vocabulary_upgrade",
+      "review_note": "v2 classifier upgraded from HG-1 → HG-2A. Confirm or override before next promotion gate."
+    },
+    {
+      "service": "bitmaskos",
+      "file": "/root/apps/bitmaskos/codex.json",
+      "v2_hg_group": "HG-2B",
+      "machine_hg_before_v2": "HG-1",
+      "requires_human_review": true,
+      "classification_source": "batch87_v2_machine_enrichment",
+      "review_reason": "v2_vocabulary_upgrade",
+      "review_note": "v2 classifier upgraded from HG-1 → HG-2B. Confirm or override before next promotion gate."
+    },
+    {
+      "service": "chetna",
+      "file": "/root/apps/chetna/codex.json",
+      "v2_hg_group": "HG-2A",
+      "machine_hg_before_v2": "HG-1",
+      "requires_human_review": true,
+      "classification_source": "batch87_v2_machine_enrichment",
+      "review_reason": "v2_vocabulary_upgrade",
+      "review_note": "v2 classifier upgraded from HG-1 → HG-2A. Confirm or override before next promotion gate."
+    },
+    {
+      "service": "puranic-os",
+      "file": "/root/apps/puranic-os/codex.json",
+      "v2_hg_group": "HG-2A",
+      "machine_hg_before_v2": "HG-1",
+      "requires_human_review": true,
+      "classification_source": "batch87_v2_machine_enrichment",
+      "review_reason": "v2_vocabulary_upgrade",
+      "review_note": "v2 classifier upgraded from HG-1 → HG-2A. Confirm or override before next promotion gate."
+    },
+    {
+      "service": "drone8x-os",
+      "file": "/root/apps/drone8x-os/codex.json",
+      "v2_hg_group": "HG-2B",
+      "machine_hg_before_v2": "HG-2A",
+      "requires_human_review": true,
+      "classification_source": "batch87_v2_machine_enrichment",
+      "review_reason": "v2_vocabulary_upgrade",
+      "review_note": "v2 classifier upgraded from HG-2A → HG-2B. Confirm or override before next promotion gate."
+    },
+    {
+      "service": "ship-slm",
+      "file": "/root/apps/ship-slm/codex.json",
+      "v2_hg_group": "HG-2B",
+      "machine_hg_before_v2": "HG-1",
+      "requires_human_review": true,
+      "classification_source": "batch87_v2_machine_enrichment",
+      "review_reason": "v2_vocabulary_upgrade",
+      "review_note": "v2 classifier upgraded from HG-1 → HG-2B. Confirm or override before next promotion gate."
+    },
+    {
+      "service": "ankr-proof",
+      "file": "/root/apps/ankr-proof/codex.json",
+      "v2_hg_group": "HG-2A",
+      "machine_hg_before_v2": "HG-1",
+      "requires_human_review": true,
+      "classification_source": "batch87_v2_machine_enrichment",
+      "review_reason": "v2_vocabulary_upgrade",
+      "review_note": "v2 classifier upgraded from HG-1 → HG-2A. Confirm or override before next promotion gate."
+    },
+    {
+      "service": "anvilos-slm",
+      "file": "/root/apps/anvilos-slm/codex.json",
+      "v2_hg_group": "HG-2A",
+      "machine_hg_before_v2": "HG-1",
+      "requires_human_review": true,
+      "classification_source": "batch87_v2_machine_enrichment",
+      "review_reason": "v2_vocabulary_upgrade",
+      "review_note": "v2 classifier upgraded from HG-1 → HG-2A. Confirm or override before next promotion gate."
+    },
+    {
+      "service": "ankr-gurukul",
+      "file": "/root/apps/ankr-gurukul/codex.json",
+      "v2_hg_group": "HG-2B",
+      "machine_hg_before_v2": "HG-1",
+      "requires_human_review": true,
+      "classification_source": "batch87_v2_machine_enrichment",
+      "review_reason": "v2_vocabulary_upgrade",
+      "review_note": "v2 classifier upgraded from HG-1 → HG-2B. Confirm or override before next promotion gate."
+    },
+    {
+      "service": "dharma-panel",
+      "file": "/root/apps/dharma-panel/codex.json",
+      "v2_hg_group": "HG-2B",
+      "machine_hg_before_v2": "HG-2A",
+      "requires_human_review": true,
+      "classification_source": "batch87_v2_machine_enrichment",
+      "review_reason": "v2_vocabulary_upgrade",
+      "review_note": "v2 classifier upgraded from HG-2A → HG-2B. Confirm or override before next promotion gate."
+    },
+    {
+      "service": "sakshi",
+      "file": "/root/apps/sakshi/backend/codex.json",
+      "v2_hg_group": "HG-2A",
+      "machine_hg_before_v2": "HG-1",
+      "requires_human_review": true,
+      "classification_source": "batch87_v2_machine_enrichment",
+      "review_reason": "v2_vocabulary_upgrade",
+      "review_note": "v2 classifier upgraded from HG-1 → HG-2A. Confirm or override before next promotion gate."
+    },
+    {
+      "service": "ankr-atlas/frontend",
+      "file": "/root/apps/ankr-atlas/frontend/codex.json",
+      "v2_hg_group": "HG-2B",
+      "machine_hg_before_v2": "HG-1",
+      "requires_human_review": true,
+      "classification_source": "batch87_v2_machine_enrichment",
+      "review_reason": "v2_vocabulary_upgrade",
+      "review_note": "v2 classifier upgraded from HG-1 → HG-2B. Confirm or override before next promotion gate."
+    },
+    {
+      "service": "atlas",
+      "file": "/root/apps/ankr-atlas/backend/codex.json",
+      "v2_hg_group": "HG-2B",
+      "machine_hg_before_v2": "HG-1",
+      "requires_human_review": true,
+      "classification_source": "batch87_v2_machine_enrichment",
+      "review_reason": "v2_vocabulary_upgrade",
+      "review_note": "v2 classifier upgraded from HG-1 → HG-2B. Confirm or override before next promotion gate."
+    },
+    {
+      "service": "mpv8x",
+      "file": "/root/apps/mpv8x/backend/codex.json",
+      "v2_hg_group": "HG-2B",
+      "machine_hg_before_v2": "HG-1",
+      "requires_human_review": true,
+      "classification_source": "batch87_v2_machine_enrichment",
+      "review_reason": "v2_vocabulary_upgrade",
+      "review_note": "v2 classifier upgraded from HG-1 → HG-2B. Confirm or override before next promotion gate."
+    },
+    {
+      "service": "trademitra-api",
+      "file": "/root/apps/trademitra/backend/codex.json",
+      "v2_hg_group": "HG-2A",
+      "machine_hg_before_v2": "HG-1",
+      "requires_human_review": true,
+      "classification_source": "batch87_v2_machine_enrichment",
+      "review_reason": "v2_vocabulary_upgrade",
+      "review_note": "v2 classifier upgraded from HG-1 → HG-2A. Confirm or override before next promotion gate."
+    },
+    {
+      "service": "owneros-frontend",
+      "file": "/root/apps/owneros/frontend/codex.json",
+      "v2_hg_group": "HG-2B",
+      "machine_hg_before_v2": "HG-1",
+      "requires_human_review": true,
+      "classification_source": "batch87_v2_machine_enrichment",
+      "review_reason": "v2_vocabulary_upgrade",
+      "review_note": "v2 classifier upgraded from HG-1 → HG-2B. Confirm or override before next promotion gate."
+    },
+    {
+      "service": "owneros",
+      "file": "/root/apps/owneros/backend/codex.json",
+      "v2_hg_group": "HG-2B",
+      "machine_hg_before_v2": "HG-1",
+      "requires_human_review": true,
+      "classification_source": "batch87_v2_machine_enrichment",
+      "review_reason": "v2_vocabulary_upgrade",
+      "review_note": "v2 classifier upgraded from HG-1 → HG-2B. Confirm or override before next promotion gate."
+    },
+    {
+      "service": "portwatch",
+      "file": "/root/apps/portwatch/backend/codex.json",
+      "v2_hg_group": "HG-2B",
+      "machine_hg_before_v2": "HG-1",
+      "requires_human_review": true,
+      "classification_source": "batch87_v2_machine_enrichment",
+      "review_reason": "v2_vocabulary_upgrade",
+      "review_note": "v2 classifier upgraded from HG-1 → HG-2B. Confirm or override before next promotion gate."
+    }
+  ],
+  "invariants": [
+    "No service promoted — classification does not constitute promotion",
+    "No service downgraded — current hg_group preserved if v2 result is lower tier",
+    "Batch 85 human overrides intact on pramana, pramana/backend, parali-central",
+    "All v2-triggered upgrades marked requires_human_review=true",
+    "machine_hg_group_before_v2 recorded for full traceability to batch83 state",
+    "carbonx-backend remains HG-2B-financial",
+    "classification_source updated to batch87_v2_machine_enrichment on all machine blocks"
+  ],
+  "doctrine": "The classifier learned more words. The human still decides consequence."
+}
