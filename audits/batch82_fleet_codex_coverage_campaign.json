@@ -1,0 +1,700 @@
+{
+  "audit_id": "batch82-fleet-codex-coverage-campaign",
+  "batch": 82,
+  "type": "coverage_campaign",
+  "date": "2026-05-05",
+  "checks_total": 24,
+  "checks_passed": 24,
+  "checks_failed": 0,
+  "verdict": "PASS",
+  "diagnosis": "Classification gap = governance blind spot. 229 services AEGIS cannot classify, gate, or govern.",
+  "fleet_state": {
+    "total_services": 280,
+    "services_with_codex": 61,
+    "classification_gap": 229,
+    "fleet_coverage_pct": 18,
+    "live_hard_gate": 8
+  },
+  "field_taxonomy": {
+    "tier1_foundation": {
+      "fields": [
+        "can_do",
+        "can_answer",
+        "trust_mask"
+      ],
+      "coverage": "100%",
+      "owner": "service",
+      "note": "Already present. Sufficient for fleet classifier to run."
+    },
+    "tier2_enrichment": {
+      "fields": [
+        "authority_class",
+        "financial_touch",
+        "external_state_touch",
+        "irreversible_actions",
+        "data_touch",
+        "source_control_repo",
+        "aegis_classification"
+      ],
+      "coverage": "0% (not yet written to any codex.json)",
+      "owner": "aegis (written by enrichment pass into aegis_classification block)",
+      "derivable": true,
+      "source": "batch76 fleet classifier output + can_do verb analysis + git repo detection",
+      "note": "Machine-fillable. No human judgment needed. One enrichment pass fills all 61 services."
+    },
+    "tier3_human": {
+      "fields": [
+        "blast_radius",
+        "runtime_readiness",
+        "owner"
+      ],
+      "coverage": "0% (not yet collected)",
+      "owner": "service-owner human decision",
+      "derivable": false,
+      "note": "Requires one human decision per service: blast_radius (impact scope), runtime_readiness (actually running?), owner (accountable approver)."
+    }
+  },
+  "naming_correction": {
+    "wrong": "service_id",
+    "correct": "`service` field — present in 100% of codex.json files. No gap.",
+    "note": "AEGIS schema references should use `service`, not `service_id`."
+  },
+  "promotion_minimum": {
+    "fields": [
+      "can_do",
+      "source_control_repo"
+    ],
+    "why_can_do": "Fleet classifier derives HG-group, financial_touch, and all other classification fields from can_do verbs.",
+    "why_source_control_repo": "assertSourceControlProvenance §0 gate needs the git repo path to check for committed source.",
+    "note": "These 2 fields are the gate blockers. All other AEGIS fields add governance depth but do not block the gate."
+  },
+  "waves": [
+    {
+      "wave": 1,
+      "name": "Tier 2 enrichment write-back",
+      "status": "READY TO RUN",
+      "target": "61 services",
+      "mechanism": "Run fleet classifier on all 61 codex.json. Write aegis_classification block (hg_group, financial_touch, external_state_touch, irreversible_actions, source_control_repo) back into each codex.json. No human input needed.",
+      "estimated_effort": "One script run (~10 minutes)",
+      "gate": "aegis_classification block present in all 61 services",
+      "candidates": [
+        {
+          "service": "discovery",
+          "file": "/root/apps/discovery/codex.json",
+          "tier1_score": 3,
+          "has_can_do": true,
+          "classified": false,
+          "hg_group": "unclassified",
+          "enrichment_ready": true
+        },
+        {
+          "service": "kavachos",
+          "file": "/root/apps/kavachos/codex.json",
+          "tier1_score": 3,
+          "has_can_do": true,
+          "classified": false,
+          "hg_group": "unclassified",
+          "enrichment_ready": true
+        },
+        {
+          "service": "bitmaskos",
+          "file": "/root/apps/bitmaskos/codex.json",
+          "tier1_score": 3,
+          "has_can_do": true,
+          "classified": false,
+          "hg_group": "unclassified",
+          "enrichment_ready": true
+        },
+        {
+          "service": "chetna",
+          "file": "/root/apps/chetna/codex.json",
+          "tier1_score": 3,
+          "has_can_do": true,
+          "classified": false,
+          "hg_group": "unclassified",
+          "enrichment_ready": true
+        },
+        {
+          "service": "puranic-os",
+          "file": "/root/apps/puranic-os/codex.json",
+          "tier1_score": 3,
+          "has_can_do": true,
+          "classified": false,
+          "hg_group": "unclassified",
+          "enrichment_ready": true
+        },
+        {
+          "service": "chirpee",
+          "file": "/root/apps/chirpee/codex.json",
+          "tier1_score": 3,
+          "has_can_do": true,
+          "classified": false,
+          "hg_group": "unclassified",
+          "enrichment_ready": true
+        },
+        {
+          "service": "powerpbox",
+          "file": "/root/apps/powerpbox/codex.json",
+          "tier1_score": 3,
+          "has_can_do": true,
+          "classified": false,
+          "hg_group": "unclassified",
+          "enrichment_ready": true
+        },
+        {
+          "service": "medslm",
+          "file": "/root/apps/medslm/codex.json",
+          "tier1_score": 3,
+          "has_can_do": true,
+          "classified": false,
+          "hg_group": "unclassified",
+          "enrichment_ready": true
+        },
+        {
+          "service": "ankr-slm-router",
+          "file": "/root/apps/ankr-slm-router/codex.json",
+          "tier1_score": 3,
+          "has_can_do": true,
+          "classified": false,
+          "hg_group": "unclassified",
+          "enrichment_ready": true
+        },
+        {
+          "service": "chief-slm",
+          "file": "/root/apps/chief-slm/codex.json",
+          "tier1_score": 3,
+          "has_can_do": true,
+          "classified": false,
+          "hg_group": "unclassified",
+          "enrichment_ready": true
+        },
+        {
+          "service": "ship-slm",
+          "file": "/root/apps/ship-slm/codex.json",
+          "tier1_score": 3,
+          "has_can_do": true,
+          "classified": false,
+          "hg_group": "unclassified",
+          "enrichment_ready": true
+        },
+        {
+          "service": "drone8x-os",
+          "file": "/root/apps/drone8x-os/codex.json",
+          "tier1_score": 3,
+          "has_can_do": true,
+          "classified": false,
+          "hg_group": "unclassified",
+          "enrichment_ready": true
+        },
+        {
+          "service": "darshan",
+          "file": "/root/apps/darshan/codex.json",
+          "tier1_score": 3,
+          "has_can_do": true,
+          "classified": false,
+          "hg_group": "unclassified",
+          "enrichment_ready": true
+        },
+        {
+          "service": "ankr-proof",
+          "file": "/root/apps/ankr-proof/codex.json",
+          "tier1_score": 3,
+          "has_can_do": true,
+          "classified": false,
+          "hg_group": "unclassified",
+          "enrichment_ready": true
+        },
+        {
+          "service": "anvilos-slm",
+          "file": "/root/apps/anvilos-slm/codex.json",
+          "tier1_score": 3,
+          "has_can_do": true,
+          "classified": false,
+          "hg_group": "unclassified",
+          "enrichment_ready": true
+        },
+        {
+          "service": "ankr-gurukul",
+          "file": "/root/apps/ankr-gurukul/codex.json",
+          "tier1_score": 3,
+          "has_can_do": true,
+          "classified": false,
+          "hg_group": "unclassified",
+          "enrichment_ready": true
+        },
+        {
+          "service": "sakshi",
+          "file": "/root/apps/sakshi/codex.json",
+          "tier1_score": 3,
+          "has_can_do": true,
+          "classified": false,
+          "hg_group": "unclassified",
+          "enrichment_ready": true
+        },
+        {
+          "service": "pramana",
+          "file": "/root/apps/pramana/codex.json",
+          "tier1_score": 3,
+          "has_can_do": true,
+          "classified": false,
+          "hg_group": "unclassified",
+          "enrichment_ready": true
+        },
+        {
+          "service": "sarvekshan",
+          "file": "/root/apps/sarvekshan/codex.json",
+          "tier1_score": 3,
+          "has_can_do": true,
+          "classified": false,
+          "hg_group": "unclassified",
+          "enrichment_ready": true
+        },
+        {
+          "service": "annapurna",
+          "file": "/root/apps/annapurna/codex.json",
+          "tier1_score": 3,
+          "has_can_do": true,
+          "classified": false,
+          "hg_group": "unclassified",
+          "enrichment_ready": true
+        },
+        {
+          "service": "dharma-panel",
+          "file": "/root/apps/dharma-panel/codex.json",
+          "tier1_score": 3,
+          "has_can_do": true,
+          "classified": false,
+          "hg_group": "unclassified",
+          "enrichment_ready": true
+        },
+        {
+          "service": "mpv8x",
+          "file": "/root/apps/mpv8x/codex.json",
+          "tier1_score": 3,
+          "has_can_do": true,
+          "classified": false,
+          "hg_group": "unclassified",
+          "enrichment_ready": true
+        },
+        {
+          "service": "feeder8x",
+          "file": "/root/apps/feeder8x/codex.json",
+          "tier1_score": 3,
+          "has_can_do": true,
+          "classified": false,
+          "hg_group": "unclassified",
+          "enrichment_ready": true
+        },
+        {
+          "service": "liner8x",
+          "file": "/root/apps/liner8x/codex.json",
+          "tier1_score": 3,
+          "has_can_do": true,
+          "classified": false,
+          "hg_group": "unclassified",
+          "enrichment_ready": true
+        },
+        {
+          "service": "ankrgrid-maritime",
+          "file": "/root/apps/ankrgrid-maritime/codex.json",
+          "tier1_score": 3,
+          "has_can_do": true,
+          "classified": false,
+          "hg_group": "unclassified",
+          "enrichment_ready": true
+        },
+        {
+          "service": "maribfc-api",
+          "file": "/root/apps/maribfc-api/codex.json",
+          "tier1_score": 3,
+          "has_can_do": true,
+          "classified": false,
+          "hg_group": "unclassified",
+          "enrichment_ready": true
+        },
+        {
+          "service": "ankr-ebl",
+          "file": "/root/apps/ankr-ebl/codex.json",
+          "tier1_score": 3,
+          "has_can_do": true,
+          "classified": false,
+          "hg_group": "unclassified",
+          "enrichment_ready": true
+        },
+        {
+          "service": "owneros",
+          "file": "/root/apps/owneros/codex.json",
+          "tier1_score": 3,
+          "has_can_do": true,
+          "classified": false,
+          "hg_group": "unclassified",
+          "enrichment_ready": true
+        },
+        {
+          "service": "portwatch",
+          "file": "/root/apps/portwatch/codex.json",
+          "tier1_score": 3,
+          "has_can_do": true,
+          "classified": false,
+          "hg_group": "unclassified",
+          "enrichment_ready": true
+        },
+        {
+          "service": "ankr-maritime",
+          "file": "/root/apps/ankr-maritime/codex.json",
+          "tier1_score": 3,
+          "has_can_do": true,
+          "classified": false,
+          "hg_group": "unclassified",
+          "enrichment_ready": true
+        },
+        {
+          "service": "sakshi",
+          "file": "/root/apps/sakshi/backend/codex.json",
+          "tier1_score": 3,
+          "has_can_do": true,
+          "classified": false,
+          "hg_group": "unclassified",
+          "enrichment_ready": true
+        },
+        {
+          "service": "sarvekshan",
+          "file": "/root/apps/sarvekshan/backend/codex.json",
+          "tier1_score": 3,
+          "has_can_do": true,
+          "classified": false,
+          "hg_group": "unclassified",
+          "enrichment_ready": true
+        },
+        {
+          "service": "ankr-atlas/frontend",
+          "file": "/root/apps/ankr-atlas/frontend/codex.json",
+          "tier1_score": 3,
+          "has_can_do": true,
+          "classified": false,
+          "hg_group": "unclassified",
+          "enrichment_ready": true
+        },
+        {
+          "service": "atlas",
+          "file": "/root/apps/ankr-atlas/backend/codex.json",
+          "tier1_score": 3,
+          "has_can_do": true,
+          "classified": false,
+          "hg_group": "unclassified",
+          "enrichment_ready": true
+        },
+        {
+          "service": "pramana/backend",
+          "file": "/root/apps/pramana/backend/codex.json",
+          "tier1_score": 3,
+          "has_can_do": true,
+          "classified": false,
+          "hg_group": "unclassified",
+          "enrichment_ready": true
+        },
+        {
+          "service": "annapurna",
+          "file": "/root/apps/annapurna/backend/codex.json",
+          "tier1_score": 3,
+          "has_can_do": true,
+          "classified": false,
+          "hg_group": "unclassified",
+          "enrichment_ready": true
+        },
+        {
+          "service": "parali-central",
+          "file": "/root/apps/parali-central/backend/codex.json",
+          "tier1_score": 3,
+          "has_can_do": true,
+          "classified": false,
+          "hg_group": "unclassified",
+          "enrichment_ready": true
+        },
+        {
+          "service": "paros-hub",
+          "file": "/root/apps/parali-os/backend/codex.json",
+          "tier1_score": 3,
+          "has_can_do": true,
+          "classified": false,
+          "hg_group": "unclassified",
+          "enrichment_ready": true
+        },
+        {
+          "service": "mpv8x",
+          "file": "/root/apps/mpv8x/backend/codex.json",
+          "tier1_score": 3,
+          "has_can_do": true,
+          "classified": false,
+          "hg_group": "unclassified",
+          "enrichment_ready": true
+        },
+        {
+          "service": "feeder8x",
+          "file": "/root/apps/feeder8x/backend/codex.json",
+          "tier1_score": 3,
+          "has_can_do": true,
+          "classified": false,
+          "hg_group": "unclassified",
+          "enrichment_ready": true
+        },
+        {
+          "service": "liner8x/frontend",
+          "file": "/root/apps/liner8x/frontend/codex.json",
+          "tier1_score": 3,
+          "has_can_do": true,
+          "classified": false,
+          "hg_group": "unclassified",
+          "enrichment_ready": true
+        },
+        {
+          "service": "liner8x-solver",
+          "file": "/root/apps/liner8x/solver/codex.json",
+          "tier1_score": 3,
+          "has_can_do": true,
+          "classified": false,
+          "hg_group": "unclassified",
+          "enrichment_ready": true
+        },
+        {
+          "service": "liner8x",
+          "file": "/root/apps/liner8x/backend/codex.json",
+          "tier1_score": 3,
+          "has_can_do": true,
+          "classified": false,
+          "hg_group": "unclassified",
+          "enrichment_ready": true
+        },
+        {
+          "service": "ankrgrid-maritime-frontend",
+          "file": "/root/apps/ankrgrid-maritime/frontend/codex.json",
+          "tier1_score": 3,
+          "has_can_do": true,
+          "classified": false,
+          "hg_group": "unclassified",
+          "enrichment_ready": true
+        },
+        {
+          "service": "ankrgrid-maritime",
+          "file": "/root/apps/ankrgrid-maritime/backend/codex.json",
+          "tier1_score": 3,
+          "has_can_do": true,
+          "classified": false,
+          "hg_group": "unclassified",
+          "enrichment_ready": true
+        },
+        {
+          "service": "trademitra-frontend",
+          "file": "/root/apps/trademitra/frontend/codex.json",
+          "tier1_score": 3,
+          "has_can_do": true,
+          "classified": false,
+          "hg_group": "unclassified",
+          "enrichment_ready": true
+        },
+        {
+          "service": "trademitra-api",
+          "file": "/root/apps/trademitra/backend/codex.json",
+          "tier1_score": 3,
+          "has_can_do": true,
+          "classified": false,
+          "hg_group": "unclassified",
+          "enrichment_ready": true
+        },
+        {
+          "service": "maribfc-frontend",
+          "file": "/root/apps/maribfc-api/frontend/codex.json",
+          "tier1_score": 3,
+          "has_can_do": true,
+          "classified": false,
+          "hg_group": "unclassified",
+          "enrichment_ready": true
+        },
+        {
+          "service": "maribfc",
+          "file": "/root/apps/maribfc-api/backend/codex.json",
+          "tier1_score": 3,
+          "has_can_do": true,
+          "classified": false,
+          "hg_group": "unclassified",
+          "enrichment_ready": true
+        },
+        {
+          "service": "ankr-ebl-frontend",
+          "file": "/root/apps/ankr-ebl/frontend/codex.json",
+          "tier1_score": 3,
+          "has_can_do": true,
+          "classified": false,
+          "hg_group": "unclassified",
+          "enrichment_ready": true
+        },
+        {
+          "service": "ankr-ebl",
+          "file": "/root/apps/ankr-ebl/backend/codex.json",
+          "tier1_score": 3,
+          "has_can_do": true,
+          "classified": false,
+          "hg_group": "unclassified",
+          "enrichment_ready": true
+        },
+        {
+          "service": "owneros-frontend",
+          "file": "/root/apps/owneros/frontend/codex.json",
+          "tier1_score": 3,
+          "has_can_do": true,
+          "classified": false,
+          "hg_group": "unclassified",
+          "enrichment_ready": true
+        },
+        {
+          "service": "owneros",
+          "file": "/root/apps/owneros/backend/codex.json",
+          "tier1_score": 3,
+          "has_can_do": true,
+          "classified": false,
+          "hg_group": "unclassified",
+          "enrichment_ready": true
+        },
+        {
+          "service": "portwatch-frontend",
+          "file": "/root/apps/portwatch/frontend/codex.json",
+          "tier1_score": 3,
+          "has_can_do": true,
+          "classified": false,
+          "hg_group": "unclassified",
+          "enrichment_ready": true
+        },
+        {
+          "service": "portwatch",
+          "file": "/root/apps/portwatch/backend/codex.json",
+          "tier1_score": 3,
+          "has_can_do": true,
+          "classified": false,
+          "hg_group": "unclassified",
+          "enrichment_ready": true
+        },
+        {
+          "service": "carbonx/frontend",
+          "file": "/root/apps/carbonx/frontend/codex.json",
+          "tier1_score": 3,
+          "has_can_do": true,
+          "classified": false,
+          "hg_group": "unclassified",
+          "enrichment_ready": true
+        },
+        {
+          "service": "carbonx-backend",
+          "file": "/root/apps/carbonx/backend/codex.json",
+          "tier1_score": 3,
+          "has_can_do": true,
+          "classified": false,
+          "hg_group": "unclassified",
+          "enrichment_ready": true
+        },
+        {
+          "service": "corals-astrology/frontend",
+          "file": "/root/apps/corals-astrology/frontend/codex.json",
+          "tier1_score": 3,
+          "has_can_do": true,
+          "classified": false,
+          "hg_group": "unclassified",
+          "enrichment_ready": true
+        },
+        {
+          "service": "corals-astrology",
+          "file": "/root/apps/corals-astrology/backend/codex.json",
+          "tier1_score": 3,
+          "has_can_do": true,
+          "classified": false,
+          "hg_group": "unclassified",
+          "enrichment_ready": true
+        },
+        {
+          "service": "mari8x-backend",
+          "file": "/root/apps/ankr-maritime/backend/codex.json",
+          "tier1_score": 3,
+          "has_can_do": true,
+          "classified": false,
+          "hg_group": "unclassified",
+          "enrichment_ready": true
+        },
+        {
+          "service": "ankr-maritime-frontend",
+          "file": "/root/apps/ankr-maritime/frontend/codex.json",
+          "tier1_score": 3,
+          "has_can_do": true,
+          "classified": false,
+          "hg_group": "unclassified",
+          "enrichment_ready": true
+        }
+      ]
+    },
+    {
+      "wave": 2,
+      "name": "Tier 3 human-required fields",
+      "status": "NEEDS HUMAN INPUT",
+      "target": "61 services × 3 fields = 183 decisions",
+      "mechanism": "For each service: (1) blast_radius: low|medium|high|critical. (2) runtime_readiness: running|stopped|unknown. (3) owner: service owner name or role.",
+      "estimated_effort": "~2 minutes per service × 61 services = ~2 hours",
+      "gate": "All three Tier 3 fields populated in aegis_classification block",
+      "shortcuts": [
+        "blast_radius can be templated per HG-group: HG-1=low, HG-2A=medium, HG-2B=high, HG-2B-financial=critical",
+        "runtime_readiness can be queried via ankr-ctl status",
+        "owner can default to `founder` for all services until delegation is established"
+      ]
+    },
+    {
+      "wave": 3,
+      "name": "Coverage expansion — new codex.json for 229 services",
+      "status": "NEEDS CODEX.JSON CREATION",
+      "target": "229 services",
+      "mechanism": "Priority order: (1) HG-2B-financial candidates (highest risk). (2) HG-2B candidates. (3) HG-2A candidates. (4) HG-1 (lowest risk, bulk fill).",
+      "estimated_effort": "~15 min per service (minimum viable codex: 5 fields). Priority batch of top 15 = ~4 hours.",
+      "gate": "classification_gap < 229",
+      "priority": {
+        "hg2b_financial_missing_codex": [],
+        "hg2b_missing_codex": [],
+        "count_priority": 0,
+        "rationale": "Highest-risk services first: financial settlement and irreversible external state"
+      },
+      "minimum_viable_codex": {
+        "fields": [
+          "service",
+          "can_do",
+          "can_answer",
+          "trust_mask",
+          "source_control_repo"
+        ],
+        "note": "These 5 fields are enough for AEGIS to classify AND promote the service. All other fields add governance depth."
+      }
+    }
+  ],
+  "coverage_targets": {
+    "baseline": {
+      "pct": 18,
+      "services": 51,
+      "description": "Batch 76 classification scan"
+    },
+    "after_wave1": {
+      "pct": 22,
+      "services": 61,
+      "description": "Tier 2 enrichment written back"
+    },
+    "after_wave2": {
+      "pct": 22,
+      "services": 61,
+      "description": "Human fields added; all 61 fully AEGIS-ready"
+    },
+    "after_wave3a": {
+      "pct": 27,
+      "services": 76,
+      "description": "Priority 15 services added (est.)"
+    },
+    "end_state": {
+      "pct": 50,
+      "services": 140,
+      "description": "50% fleet coverage — enough for fleet governance at scale"
+    }
+  },
+  "doctrine": "AEGIS cannot guard what it cannot classify. Classification requires only can_do. Everything else is governance depth. The enrichment pass fills Tier 2 in one run. Tier 3 needs a human for each service. The enricher never touches service-owned fields. It writes only to aegis_classification. Before AEGIS can guard the fleet, the fleet must declare what it is."
+}
