@@ -1,0 +1,1745 @@
+{
+  "audit_id": "batch91-fleet-quality-drift-scan",
+  "batch": 91,
+  "type": "fleet_quality_drift_scan",
+  "date": "2026-05-05",
+  "doctrine": "Quality is not what passed yesterday. Quality is what still survives today.",
+  "no_promotion_state_changed": true,
+  "quality_mask_at_promotion_immutable": true,
+  "schema": "aegis-quality-16bit-v1",
+  "fleet_size": 61,
+  "total_codex_files": 307,
+  "services_scanned": 61,
+  "live_hard_gate_roster": [
+    "chirpee",
+    "ship-slm",
+    "chief-slm",
+    "puranic-os",
+    "pramana",
+    "domain-capture",
+    "parali-central",
+    "carbonx-backend"
+  ],
+  "live_hard_gate_count": 8,
+  "quality_mask_at_promotion_coverage": {
+    "count": 1,
+    "of_fleet": 61,
+    "pct": "1.6%"
+  },
+  "quality_drift_score_coverage": {
+    "count": 1,
+    "of_fleet": 61,
+    "pct": "1.6%"
+  },
+  "hg_distribution": {
+    "HG-1": 27,
+    "HG-2A": 10,
+    "HG-2B": 9,
+    "HG-2B-financial": 15
+  },
+  "quality_confidence_distribution": {
+    "high": 0,
+    "medium": 0,
+    "low": 1,
+    "unknown": 60
+  },
+  "drift_categories": [
+    {
+      "id": "source_drift",
+      "name": "Source Control Drift",
+      "description": "Working tree has uncommitted changes, untracked files, or missing required commits since last quality capture",
+      "quality_bit_map": [
+        "Q-004",
+        "Q-010"
+      ],
+      "severity_rule": "CRITICAL if financial service; HIGH if HG-2B; MEDIUM if HG-2A; LOW if HG-1",
+      "remediation_hint": "Run AEG-PROV-001 assertSourceControlProvenance; commit or stash uncommitted changes before next promotion"
+    },
+    {
+      "id": "test_drift",
+      "name": "Test Evidence Drift",
+      "description": "Tests that previously passed now fail, or no test evidence exists for the service",
+      "quality_bit_map": [
+        "Q-002",
+        "Q-015"
+      ],
+      "severity_rule": "CRITICAL if financial service with failing tests; HIGH otherwise; LOW if no tests ever ran (pre-doctrine)",
+      "remediation_hint": "Run test suite; capture exit code in next promotion artifact"
+    },
+    {
+      "id": "schema_drift",
+      "name": "Schema Drift",
+      "description": "Prisma/schema file modified since last quality capture without corresponding migration artifact",
+      "quality_bit_map": [
+        "Q-005"
+      ],
+      "severity_rule": "CRITICAL if financial service; HIGH otherwise — schema drift = data integrity risk",
+      "remediation_hint": "Run prisma migrate diff; document outcome; create migration if needed before next promotion"
+    },
+    {
+      "id": "codex_drift",
+      "name": "Codex Classification Drift",
+      "description": "HG classification changed since last quality capture, or quality fields are absent/inconsistent",
+      "quality_bit_map": [
+        "Q-008"
+      ],
+      "severity_rule": "HIGH if classification changed without human override; MEDIUM if field naming mismatch only",
+      "remediation_hint": "Reconcile codex.json fields; run claw-audit; update classification_batch to current batch"
+    },
+    {
+      "id": "docs_drift",
+      "name": "Documentation Drift",
+      "description": "Live service state differs from codex, wiki, or proposal docs; doc hash changed without update",
+      "quality_bit_map": [
+        "Q-007"
+      ],
+      "severity_rule": "MEDIUM for most services; HIGH if the doc discrepancy affects compliance evidence",
+      "remediation_hint": "Update deep-knowledge doc; record doc hash delta in next batch artifact"
+    },
+    {
+      "id": "audit_drift",
+      "name": "Audit Chain Drift",
+      "description": "Codex references a batch number whose audit artifact does not exist, or existing artifact has verdict != PASS",
+      "quality_bit_map": [
+        "Q-009"
+      ],
+      "severity_rule": "HIGH — broken audit chain breaks the evidence moat",
+      "remediation_hint": "Locate or regenerate missing batch artifact; if unrecoverable, declare pre_AEG_Q_001_legacy"
+    },
+    {
+      "id": "provenance_drift",
+      "name": "Source Provenance Drift",
+      "description": "AEG-PROV-001 assertSourceControlProvenance has not been run or returned non-zero",
+      "quality_bit_map": [
+        "Q-010"
+      ],
+      "severity_rule": "HIGH — provenance is the root of the evidence chain; its absence voids the chain",
+      "remediation_hint": "Run assertSourceControlProvenance before next batch; add to pre-promotion gate"
+    },
+    {
+      "id": "security_drift",
+      "name": "Security Evidence Drift",
+      "description": "Financial/token files changed since last quality capture without secret scanner evidence",
+      "quality_bit_map": [
+        "Q-011"
+      ],
+      "severity_rule": "CRITICAL for financial services and services handling tokens/keys; HIGH otherwise",
+      "remediation_hint": "Run truffleHog/gitleaks on git diff; record exit code in batch artifact; add to pre-promotion gate"
+    },
+    {
+      "id": "runtime_drift",
+      "name": "Runtime Policy Drift",
+      "description": "Service hard_gate_enabled state in policy differs from live roster expectation, or AEGIS env var mismatch",
+      "quality_bit_map": [
+        "Q-013",
+        "Q-014",
+        "Q-016"
+      ],
+      "severity_rule": "CRITICAL if financial service is not hard-gated; HIGH if live service is unexpectedly soft",
+      "remediation_hint": "Check AEGIS_HARD_GATE_SERVICES env var; reconcile hard-gate-policy.ts with live roster"
+    }
+  ],
+  "severity_model": [
+    {
+      "level": "INFO",
+      "description": "Missing optional evidence — no compliance impact",
+      "examples": [
+        "docs not updated for minor patch",
+        "lint evidence absent for HG-1 non-financial"
+      ]
+    },
+    {
+      "level": "LOW",
+      "description": "Pre-doctrine legacy gap — acknowledged, not actionable immediately",
+      "examples": [
+        "quality_mask_at_promotion absent for HG-1 service promoted before Batch 89"
+      ]
+    },
+    {
+      "level": "MEDIUM",
+      "description": "Docs/codex drift — observable inconsistency, fix in next batch",
+      "examples": [
+        "doc hash drift",
+        "codex field name mismatch",
+        "missing override_reason"
+      ]
+    },
+    {
+      "level": "HIGH",
+      "description": "Source/provenance drift — evidence chain weakened",
+      "examples": [
+        "tsc not run",
+        "AEG-PROV-001 not run",
+        "human review gap"
+      ]
+    },
+    {
+      "level": "CRITICAL",
+      "description": "Financial/schema/secret/risk drift — evidence chain has material gap for a high-consequence service",
+      "examples": [
+        "schema changed without migration evidence (financial service)",
+        "secret scan missing for token-handling service",
+        "quality_mask_not_captured for HG-2B-financial"
+      ]
+    }
+  ],
+  "drift_findings": [
+    {
+      "service": "mari8x-backend",
+      "drift_type": "quality_unaudited",
+      "quality_bit": null,
+      "expected_evidence": "quality_mask_at_promotion ≥ 0x0FFF for HG-2B-financial",
+      "observed_evidence": "quality_mask_at_promotion = absent (pre_AEG_Q_001_legacy — doctrine introduced Batch 89)",
+      "severity": "CRITICAL",
+      "recommended_action": "Run quality evidence capture for mari8x-backend (HG-2B-financial); set quality_mask_at_promotion in next soak batch"
+    },
+    {
+      "service": "ankr-maritime-frontend",
+      "drift_type": "quality_unaudited",
+      "quality_bit": null,
+      "expected_evidence": "quality_mask_at_promotion ≥ 0x0302 for HG-1",
+      "observed_evidence": "quality_mask_at_promotion = absent (pre_AEG_Q_001_legacy — doctrine introduced Batch 89)",
+      "severity": "LOW",
+      "recommended_action": "Run quality evidence capture for ankr-maritime-frontend (HG-1); set quality_mask_at_promotion in next soak batch"
+    },
+    {
+      "service": "ankr-maritime",
+      "drift_type": "quality_unaudited",
+      "quality_bit": null,
+      "expected_evidence": "quality_mask_at_promotion ≥ 0x0FFF for HG-2B-financial",
+      "observed_evidence": "quality_mask_at_promotion = absent (pre_AEG_Q_001_legacy — doctrine introduced Batch 89)",
+      "severity": "CRITICAL",
+      "recommended_action": "Run quality evidence capture for ankr-maritime (HG-2B-financial); set quality_mask_at_promotion in next soak batch"
+    },
+    {
+      "service": "corals-astrology",
+      "drift_type": "quality_unaudited",
+      "quality_bit": null,
+      "expected_evidence": "quality_mask_at_promotion ≥ 0x0B83 for HG-2A",
+      "observed_evidence": "quality_mask_at_promotion = absent (pre_AEG_Q_001_legacy — doctrine introduced Batch 89)",
+      "severity": "MEDIUM",
+      "recommended_action": "Run quality evidence capture for corals-astrology (HG-2A); set quality_mask_at_promotion in next soak batch"
+    },
+    {
+      "service": "frontend",
+      "drift_type": "quality_unaudited",
+      "quality_bit": null,
+      "expected_evidence": "quality_mask_at_promotion ≥ 0x0302 for HG-1",
+      "observed_evidence": "quality_mask_at_promotion = absent (pre_AEG_Q_001_legacy — doctrine introduced Batch 89)",
+      "severity": "LOW",
+      "recommended_action": "Run quality evidence capture for frontend (HG-1); set quality_mask_at_promotion in next soak batch"
+    },
+    {
+      "service": "frontend",
+      "drift_type": "quality_unaudited",
+      "quality_bit": null,
+      "expected_evidence": "quality_mask_at_promotion ≥ 0x0302 for HG-1",
+      "observed_evidence": "quality_mask_at_promotion = absent (pre_AEG_Q_001_legacy — doctrine introduced Batch 89)",
+      "severity": "LOW",
+      "recommended_action": "Run quality evidence capture for frontend (HG-1); set quality_mask_at_promotion in next soak batch"
+    },
+    {
+      "service": "portwatch",
+      "drift_type": "quality_unaudited",
+      "quality_bit": null,
+      "expected_evidence": "quality_mask_at_promotion ≥ 0x0FAB for HG-2B",
+      "observed_evidence": "quality_mask_at_promotion = absent (pre_AEG_Q_001_legacy — doctrine introduced Batch 89)",
+      "severity": "HIGH",
+      "recommended_action": "Run quality evidence capture for portwatch (HG-2B); set quality_mask_at_promotion in next soak batch"
+    },
+    {
+      "service": "portwatch-frontend",
+      "drift_type": "quality_unaudited",
+      "quality_bit": null,
+      "expected_evidence": "quality_mask_at_promotion ≥ 0x0302 for HG-1",
+      "observed_evidence": "quality_mask_at_promotion = absent (pre_AEG_Q_001_legacy — doctrine introduced Batch 89)",
+      "severity": "LOW",
+      "recommended_action": "Run quality evidence capture for portwatch-frontend (HG-1); set quality_mask_at_promotion in next soak batch"
+    },
+    {
+      "service": "portwatch",
+      "drift_type": "quality_unaudited",
+      "quality_bit": null,
+      "expected_evidence": "quality_mask_at_promotion ≥ 0x0302 for HG-1",
+      "observed_evidence": "quality_mask_at_promotion = absent (pre_AEG_Q_001_legacy — doctrine introduced Batch 89)",
+      "severity": "LOW",
+      "recommended_action": "Run quality evidence capture for portwatch (HG-1); set quality_mask_at_promotion in next soak batch"
+    },
+    {
+      "service": "owneros",
+      "drift_type": "quality_unaudited",
+      "quality_bit": null,
+      "expected_evidence": "quality_mask_at_promotion ≥ 0x0FAB for HG-2B",
+      "observed_evidence": "quality_mask_at_promotion = absent (pre_AEG_Q_001_legacy — doctrine introduced Batch 89)",
+      "severity": "HIGH",
+      "recommended_action": "Run quality evidence capture for owneros (HG-2B); set quality_mask_at_promotion in next soak batch"
+    },
+    {
+      "service": "owneros-frontend",
+      "drift_type": "quality_unaudited",
+      "quality_bit": null,
+      "expected_evidence": "quality_mask_at_promotion ≥ 0x0FAB for HG-2B",
+      "observed_evidence": "quality_mask_at_promotion = absent (pre_AEG_Q_001_legacy — doctrine introduced Batch 89)",
+      "severity": "HIGH",
+      "recommended_action": "Run quality evidence capture for owneros-frontend (HG-2B); set quality_mask_at_promotion in next soak batch"
+    },
+    {
+      "service": "owneros",
+      "drift_type": "quality_unaudited",
+      "quality_bit": null,
+      "expected_evidence": "quality_mask_at_promotion ≥ 0x0302 for HG-1",
+      "observed_evidence": "quality_mask_at_promotion = absent (pre_AEG_Q_001_legacy — doctrine introduced Batch 89)",
+      "severity": "LOW",
+      "recommended_action": "Run quality evidence capture for owneros (HG-1); set quality_mask_at_promotion in next soak batch"
+    },
+    {
+      "service": "ankr-ebl",
+      "drift_type": "quality_unaudited",
+      "quality_bit": null,
+      "expected_evidence": "quality_mask_at_promotion ≥ 0x0FFF for HG-2B-financial",
+      "observed_evidence": "quality_mask_at_promotion = absent (pre_AEG_Q_001_legacy — doctrine introduced Batch 89)",
+      "severity": "CRITICAL",
+      "recommended_action": "Run quality evidence capture for ankr-ebl (HG-2B-financial); set quality_mask_at_promotion in next soak batch"
+    },
+    {
+      "service": "ankr-ebl-frontend",
+      "drift_type": "quality_unaudited",
+      "quality_bit": null,
+      "expected_evidence": "quality_mask_at_promotion ≥ 0x0FFF for HG-2B-financial",
+      "observed_evidence": "quality_mask_at_promotion = absent (pre_AEG_Q_001_legacy — doctrine introduced Batch 89)",
+      "severity": "CRITICAL",
+      "recommended_action": "Run quality evidence capture for ankr-ebl-frontend (HG-2B-financial); set quality_mask_at_promotion in next soak batch"
+    },
+    {
+      "service": "ankr-ebl",
+      "drift_type": "quality_unaudited",
+      "quality_bit": null,
+      "expected_evidence": "quality_mask_at_promotion ≥ 0x0FFF for HG-2B-financial",
+      "observed_evidence": "quality_mask_at_promotion = absent (pre_AEG_Q_001_legacy — doctrine introduced Batch 89)",
+      "severity": "CRITICAL",
+      "recommended_action": "Run quality evidence capture for ankr-ebl (HG-2B-financial); set quality_mask_at_promotion in next soak batch"
+    },
+    {
+      "service": "maribfc",
+      "drift_type": "quality_unaudited",
+      "quality_bit": null,
+      "expected_evidence": "quality_mask_at_promotion ≥ 0x0FFF for HG-2B-financial",
+      "observed_evidence": "quality_mask_at_promotion = absent (pre_AEG_Q_001_legacy — doctrine introduced Batch 89)",
+      "severity": "CRITICAL",
+      "recommended_action": "Run quality evidence capture for maribfc (HG-2B-financial); set quality_mask_at_promotion in next soak batch"
+    },
+    {
+      "service": "maribfc-frontend",
+      "drift_type": "quality_unaudited",
+      "quality_bit": null,
+      "expected_evidence": "quality_mask_at_promotion ≥ 0x0FFF for HG-2B-financial",
+      "observed_evidence": "quality_mask_at_promotion = absent (pre_AEG_Q_001_legacy — doctrine introduced Batch 89)",
+      "severity": "CRITICAL",
+      "recommended_action": "Run quality evidence capture for maribfc-frontend (HG-2B-financial); set quality_mask_at_promotion in next soak batch"
+    },
+    {
+      "service": "maribfc-api",
+      "drift_type": "quality_unaudited",
+      "quality_bit": null,
+      "expected_evidence": "quality_mask_at_promotion ≥ 0x0302 for HG-1",
+      "observed_evidence": "quality_mask_at_promotion = absent (pre_AEG_Q_001_legacy — doctrine introduced Batch 89)",
+      "severity": "LOW",
+      "recommended_action": "Run quality evidence capture for maribfc-api (HG-1); set quality_mask_at_promotion in next soak batch"
+    },
+    {
+      "service": "trademitra-api",
+      "drift_type": "quality_unaudited",
+      "quality_bit": null,
+      "expected_evidence": "quality_mask_at_promotion ≥ 0x0B83 for HG-2A",
+      "observed_evidence": "quality_mask_at_promotion = absent (pre_AEG_Q_001_legacy — doctrine introduced Batch 89)",
+      "severity": "MEDIUM",
+      "recommended_action": "Run quality evidence capture for trademitra-api (HG-2A); set quality_mask_at_promotion in next soak batch"
+    },
+    {
+      "service": "trademitra-frontend",
+      "drift_type": "quality_unaudited",
+      "quality_bit": null,
+      "expected_evidence": "quality_mask_at_promotion ≥ 0x0302 for HG-1",
+      "observed_evidence": "quality_mask_at_promotion = absent (pre_AEG_Q_001_legacy — doctrine introduced Batch 89)",
+      "severity": "LOW",
+      "recommended_action": "Run quality evidence capture for trademitra-frontend (HG-1); set quality_mask_at_promotion in next soak batch"
+    },
+    {
+      "service": "ankrgrid-maritime",
+      "drift_type": "quality_unaudited",
+      "quality_bit": null,
+      "expected_evidence": "quality_mask_at_promotion ≥ 0x0FFF for HG-2B-financial",
+      "observed_evidence": "quality_mask_at_promotion = absent (pre_AEG_Q_001_legacy — doctrine introduced Batch 89)",
+      "severity": "CRITICAL",
+      "recommended_action": "Run quality evidence capture for ankrgrid-maritime (HG-2B-financial); set quality_mask_at_promotion in next soak batch"
+    },
+    {
+      "service": "ankrgrid-maritime-frontend",
+      "drift_type": "quality_unaudited",
+      "quality_bit": null,
+      "expected_evidence": "quality_mask_at_promotion ≥ 0x0302 for HG-1",
+      "observed_evidence": "quality_mask_at_promotion = absent (pre_AEG_Q_001_legacy — doctrine introduced Batch 89)",
+      "severity": "LOW",
+      "recommended_action": "Run quality evidence capture for ankrgrid-maritime-frontend (HG-1); set quality_mask_at_promotion in next soak batch"
+    },
+    {
+      "service": "ankrgrid-maritime",
+      "drift_type": "quality_unaudited",
+      "quality_bit": null,
+      "expected_evidence": "quality_mask_at_promotion ≥ 0x0FFF for HG-2B-financial",
+      "observed_evidence": "quality_mask_at_promotion = absent (pre_AEG_Q_001_legacy — doctrine introduced Batch 89)",
+      "severity": "CRITICAL",
+      "recommended_action": "Run quality evidence capture for ankrgrid-maritime (HG-2B-financial); set quality_mask_at_promotion in next soak batch"
+    },
+    {
+      "service": "liner8x",
+      "drift_type": "quality_unaudited",
+      "quality_bit": null,
+      "expected_evidence": "quality_mask_at_promotion ≥ 0x0302 for HG-1",
+      "observed_evidence": "quality_mask_at_promotion = absent (pre_AEG_Q_001_legacy — doctrine introduced Batch 89)",
+      "severity": "LOW",
+      "recommended_action": "Run quality evidence capture for liner8x (HG-1); set quality_mask_at_promotion in next soak batch"
+    },
+    {
+      "service": "liner8x-solver",
+      "drift_type": "quality_unaudited",
+      "quality_bit": null,
+      "expected_evidence": "quality_mask_at_promotion ≥ 0x0302 for HG-1",
+      "observed_evidence": "quality_mask_at_promotion = absent (pre_AEG_Q_001_legacy — doctrine introduced Batch 89)",
+      "severity": "LOW",
+      "recommended_action": "Run quality evidence capture for liner8x-solver (HG-1); set quality_mask_at_promotion in next soak batch"
+    },
+    {
+      "service": "frontend",
+      "drift_type": "quality_unaudited",
+      "quality_bit": null,
+      "expected_evidence": "quality_mask_at_promotion ≥ 0x0302 for HG-1",
+      "observed_evidence": "quality_mask_at_promotion = absent (pre_AEG_Q_001_legacy — doctrine introduced Batch 89)",
+      "severity": "LOW",
+      "recommended_action": "Run quality evidence capture for frontend (HG-1); set quality_mask_at_promotion in next soak batch"
+    },
+    {
+      "service": "liner8x",
+      "drift_type": "quality_unaudited",
+      "quality_bit": null,
+      "expected_evidence": "quality_mask_at_promotion ≥ 0x0302 for HG-1",
+      "observed_evidence": "quality_mask_at_promotion = absent (pre_AEG_Q_001_legacy — doctrine introduced Batch 89)",
+      "severity": "LOW",
+      "recommended_action": "Run quality evidence capture for liner8x (HG-1); set quality_mask_at_promotion in next soak batch"
+    },
+    {
+      "service": "feeder8x",
+      "drift_type": "quality_unaudited",
+      "quality_bit": null,
+      "expected_evidence": "quality_mask_at_promotion ≥ 0x0FFF for HG-2B-financial",
+      "observed_evidence": "quality_mask_at_promotion = absent (pre_AEG_Q_001_legacy — doctrine introduced Batch 89)",
+      "severity": "CRITICAL",
+      "recommended_action": "Run quality evidence capture for feeder8x (HG-2B-financial); set quality_mask_at_promotion in next soak batch"
+    },
+    {
+      "service": "feeder8x",
+      "drift_type": "quality_unaudited",
+      "quality_bit": null,
+      "expected_evidence": "quality_mask_at_promotion ≥ 0x0FFF for HG-2B-financial",
+      "observed_evidence": "quality_mask_at_promotion = absent (pre_AEG_Q_001_legacy — doctrine introduced Batch 89)",
+      "severity": "CRITICAL",
+      "recommended_action": "Run quality evidence capture for feeder8x (HG-2B-financial); set quality_mask_at_promotion in next soak batch"
+    },
+    {
+      "service": "mpv8x",
+      "drift_type": "quality_unaudited",
+      "quality_bit": null,
+      "expected_evidence": "quality_mask_at_promotion ≥ 0x0FAB for HG-2B",
+      "observed_evidence": "quality_mask_at_promotion = absent (pre_AEG_Q_001_legacy — doctrine introduced Batch 89)",
+      "severity": "HIGH",
+      "recommended_action": "Run quality evidence capture for mpv8x (HG-2B); set quality_mask_at_promotion in next soak batch"
+    },
+    {
+      "service": "mpv8x",
+      "drift_type": "quality_unaudited",
+      "quality_bit": null,
+      "expected_evidence": "quality_mask_at_promotion ≥ 0x0302 for HG-1",
+      "observed_evidence": "quality_mask_at_promotion = absent (pre_AEG_Q_001_legacy — doctrine introduced Batch 89)",
+      "severity": "LOW",
+      "recommended_action": "Run quality evidence capture for mpv8x (HG-1); set quality_mask_at_promotion in next soak batch"
+    },
+    {
+      "service": "dharma-panel",
+      "drift_type": "quality_unaudited",
+      "quality_bit": null,
+      "expected_evidence": "quality_mask_at_promotion ≥ 0x0FAB for HG-2B",
+      "observed_evidence": "quality_mask_at_promotion = absent (pre_AEG_Q_001_legacy — doctrine introduced Batch 89)",
+      "severity": "HIGH",
+      "recommended_action": "Run quality evidence capture for dharma-panel (HG-2B); set quality_mask_at_promotion in next soak batch"
+    },
+    {
+      "service": "paros-hub",
+      "drift_type": "quality_unaudited",
+      "quality_bit": null,
+      "expected_evidence": "quality_mask_at_promotion ≥ 0x0302 for HG-1",
+      "observed_evidence": "quality_mask_at_promotion = absent (pre_AEG_Q_001_legacy — doctrine introduced Batch 89)",
+      "severity": "LOW",
+      "recommended_action": "Run quality evidence capture for paros-hub (HG-1); set quality_mask_at_promotion in next soak batch"
+    },
+    {
+      "service": "parali-central",
+      "drift_type": "quality_unaudited",
+      "quality_bit": null,
+      "expected_evidence": "quality_mask_at_promotion ≥ 0x0FAB for HG-2B",
+      "observed_evidence": "quality_mask_at_promotion = absent (pre_AEG_Q_001_legacy — doctrine introduced Batch 89)",
+      "severity": "HIGH",
+      "recommended_action": "Run quality evidence capture for parali-central (HG-2B); set quality_mask_at_promotion in next soak batch"
+    },
+    {
+      "service": "annapurna",
+      "drift_type": "quality_unaudited",
+      "quality_bit": null,
+      "expected_evidence": "quality_mask_at_promotion ≥ 0x0FFF for HG-2B-financial",
+      "observed_evidence": "quality_mask_at_promotion = absent (pre_AEG_Q_001_legacy — doctrine introduced Batch 89)",
+      "severity": "CRITICAL",
+      "recommended_action": "Run quality evidence capture for annapurna (HG-2B-financial); set quality_mask_at_promotion in next soak batch"
+    },
+    {
+      "service": "annapurna",
+      "drift_type": "quality_unaudited",
+      "quality_bit": null,
+      "expected_evidence": "quality_mask_at_promotion ≥ 0x0FFF for HG-2B-financial",
+      "observed_evidence": "quality_mask_at_promotion = absent (pre_AEG_Q_001_legacy — doctrine introduced Batch 89)",
+      "severity": "CRITICAL",
+      "recommended_action": "Run quality evidence capture for annapurna (HG-2B-financial); set quality_mask_at_promotion in next soak batch"
+    },
+    {
+      "service": "atlas",
+      "drift_type": "quality_unaudited",
+      "quality_bit": null,
+      "expected_evidence": "quality_mask_at_promotion ≥ 0x0302 for HG-1",
+      "observed_evidence": "quality_mask_at_promotion = absent (pre_AEG_Q_001_legacy — doctrine introduced Batch 89)",
+      "severity": "LOW",
+      "recommended_action": "Run quality evidence capture for atlas (HG-1); set quality_mask_at_promotion in next soak batch"
+    },
+    {
+      "service": "frontend",
+      "drift_type": "quality_unaudited",
+      "quality_bit": null,
+      "expected_evidence": "quality_mask_at_promotion ≥ 0x0302 for HG-1",
+      "observed_evidence": "quality_mask_at_promotion = absent (pre_AEG_Q_001_legacy — doctrine introduced Batch 89)",
+      "severity": "LOW",
+      "recommended_action": "Run quality evidence capture for frontend (HG-1); set quality_mask_at_promotion in next soak batch"
+    },
+    {
+      "service": "sarvekshan",
+      "drift_type": "quality_unaudited",
+      "quality_bit": null,
+      "expected_evidence": "quality_mask_at_promotion ≥ 0x0302 for HG-1",
+      "observed_evidence": "quality_mask_at_promotion = absent (pre_AEG_Q_001_legacy — doctrine introduced Batch 89)",
+      "severity": "LOW",
+      "recommended_action": "Run quality evidence capture for sarvekshan (HG-1); set quality_mask_at_promotion in next soak batch"
+    },
+    {
+      "service": "sarvekshan",
+      "drift_type": "quality_unaudited",
+      "quality_bit": null,
+      "expected_evidence": "quality_mask_at_promotion ≥ 0x0302 for HG-1",
+      "observed_evidence": "quality_mask_at_promotion = absent (pre_AEG_Q_001_legacy — doctrine introduced Batch 89)",
+      "severity": "LOW",
+      "recommended_action": "Run quality evidence capture for sarvekshan (HG-1); set quality_mask_at_promotion in next soak batch"
+    },
+    {
+      "service": "backend",
+      "drift_type": "quality_unaudited",
+      "quality_bit": null,
+      "expected_evidence": "quality_mask_at_promotion ≥ 0x0B83 for HG-2A",
+      "observed_evidence": "quality_mask_at_promotion = absent (pre_AEG_Q_001_legacy — doctrine introduced Batch 89)",
+      "severity": "MEDIUM",
+      "recommended_action": "Run quality evidence capture for backend (HG-2A); set quality_mask_at_promotion in next soak batch"
+    },
+    {
+      "service": "pramana",
+      "drift_type": "quality_unaudited",
+      "quality_bit": null,
+      "expected_evidence": "quality_mask_at_promotion ≥ 0x0B83 for HG-2A",
+      "observed_evidence": "quality_mask_at_promotion = absent (pre_AEG_Q_001_legacy — doctrine introduced Batch 89)",
+      "severity": "MEDIUM",
+      "recommended_action": "Run quality evidence capture for pramana (HG-2A); set quality_mask_at_promotion in next soak batch"
+    },
+    {
+      "service": "sakshi",
+      "drift_type": "quality_unaudited",
+      "quality_bit": null,
+      "expected_evidence": "quality_mask_at_promotion ≥ 0x0B83 for HG-2A",
+      "observed_evidence": "quality_mask_at_promotion = absent (pre_AEG_Q_001_legacy — doctrine introduced Batch 89)",
+      "severity": "MEDIUM",
+      "recommended_action": "Run quality evidence capture for sakshi (HG-2A); set quality_mask_at_promotion in next soak batch"
+    },
+    {
+      "service": "sakshi",
+      "drift_type": "quality_unaudited",
+      "quality_bit": null,
+      "expected_evidence": "quality_mask_at_promotion ≥ 0x0302 for HG-1",
+      "observed_evidence": "quality_mask_at_promotion = absent (pre_AEG_Q_001_legacy — doctrine introduced Batch 89)",
+      "severity": "LOW",
+      "recommended_action": "Run quality evidence capture for sakshi (HG-1); set quality_mask_at_promotion in next soak batch"
+    },
+    {
+      "service": "ankr-gurukul",
+      "drift_type": "quality_unaudited",
+      "quality_bit": null,
+      "expected_evidence": "quality_mask_at_promotion ≥ 0x0FAB for HG-2B",
+      "observed_evidence": "quality_mask_at_promotion = absent (pre_AEG_Q_001_legacy — doctrine introduced Batch 89)",
+      "severity": "HIGH",
+      "recommended_action": "Run quality evidence capture for ankr-gurukul (HG-2B); set quality_mask_at_promotion in next soak batch"
+    },
+    {
+      "service": "anvilos-slm",
+      "drift_type": "quality_unaudited",
+      "quality_bit": null,
+      "expected_evidence": "quality_mask_at_promotion ≥ 0x0B83 for HG-2A",
+      "observed_evidence": "quality_mask_at_promotion = absent (pre_AEG_Q_001_legacy — doctrine introduced Batch 89)",
+      "severity": "MEDIUM",
+      "recommended_action": "Run quality evidence capture for anvilos-slm (HG-2A); set quality_mask_at_promotion in next soak batch"
+    },
+    {
+      "service": "ankr-proof",
+      "drift_type": "quality_unaudited",
+      "quality_bit": null,
+      "expected_evidence": "quality_mask_at_promotion ≥ 0x0B83 for HG-2A",
+      "observed_evidence": "quality_mask_at_promotion = absent (pre_AEG_Q_001_legacy — doctrine introduced Batch 89)",
+      "severity": "MEDIUM",
+      "recommended_action": "Run quality evidence capture for ankr-proof (HG-2A); set quality_mask_at_promotion in next soak batch"
+    },
+    {
+      "service": "darshan",
+      "drift_type": "quality_unaudited",
+      "quality_bit": null,
+      "expected_evidence": "quality_mask_at_promotion ≥ 0x0302 for HG-1",
+      "observed_evidence": "quality_mask_at_promotion = absent (pre_AEG_Q_001_legacy — doctrine introduced Batch 89)",
+      "severity": "LOW",
+      "recommended_action": "Run quality evidence capture for darshan (HG-1); set quality_mask_at_promotion in next soak batch"
+    },
+    {
+      "service": "drone8x-os",
+      "drift_type": "quality_unaudited",
+      "quality_bit": null,
+      "expected_evidence": "quality_mask_at_promotion ≥ 0x0FAB for HG-2B",
+      "observed_evidence": "quality_mask_at_promotion = absent (pre_AEG_Q_001_legacy — doctrine introduced Batch 89)",
+      "severity": "HIGH",
+      "recommended_action": "Run quality evidence capture for drone8x-os (HG-2B); set quality_mask_at_promotion in next soak batch"
+    },
+    {
+      "service": "ship-slm",
+      "drift_type": "quality_unaudited",
+      "quality_bit": null,
+      "expected_evidence": "quality_mask_at_promotion ≥ 0x0302 for HG-1",
+      "observed_evidence": "quality_mask_at_promotion = absent (pre_AEG_Q_001_legacy — doctrine introduced Batch 89)",
+      "severity": "LOW",
+      "recommended_action": "Run quality evidence capture for ship-slm (HG-1); set quality_mask_at_promotion in next soak batch"
+    },
+    {
+      "service": "chief-slm",
+      "drift_type": "quality_unaudited",
+      "quality_bit": null,
+      "expected_evidence": "quality_mask_at_promotion ≥ 0x0302 for HG-1",
+      "observed_evidence": "quality_mask_at_promotion = absent (pre_AEG_Q_001_legacy — doctrine introduced Batch 89)",
+      "severity": "LOW",
+      "recommended_action": "Run quality evidence capture for chief-slm (HG-1); set quality_mask_at_promotion in next soak batch"
+    },
+    {
+      "service": "ankr-slm-router",
+      "drift_type": "quality_unaudited",
+      "quality_bit": null,
+      "expected_evidence": "quality_mask_at_promotion ≥ 0x0302 for HG-1",
+      "observed_evidence": "quality_mask_at_promotion = absent (pre_AEG_Q_001_legacy — doctrine introduced Batch 89)",
+      "severity": "LOW",
+      "recommended_action": "Run quality evidence capture for ankr-slm-router (HG-1); set quality_mask_at_promotion in next soak batch"
+    },
+    {
+      "service": "medslm",
+      "drift_type": "quality_unaudited",
+      "quality_bit": null,
+      "expected_evidence": "quality_mask_at_promotion ≥ 0x0302 for HG-1",
+      "observed_evidence": "quality_mask_at_promotion = absent (pre_AEG_Q_001_legacy — doctrine introduced Batch 89)",
+      "severity": "LOW",
+      "recommended_action": "Run quality evidence capture for medslm (HG-1); set quality_mask_at_promotion in next soak batch"
+    },
+    {
+      "service": "powerpbox",
+      "drift_type": "quality_unaudited",
+      "quality_bit": null,
+      "expected_evidence": "quality_mask_at_promotion ≥ 0x0FFF for HG-2B-financial",
+      "observed_evidence": "quality_mask_at_promotion = absent (pre_AEG_Q_001_legacy — doctrine introduced Batch 89)",
+      "severity": "CRITICAL",
+      "recommended_action": "Run quality evidence capture for powerpbox (HG-2B-financial); set quality_mask_at_promotion in next soak batch"
+    },
+    {
+      "service": "chirpee",
+      "drift_type": "quality_unaudited",
+      "quality_bit": null,
+      "expected_evidence": "quality_mask_at_promotion ≥ 0x0302 for HG-1",
+      "observed_evidence": "quality_mask_at_promotion = absent (pre_AEG_Q_001_legacy — doctrine introduced Batch 89)",
+      "severity": "LOW",
+      "recommended_action": "Run quality evidence capture for chirpee (HG-1); set quality_mask_at_promotion in next soak batch"
+    },
+    {
+      "service": "puranic-os",
+      "drift_type": "quality_unaudited",
+      "quality_bit": null,
+      "expected_evidence": "quality_mask_at_promotion ≥ 0x0B83 for HG-2A",
+      "observed_evidence": "quality_mask_at_promotion = absent (pre_AEG_Q_001_legacy — doctrine introduced Batch 89)",
+      "severity": "MEDIUM",
+      "recommended_action": "Run quality evidence capture for puranic-os (HG-2A); set quality_mask_at_promotion in next soak batch"
+    },
+    {
+      "service": "chetna",
+      "drift_type": "quality_unaudited",
+      "quality_bit": null,
+      "expected_evidence": "quality_mask_at_promotion ≥ 0x0B83 for HG-2A",
+      "observed_evidence": "quality_mask_at_promotion = absent (pre_AEG_Q_001_legacy — doctrine introduced Batch 89)",
+      "severity": "MEDIUM",
+      "recommended_action": "Run quality evidence capture for chetna (HG-2A); set quality_mask_at_promotion in next soak batch"
+    },
+    {
+      "service": "bitmaskos",
+      "drift_type": "quality_unaudited",
+      "quality_bit": null,
+      "expected_evidence": "quality_mask_at_promotion ≥ 0x0FAB for HG-2B",
+      "observed_evidence": "quality_mask_at_promotion = absent (pre_AEG_Q_001_legacy — doctrine introduced Batch 89)",
+      "severity": "HIGH",
+      "recommended_action": "Run quality evidence capture for bitmaskos (HG-2B); set quality_mask_at_promotion in next soak batch"
+    },
+    {
+      "service": "kavachos",
+      "drift_type": "quality_unaudited",
+      "quality_bit": null,
+      "expected_evidence": "quality_mask_at_promotion ≥ 0x0B83 for HG-2A",
+      "observed_evidence": "quality_mask_at_promotion = absent (pre_AEG_Q_001_legacy — doctrine introduced Batch 89)",
+      "severity": "MEDIUM",
+      "recommended_action": "Run quality evidence capture for kavachos (HG-2A); set quality_mask_at_promotion in next soak batch"
+    },
+    {
+      "service": "discovery",
+      "drift_type": "quality_unaudited",
+      "quality_bit": null,
+      "expected_evidence": "quality_mask_at_promotion ≥ 0x0302 for HG-1",
+      "observed_evidence": "quality_mask_at_promotion = absent (pre_AEG_Q_001_legacy — doctrine introduced Batch 89)",
+      "severity": "LOW",
+      "recommended_action": "Run quality evidence capture for discovery (HG-1); set quality_mask_at_promotion in next soak batch"
+    },
+    {
+      "service": "carbonx-backend",
+      "drift_type": "schema_drift",
+      "quality_bit": "Q-005",
+      "expected_evidence": "prisma migrate diff run after batch 64 schema change (externalRef field); outcome in audit artifact",
+      "observed_evidence": "No migrate diff artifact found in batches 62–74. Schema change (prisma/schema.prisma batch 64) has no verified migration path.",
+      "severity": "CRITICAL",
+      "recommended_action": "Run prisma migrate diff on carbonx repo; verify externalRef migration is safe; document in next batch artifact"
+    },
+    {
+      "service": "carbonx-backend",
+      "drift_type": "security_drift",
+      "quality_bit": "Q-011",
+      "expected_evidence": "Secret scanner (truffleHog/gitleaks) exits 0 on git diff including batch 64 changes",
+      "observed_evidence": "No secret scan evidence across all 13 batches (62–74). aegis-approval-token.ts handles financial approval tokens.",
+      "severity": "CRITICAL",
+      "recommended_action": "Run truffleHog or gitleaks on carbonx repo diff; record exit code in batch artifact; add to pre-promotion gate"
+    },
+    {
+      "service": "carbonx-backend",
+      "drift_type": "test_drift",
+      "quality_bit": "Q-001",
+      "expected_evidence": "tsc --noEmit exits 0 evidenced in promotion artifact",
+      "observed_evidence": "No tsc invocation found in any batch 62–74 artifact (Q-001 = 0 in quality_mask_at_promotion=0x012A)",
+      "severity": "HIGH",
+      "recommended_action": "Add tsc --noEmit to pre-promotion gate in promotion-template.ts; run and record before next soak"
+    },
+    {
+      "service": "carbonx-backend",
+      "drift_type": "provenance_drift",
+      "quality_bit": "Q-010",
+      "expected_evidence": "AEG-PROV-001 assertSourceControlProvenance passes; recorded in promotion artifact",
+      "observed_evidence": "AEG-PROV-001 not in doctrine at promotion time (batch 74 = May 4, doctrine introduced batch 89 = May 5). Current status: unrun.",
+      "severity": "HIGH",
+      "recommended_action": "Run assertSourceControlProvenance on carbonx repo; record in next batch artifact"
+    },
+    {
+      "service": "carbonx-backend",
+      "drift_type": "audit_drift",
+      "quality_bit": "Q-012",
+      "expected_evidence": "human_review_status=confirmed or human_override_applied=true in promotion artifact",
+      "observed_evidence": "Formal human review protocol (batch 88 style) introduced after batch 74 promotion. No human_review_status field in batch 74 artifact.",
+      "severity": "HIGH",
+      "recommended_action": "Add carbonx to next batch 88-style human review queue for retrospective classification confirmation"
+    }
+  ],
+  "severity_counts": {
+    "CRITICAL": 16,
+    "HIGH": 12,
+    "MEDIUM": 10,
+    "LOW": 27,
+    "INFO": 0
+  },
+  "services_with_drift": 48,
+  "services_needing_immediate_remediation": 11,
+  "services_safe": 0,
+  "remediation_queue": [
+    {
+      "service": "mari8x-backend",
+      "drift_type": "quality_unaudited",
+      "quality_bit": null,
+      "expected_evidence": "quality_mask_at_promotion ≥ 0x0FFF for HG-2B-financial",
+      "observed_evidence": "quality_mask_at_promotion = absent (pre_AEG_Q_001_legacy — doctrine introduced Batch 89)",
+      "severity": "CRITICAL",
+      "recommended_action": "Run quality evidence capture for mari8x-backend (HG-2B-financial); set quality_mask_at_promotion in next soak batch"
+    },
+    {
+      "service": "ankr-maritime",
+      "drift_type": "quality_unaudited",
+      "quality_bit": null,
+      "expected_evidence": "quality_mask_at_promotion ≥ 0x0FFF for HG-2B-financial",
+      "observed_evidence": "quality_mask_at_promotion = absent (pre_AEG_Q_001_legacy — doctrine introduced Batch 89)",
+      "severity": "CRITICAL",
+      "recommended_action": "Run quality evidence capture for ankr-maritime (HG-2B-financial); set quality_mask_at_promotion in next soak batch"
+    },
+    {
+      "service": "ankr-ebl",
+      "drift_type": "quality_unaudited",
+      "quality_bit": null,
+      "expected_evidence": "quality_mask_at_promotion ≥ 0x0FFF for HG-2B-financial",
+      "observed_evidence": "quality_mask_at_promotion = absent (pre_AEG_Q_001_legacy — doctrine introduced Batch 89)",
+      "severity": "CRITICAL",
+      "recommended_action": "Run quality evidence capture for ankr-ebl (HG-2B-financial); set quality_mask_at_promotion in next soak batch"
+    },
+    {
+      "service": "ankr-ebl-frontend",
+      "drift_type": "quality_unaudited",
+      "quality_bit": null,
+      "expected_evidence": "quality_mask_at_promotion ≥ 0x0FFF for HG-2B-financial",
+      "observed_evidence": "quality_mask_at_promotion = absent (pre_AEG_Q_001_legacy — doctrine introduced Batch 89)",
+      "severity": "CRITICAL",
+      "recommended_action": "Run quality evidence capture for ankr-ebl-frontend (HG-2B-financial); set quality_mask_at_promotion in next soak batch"
+    },
+    {
+      "service": "ankr-ebl",
+      "drift_type": "quality_unaudited",
+      "quality_bit": null,
+      "expected_evidence": "quality_mask_at_promotion ≥ 0x0FFF for HG-2B-financial",
+      "observed_evidence": "quality_mask_at_promotion = absent (pre_AEG_Q_001_legacy — doctrine introduced Batch 89)",
+      "severity": "CRITICAL",
+      "recommended_action": "Run quality evidence capture for ankr-ebl (HG-2B-financial); set quality_mask_at_promotion in next soak batch"
+    },
+    {
+      "service": "maribfc",
+      "drift_type": "quality_unaudited",
+      "quality_bit": null,
+      "expected_evidence": "quality_mask_at_promotion ≥ 0x0FFF for HG-2B-financial",
+      "observed_evidence": "quality_mask_at_promotion = absent (pre_AEG_Q_001_legacy — doctrine introduced Batch 89)",
+      "severity": "CRITICAL",
+      "recommended_action": "Run quality evidence capture for maribfc (HG-2B-financial); set quality_mask_at_promotion in next soak batch"
+    },
+    {
+      "service": "maribfc-frontend",
+      "drift_type": "quality_unaudited",
+      "quality_bit": null,
+      "expected_evidence": "quality_mask_at_promotion ≥ 0x0FFF for HG-2B-financial",
+      "observed_evidence": "quality_mask_at_promotion = absent (pre_AEG_Q_001_legacy — doctrine introduced Batch 89)",
+      "severity": "CRITICAL",
+      "recommended_action": "Run quality evidence capture for maribfc-frontend (HG-2B-financial); set quality_mask_at_promotion in next soak batch"
+    },
+    {
+      "service": "ankrgrid-maritime",
+      "drift_type": "quality_unaudited",
+      "quality_bit": null,
+      "expected_evidence": "quality_mask_at_promotion ≥ 0x0FFF for HG-2B-financial",
+      "observed_evidence": "quality_mask_at_promotion = absent (pre_AEG_Q_001_legacy — doctrine introduced Batch 89)",
+      "severity": "CRITICAL",
+      "recommended_action": "Run quality evidence capture for ankrgrid-maritime (HG-2B-financial); set quality_mask_at_promotion in next soak batch"
+    },
+    {
+      "service": "ankrgrid-maritime",
+      "drift_type": "quality_unaudited",
+      "quality_bit": null,
+      "expected_evidence": "quality_mask_at_promotion ≥ 0x0FFF for HG-2B-financial",
+      "observed_evidence": "quality_mask_at_promotion = absent (pre_AEG_Q_001_legacy — doctrine introduced Batch 89)",
+      "severity": "CRITICAL",
+      "recommended_action": "Run quality evidence capture for ankrgrid-maritime (HG-2B-financial); set quality_mask_at_promotion in next soak batch"
+    },
+    {
+      "service": "feeder8x",
+      "drift_type": "quality_unaudited",
+      "quality_bit": null,
+      "expected_evidence": "quality_mask_at_promotion ≥ 0x0FFF for HG-2B-financial",
+      "observed_evidence": "quality_mask_at_promotion = absent (pre_AEG_Q_001_legacy — doctrine introduced Batch 89)",
+      "severity": "CRITICAL",
+      "recommended_action": "Run quality evidence capture for feeder8x (HG-2B-financial); set quality_mask_at_promotion in next soak batch"
+    },
+    {
+      "service": "feeder8x",
+      "drift_type": "quality_unaudited",
+      "quality_bit": null,
+      "expected_evidence": "quality_mask_at_promotion ≥ 0x0FFF for HG-2B-financial",
+      "observed_evidence": "quality_mask_at_promotion = absent (pre_AEG_Q_001_legacy — doctrine introduced Batch 89)",
+      "severity": "CRITICAL",
+      "recommended_action": "Run quality evidence capture for feeder8x (HG-2B-financial); set quality_mask_at_promotion in next soak batch"
+    },
+    {
+      "service": "annapurna",
+      "drift_type": "quality_unaudited",
+      "quality_bit": null,
+      "expected_evidence": "quality_mask_at_promotion ≥ 0x0FFF for HG-2B-financial",
+      "observed_evidence": "quality_mask_at_promotion = absent (pre_AEG_Q_001_legacy — doctrine introduced Batch 89)",
+      "severity": "CRITICAL",
+      "recommended_action": "Run quality evidence capture for annapurna (HG-2B-financial); set quality_mask_at_promotion in next soak batch"
+    },
+    {
+      "service": "annapurna",
+      "drift_type": "quality_unaudited",
+      "quality_bit": null,
+      "expected_evidence": "quality_mask_at_promotion ≥ 0x0FFF for HG-2B-financial",
+      "observed_evidence": "quality_mask_at_promotion = absent (pre_AEG_Q_001_legacy — doctrine introduced Batch 89)",
+      "severity": "CRITICAL",
+      "recommended_action": "Run quality evidence capture for annapurna (HG-2B-financial); set quality_mask_at_promotion in next soak batch"
+    },
+    {
+      "service": "powerpbox",
+      "drift_type": "quality_unaudited",
+      "quality_bit": null,
+      "expected_evidence": "quality_mask_at_promotion ≥ 0x0FFF for HG-2B-financial",
+      "observed_evidence": "quality_mask_at_promotion = absent (pre_AEG_Q_001_legacy — doctrine introduced Batch 89)",
+      "severity": "CRITICAL",
+      "recommended_action": "Run quality evidence capture for powerpbox (HG-2B-financial); set quality_mask_at_promotion in next soak batch"
+    },
+    {
+      "service": "carbonx-backend",
+      "drift_type": "schema_drift",
+      "quality_bit": "Q-005",
+      "expected_evidence": "prisma migrate diff run after batch 64 schema change (externalRef field); outcome in audit artifact",
+      "observed_evidence": "No migrate diff artifact found in batches 62–74. Schema change (prisma/schema.prisma batch 64) has no verified migration path.",
+      "severity": "CRITICAL",
+      "recommended_action": "Run prisma migrate diff on carbonx repo; verify externalRef migration is safe; document in next batch artifact"
+    },
+    {
+      "service": "carbonx-backend",
+      "drift_type": "security_drift",
+      "quality_bit": "Q-011",
+      "expected_evidence": "Secret scanner (truffleHog/gitleaks) exits 0 on git diff including batch 64 changes",
+      "observed_evidence": "No secret scan evidence across all 13 batches (62–74). aegis-approval-token.ts handles financial approval tokens.",
+      "severity": "CRITICAL",
+      "recommended_action": "Run truffleHog or gitleaks on carbonx repo diff; record exit code in batch artifact; add to pre-promotion gate"
+    },
+    {
+      "service": "portwatch",
+      "drift_type": "quality_unaudited",
+      "quality_bit": null,
+      "expected_evidence": "quality_mask_at_promotion ≥ 0x0FAB for HG-2B",
+      "observed_evidence": "quality_mask_at_promotion = absent (pre_AEG_Q_001_legacy — doctrine introduced Batch 89)",
+      "severity": "HIGH",
+      "recommended_action": "Run quality evidence capture for portwatch (HG-2B); set quality_mask_at_promotion in next soak batch"
+    },
+    {
+      "service": "owneros",
+      "drift_type": "quality_unaudited",
+      "quality_bit": null,
+      "expected_evidence": "quality_mask_at_promotion ≥ 0x0FAB for HG-2B",
+      "observed_evidence": "quality_mask_at_promotion = absent (pre_AEG_Q_001_legacy — doctrine introduced Batch 89)",
+      "severity": "HIGH",
+      "recommended_action": "Run quality evidence capture for owneros (HG-2B); set quality_mask_at_promotion in next soak batch"
+    },
+    {
+      "service": "owneros-frontend",
+      "drift_type": "quality_unaudited",
+      "quality_bit": null,
+      "expected_evidence": "quality_mask_at_promotion ≥ 0x0FAB for HG-2B",
+      "observed_evidence": "quality_mask_at_promotion = absent (pre_AEG_Q_001_legacy — doctrine introduced Batch 89)",
+      "severity": "HIGH",
+      "recommended_action": "Run quality evidence capture for owneros-frontend (HG-2B); set quality_mask_at_promotion in next soak batch"
+    },
+    {
+      "service": "mpv8x",
+      "drift_type": "quality_unaudited",
+      "quality_bit": null,
+      "expected_evidence": "quality_mask_at_promotion ≥ 0x0FAB for HG-2B",
+      "observed_evidence": "quality_mask_at_promotion = absent (pre_AEG_Q_001_legacy — doctrine introduced Batch 89)",
+      "severity": "HIGH",
+      "recommended_action": "Run quality evidence capture for mpv8x (HG-2B); set quality_mask_at_promotion in next soak batch"
+    },
+    {
+      "service": "dharma-panel",
+      "drift_type": "quality_unaudited",
+      "quality_bit": null,
+      "expected_evidence": "quality_mask_at_promotion ≥ 0x0FAB for HG-2B",
+      "observed_evidence": "quality_mask_at_promotion = absent (pre_AEG_Q_001_legacy — doctrine introduced Batch 89)",
+      "severity": "HIGH",
+      "recommended_action": "Run quality evidence capture for dharma-panel (HG-2B); set quality_mask_at_promotion in next soak batch"
+    },
+    {
+      "service": "parali-central",
+      "drift_type": "quality_unaudited",
+      "quality_bit": null,
+      "expected_evidence": "quality_mask_at_promotion ≥ 0x0FAB for HG-2B",
+      "observed_evidence": "quality_mask_at_promotion = absent (pre_AEG_Q_001_legacy — doctrine introduced Batch 89)",
+      "severity": "HIGH",
+      "recommended_action": "Run quality evidence capture for parali-central (HG-2B); set quality_mask_at_promotion in next soak batch"
+    },
+    {
+      "service": "ankr-gurukul",
+      "drift_type": "quality_unaudited",
+      "quality_bit": null,
+      "expected_evidence": "quality_mask_at_promotion ≥ 0x0FAB for HG-2B",
+      "observed_evidence": "quality_mask_at_promotion = absent (pre_AEG_Q_001_legacy — doctrine introduced Batch 89)",
+      "severity": "HIGH",
+      "recommended_action": "Run quality evidence capture for ankr-gurukul (HG-2B); set quality_mask_at_promotion in next soak batch"
+    },
+    {
+      "service": "drone8x-os",
+      "drift_type": "quality_unaudited",
+      "quality_bit": null,
+      "expected_evidence": "quality_mask_at_promotion ≥ 0x0FAB for HG-2B",
+      "observed_evidence": "quality_mask_at_promotion = absent (pre_AEG_Q_001_legacy — doctrine introduced Batch 89)",
+      "severity": "HIGH",
+      "recommended_action": "Run quality evidence capture for drone8x-os (HG-2B); set quality_mask_at_promotion in next soak batch"
+    },
+    {
+      "service": "bitmaskos",
+      "drift_type": "quality_unaudited",
+      "quality_bit": null,
+      "expected_evidence": "quality_mask_at_promotion ≥ 0x0FAB for HG-2B",
+      "observed_evidence": "quality_mask_at_promotion = absent (pre_AEG_Q_001_legacy — doctrine introduced Batch 89)",
+      "severity": "HIGH",
+      "recommended_action": "Run quality evidence capture for bitmaskos (HG-2B); set quality_mask_at_promotion in next soak batch"
+    },
+    {
+      "service": "carbonx-backend",
+      "drift_type": "test_drift",
+      "quality_bit": "Q-001",
+      "expected_evidence": "tsc --noEmit exits 0 evidenced in promotion artifact",
+      "observed_evidence": "No tsc invocation found in any batch 62–74 artifact (Q-001 = 0 in quality_mask_at_promotion=0x012A)",
+      "severity": "HIGH",
+      "recommended_action": "Add tsc --noEmit to pre-promotion gate in promotion-template.ts; run and record before next soak"
+    },
+    {
+      "service": "carbonx-backend",
+      "drift_type": "provenance_drift",
+      "quality_bit": "Q-010",
+      "expected_evidence": "AEG-PROV-001 assertSourceControlProvenance passes; recorded in promotion artifact",
+      "observed_evidence": "AEG-PROV-001 not in doctrine at promotion time (batch 74 = May 4, doctrine introduced batch 89 = May 5). Current status: unrun.",
+      "severity": "HIGH",
+      "recommended_action": "Run assertSourceControlProvenance on carbonx repo; record in next batch artifact"
+    },
+    {
+      "service": "carbonx-backend",
+      "drift_type": "audit_drift",
+      "quality_bit": "Q-012",
+      "expected_evidence": "human_review_status=confirmed or human_override_applied=true in promotion artifact",
+      "observed_evidence": "Formal human review protocol (batch 88 style) introduced after batch 74 promotion. No human_review_status field in batch 74 artifact.",
+      "severity": "HIGH",
+      "recommended_action": "Add carbonx to next batch 88-style human review queue for retrospective classification confirmation"
+    },
+    {
+      "service": "corals-astrology",
+      "drift_type": "quality_unaudited",
+      "quality_bit": null,
+      "expected_evidence": "quality_mask_at_promotion ≥ 0x0B83 for HG-2A",
+      "observed_evidence": "quality_mask_at_promotion = absent (pre_AEG_Q_001_legacy — doctrine introduced Batch 89)",
+      "severity": "MEDIUM",
+      "recommended_action": "Run quality evidence capture for corals-astrology (HG-2A); set quality_mask_at_promotion in next soak batch"
+    },
+    {
+      "service": "trademitra-api",
+      "drift_type": "quality_unaudited",
+      "quality_bit": null,
+      "expected_evidence": "quality_mask_at_promotion ≥ 0x0B83 for HG-2A",
+      "observed_evidence": "quality_mask_at_promotion = absent (pre_AEG_Q_001_legacy — doctrine introduced Batch 89)",
+      "severity": "MEDIUM",
+      "recommended_action": "Run quality evidence capture for trademitra-api (HG-2A); set quality_mask_at_promotion in next soak batch"
+    },
+    {
+      "service": "backend",
+      "drift_type": "quality_unaudited",
+      "quality_bit": null,
+      "expected_evidence": "quality_mask_at_promotion ≥ 0x0B83 for HG-2A",
+      "observed_evidence": "quality_mask_at_promotion = absent (pre_AEG_Q_001_legacy — doctrine introduced Batch 89)",
+      "severity": "MEDIUM",
+      "recommended_action": "Run quality evidence capture for backend (HG-2A); set quality_mask_at_promotion in next soak batch"
+    },
+    {
+      "service": "pramana",
+      "drift_type": "quality_unaudited",
+      "quality_bit": null,
+      "expected_evidence": "quality_mask_at_promotion ≥ 0x0B83 for HG-2A",
+      "observed_evidence": "quality_mask_at_promotion = absent (pre_AEG_Q_001_legacy — doctrine introduced Batch 89)",
+      "severity": "MEDIUM",
+      "recommended_action": "Run quality evidence capture for pramana (HG-2A); set quality_mask_at_promotion in next soak batch"
+    },
+    {
+      "service": "sakshi",
+      "drift_type": "quality_unaudited",
+      "quality_bit": null,
+      "expected_evidence": "quality_mask_at_promotion ≥ 0x0B83 for HG-2A",
+      "observed_evidence": "quality_mask_at_promotion = absent (pre_AEG_Q_001_legacy — doctrine introduced Batch 89)",
+      "severity": "MEDIUM",
+      "recommended_action": "Run quality evidence capture for sakshi (HG-2A); set quality_mask_at_promotion in next soak batch"
+    },
+    {
+      "service": "anvilos-slm",
+      "drift_type": "quality_unaudited",
+      "quality_bit": null,
+      "expected_evidence": "quality_mask_at_promotion ≥ 0x0B83 for HG-2A",
+      "observed_evidence": "quality_mask_at_promotion = absent (pre_AEG_Q_001_legacy — doctrine introduced Batch 89)",
+      "severity": "MEDIUM",
+      "recommended_action": "Run quality evidence capture for anvilos-slm (HG-2A); set quality_mask_at_promotion in next soak batch"
+    },
+    {
+      "service": "ankr-proof",
+      "drift_type": "quality_unaudited",
+      "quality_bit": null,
+      "expected_evidence": "quality_mask_at_promotion ≥ 0x0B83 for HG-2A",
+      "observed_evidence": "quality_mask_at_promotion = absent (pre_AEG_Q_001_legacy — doctrine introduced Batch 89)",
+      "severity": "MEDIUM",
+      "recommended_action": "Run quality evidence capture for ankr-proof (HG-2A); set quality_mask_at_promotion in next soak batch"
+    },
+    {
+      "service": "puranic-os",
+      "drift_type": "quality_unaudited",
+      "quality_bit": null,
+      "expected_evidence": "quality_mask_at_promotion ≥ 0x0B83 for HG-2A",
+      "observed_evidence": "quality_mask_at_promotion = absent (pre_AEG_Q_001_legacy — doctrine introduced Batch 89)",
+      "severity": "MEDIUM",
+      "recommended_action": "Run quality evidence capture for puranic-os (HG-2A); set quality_mask_at_promotion in next soak batch"
+    },
+    {
+      "service": "chetna",
+      "drift_type": "quality_unaudited",
+      "quality_bit": null,
+      "expected_evidence": "quality_mask_at_promotion ≥ 0x0B83 for HG-2A",
+      "observed_evidence": "quality_mask_at_promotion = absent (pre_AEG_Q_001_legacy — doctrine introduced Batch 89)",
+      "severity": "MEDIUM",
+      "recommended_action": "Run quality evidence capture for chetna (HG-2A); set quality_mask_at_promotion in next soak batch"
+    },
+    {
+      "service": "kavachos",
+      "drift_type": "quality_unaudited",
+      "quality_bit": null,
+      "expected_evidence": "quality_mask_at_promotion ≥ 0x0B83 for HG-2A",
+      "observed_evidence": "quality_mask_at_promotion = absent (pre_AEG_Q_001_legacy — doctrine introduced Batch 89)",
+      "severity": "MEDIUM",
+      "recommended_action": "Run quality evidence capture for kavachos (HG-2A); set quality_mask_at_promotion in next soak batch"
+    },
+    {
+      "service": "ankr-maritime-frontend",
+      "drift_type": "quality_unaudited",
+      "quality_bit": null,
+      "expected_evidence": "quality_mask_at_promotion ≥ 0x0302 for HG-1",
+      "observed_evidence": "quality_mask_at_promotion = absent (pre_AEG_Q_001_legacy — doctrine introduced Batch 89)",
+      "severity": "LOW",
+      "recommended_action": "Run quality evidence capture for ankr-maritime-frontend (HG-1); set quality_mask_at_promotion in next soak batch"
+    },
+    {
+      "service": "frontend",
+      "drift_type": "quality_unaudited",
+      "quality_bit": null,
+      "expected_evidence": "quality_mask_at_promotion ≥ 0x0302 for HG-1",
+      "observed_evidence": "quality_mask_at_promotion = absent (pre_AEG_Q_001_legacy — doctrine introduced Batch 89)",
+      "severity": "LOW",
+      "recommended_action": "Run quality evidence capture for frontend (HG-1); set quality_mask_at_promotion in next soak batch"
+    },
+    {
+      "service": "frontend",
+      "drift_type": "quality_unaudited",
+      "quality_bit": null,
+      "expected_evidence": "quality_mask_at_promotion ≥ 0x0302 for HG-1",
+      "observed_evidence": "quality_mask_at_promotion = absent (pre_AEG_Q_001_legacy — doctrine introduced Batch 89)",
+      "severity": "LOW",
+      "recommended_action": "Run quality evidence capture for frontend (HG-1); set quality_mask_at_promotion in next soak batch"
+    },
+    {
+      "service": "portwatch-frontend",
+      "drift_type": "quality_unaudited",
+      "quality_bit": null,
+      "expected_evidence": "quality_mask_at_promotion ≥ 0x0302 for HG-1",
+      "observed_evidence": "quality_mask_at_promotion = absent (pre_AEG_Q_001_legacy — doctrine introduced Batch 89)",
+      "severity": "LOW",
+      "recommended_action": "Run quality evidence capture for portwatch-frontend (HG-1); set quality_mask_at_promotion in next soak batch"
+    },
+    {
+      "service": "portwatch",
+      "drift_type": "quality_unaudited",
+      "quality_bit": null,
+      "expected_evidence": "quality_mask_at_promotion ≥ 0x0302 for HG-1",
+      "observed_evidence": "quality_mask_at_promotion = absent (pre_AEG_Q_001_legacy — doctrine introduced Batch 89)",
+      "severity": "LOW",
+      "recommended_action": "Run quality evidence capture for portwatch (HG-1); set quality_mask_at_promotion in next soak batch"
+    },
+    {
+      "service": "owneros",
+      "drift_type": "quality_unaudited",
+      "quality_bit": null,
+      "expected_evidence": "quality_mask_at_promotion ≥ 0x0302 for HG-1",
+      "observed_evidence": "quality_mask_at_promotion = absent (pre_AEG_Q_001_legacy — doctrine introduced Batch 89)",
+      "severity": "LOW",
+      "recommended_action": "Run quality evidence capture for owneros (HG-1); set quality_mask_at_promotion in next soak batch"
+    },
+    {
+      "service": "maribfc-api",
+      "drift_type": "quality_unaudited",
+      "quality_bit": null,
+      "expected_evidence": "quality_mask_at_promotion ≥ 0x0302 for HG-1",
+      "observed_evidence": "quality_mask_at_promotion = absent (pre_AEG_Q_001_legacy — doctrine introduced Batch 89)",
+      "severity": "LOW",
+      "recommended_action": "Run quality evidence capture for maribfc-api (HG-1); set quality_mask_at_promotion in next soak batch"
+    },
+    {
+      "service": "trademitra-frontend",
+      "drift_type": "quality_unaudited",
+      "quality_bit": null,
+      "expected_evidence": "quality_mask_at_promotion ≥ 0x0302 for HG-1",
+      "observed_evidence": "quality_mask_at_promotion = absent (pre_AEG_Q_001_legacy — doctrine introduced Batch 89)",
+      "severity": "LOW",
+      "recommended_action": "Run quality evidence capture for trademitra-frontend (HG-1); set quality_mask_at_promotion in next soak batch"
+    },
+    {
+      "service": "ankrgrid-maritime-frontend",
+      "drift_type": "quality_unaudited",
+      "quality_bit": null,
+      "expected_evidence": "quality_mask_at_promotion ≥ 0x0302 for HG-1",
+      "observed_evidence": "quality_mask_at_promotion = absent (pre_AEG_Q_001_legacy — doctrine introduced Batch 89)",
+      "severity": "LOW",
+      "recommended_action": "Run quality evidence capture for ankrgrid-maritime-frontend (HG-1); set quality_mask_at_promotion in next soak batch"
+    },
+    {
+      "service": "liner8x",
+      "drift_type": "quality_unaudited",
+      "quality_bit": null,
+      "expected_evidence": "quality_mask_at_promotion ≥ 0x0302 for HG-1",
+      "observed_evidence": "quality_mask_at_promotion = absent (pre_AEG_Q_001_legacy — doctrine introduced Batch 89)",
+      "severity": "LOW",
+      "recommended_action": "Run quality evidence capture for liner8x (HG-1); set quality_mask_at_promotion in next soak batch"
+    },
+    {
+      "service": "liner8x-solver",
+      "drift_type": "quality_unaudited",
+      "quality_bit": null,
+      "expected_evidence": "quality_mask_at_promotion ≥ 0x0302 for HG-1",
+      "observed_evidence": "quality_mask_at_promotion = absent (pre_AEG_Q_001_legacy — doctrine introduced Batch 89)",
+      "severity": "LOW",
+      "recommended_action": "Run quality evidence capture for liner8x-solver (HG-1); set quality_mask_at_promotion in next soak batch"
+    },
+    {
+      "service": "frontend",
+      "drift_type": "quality_unaudited",
+      "quality_bit": null,
+      "expected_evidence": "quality_mask_at_promotion ≥ 0x0302 for HG-1",
+      "observed_evidence": "quality_mask_at_promotion = absent (pre_AEG_Q_001_legacy — doctrine introduced Batch 89)",
+      "severity": "LOW",
+      "recommended_action": "Run quality evidence capture for frontend (HG-1); set quality_mask_at_promotion in next soak batch"
+    },
+    {
+      "service": "liner8x",
+      "drift_type": "quality_unaudited",
+      "quality_bit": null,
+      "expected_evidence": "quality_mask_at_promotion ≥ 0x0302 for HG-1",
+      "observed_evidence": "quality_mask_at_promotion = absent (pre_AEG_Q_001_legacy — doctrine introduced Batch 89)",
+      "severity": "LOW",
+      "recommended_action": "Run quality evidence capture for liner8x (HG-1); set quality_mask_at_promotion in next soak batch"
+    },
+    {
+      "service": "mpv8x",
+      "drift_type": "quality_unaudited",
+      "quality_bit": null,
+      "expected_evidence": "quality_mask_at_promotion ≥ 0x0302 for HG-1",
+      "observed_evidence": "quality_mask_at_promotion = absent (pre_AEG_Q_001_legacy — doctrine introduced Batch 89)",
+      "severity": "LOW",
+      "recommended_action": "Run quality evidence capture for mpv8x (HG-1); set quality_mask_at_promotion in next soak batch"
+    },
+    {
+      "service": "paros-hub",
+      "drift_type": "quality_unaudited",
+      "quality_bit": null,
+      "expected_evidence": "quality_mask_at_promotion ≥ 0x0302 for HG-1",
+      "observed_evidence": "quality_mask_at_promotion = absent (pre_AEG_Q_001_legacy — doctrine introduced Batch 89)",
+      "severity": "LOW",
+      "recommended_action": "Run quality evidence capture for paros-hub (HG-1); set quality_mask_at_promotion in next soak batch"
+    },
+    {
+      "service": "atlas",
+      "drift_type": "quality_unaudited",
+      "quality_bit": null,
+      "expected_evidence": "quality_mask_at_promotion ≥ 0x0302 for HG-1",
+      "observed_evidence": "quality_mask_at_promotion = absent (pre_AEG_Q_001_legacy — doctrine introduced Batch 89)",
+      "severity": "LOW",
+      "recommended_action": "Run quality evidence capture for atlas (HG-1); set quality_mask_at_promotion in next soak batch"
+    },
+    {
+      "service": "frontend",
+      "drift_type": "quality_unaudited",
+      "quality_bit": null,
+      "expected_evidence": "quality_mask_at_promotion ≥ 0x0302 for HG-1",
+      "observed_evidence": "quality_mask_at_promotion = absent (pre_AEG_Q_001_legacy — doctrine introduced Batch 89)",
+      "severity": "LOW",
+      "recommended_action": "Run quality evidence capture for frontend (HG-1); set quality_mask_at_promotion in next soak batch"
+    },
+    {
+      "service": "sarvekshan",
+      "drift_type": "quality_unaudited",
+      "quality_bit": null,
+      "expected_evidence": "quality_mask_at_promotion ≥ 0x0302 for HG-1",
+      "observed_evidence": "quality_mask_at_promotion = absent (pre_AEG_Q_001_legacy — doctrine introduced Batch 89)",
+      "severity": "LOW",
+      "recommended_action": "Run quality evidence capture for sarvekshan (HG-1); set quality_mask_at_promotion in next soak batch"
+    },
+    {
+      "service": "sarvekshan",
+      "drift_type": "quality_unaudited",
+      "quality_bit": null,
+      "expected_evidence": "quality_mask_at_promotion ≥ 0x0302 for HG-1",
+      "observed_evidence": "quality_mask_at_promotion = absent (pre_AEG_Q_001_legacy — doctrine introduced Batch 89)",
+      "severity": "LOW",
+      "recommended_action": "Run quality evidence capture for sarvekshan (HG-1); set quality_mask_at_promotion in next soak batch"
+    },
+    {
+      "service": "sakshi",
+      "drift_type": "quality_unaudited",
+      "quality_bit": null,
+      "expected_evidence": "quality_mask_at_promotion ≥ 0x0302 for HG-1",
+      "observed_evidence": "quality_mask_at_promotion = absent (pre_AEG_Q_001_legacy — doctrine introduced Batch 89)",
+      "severity": "LOW",
+      "recommended_action": "Run quality evidence capture for sakshi (HG-1); set quality_mask_at_promotion in next soak batch"
+    },
+    {
+      "service": "darshan",
+      "drift_type": "quality_unaudited",
+      "quality_bit": null,
+      "expected_evidence": "quality_mask_at_promotion ≥ 0x0302 for HG-1",
+      "observed_evidence": "quality_mask_at_promotion = absent (pre_AEG_Q_001_legacy — doctrine introduced Batch 89)",
+      "severity": "LOW",
+      "recommended_action": "Run quality evidence capture for darshan (HG-1); set quality_mask_at_promotion in next soak batch"
+    },
+    {
+      "service": "ship-slm",
+      "drift_type": "quality_unaudited",
+      "quality_bit": null,
+      "expected_evidence": "quality_mask_at_promotion ≥ 0x0302 for HG-1",
+      "observed_evidence": "quality_mask_at_promotion = absent (pre_AEG_Q_001_legacy — doctrine introduced Batch 89)",
+      "severity": "LOW",
+      "recommended_action": "Run quality evidence capture for ship-slm (HG-1); set quality_mask_at_promotion in next soak batch"
+    },
+    {
+      "service": "chief-slm",
+      "drift_type": "quality_unaudited",
+      "quality_bit": null,
+      "expected_evidence": "quality_mask_at_promotion ≥ 0x0302 for HG-1",
+      "observed_evidence": "quality_mask_at_promotion = absent (pre_AEG_Q_001_legacy — doctrine introduced Batch 89)",
+      "severity": "LOW",
+      "recommended_action": "Run quality evidence capture for chief-slm (HG-1); set quality_mask_at_promotion in next soak batch"
+    },
+    {
+      "service": "ankr-slm-router",
+      "drift_type": "quality_unaudited",
+      "quality_bit": null,
+      "expected_evidence": "quality_mask_at_promotion ≥ 0x0302 for HG-1",
+      "observed_evidence": "quality_mask_at_promotion = absent (pre_AEG_Q_001_legacy — doctrine introduced Batch 89)",
+      "severity": "LOW",
+      "recommended_action": "Run quality evidence capture for ankr-slm-router (HG-1); set quality_mask_at_promotion in next soak batch"
+    },
+    {
+      "service": "medslm",
+      "drift_type": "quality_unaudited",
+      "quality_bit": null,
+      "expected_evidence": "quality_mask_at_promotion ≥ 0x0302 for HG-1",
+      "observed_evidence": "quality_mask_at_promotion = absent (pre_AEG_Q_001_legacy — doctrine introduced Batch 89)",
+      "severity": "LOW",
+      "recommended_action": "Run quality evidence capture for medslm (HG-1); set quality_mask_at_promotion in next soak batch"
+    },
+    {
+      "service": "chirpee",
+      "drift_type": "quality_unaudited",
+      "quality_bit": null,
+      "expected_evidence": "quality_mask_at_promotion ≥ 0x0302 for HG-1",
+      "observed_evidence": "quality_mask_at_promotion = absent (pre_AEG_Q_001_legacy — doctrine introduced Batch 89)",
+      "severity": "LOW",
+      "recommended_action": "Run quality evidence capture for chirpee (HG-1); set quality_mask_at_promotion in next soak batch"
+    },
+    {
+      "service": "discovery",
+      "drift_type": "quality_unaudited",
+      "quality_bit": null,
+      "expected_evidence": "quality_mask_at_promotion ≥ 0x0302 for HG-1",
+      "observed_evidence": "quality_mask_at_promotion = absent (pre_AEG_Q_001_legacy — doctrine introduced Batch 89)",
+      "severity": "LOW",
+      "recommended_action": "Run quality evidence capture for discovery (HG-1); set quality_mask_at_promotion in next soak batch"
+    }
+  ],
+  "carbonx_reference_result": {
+    "service": "carbonx-backend",
+    "hg_group": "HG-2B-financial",
+    "quality_mask_at_promotion": 298,
+    "quality_mask_at_promotion_hex": "0x012A",
+    "quality_mask_status": "pre_AEG_Q_001_legacy",
+    "quality_confidence": "low",
+    "quality_drift_score": 12288,
+    "quality_drift_score_hex": "0x3000",
+    "drift_bits_evidenced": [
+      "Q-013",
+      "Q-014"
+    ],
+    "drift_bits_unknown": [
+      "Q-015",
+      "Q-016"
+    ],
+    "drift_bits_evidence": [
+      {
+        "id": "Q-013",
+        "bit": 12,
+        "value": 4096,
+        "status": "EVIDENCED",
+        "evidence": "externalRef added (batch 64); duplicate rejection tested in soak runs 4-7; AEG-HG-FIN-003 idempotency confirmed in batch 71"
+      },
+      {
+        "id": "Q-014",
+        "bit": 13,
+        "value": 8192,
+        "status": "EVIDENCED",
+        "evidence": "SENSE events added (batch 64 CARBONX-FIX-002); LOCK_3_observability PASS at batch 74; CA-003 before/after/delta schema verified"
+      },
+      {
+        "id": "Q-015",
+        "bit": 14,
+        "value": 16384,
+        "status": "UNKNOWN",
+        "evidence": "7-day observation window not complete (promoted 2026-05-04, today 2026-05-05 = 1 day). 7/7 soak PASS is pre-promotion evidence, not post-promotion regression window."
+      },
+      {
+        "id": "Q-016",
+        "bit": 15,
+        "value": 32768,
+        "status": "UNKNOWN",
+        "evidence": "7-day production-fire observation window not complete (only 1 day post-promotion). Audit chain shows 0 incidents recorded so far."
+      }
+    ],
+    "carbonx_drift_findings": [
+      {
+        "service": "carbonx-backend",
+        "drift_type": "schema_drift",
+        "quality_bit": "Q-005",
+        "expected_evidence": "prisma migrate diff run after batch 64 schema change (externalRef field); outcome in audit artifact",
+        "observed_evidence": "No migrate diff artifact found in batches 62–74. Schema change (prisma/schema.prisma batch 64) has no verified migration path.",
+        "severity": "CRITICAL",
+        "recommended_action": "Run prisma migrate diff on carbonx repo; verify externalRef migration is safe; document in next batch artifact"
+      },
+      {
+        "service": "carbonx-backend",
+        "drift_type": "security_drift",
+        "quality_bit": "Q-011",
+        "expected_evidence": "Secret scanner (truffleHog/gitleaks) exits 0 on git diff including batch 64 changes",
+        "observed_evidence": "No secret scan evidence across all 13 batches (62–74). aegis-approval-token.ts handles financial approval tokens.",
+        "severity": "CRITICAL",
+        "recommended_action": "Run truffleHog or gitleaks on carbonx repo diff; record exit code in batch artifact; add to pre-promotion gate"
+      },
+      {
+        "service": "carbonx-backend",
+        "drift_type": "test_drift",
+        "quality_bit": "Q-001",
+        "expected_evidence": "tsc --noEmit exits 0 evidenced in promotion artifact",
+        "observed_evidence": "No tsc invocation found in any batch 62–74 artifact (Q-001 = 0 in quality_mask_at_promotion=0x012A)",
+        "severity": "HIGH",
+        "recommended_action": "Add tsc --noEmit to pre-promotion gate in promotion-template.ts; run and record before next soak"
+      },
+      {
+        "service": "carbonx-backend",
+        "drift_type": "provenance_drift",
+        "quality_bit": "Q-010",
+        "expected_evidence": "AEG-PROV-001 assertSourceControlProvenance passes; recorded in promotion artifact",
+        "observed_evidence": "AEG-PROV-001 not in doctrine at promotion time (batch 74 = May 4, doctrine introduced batch 89 = May 5). Current status: unrun.",
+        "severity": "HIGH",
+        "recommended_action": "Run assertSourceControlProvenance on carbonx repo; record in next batch artifact"
+      },
+      {
+        "service": "carbonx-backend",
+        "drift_type": "audit_drift",
+        "quality_bit": "Q-012",
+        "expected_evidence": "human_review_status=confirmed or human_override_applied=true in promotion artifact",
+        "observed_evidence": "Formal human review protocol (batch 88 style) introduced after batch 74 promotion. No human_review_status field in batch 74 artifact.",
+        "severity": "HIGH",
+        "recommended_action": "Add carbonx to next batch 88-style human review queue for retrospective classification confirmation"
+      }
+    ],
+    "note": "quality_mask_at_promotion preserved from Batch 90 (immutable). quality_drift_score computed for first time by Batch 91."
+  },
+  "checks_total": 53,
+  "checks_passed": 53,
+  "checks_failed": 0,
+  "checks": [
+    {
+      "id": "B91-001",
+      "pass": true,
+      "note": "quality-mask-schema.json loaded from /root/aegis/quality/quality-mask-schema.json"
+    },
+    {
+      "id": "B91-002",
+      "pass": true,
+      "note": "Schema identity: \"aegis-quality-16bit-v1\" === \"aegis-quality-16bit-v1\""
+    },
+    {
+      "id": "B91-003",
+      "pass": true,
+      "note": "Bits 0–11 are all horizon=point_in_time"
+    },
+    {
+      "id": "B91-004",
+      "pass": true,
+      "note": "Bits 12–15 are all horizon=longitudinal"
+    },
+    {
+      "id": "B91-005",
+      "pass": true,
+      "note": "quality_mask_at_promotion schema declares bits 0–11 only"
+    },
+    {
+      "id": "B91-006",
+      "pass": true,
+      "note": "quality_drift_score schema declares bits 12–15 (longitudinal) under rule AEG-Q-003"
+    },
+    {
+      "id": "B91-007",
+      "pass": true,
+      "note": "assertQualityEvidence function exists in src/enforcement/quality.ts"
+    },
+    {
+      "id": "B91-008",
+      "pass": true,
+      "note": "computeQualityDriftScore function exists in src/enforcement/quality.ts"
+    },
+    {
+      "id": "B91-009",
+      "pass": true,
+      "note": "Fleet discovery: 307 total codex.json files found"
+    },
+    {
+      "id": "B91-010",
+      "pass": true,
+      "note": "At least 61 classified services: found 61"
+    },
+    {
+      "id": "B91-011",
+      "pass": true,
+      "note": "Services with aegis_classification: 61"
+    },
+    {
+      "id": "B91-012",
+      "pass": true,
+      "note": "Services with quality_mask_at_promotion: 1 (only carbonx from Batch 90)"
+    },
+    {
+      "id": "B91-013",
+      "pass": true,
+      "note": "Services with quality_drift_score: 1 (0 before first run, 1 after — carbonx only, computed by this batch)"
+    },
+    {
+      "id": "B91-014",
+      "pass": true,
+      "note": "Live hard-gate services in roster: 8"
+    },
+    {
+      "id": "B91-015",
+      "pass": true,
+      "note": "Live roster remains exactly 8 services (unchanged by this batch)"
+    },
+    {
+      "id": "B91-016",
+      "pass": true,
+      "note": "No service promoted by Batch 91 — scanner is read-only on promotion state"
+    },
+    {
+      "id": "B91-017",
+      "pass": true,
+      "note": "carbonx-backend codex.json loaded from /root/apps/carbonx/backend/codex.json"
+    },
+    {
+      "id": "B91-018",
+      "pass": true,
+      "note": "quality_mask_at_promotion = 0x012A (expected 0x012A from Batch 90)"
+    },
+    {
+      "id": "B91-019",
+      "pass": true,
+      "note": "quality_confidence = \"low\" (expected \"low\" — 4/12 bits satisfied)"
+    },
+    {
+      "id": "B91-020",
+      "pass": true,
+      "note": "quality_drift_score is null (first run) or 0x3000 (idempotent re-run) — never mixed with point-in-time bits"
+    },
+    {
+      "id": "B91-021",
+      "pass": true,
+      "note": "quality_mask_status = \"pre_AEG_Q_001_legacy\" (expected pre_AEG_Q_001_legacy)"
+    },
+    {
+      "id": "B91-022",
+      "pass": true,
+      "note": "All 8 Batch 90 missing bits preserved: typecheck_passed, lint_passed, migration_verified, docs_updated, codex_updated, source_clean, no_secret_detected, human_reviewed"
+    },
+    {
+      "id": "B91-023",
+      "pass": true,
+      "note": "9 drift categories defined: source_drift, test_drift, schema_drift, codex_drift, docs_drift, audit_drift, provenance_drift, security_drift, runtime_drift"
+    },
+    {
+      "id": "B91-024",
+      "pass": true,
+      "note": "Every drift category has: description, quality_bit_map, severity_rule, remediation_hint"
+    },
+    {
+      "id": "B91-025",
+      "pass": true,
+      "note": "Services with quality_mask_at_promotion scanned: 1 (carbonx only, from Batch 90)"
+    },
+    {
+      "id": "B91-026",
+      "pass": true,
+      "note": "Source-control drift scan run — findings captured for services missing provenance evidence"
+    },
+    {
+      "id": "B91-027",
+      "pass": true,
+      "note": "Codex drift scan run — 0 services with human_override_applied but missing override_reason (0 = clean)"
+    },
+    {
+      "id": "B91-028",
+      "pass": true,
+      "note": "Audit drift scan run — findings captured (human review gap in carbonx batch 74)"
+    },
+    {
+      "id": "B91-029",
+      "pass": true,
+      "note": "Schema drift scan run — carbonx batch 64 schema change without migrate diff flagged CRITICAL"
+    },
+    {
+      "id": "B91-030",
+      "pass": true,
+      "note": "Security drift scan run — carbonx aegis-approval-token.ts without secret scan flagged CRITICAL"
+    },
+    {
+      "id": "B91-031",
+      "pass": true,
+      "note": "Docs drift scan run — 0 findings"
+    },
+    {
+      "id": "B91-032",
+      "pass": true,
+      "note": "Runtime drift: live roster unchanged at 8 (policy not touched by this batch)"
+    },
+    {
+      "id": "B91-033",
+      "pass": true,
+      "note": "Quality drift: services with previously-absent evidence bits captured as drift findings"
+    },
+    {
+      "id": "B91-034",
+      "pass": true,
+      "note": "quality_drift_score computation uses only longitudinal bits 12–15 (Q-013 to Q-016)"
+    },
+    {
+      "id": "B91-035",
+      "pass": true,
+      "note": "quality_drift_score = 0x3000 — no point-in-time bits set (mask & 0x0FFF = 0)"
+    },
+    {
+      "id": "B91-036",
+      "pass": true,
+      "note": "quality_mask_at_promotion remains 0x012A — NOT mutated by drift score computation"
+    },
+    {
+      "id": "B91-037",
+      "pass": true,
+      "note": "carbonx quality_drift_score = 0x3000 (bits 12+13: idempotency+observability EVIDENCED; bits 14+15: UNKNOWN pending 7-day window)"
+    },
+    {
+      "id": "B91-038",
+      "pass": true,
+      "note": "2 longitudinal bits marked UNKNOWN (regression_clean + production_fire_zero — observation window incomplete)"
+    },
+    {
+      "id": "B91-039",
+      "pass": true,
+      "note": "5-level severity model defined: INFO → LOW → MEDIUM → HIGH → CRITICAL"
+    },
+    {
+      "id": "B91-040",
+      "pass": true,
+      "note": "Financial services escalate: schema_drift and security_drift on HG-2B-financial → CRITICAL"
+    },
+    {
+      "id": "B91-041",
+      "pass": true,
+      "note": "Pre-AEG-Q legacy gaps (60 unaudited services) carry pre_AEG_Q_001_legacy label — not violations"
+    },
+    {
+      "id": "B91-042",
+      "pass": true,
+      "note": "Post-Batch-89 drift findings for carbonx carry recommended_action — treated as actionable"
+    },
+    {
+      "id": "B91-043",
+      "pass": true,
+      "note": "Quality confidence: high=0 medium=0 low=1 unknown=60"
+    },
+    {
+      "id": "B91-044",
+      "pass": true,
+      "note": "Services with drift findings: 48"
+    },
+    {
+      "id": "B91-045",
+      "pass": true,
+      "note": "CRITICAL drift findings: 16 (at minimum: carbonx schema_drift + carbonx security_drift + 14 HG-2B-financial without quality_mask)"
+    },
+    {
+      "id": "B91-046",
+      "pass": true,
+      "note": "HIGH drift findings: 12 (HG-2B unaudited + carbonx typecheck + provenance + human_review)"
+    },
+    {
+      "id": "B91-047",
+      "pass": true,
+      "note": "Services needing immediate remediation (CRITICAL findings): 11"
+    },
+    {
+      "id": "B91-048",
+      "pass": true,
+      "note": "Services with no drift findings: 0 (all 61 have some finding — quality_unaudited is fleet-wide gap)"
+    },
+    {
+      "id": "B91-049",
+      "pass": true,
+      "note": "No automatic promotion readiness granted — scanner is surveillance only, not a promoter"
+    },
+    {
+      "id": "B91-050",
+      "pass": true,
+      "note": "JSON artifact written: /root/aegis/audits/batch91_fleet_quality_drift_scan.json"
+    },
+    {
+      "id": "B91-051",
+      "pass": true,
+      "note": "Markdown report written: /root/proposals/aegis--fleet-quality-drift-scan--formal--2026-05-05.md"
+    },
+    {
+      "id": "B91-052",
+      "pass": true,
+      "note": "JSON artifact contains all required fields: schema, batch, fleet_size, services_scanned, quality_mask_at_promotion_coverage, quality_drift_score_coverage, drift_findings, severity_counts, remediation_queue, carbonx_reference_result, no_promotion_state_changed"
+    },
+    {
+      "id": "B91-053",
+      "pass": true,
+      "note": "Markdown report contains required sections: Executive Summary, Why Drift Matters, Carbonx Reference Case, Top Remediation Actions, Next Batch Recommendation"
+    }
+  ],
+  "verdict": "PASS",
+  "next_steps": [
+    "Batch 92: Fleet quality dashboard — visual aggregate of quality_mask + drift_score across 61 services",
+    "Batch 93: Guard SDK MVP — @ankr/aegis-guard extracting approval token + SENSE + idempotency",
+    "Pre-Batch 92: Run AEG-PROV-001 + secret scanner on carbonx to close GAP-Q-010/Q-011",
+    "Pre-Batch 92: Confirm prisma migration path for carbonx batch 64 externalRef change (GAP-Q-005)",
+    "Add carbonx to human review queue for retrospective batch 88-style confirmation (GAP-Q-012)",
+    "Begin quality_mask_at_promotion capture for HG-2B-financial fleet (14 unaudited services = CRITICAL priority)"
+  ]
+}
