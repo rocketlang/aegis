@@ -108,8 +108,8 @@ export async function verifyAndConsumeNonce(
 }
 
 // @rule:AEG-E-016 — HG-2B: verify scope fields declared by the caller service.
-// requiredScope: Record<string, unknown> — service declares which fields must match.
-// Service-agnostic: carbonx passes {vessel_id, ets_account_id, ...}; any service passes its own shape.
+// requiredScope: Record<string, unknown> — caller declares which fields to bind; SDK enforces them.
+// Service-agnostic: the caller owns the field names; the SDK never names domain concepts.
 export function verifyScopedApprovalToken(
   token: string,
   expectedServiceId: string,
