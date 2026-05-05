@@ -1,0 +1,180 @@
+{
+  "audit_id": "batch88-v2-side-effect-human-review-confirmation",
+  "batch": 88,
+  "type": "human_review_confirmation",
+  "date": "2026-05-05",
+  "checks_total": 29,
+  "checks_passed": 29,
+  "checks_failed": 0,
+  "verdict": "PASS",
+  "safety_verdict": "PASS",
+  "quality_verdict": "PASS",
+  "summary": {
+    "queue_size": 18,
+    "confirmed": 14,
+    "rejected": 3,
+    "deferred": 1,
+    "financial_upgrades_confirmed": 0,
+    "remaining_requires_review": 26
+  },
+  "hg_distribution_post_batch88": {
+    "HG-1": 27,
+    "HG-2A": 10,
+    "HG-2B": 9,
+    "HG-2B-financial": 15
+  },
+  "confirmed_services": [
+    {
+      "service": "kavachos",
+      "hg_group_confirmed": "HG-2A",
+      "machine_hg_before_v2": "HG-1",
+      "human_review_reason": "AGENT_LAUNCH_GOVERNED: kavachos governs agent launch — it sits between an agent and its execution environment. SECCOMP_PROFILE_GENERATE + FALCO_RULES_GENERATE produce security profiles that external runtimes enforce. External proof/validation role confirmed; HG-2A is correct.",
+      "five_locks_required": false,
+      "classification_source": "batch88_human_review"
+    },
+    {
+      "service": "bitmaskos",
+      "hg_group_confirmed": "HG-2B",
+      "machine_hg_before_v2": "HG-1",
+      "human_review_reason": "BITMASK_AUTHORIZE + TOKEN_BUDGET_CHECK + MASK_PROPAGATE: bitmaskos is the trust/permission infrastructure — it authorizes capability masks and propagates them across services. Authorization infrastructure is genuine HG-2B gate authority. Upgrade is conservative; more authority than HG-2A, less than financial.",
+      "five_locks_required": false,
+      "classification_source": "batch88_human_review"
+    },
+    {
+      "service": "chetna",
+      "hg_group_confirmed": "HG-2A",
+      "machine_hg_before_v2": "HG-1",
+      "human_review_reason": "PRIMITIVE_INGEST + GAP_CREATE: CHETNA ingests organizational primitives and creates gap records in the Corporate Consciousness Engine. Writing primitives and creating governance gaps are external-state-touching operations. HG-2A (external_call) is correct for a system that mutates the organizational knowledge graph.",
+      "five_locks_required": false,
+      "classification_source": "batch88_human_review"
+    },
+    {
+      "service": "puranic-os",
+      "hg_group_confirmed": "HG-2A",
+      "machine_hg_before_v2": "HG-1",
+      "human_review_reason": "SMRITI_GRADE_ASSIGN + YUGA_TRANSITION: puranic-os assigns grades to knowledge entries and transitions the system between knowledge epochs (yugas). Grade assignment and epoch transitions are authoritative state changes with downstream consequences for every SLM that reads from the knowledge layer. HG-2A confirmed.",
+      "five_locks_required": false,
+      "classification_source": "batch88_human_review"
+    },
+    {
+      "service": "drone8x-os",
+      "hg_group_confirmed": "HG-2B",
+      "machine_hg_before_v2": "HG-2A",
+      "human_review_reason": "KILL_DRONE is an irreversible physical action. LAUNCH_MISSION + ASSIGN_ROLE control autonomous drone behavior in the physical world. An OS that can terminate physical assets and assign operational roles warrants HG-2B regardless of vocabulary subtlety. Upgrade from HG-2A is correct — physical irreversibility triggers HG-2B.",
+      "five_locks_required": false,
+      "classification_source": "batch88_human_review"
+    },
+    {
+      "service": "ankr-proof",
+      "hg_group_confirmed": "HG-2A",
+      "machine_hg_before_v2": "HG-1",
+      "human_review_reason": "RUN_PENTEST + GENERATE_EVIDENCE_BUNDLE + SCORE_COMPLIANCE_READINESS: ankr-proof runs security assessments and generates evidence bundles for compliance scoring. Producing structured security evidence that external processes rely on is a proof/validation function. HG-2A is correct. The service name alone ('proof') confirms the classifier's intent.",
+      "five_locks_required": false,
+      "classification_source": "batch88_human_review"
+    },
+    {
+      "service": "anvilos-slm",
+      "hg_group_confirmed": "HG-2A",
+      "machine_hg_before_v2": "HG-1",
+      "human_review_reason": "'Validate proposed code against ANKR conventions' — 'VALIDATE' matched HG2A_PROOF_VERBS correctly. anvilos-slm validates code against doctrine and generates Forja scaffolds. Validation with consequences (reject/pass) for proposed code is external_call territory. HG-2A confirmed.",
+      "five_locks_required": false,
+      "classification_source": "batch88_human_review"
+    },
+    {
+      "service": "ankr-gurukul",
+      "hg_group_confirmed": "HG-2B",
+      "machine_hg_before_v2": "HG-1",
+      "human_review_reason": "'Emit SENSE audit events for every routing decision' — 'SENSE' matched HG2B_GATE_VERBS. ankr-gurukul is an SLM orchestration router: every routing decision changes which SLM receives a query and thus which answer the caller acts on. SENSE events are its audit trail for these routing decisions. Orchestration with observable audit events on every decision is HG-2B authority. Confirmed.",
+      "five_locks_required": false,
+      "classification_source": "batch88_human_review"
+    },
+    {
+      "service": "dharma-panel",
+      "hg_group_confirmed": "HG-2B",
+      "machine_hg_before_v2": "HG-2A",
+      "human_review_reason": "APPROVE_DAEMON_ACTION + VETO_DAEMON_ACTION + REVERSE_DAEMON_ACTION: dharma-panel is the human governance panel for autonomous daemon actions. Approving, vetoing, and reversing daemon actions is the definition of HG-2B gate authority. Upgrade from HG-2A is correct — this service holds veto power over autonomous operations.",
+      "five_locks_required": false,
+      "classification_source": "batch88_human_review"
+    },
+    {
+      "service": "sakshi",
+      "hg_group_confirmed": "HG-2A",
+      "machine_hg_before_v2": "HG-1",
+      "human_review_reason": "WITNESS_REPO + ISSUE_CERTIFICATE + SELF_AUDIT: sakshi (Sanskrit: witness) is the PRAMANA twin — it witnesses repositories and issues tamper-evident certificates. 'AUDIT' in SELF_AUDIT matched HG2A_PROOF_VERBS correctly. Certificate issuance is an external proof function. HG-2A confirmed. (See Batch 83 notes: 'SAKSHI+PRAMANA=verification twin'.)",
+      "five_locks_required": false,
+      "classification_source": "batch88_human_review"
+    },
+    {
+      "service": "mpv8x",
+      "hg_group_confirmed": "HG-2B",
+      "machine_hg_before_v2": "HG-1",
+      "human_review_reason": "APPROVE_SECURING_PLAN: mpv8x approves cargo securing plans for vessels. Cargo securing is a maritime safety-critical operation — an incorrectly approved plan can shift cargo at sea with catastrophic consequence. APPROVE_SECURING_PLAN matched 'APPROVE' in HG2B_GATE_VERBS correctly. Approval of safety-critical cargo plans is genuine HG-2B authority. Confirmed.",
+      "five_locks_required": false,
+      "classification_source": "batch88_human_review"
+    },
+    {
+      "service": "trademitra-api",
+      "hg_group_confirmed": "HG-2A",
+      "machine_hg_before_v2": "HG-1",
+      "human_review_reason": "VALIDATE_PSR: trademitra-api validates Preferential Specific Rules for trade compliance. PSR validation determines whether goods qualify for preferential duty treatment under FTAs. CHECK_FTA_ELIGIBILITY + CALCULATE_DUTIES confirm this is a trade validation service. 'VALIDATE' in HG2A_PROOF_VERBS matched correctly. HG-2A confirmed.",
+      "five_locks_required": false,
+      "classification_source": "batch88_human_review"
+    },
+    {
+      "service": "owneros",
+      "hg_group_confirmed": "HG-2B",
+      "machine_hg_before_v2": "HG-1",
+      "human_review_reason": "APPROVE_PROCUREMENT + FLAG_PDA_DISPUTE: owneros is the vessel owner OS backend. Procurement approval in ship operations (stores, bunkers, spares) has direct financial and operational consequence. PDA (Port Disbursement Account) dispute flagging initiates formal financial dispute processes. APPROVE_PROCUREMENT matched 'APPROVE' in HG2B_GATE_VERBS correctly. HG-2B confirmed for a vessel owner authority backend.",
+      "five_locks_required": false,
+      "classification_source": "batch88_human_review"
+    },
+    {
+      "service": "portwatch",
+      "hg_group_confirmed": "HG-2B",
+      "machine_hg_before_v2": "HG-1",
+      "human_review_reason": "ISSUE_MOVEMENT_AUTHORITY + AMEND_MOVEMENT_AUTHORITY + CANCEL_MOVEMENT_AUTHORITY: portwatch issues, amends, and cancels movement authorities for vessels in port. A movement authority (berth departure, port exit) controls physical vessel movement in a safety-critical environment. 'AUTHORITY' in HG2B_GATE_VERBS matched correctly. Port movement authority is genuine maritime governance — HG-2B is correct.",
+      "five_locks_required": false,
+      "classification_source": "batch88_human_review"
+    }
+  ],
+  "rejected_services": [
+    {
+      "service": "ship-slm",
+      "rejected_hg_group": "HG-2B",
+      "retained_hg_group": "HG-1",
+      "rejection_reason": "v2 matched 'BOUNDARY' in 'domain boundary hint' — a feature description, not a governance boundary. ship-slm is a read-only offline inference engine: it answers maritime questions, cites conventions, returns typed NULL for out-of-domain queries. No external state is written. No actions are gated. The word 'boundary' in a free-text can_do string describing NULL behaviour does not constitute HG-2B authority. Retain HG-1."
+    },
+    {
+      "service": "ankr-atlas/frontend",
+      "rejected_hg_group": "HG-2B",
+      "retained_hg_group": "HG-1",
+      "rejection_reason": "ankr-atlas/frontend is a pure Three.js visualization layer: renders a 3D galaxy, drills into service clusters, navigates a guided tour, surfaces health aggregates. No governance action originates from the frontend. No external state is written. The vocabulary match that triggered HG-2B has not been identified from these natural-language can_do strings — vocabulary overreach is the most likely cause. Frontend visualization services are HG-1 by doctrine; authority lives on the backend. Retain HG-1."
+    },
+    {
+      "service": "atlas",
+      "rejected_hg_group": "HG-2B",
+      "retained_hg_group": "HG-1",
+      "rejection_reason": "ATLAS_REFRESH + ATLAS_CLUSTER_DRILLDOWN + ATLAS_GUIDE_NAVIGATE: the Atlas backend serves visualization data — it refreshes the service index, delivers cluster detail, and navigates the guided tour. These are read/serve operations with no external state write or approval gate. The Atlas backend is a discovery/read service. Retain HG-1."
+    }
+  ],
+  "deferred_services": [
+    {
+      "service": "owneros-frontend",
+      "defer_reason": "owneros-frontend declares APPROVE_PROCUREMENT — a genuine HG-2B verb. However, the question is whether the frontend is the authority plane or merely the render surface for the backend approval. owneros-backend ALSO declares APPROVE_PROCUREMENT. Cannot safely judge whether the frontend exercises procurement authority or delegates it. Architecture review needed: if frontend calls backend for approval, the classification authority sits on the backend (already confirmed HG-2B). If frontend exercises direct authority, HG-2B is correct here too. Deferred pending owner-runtime review."
+    }
+  ],
+  "invariants": [
+    "No service promoted — classification truth is not promotion authority",
+    "No HARD_GATE_POLICIES modified",
+    "No AEGIS_HARD_GATE_SERVICES modified",
+    "No Batch 85 human overrides touched",
+    "No downgrade below machine_hg_group_before_v2",
+    "Live hard-gate roster remains exactly 8",
+    "carbonx-backend remains HG-2B-financial",
+    "Rejected services reverted to machine_hg_group_before_v2 (not to pre-batch83)",
+    "Confirmed services cleared from requires_human_review queue",
+    "machine_hg_group_before_v2 preserved on all modified codex files"
+  ],
+  "next_step": "Batch 89: generate policy stubs for confirmed HG-2B and HG-2A services; define quality_mask doctrine (AEGIS-Q).",
+  "doctrine": "The classifier suggested consequence. The human accepted only what the evidence could carry."
+}
