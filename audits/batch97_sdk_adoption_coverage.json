@@ -1,0 +1,43 @@
+{
+  "artifact_id": "aegis-sdk-adoption-coverage-v1",
+  "generated_at": "2026-05-05",
+  "sdk_package": "@ankr/aegis-guard",
+  "sdk_path": "packages/aegis-guard",
+  "sdk_version": "1.0.0",
+  "doctrine": "Five Locks proved in carbonx-backend (batches 62-74). Batch 93 made them reusable. Batch 97 completed adoption.",
+  "services": {
+    "carbonx-backend": {
+      "service_key": "carbonx-backend",
+      "hg_group": "HG-2B-financial",
+      "sdk_adoption_status": "adopted",
+      "adopted_batch": 97,
+      "regression_batch": 96,
+      "five_locks_regression": "PASS",
+      "sdk_package": "@ankr/aegis-guard",
+      "sdk_primitives_used": [
+        "verifyScopedApprovalToken",
+        "verifyAndConsumeNonce",
+        "emitAegisSenseEvent",
+        "digestApprovalToken",
+        "IrrNoApprovalError"
+      ],
+      "carbonx_adapters": {
+        "carbonx-scope-adapter.ts": "7-field financial scope → Record<string, unknown> (ADAPTER-1)",
+        "aegis-transport.ts": "pino logger → configureSenseTransport (ADAPTER-2)"
+      },
+      "deprecated_helpers_removed": [
+        "src/lib/aegis-approval-token.ts",
+        "src/lib/aegis-sense.ts"
+      ],
+      "removed_at_batch": 97,
+      "quality_mask_at_promotion": "0x012A",
+      "quality_drift_score": "0x3000",
+      "quality_note": "SDK adoption is a dependency change, not a quality evidence event. quality_mask_at_promotion immutable (AEG-Q-003)."
+    }
+  },
+  "adoption_summary": {
+    "total_hg2b_financial_services": 1,
+    "fully_adopted": 1,
+    "pending_adoption": 0
+  }
+}

@@ -1,0 +1,40 @@
+{
+  "batch": 97,
+  "batch_name": "carbonx-sdk-adoption-cleanup",
+  "batch_date": "2026-05-05",
+  "doctrine": "The fallback was removed. The locks now live in the SDK.",
+  "sdk_package": "@ankr/aegis-guard",
+  "carbonx_service": "carbonx-backend",
+  "carbonx_hg_group": "HG-2B-financial",
+  "deleted_files": [
+    "apps/carbonx/backend/src/lib/aegis-approval-token.ts",
+    "apps/carbonx/backend/src/lib/aegis-sense.ts"
+  ],
+  "deletion_proof": "zero live imports confirmed by grep before deletion (B97-003, B97-004)",
+  "five_locks_status": {
+    "LOCK_1_decision": "INTACT — verifyScopedApprovalToken from @ankr/aegis-guard",
+    "LOCK_2_identity": "INTACT — carbonxFinancialScope adapter (7 fields)",
+    "LOCK_3_observability": "INTACT — emitAegisSenseEvent + digestApprovalToken from @ankr/aegis-guard",
+    "LOCK_4_rollback": "INTACT — simulateSurrender carbonx domain queryField",
+    "LOCK_5_idempotency": "INTACT — Prisma findFirst externalRef check in ets-service.ts"
+  },
+  "quality_scores_unchanged": {
+    "quality_mask_at_promotion": "0x012A",
+    "quality_drift_score": "0x3000",
+    "quality_note": "SDK adoption is a dependency change, not a quality evidence event"
+  },
+  "no_policy_change": true,
+  "no_roster_change": true,
+  "no_promotion_change": true,
+  "live_roster_count": 8,
+  "sdk_adoption_status": "adopted",
+  "script_checks": {
+    "total": 28,
+    "passed": 28,
+    "failed": 0
+  },
+  "failures": [],
+  "verdict": "PASS",
+  "verdict_rationale": "Deprecated local helpers removed after zero-import proof. Five Locks intact via SDK. carbonx fully adopted @ankr/aegis-guard.",
+  "next": "carbonx @ankr/aegis-guard adoption complete. Future HG-2B-financial services should use @ankr/aegis-guard directly from birth."
+}
