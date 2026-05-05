@@ -1,0 +1,52 @@
+{
+  "batch": 95,
+  "batch_name": "carbonx-sdk-migration-impl",
+  "batch_date": "2026-05-05",
+  "doctrine": "The engine changed. The locks still hold.",
+  "sdk_package": "@ankr/aegis-guard",
+  "carbonx_service": "carbonx-backend",
+  "carbonx_hg_group": "HG-2B-financial",
+  "migration_actions": {
+    "package_dep_added": "@ankr/aegis-guard: file:../../../aegis/packages/aegis-guard",
+    "new_files": [
+      "src/lib/aegis-transport.ts — pino SENSE transport wiring (ADAPTER-2)",
+      "src/lib/carbonx-scope-adapter.ts — 7-field scope builder (ADAPTER-1)"
+    ],
+    "modified_imports": {
+      "src/schema/types/ets.ts": {
+        "removed": "verifyFinancialApprovalToken from local aegis-approval-token.js",
+        "added": "verifyScopedApprovalToken, verifyAndConsumeNonce, IrrNoApprovalError from @ankr/aegis-guard",
+        "call_site": "verifyFinancialApprovalToken(...) → verifyScopedApprovalToken(..., carbonxFinancialScope(ctx, args))"
+      },
+      "src/services/ets/ets-service.ts": {
+        "removed": "emitAegisSenseEvent from aegis-sense.js + digestApprovalToken from aegis-approval-token.js",
+        "added": "emitAegisSenseEvent + digestApprovalToken from @ankr/aegis-guard"
+      }
+    },
+    "deprecated_not_deleted": [
+      "apps/carbonx/backend/src/lib/aegis-approval-token.ts",
+      "apps/carbonx/backend/src/lib/aegis-sense.ts"
+    ]
+  },
+  "five_locks_status": {
+    "LOCK_1_decision": "INTACT — verifyScopedApprovalToken (SDK)",
+    "LOCK_2_identity": "INTACT — carbonxFinancialScope adapter maps 7 fields to requiredScope",
+    "LOCK_3_observability": "INTACT — emitAegisSenseEvent (SDK) + pino transport via aegis-transport.ts",
+    "LOCK_4_rollback": "INTACT — remains carbonx domain logic (untouched)",
+    "LOCK_5_idempotency": "INTACT — externalRef findFirst check remains in ets-service.ts"
+  },
+  "idempotency_note": "LOCK-5 idempotency uses original Prisma findFirst pattern (not SDK helper yet). SDK helper migration deferred to Batch 97 per \"smallest safe migration\" doctrine.",
+  "no_policy_change": true,
+  "no_roster_change": true,
+  "no_promotion_change": true,
+  "old_helpers_kept": true,
+  "sdk_source_unchanged": true,
+  "script_checks": {
+    "total": 62,
+    "passed": 62,
+    "failed": 0
+  },
+  "verdict": "PASS",
+  "verdict_rationale": "carbonx migrated to @ankr/aegis-guard; Five Locks intact; old helpers kept; Batch 96 regression required",
+  "next": "Batch 96 — run carbonx Five Locks regression to confirm no behavioral change"
+}
