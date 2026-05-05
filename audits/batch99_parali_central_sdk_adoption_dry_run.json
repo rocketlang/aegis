@@ -1,0 +1,137 @@
+{
+  "batch": 99,
+  "batch_name": "parali-central-sdk-adoption-dry-run",
+  "batch_date": "2026-05-05",
+  "doctrine": "Carbonx proved the financial locks. Parali proves the locks travel.",
+  "dry_run": true,
+  "no_source_mutation": true,
+  "no_governance_change": true,
+  "sdk_package": "@ankr/aegis-guard",
+  "service": "parali-central",
+  "hg_group": "HG-2B",
+  "migration_type": "additive — no local helpers to remove",
+  "source_inventory": {
+    "repo_path": "/root/apps/parali-central/backend",
+    "source_files_scanned": 1,
+    "source_files": [
+      "src/routes/forja.ts"
+    ],
+    "forja_endpoints_present": [
+      "GET /api/v2/forja/state",
+      "GET /api/v2/forja/trust/:role",
+      "POST /api/v2/forja/sense/emit",
+      "GET /api/v2/forja/proof"
+    ],
+    "sense_pattern": "app.log.info() in POST /api/v2/forja/sense/emit — raw Fastify logger, not emitAegisSenseEvent",
+    "approval_pattern": "APPROVE bit in ROLE_MASKS (0x10) + APPROVE_DIVIDEND in can_do — no approval gate code yet",
+    "nonce_pattern": "not_present_yet",
+    "idempotency_pattern": "not_present_yet",
+    "local_aegis_helpers": "none — additive migration, not replacement",
+    "hg_group": "HG-2B",
+    "financial_touch": false,
+    "irreversible_actions": []
+  },
+  "sdk_mapping_table": {
+    "LOCK_1_decision": {
+      "sdk_primitive": "verifyScopedApprovalToken",
+      "parali_status": "not_present_yet",
+      "note": "APPROVE_DIVIDEND in can_do but approval gate not coded. Batch 100 defers this lock until dividend gate is built."
+    },
+    "LOCK_2_identity": {
+      "sdk_primitive": "verifyScopedApprovalToken (requiredScope)",
+      "parali_status": "not_present_yet",
+      "scope_fields": [
+        "hub_id",
+        "network_id",
+        "dividend_pct",
+        "period",
+        "actor_user_id"
+      ],
+      "note": "paraliScopeAdapter will map these fields when APPROVE_DIVIDEND is gated."
+    },
+    "LOCK_3_observability": {
+      "sdk_primitive": "emitAegisSenseEvent + configureSenseTransport",
+      "parali_status": "ready_to_wire",
+      "note": "Forja SENSE endpoint uses app.log.info. Batch 100: add parali-sense-transport.ts to bridge Fastify logger."
+    },
+    "LOCK_4_rollback": {
+      "sdk_primitive": "simulateDividend (future domain logic)",
+      "parali_status": "not_present_yet",
+      "note": "No simulate query yet. Will be a read-only Forja STATE query when APPROVE_DIVIDEND is implemented."
+    },
+    "LOCK_5_idempotency": {
+      "sdk_primitive": "checkIdempotency + buildIdempotencyFingerprint",
+      "parali_status": "not_present_yet",
+      "note": "No action reference table yet. checkIdempotency will apply when dividend actions are stored."
+    }
+  },
+  "adapter_plan": {
+    "required": [
+      {
+        "name": "parali-sense-transport.ts",
+        "purpose": "Bridge Fastify app.log to configureSenseTransport — replaces raw app.log.info in SENSE endpoint",
+        "pattern": "configureSenseTransport((evt) => app.log.info({ aegis_sense: true, ...evt }, `SENSE:${evt.event_type}`))",
+        "wiring_only": true
+      }
+    ],
+    "conditional": [
+      {
+        "name": "parali-scope-adapter.ts",
+        "trigger": "When APPROVE_DIVIDEND approval gate is implemented",
+        "purpose": "Map Fastify request args to 5-field scope for verifyScopedApprovalToken",
+        "fields": [
+          "hub_id",
+          "network_id",
+          "dividend_pct",
+          "period",
+          "actor_user_id"
+        ],
+        "wiring_only": true
+      },
+      {
+        "name": "parali-idempotency.ts",
+        "trigger": "When dividend action reference table is added to DB",
+        "purpose": "Wrap checkIdempotency with Prisma findFirst for dividend action refs",
+        "wiring_only": true
+      }
+    ],
+    "adapter_count": 3,
+    "within_budget": true,
+    "migration_risk": "LOW",
+    "migration_type": "additive — no local helpers to remove, no financial scope binding"
+  },
+  "batch_100_plan": [
+    "Step 1: Add @ankr/aegis-guard to parali-central package.json (bun add file:../../aegis/packages/aegis-guard)",
+    "Step 2: Create src/lib/parali-sense-transport.ts — wire configureSenseTransport to Fastify app.log",
+    "Step 3: In POST /api/v2/forja/sense/emit, replace app.log.info with emitAegisSenseEvent",
+    "Step 4: Import parali-sense-transport.ts as side-effect in routes/forja.ts",
+    "Step 5: No local helper deletion needed (parali has none)",
+    "Step 6: Batch 101 — regression (mirror Batch 96 arc)",
+    "Note: verifyScopedApprovalToken and nonce gates deferred until APPROVE_DIVIDEND is implemented in code"
+  ],
+  "migration_risk": "LOW",
+  "behavioral_equivalence": {
+    "approval_reject_wrong_service": true,
+    "approval_reject_wrong_capability": true,
+    "approval_reject_expired": true,
+    "scope_reject_wrong_field": true,
+    "nonce_replay_blocked": true,
+    "sense_irreversible_true": true,
+    "sense_digest_24_chars": true,
+    "idempotency_safe_duplicate": true,
+    "idempotency_mismatch_detected": true
+  },
+  "no_policy_change": true,
+  "no_roster_change": true,
+  "no_promotion_change": true,
+  "live_roster_count": 8,
+  "script_checks": {
+    "total": 54,
+    "passed": 54,
+    "failed": 0
+  },
+  "failures": [],
+  "verdict": "PASS",
+  "verdict_rationale": "parali-central SDK adoption path mapped. 1 required adapter (paraliSenseTransport). No source mutation. No governance change. Batch 100 implementation unblocked.",
+  "next": "Batch 100 — parali-central SDK adoption implementation (add SDK dep + wire SENSE transport + replace app.log.info in Forja endpoint)"
+}
