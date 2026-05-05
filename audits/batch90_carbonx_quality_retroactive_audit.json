@@ -1,0 +1,546 @@
+{
+  "audit_id": "batch90-carbonx-quality-retroactive-audit",
+  "batch": 90,
+  "type": "quality_retroactive_audit",
+  "service": "carbonx-backend",
+  "hg_group": "HG-2B-financial",
+  "promotion_batch": 74,
+  "promotion_date": "2026-05-04",
+  "date": "2026-05-05",
+  "quality_schema": "aegis-quality-16bit-v1",
+  "doctrine": "A retroactive audit does not void the promotion. It computes the honest score so the evidence chain can be completed.",
+  "quality_mask_at_promotion": 298,
+  "quality_mask_at_promotion_hex": "0x012A",
+  "batch89_initial_score": 258,
+  "batch89_initial_hex": "0x0102",
+  "batch90_refinement_added": "+0x0028 (bit 3: no_unrelated_diff + bit 5: rollback_verified)",
+  "required_mask": 4095,
+  "required_mask_hex": "0x0FFF",
+  "gap_mask": 3797,
+  "gap_mask_hex": "0x0ED5",
+  "quality_confidence": "low",
+  "quality_drift_score": null,
+  "status": "pre_AEG_Q_001_legacy",
+  "is_violation": false,
+  "satisfied_bits": [
+    {
+      "id": "Q-002",
+      "bit": 1,
+      "name": "tests_passed"
+    },
+    {
+      "id": "Q-004",
+      "bit": 3,
+      "name": "no_unrelated_diff"
+    },
+    {
+      "id": "Q-006",
+      "bit": 5,
+      "name": "rollback_verified"
+    },
+    {
+      "id": "Q-009",
+      "bit": 8,
+      "name": "audit_artifact_written"
+    }
+  ],
+  "missing_bits": [
+    {
+      "id": "Q-001",
+      "bit": 0,
+      "name": "typecheck_passed"
+    },
+    {
+      "id": "Q-003",
+      "bit": 2,
+      "name": "lint_passed"
+    },
+    {
+      "id": "Q-005",
+      "bit": 4,
+      "name": "migration_verified"
+    },
+    {
+      "id": "Q-007",
+      "bit": 6,
+      "name": "docs_updated"
+    },
+    {
+      "id": "Q-008",
+      "bit": 7,
+      "name": "codex_updated"
+    },
+    {
+      "id": "Q-010",
+      "bit": 9,
+      "name": "source_clean"
+    },
+    {
+      "id": "Q-011",
+      "bit": 10,
+      "name": "no_secret_detected"
+    },
+    {
+      "id": "Q-012",
+      "bit": 11,
+      "name": "human_reviewed"
+    }
+  ],
+  "per_batch_cumulative_masks": {
+    "batch_62": {
+      "mask": 256,
+      "hex": "0x0100"
+    },
+    "batch_63": {
+      "mask": 256,
+      "hex": "0x0100"
+    },
+    "batch_64": {
+      "mask": 264,
+      "hex": "0x0108"
+    },
+    "batch_65": {
+      "mask": 264,
+      "hex": "0x0108"
+    },
+    "batch_66": {
+      "mask": 266,
+      "hex": "0x010A"
+    },
+    "batch_67": {
+      "mask": 266,
+      "hex": "0x010A"
+    },
+    "batch_68": {
+      "mask": 266,
+      "hex": "0x010A"
+    },
+    "batch_69": {
+      "mask": 266,
+      "hex": "0x010A"
+    },
+    "batch_70": {
+      "mask": 266,
+      "hex": "0x010A"
+    },
+    "batch_71": {
+      "mask": 266,
+      "hex": "0x010A"
+    },
+    "batch_72": {
+      "mask": 266,
+      "hex": "0x010A"
+    },
+    "batch_73": {
+      "mask": 266,
+      "hex": "0x010A"
+    },
+    "batch_74": {
+      "mask": 298,
+      "hex": "0x012A"
+    }
+  },
+  "per_batch_evidence": [
+    {
+      "batch": 62,
+      "label": "HG-2B candidate readiness audit",
+      "phase": "classification",
+      "code_changed": false,
+      "schema_changed": false,
+      "bits_satisfied_in_batch": [
+        8
+      ],
+      "cumulative_mask_after": 256,
+      "cumulative_mask_hex": "0x0100"
+    },
+    {
+      "batch": 63,
+      "label": "BR-5 financial code scan gate",
+      "phase": "code_scan",
+      "code_changed": false,
+      "schema_changed": false,
+      "bits_satisfied_in_batch": [
+        8
+      ],
+      "cumulative_mask_after": 256,
+      "cumulative_mask_hex": "0x0100"
+    },
+    {
+      "batch": 64,
+      "label": "BR-5 financial remediation",
+      "phase": "remediation",
+      "code_changed": true,
+      "schema_changed": true,
+      "bits_satisfied_in_batch": [
+        3,
+        8
+      ],
+      "cumulative_mask_after": 264,
+      "cumulative_mask_hex": "0x0108"
+    },
+    {
+      "batch": 65,
+      "label": "BR-5 financial re-scan gate",
+      "phase": "rescan",
+      "code_changed": false,
+      "schema_changed": false,
+      "bits_satisfied_in_batch": [
+        8
+      ],
+      "cumulative_mask_after": 264,
+      "cumulative_mask_hex": "0x0108"
+    },
+    {
+      "batch": 66,
+      "label": "Soft-canary soak run 1/7",
+      "phase": "soft_canary",
+      "code_changed": false,
+      "schema_changed": false,
+      "bits_satisfied_in_batch": [
+        1,
+        3,
+        8
+      ],
+      "cumulative_mask_after": 266,
+      "cumulative_mask_hex": "0x010A"
+    },
+    {
+      "batch": 67,
+      "label": "Soft-canary soak run 2/7",
+      "phase": "soft_canary",
+      "code_changed": false,
+      "schema_changed": false,
+      "bits_satisfied_in_batch": [
+        1,
+        3,
+        8
+      ],
+      "cumulative_mask_after": 266,
+      "cumulative_mask_hex": "0x010A"
+    },
+    {
+      "batch": 68,
+      "label": "Soft-canary soak run 3/7",
+      "phase": "soft_canary",
+      "code_changed": false,
+      "schema_changed": false,
+      "bits_satisfied_in_batch": [
+        1,
+        3,
+        8
+      ],
+      "cumulative_mask_after": 266,
+      "cumulative_mask_hex": "0x010A"
+    },
+    {
+      "batch": 69,
+      "label": "Soft-canary soak run 4/7",
+      "phase": "soft_canary",
+      "code_changed": false,
+      "schema_changed": false,
+      "bits_satisfied_in_batch": [
+        1,
+        3,
+        8
+      ],
+      "cumulative_mask_after": 266,
+      "cumulative_mask_hex": "0x010A"
+    },
+    {
+      "batch": 70,
+      "label": "Soft-canary soak run 5/7 — EUA cap + partial-settlement boundary",
+      "phase": "soft_canary",
+      "code_changed": false,
+      "schema_changed": false,
+      "bits_satisfied_in_batch": [
+        1,
+        3,
+        8
+      ],
+      "cumulative_mask_after": 266,
+      "cumulative_mask_hex": "0x010A"
+    },
+    {
+      "batch": 71,
+      "label": "Financial scope gap closure",
+      "phase": "gap_closure",
+      "code_changed": true,
+      "schema_changed": false,
+      "bits_satisfied_in_batch": [
+        1,
+        3,
+        8
+      ],
+      "cumulative_mask_after": 266,
+      "cumulative_mask_hex": "0x010A"
+    },
+    {
+      "batch": 72,
+      "label": "Soft-canary soak run 6/7",
+      "phase": "soft_canary",
+      "code_changed": false,
+      "schema_changed": false,
+      "bits_satisfied_in_batch": [
+        1,
+        3,
+        8
+      ],
+      "cumulative_mask_after": 266,
+      "cumulative_mask_hex": "0x010A"
+    },
+    {
+      "batch": 73,
+      "label": "Soft-canary soak run 7/7 — final gate",
+      "phase": "soft_canary",
+      "code_changed": false,
+      "schema_changed": false,
+      "bits_satisfied_in_batch": [
+        1,
+        3,
+        8
+      ],
+      "cumulative_mask_after": 266,
+      "cumulative_mask_hex": "0x010A"
+    },
+    {
+      "batch": 74,
+      "label": "HG-2B promotion to hard-gate live",
+      "phase": "promotion",
+      "code_changed": false,
+      "schema_changed": false,
+      "bits_satisfied_in_batch": [
+        1,
+        3,
+        5,
+        8
+      ],
+      "cumulative_mask_after": 298,
+      "cumulative_mask_hex": "0x012A"
+    }
+  ],
+  "remediation_gaps": [
+    {
+      "id": "GAP-Q-001",
+      "bit": "Q-001",
+      "name": "typecheck_passed",
+      "action": "Add tsc --noEmit to pre-promotion gate in promotion-template.ts",
+      "urgency": "HIGH",
+      "urgency_reason": "TypeScript errors could reach production without this check"
+    },
+    {
+      "id": "GAP-Q-003",
+      "bit": "Q-003",
+      "name": "lint_passed",
+      "action": "Add biome/eslint check to pre-promotion gate in promotion-template.ts",
+      "urgency": "HIGH",
+      "urgency_reason": "Lint catches class of bugs tests do not"
+    },
+    {
+      "id": "GAP-Q-005",
+      "bit": "Q-005",
+      "name": "migration_verified",
+      "action": "Run prisma migrate diff on batch 64 schema change and document outcome; add to pre-promotion gate",
+      "urgency": "CRITICAL",
+      "urgency_reason": "Schema changed (externalRef) in batch 64 without verified migration path — financial service risk"
+    },
+    {
+      "id": "GAP-Q-007",
+      "bit": "Q-007",
+      "name": "docs_updated",
+      "action": "Hash deep-knowledge doc before/after next carbonx soak and record in artifact",
+      "urgency": "MEDIUM",
+      "urgency_reason": "Docs drift silently; hash provides temporal evidence"
+    },
+    {
+      "id": "GAP-Q-008",
+      "bit": "Q-008",
+      "name": "codex_updated",
+      "action": "Add quality_mask_at_promotion to codex.json classification_batch field (this batch closes partial gap)",
+      "urgency": "HIGH",
+      "urgency_reason": "Schema requires classification_batch not aegis_promotion_batch"
+    },
+    {
+      "id": "GAP-Q-010",
+      "bit": "Q-010",
+      "name": "source_clean",
+      "action": "Run AEG-PROV-001 assertSourceControlProvenance on carbonx repo; add to pre-promotion gate",
+      "urgency": "HIGH",
+      "urgency_reason": "Source provenance chain broken — cannot assert repo integrity"
+    },
+    {
+      "id": "GAP-Q-011",
+      "bit": "Q-011",
+      "name": "no_secret_detected",
+      "action": "Run truffleHog/gitleaks on git diff before next batch; add to pre-promotion gate",
+      "urgency": "CRITICAL",
+      "urgency_reason": "Batch 64 introduced aegis-approval-token.ts handling financial tokens with no secret scan"
+    },
+    {
+      "id": "GAP-Q-012",
+      "bit": "Q-012",
+      "name": "human_reviewed",
+      "action": "Add carbonx to batch 88-style human review queue for retrospective classification confirmation",
+      "urgency": "HIGH",
+      "urgency_reason": "Formal human review protocol existed from batch 88 — carbonx pre-dates it"
+    }
+  ],
+  "checks_total": 29,
+  "checks_passed": 29,
+  "checks_failed": 0,
+  "checks": [
+    {
+      "id": "B90-001",
+      "pass": true,
+      "note": "All 13 batches (62–74) assessed: found 13"
+    },
+    {
+      "id": "B90-002",
+      "pass": true,
+      "note": "Chain spans batch 62 (first) to batch 74 (promotion)"
+    },
+    {
+      "id": "B90-003",
+      "pass": true,
+      "note": "All 13 batch artifacts (62–74) exist on disk"
+    },
+    {
+      "id": "B90-010",
+      "pass": true,
+      "note": "Q-002 tests_passed satisfied — 7/7 soak runs all PASS (first evidenced batch 66)"
+    },
+    {
+      "id": "B90-011",
+      "pass": true,
+      "note": "Q-009 audit_artifact_written satisfied — all 13 batch artifacts present with verdict=PASS"
+    },
+    {
+      "id": "B90-012",
+      "pass": true,
+      "note": "Q-006 rollback_verified satisfied — Five Locks LOCK_4 PASS at batch 74 (simulateSurrender)"
+    },
+    {
+      "id": "B90-013",
+      "pass": true,
+      "note": "Q-004 no_unrelated_diff satisfied — batch 64 scope explicitly declared (files_created + files_modified)"
+    },
+    {
+      "id": "B90-014",
+      "pass": true,
+      "note": "Q-001 typecheck_passed NOT satisfied — tsc --noEmit never evidenced in any batch artifact"
+    },
+    {
+      "id": "B90-015",
+      "pass": true,
+      "note": "Q-003 lint_passed NOT satisfied — no lint runner invocation in any batch artifact"
+    },
+    {
+      "id": "B90-016",
+      "pass": true,
+      "note": "Q-005 migration_verified NOT satisfied — batch 64 modified prisma/schema.prisma without migrate diff evidence"
+    },
+    {
+      "id": "B90-017",
+      "pass": true,
+      "note": "Q-007 docs_updated NOT satisfied — no doc hash verification in any batch artifact"
+    },
+    {
+      "id": "B90-018",
+      "pass": true,
+      "note": "Q-008 codex_updated NOT satisfied — codex has aegis_promotion_batch=74 but schema requires classification_batch=74 (field name mismatch)"
+    },
+    {
+      "id": "B90-019",
+      "pass": true,
+      "note": "Q-010 source_clean NOT satisfied — AEG-PROV-001 not in doctrine at promotion time (introduced batch 89)"
+    },
+    {
+      "id": "B90-020",
+      "pass": true,
+      "note": "Q-011 no_secret_detected NOT satisfied — secret scanner never invoked across 13-batch chain"
+    },
+    {
+      "id": "B90-021",
+      "pass": true,
+      "note": "Q-012 human_reviewed NOT satisfied — formal human review protocol introduced in batch 88 (after batch 74 promotion)"
+    },
+    {
+      "id": "B90-030",
+      "pass": true,
+      "note": "carbonx does NOT meet HG-2B-financial required mask 0x0FFF at promotion time — as expected for pre-doctrine service"
+    },
+    {
+      "id": "B90-031",
+      "pass": true,
+      "note": "Gap count: 8 bits missing (expected 8: typecheck, lint, migration, docs, codex, source_clean, no_secret, human_reviewed)"
+    },
+    {
+      "id": "B90-032",
+      "pass": true,
+      "note": "Gap mask = 0x0ED5 (expected 0x0ED5 = bits 0,2,4,6,7,9,10,11)"
+    },
+    {
+      "id": "B90-033",
+      "pass": true,
+      "note": "quality_mask_at_promotion = 0x012A (expected 0x012A = tests+no_unrelated_diff+rollback+audit_artifact)"
+    },
+    {
+      "id": "B90-040",
+      "pass": true,
+      "note": "carbonx promoted 2026-05-04 — doctrine introduced batch 89. Status: pre_AEG_Q_001_legacy."
+    },
+    {
+      "id": "B90-041",
+      "pass": true,
+      "note": "pre_AEG_Q_001_legacy confirmed — retroactive audit computes honest score without invalidating promotion"
+    },
+    {
+      "id": "B90-050",
+      "pass": true,
+      "note": "Q-002 tests_passed consistent with batch 89 assessment"
+    },
+    {
+      "id": "B90-051",
+      "pass": true,
+      "note": "Q-009 audit_artifact_written consistent with batch 89 assessment"
+    },
+    {
+      "id": "B90-052",
+      "pass": true,
+      "note": "Batch 90 refines batch 89 by +0x0028 (expected +0x0028): bit 3 (no_unrelated_diff, batch 64 scope) + bit 5 (rollback_verified, Five Locks LOCK_4 batch 74)"
+    },
+    {
+      "id": "B90-060",
+      "pass": true,
+      "note": "8 remediation gaps identified — one per missing bit"
+    },
+    {
+      "id": "B90-061",
+      "pass": true,
+      "note": "GAP-Q-011 (no_secret_detected) urgency=CRITICAL: financial approval token file created without secret scan"
+    },
+    {
+      "id": "B90-062",
+      "pass": true,
+      "note": "GAP-Q-005 (migration_verified) urgency=CRITICAL: prisma schema changed in batch 64 without migrate diff"
+    },
+    {
+      "id": "B90-063",
+      "pass": true,
+      "note": "Exactly 2 CRITICAL gaps: GAP-Q-011 (no_secret) + GAP-Q-005 (migration_verified)"
+    },
+    {
+      "id": "B90-070",
+      "pass": true,
+      "note": "codex.json updated: quality_mask_at_promotion=0x012A, quality_confidence=low, quality_drift_score=null, classification_batch=74"
+    }
+  ],
+  "verdict": "PASS",
+  "next_steps": [
+    "Batch 91: Quality drift scanner — detect fleet services where evidence has degraded since promotion",
+    "Batch 92: Fleet quality dashboard — aggregate quality_mask across all 61 codex files",
+    "Batch 93: Guard SDK MVP — @ankr/aegis-guard extracting approval token + SENSE + idempotency",
+    "Pre-Batch 91 action: Run AEG-PROV-001 + truffleHog/gitleaks on carbonx repo to close GAP-Q-010 + GAP-Q-011",
+    "Pre-Batch 91 action: Confirm prisma migration path for batch 64 externalRef schema change (GAP-Q-005)",
+    "Pre-Batch 91 action: Add carbonx to human review queue for retrospective confirmation (GAP-Q-012)"
+  ]
+}
