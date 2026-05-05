@@ -1,0 +1,150 @@
+{
+  "audit_id": "batch81-fleet-rollout-doctrine",
+  "batch": 81,
+  "type": "fleet_rollout_doctrine",
+  "date": "2026-05-05",
+  "checks_total": 24,
+  "checks_passed": 24,
+  "checks_failed": 0,
+  "verdict": "PASS",
+  "question": "How does AEGIS scale from 8 live guards to 250+ services without becoming manual theatre?",
+  "fleet_state": {
+    "total_services": 280,
+    "with_codex_json": 62,
+    "classified": 51,
+    "fleet_coverage_pct": 18,
+    "classification_gap": 229,
+    "live_hard_gate": 8,
+    "hg_distribution": {
+      "HG-2B-financial": 11,
+      "HG-2A": 3,
+      "HG-1": 37
+    }
+  },
+  "four_answers": {
+    "1_classification": {
+      "question": "How do 280 services get classified without manual triage?",
+      "answer": "Automatic from codex.json can_do verbs via fleet classifier (batch76). FINANCIAL_VERBS → HG-2B-financial. IRREVERSIBLE_VERBS → HG-2B. External-state verbs → HG-2A. Everything else → HG-1. The classifier is re-runnable — re-run whenever codex.json changes.",
+      "bottleneck": "229 services have no codex.json. They cannot be classified until they do. This is Phase 2's only hard dependency.",
+      "phase": 1
+    },
+    "2_promotion": {
+      "question": "How does each service get promoted without a bespoke script?",
+      "answer": "Copy promotion-template.ts. Fill four fields: SERVICE_KEY, REPO_PATH, BATCH, and soak artifact paths. Run it. §0 gates on source-control provenance. The artifact writes itself. The adoption scanner (B80) updates coverage.",
+      "bottleneck": "The promoter must have a soak chain complete before §3. Soak chain requires a generic soak runner (Phase 3 TODO).",
+      "phase": 4
+    },
+    "3_soak": {
+      "question": "How do soak runs scale to 250+ services without 250 bespoke scripts?",
+      "answer": "A single generic soak runner parameterized by HG-group. HG-1: 5 checks, 1 batch. HG-2A: 7 checks, 2 batches. HG-2B: 7 checks, 3 batches. HG-2B-financial: 7 checks + Five Locks, 3 batches. The runner reads SERVICE_KEY and HG_GROUP from codex.json — no other input needed.",
+      "bottleneck": "The generic soak runner does not exist yet. Each service currently gets a bespoke soak script. Phase 3 is the bottleneck.",
+      "phase": 3
+    },
+    "4_governance": {
+      "question": "How does the audit chain stay clean as fleet grows?",
+      "answer": "Three machine invariants: (1) ProvenanceError blocks any dirty-tree promotion. (2) Adoption scanner (B80) verifies gap=0 after every promotion — gap is not self-reported. (3) Annotation drift is caught by cross-validation (B80 caught B79's pramana error). Human invariant: deliberate act (env var addition) is never automated.",
+      "bottleneck": "None structural. The machinery is self-correcting.",
+      "phase": 5
+    }
+  },
+  "phase_plan": [
+    {
+      "phase": 1,
+      "name": "Classification Oracle",
+      "status": "DONE",
+      "target": "51/280 services classified (18% coverage)",
+      "mechanism": "Re-run batch76-fleet-classification-scan.ts as codex.json files are added",
+      "gate": "unique_services_classified >= fleet_size_services_json",
+      "remaining": "229 services need codex.json before they can be classified"
+    },
+    {
+      "phase": 2,
+      "name": "Policy Templates",
+      "status": "TODO",
+      "target": "HARD_GATE_POLICIES entry for each classified service",
+      "mechanism": "Generate policy stubs from HG-group templates; fill service-specific fields",
+      "gate": "policy_count == classified_count",
+      "remaining": "51 policy stubs to generate from classification results"
+    },
+    {
+      "phase": 3,
+      "name": "Generic Soak Runner",
+      "status": "TODO",
+      "target": "One configurable runner for all four HG-groups",
+      "mechanism": "Reads SERVICE_KEY + HG_GROUP from codex.json; parameterized N-check/M-batch soak",
+      "gate": "soak_passed == true AND promotion_permitted == true per service",
+      "remaining": "Soak runner design + implementation. This is the long-pole phase."
+    },
+    {
+      "phase": 4,
+      "name": "Deliberate Promotion",
+      "status": "MACHINERY READY",
+      "target": "Each service promoted via promotion-template.ts",
+      "mechanism": "Human copies template, fills 4 fields, runs it. §0 gates everything.",
+      "gate": "source_control_provenance.promotion_permitted == true in artifact",
+      "remaining": "Zero — template is the institutional default as of Batch 80"
+    },
+    {
+      "phase": 5,
+      "name": "Continuous Adoption Audit",
+      "status": "ACTIVE",
+      "target": "gap == 0 after every promotion",
+      "mechanism": "Re-run batch80-aeg-prov-001-adoption-audit.ts after each promotion",
+      "gate": "coverage.gap == 0",
+      "remaining": "Self-sustaining — the audit is the gate"
+    }
+  ],
+  "theatre_prevention": {
+    "definition": "Theatre is when the process is documented but the gate is not real.",
+    "mechanisms": [
+      {
+        "mechanism": "ProvenanceError throws process.exit(1)",
+        "why": "A warning can be ignored. An exit cannot. The gate is code, not documentation."
+      },
+      {
+        "mechanism": "Immutable evidence in audits/",
+        "why": "Artifacts cannot be retroactively edited. A false audit would require a new artifact — which the adoption scanner would compare against primary sources."
+      },
+      {
+        "mechanism": "Machine-checked gap (B80 adoption scanner)",
+        "why": "Gap is not self-reported. The scanner reads artifacts and counts. A promoter cannot claim coverage that is not in the registry."
+      },
+      {
+        "mechanism": "Waivers require explicit human fields (approver + expiry)",
+        "why": "A waiver cannot be auto-generated. It requires a named human, a date, and an acknowledged_risk field that must not be blank."
+      }
+    ],
+    "human_machine_boundary": {
+      "machine_handles": [
+        "Service classification (fleet classifier from can_do verbs)",
+        "Soak execution (generic runner, parameterized by HG-group)",
+        "Source-control provenance check (assertSourceControlProvenance)",
+        "Artifact writing (promotion template outputs JSON artifact)",
+        "Adoption audit (B80 scanner, gap = 0 invariant)"
+      ],
+      "human_handles": [
+        "Deliberate act: adding service to AEGIS_HARD_GATE_SERVICES env var",
+        "Waiver approval: named approver + expiry required for any dirty-tree exception",
+        "HG-group override: when classifier is wrong (e.g. vocabulary gap, parali-central)",
+        "Batch boundary: human decides when a soak batch is complete and promotion begins"
+      ]
+    }
+  },
+  "scale_invariants": [
+    "The deliberate act is always human — AEGIS_HARD_GATE_SERVICES is never auto-set.",
+    "Every promotion artifact carries source_control_provenance (from Batch 78 onward).",
+    "Waivers require explicit approver + expiry — no silent bypass path exists.",
+    "The gap is machine-checked — not self-reported, not assumed.",
+    "The immutable evidence principle holds: old artifacts are never modified, only annotated.",
+    "Annotation drift is caught by cross-validation, not by trusting the registry."
+  ],
+  "machinery_readiness": {
+    "classification": "READY — batch76 classifier operational",
+    "promotion": "READY — promotion-template.ts is institutional default (Batch 80)",
+    "soak": "PARTIAL — soak model proven; generic runner not yet built (Phase 3 TODO)",
+    "governance": "READY — adoption scanner active, gap = 0 proven, self-correcting",
+    "five_locks": "PROVEN — carbonx HG-2B-financial is the reference implementation"
+  },
+  "long_pole": "Phase 3 — generic soak runner. Without it, each new service gets a bespoke soak script. With it, AEGIS scales to 250+ with no new soak code per service.",
+  "doctrine": "AEGIS does not scale by writing 250 scripts. It scales by writing one of each: one classifier, one soak runner, one promotion template, one adoption scanner. The fleet is just parameters. The machinery is already built. The bottleneck is not the gate — it is the data. 229 services have no codex.json. Give them one, and the gate opens itself."
+}
