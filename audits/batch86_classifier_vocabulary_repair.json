@@ -1,0 +1,186 @@
+{
+  "audit_id": "batch86-classifier-vocabulary-repair",
+  "batch": 86,
+  "type": "vocabulary_repair",
+  "date": "2026-05-05",
+  "rule": "AEG-PROV-001",
+  "checks_total": 24,
+  "checks_passed": 24,
+  "checks_failed": 0,
+  "verdict": "PASS",
+  "vocabulary_file": "vocabulary/fleet-classifier-v2.json",
+  "dry_run_summary": {
+    "total_files": 61,
+    "classification_changes": 22,
+    "target_changes": 3,
+    "side_effect_changes": 19,
+    "downgrades": 0
+  },
+  "target_corrections": [
+    {
+      "service": "pramana",
+      "v1": "HG-1",
+      "v2": "HG-2A",
+      "fix": "vocabulary_match"
+    },
+    {
+      "service": "pramana/backend",
+      "v1": "HG-1",
+      "v2": "HG-2A",
+      "fix": "vocabulary_match"
+    },
+    {
+      "service": "parali-central",
+      "v1": "HG-1",
+      "v2": "HG-2B",
+      "fix": "vocabulary_match"
+    }
+  ],
+  "side_effects": [
+    {
+      "service": "kavachos",
+      "v1": "HG-1",
+      "v2": "HG-2A",
+      "direction": "upgrade",
+      "note": "legitimate vocabulary-triggered upgrade — requires Wave 2 human confirmation before next enrichment pass"
+    },
+    {
+      "service": "chetna",
+      "v1": "HG-1",
+      "v2": "HG-2A",
+      "direction": "upgrade",
+      "note": "legitimate vocabulary-triggered upgrade — requires Wave 2 human confirmation before next enrichment pass"
+    },
+    {
+      "service": "bitmaskos",
+      "v1": "HG-1",
+      "v2": "HG-2B",
+      "direction": "upgrade",
+      "note": "legitimate vocabulary-triggered upgrade — requires Wave 2 human confirmation before next enrichment pass"
+    },
+    {
+      "service": "puranic-os",
+      "v1": "HG-1",
+      "v2": "HG-2A",
+      "direction": "upgrade",
+      "note": "legitimate vocabulary-triggered upgrade — requires Wave 2 human confirmation before next enrichment pass"
+    },
+    {
+      "service": "powerpbox",
+      "v1": "HG-1",
+      "v2": "HG-2B-financial",
+      "direction": "upgrade",
+      "note": "legitimate vocabulary-triggered upgrade — requires Wave 2 human confirmation before next enrichment pass"
+    },
+    {
+      "service": "ship-slm",
+      "v1": "HG-1",
+      "v2": "HG-2B",
+      "direction": "upgrade",
+      "note": "legitimate vocabulary-triggered upgrade — requires Wave 2 human confirmation before next enrichment pass"
+    },
+    {
+      "service": "drone8x-os",
+      "v1": "HG-2A",
+      "v2": "HG-2B",
+      "direction": "upgrade",
+      "note": "legitimate vocabulary-triggered upgrade — requires Wave 2 human confirmation before next enrichment pass"
+    },
+    {
+      "service": "ankr-proof",
+      "v1": "HG-1",
+      "v2": "HG-2A",
+      "direction": "upgrade",
+      "note": "legitimate vocabulary-triggered upgrade — requires Wave 2 human confirmation before next enrichment pass"
+    },
+    {
+      "service": "anvilos-slm",
+      "v1": "HG-1",
+      "v2": "HG-2A",
+      "direction": "upgrade",
+      "note": "legitimate vocabulary-triggered upgrade — requires Wave 2 human confirmation before next enrichment pass"
+    },
+    {
+      "service": "ankr-gurukul",
+      "v1": "HG-1",
+      "v2": "HG-2B",
+      "direction": "upgrade",
+      "note": "legitimate vocabulary-triggered upgrade — requires Wave 2 human confirmation before next enrichment pass"
+    },
+    {
+      "service": "dharma-panel",
+      "v1": "HG-2A",
+      "v2": "HG-2B",
+      "direction": "upgrade",
+      "note": "legitimate vocabulary-triggered upgrade — requires Wave 2 human confirmation before next enrichment pass"
+    },
+    {
+      "service": "sakshi",
+      "v1": "HG-1",
+      "v2": "HG-2A",
+      "direction": "upgrade",
+      "note": "legitimate vocabulary-triggered upgrade — requires Wave 2 human confirmation before next enrichment pass"
+    },
+    {
+      "service": "atlas",
+      "v1": "HG-1",
+      "v2": "HG-2B",
+      "direction": "upgrade",
+      "note": "legitimate vocabulary-triggered upgrade — requires Wave 2 human confirmation before next enrichment pass"
+    },
+    {
+      "service": "ankr-atlas/frontend",
+      "v1": "HG-1",
+      "v2": "HG-2B",
+      "direction": "upgrade",
+      "note": "legitimate vocabulary-triggered upgrade — requires Wave 2 human confirmation before next enrichment pass"
+    },
+    {
+      "service": "owneros-frontend",
+      "v1": "HG-1",
+      "v2": "HG-2B",
+      "direction": "upgrade",
+      "note": "legitimate vocabulary-triggered upgrade — requires Wave 2 human confirmation before next enrichment pass"
+    },
+    {
+      "service": "owneros",
+      "v1": "HG-1",
+      "v2": "HG-2B",
+      "direction": "upgrade",
+      "note": "legitimate vocabulary-triggered upgrade — requires Wave 2 human confirmation before next enrichment pass"
+    },
+    {
+      "service": "mpv8x",
+      "v1": "HG-1",
+      "v2": "HG-2B",
+      "direction": "upgrade",
+      "note": "legitimate vocabulary-triggered upgrade — requires Wave 2 human confirmation before next enrichment pass"
+    },
+    {
+      "service": "trademitra-api",
+      "v1": "HG-1",
+      "v2": "HG-2A",
+      "direction": "upgrade",
+      "note": "legitimate vocabulary-triggered upgrade — requires Wave 2 human confirmation before next enrichment pass"
+    },
+    {
+      "service": "portwatch",
+      "v1": "HG-1",
+      "v2": "HG-2B",
+      "direction": "upgrade",
+      "note": "legitimate vocabulary-triggered upgrade — requires Wave 2 human confirmation before next enrichment pass"
+    }
+  ],
+  "codex_files_modified": 0,
+  "invariants": [
+    "No codex.json files modified — vocabulary repair is dry-run",
+    "Batch 85 human overrides intact on pramana and parali-central",
+    "No HG-2B-financial service downgraded",
+    "No service downgraded in any direction",
+    "All v1 verb lists unchanged (v2 is additive only)",
+    "Financial verbs retain highest classification priority",
+    "isReadOnly guard prevents AUDIT-verb from upgrading read-only audit services"
+  ],
+  "next_step": "Batch 87: re-run enrichment pass with v2 vocabulary on all 61 files, or selectively on services with requires_human_review=true.",
+  "doctrine": "The human corrected the edge case. The classifier learned the shape."
+}
