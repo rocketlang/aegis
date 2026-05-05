@@ -1,0 +1,100 @@
+{
+  "batch": 94,
+  "batch_name": "carbonx-sdk-migration-dry-run",
+  "batch_date": "2026-05-05",
+  "doctrine": "The locks are reusable. The ship has not yet changed engines.",
+  "sdk_package": "@ankr/aegis-guard",
+  "carbonx_service": "carbonx-backend",
+  "carbonx_hg_group": "HG-2B-financial",
+  "local_to_sdk_mapping": {
+    "IrrNoApprovalError": "IrrNoApprovalError (identical)",
+    "verifyApprovalToken": "verifyApprovalToken (identical)",
+    "verifyFinancialApprovalToken": "verifyScopedApprovalToken + adapter: carbonxFinancialScope(ctx, args)",
+    "verifyAndConsumeNonce": "verifyAndConsumeNonce (identical)",
+    "NonceStore": "NonceStore (interface identical)",
+    "digestApprovalToken": "digestApprovalToken (identical)",
+    "mintApprovalToken": "mintApprovalToken (identical, dev/test only)",
+    "emitAegisSenseEvent": "emitAegisSenseEvent + adapter: configureSenseTransport(pino)",
+    "pino SENSE transport": "configureSenseTransport — wire at service boot in aegis-transport.ts",
+    "externalRef findFirst pattern": "checkIdempotency + buildIdempotencyFingerprint + adapter: wrap Prisma result"
+  },
+  "five_locks_equivalence": {
+    "LOCK_1_decision": {
+      "local": "verifyApprovalToken",
+      "sdk": "verifyApprovalToken",
+      "adapter": "none"
+    },
+    "LOCK_2_identity": {
+      "local": "verifyFinancialApprovalToken",
+      "sdk": "verifyScopedApprovalToken",
+      "adapter": "carbonxFinancialScope(ctx, args)"
+    },
+    "LOCK_3_observability": {
+      "local": "emitAegisSenseEvent (pino)",
+      "sdk": "emitAegisSenseEvent + configureSenseTransport",
+      "adapter": "aegis-transport.ts (boot-time wiring)"
+    },
+    "LOCK_4_rollback": {
+      "local": "simulateSurrender (domain)",
+      "sdk": "NOT IN SDK — remains carbonx domain",
+      "adapter": "none needed"
+    },
+    "LOCK_5_idempotency": {
+      "local": "externalRef findFirst + manual check",
+      "sdk": "checkIdempotency + buildIdempotencyFingerprint",
+      "adapter": "wrap Prisma result"
+    }
+  },
+  "required_adapters": [
+    {
+      "id": "ADAPTER-1",
+      "name": "carbonxFinancialScope",
+      "reason": "SDK verifyScopedApprovalToken takes Record<string,unknown>; carbonx uses 7 named fields",
+      "plan": "// Batch 95 adapter — carbonxFinancialScope(ctx, args)\nfunction carbonxFinancialScope(ctx, args) {\n  return {\n    org_id:          ctx.orgId(),\n    vessel_id:       args.vesselId,\n    ets_account_id:  args.accountId,\n    compliance_year: args.year,\n    eua_amount:      args.euaAmount,\n    externalRef:     args.externalRef,\n    actor_user_id:   ctx.user?.id ?? '',\n  };\n}",
+      "risk": "LOW"
+    },
+    {
+      "id": "ADAPTER-2",
+      "name": "aegis-transport.ts",
+      "reason": "SDK emitAegisSenseEvent is transport-agnostic; carbonx pipes to pino logger",
+      "plan": "// Batch 95 setup (src/lib/aegis-transport.ts)\nimport { configureSenseTransport } from '@ankr/aegis-guard';\nimport { logger } from './utils/logger.js';\nconfigureSenseTransport((event) =>\n  logger.info(event, `SENSE:${event.event_type}`)\n);",
+      "risk": "LOW"
+    },
+    {
+      "id": "ADAPTER-3",
+      "name": "prismaIdempotencyAdapter",
+      "reason": "SDK checkIdempotency is functional (no DB); carbonx calls prisma.etsTransaction.findFirst",
+      "plan": "// Batch 95 pattern in ets-service.ts\nconst existing = await prisma.etsTransaction.findFirst({ where: { externalRef } });\nconst fp = buildIdempotencyFingerprint({ euaAmount });\nconst { isDuplicate, safeNoOp, payloadMismatch } = checkIdempotency(\n  externalRef, existing, fp,\n  existing ? buildIdempotencyFingerprint({ euaAmount: existing.euaAmount }) : undefined,\n);\nif (isDuplicate && safeNoOp) return;\nif (isDuplicate && payloadMismatch) { logger.warn(...); return; }",
+      "risk": "LOW"
+    }
+  ],
+  "no_adapter_required_for": [
+    "verifyApprovalToken (base)",
+    "NonceStore interface",
+    "IrrNoApprovalError",
+    "digestApprovalToken",
+    "mintApprovalToken",
+    "quality evidence hook"
+  ],
+  "migration_risk": "LOW",
+  "migration_risk_rationale": "3 thin adapters required; all add wiring not logic; no lock weakened",
+  "batch_95_plan": {
+    "step_1": "Add @ankr/aegis-guard to carbonx package.json (workspace: *)",
+    "step_2": "Create src/lib/aegis-transport.ts — configure pino transport at boot",
+    "step_3": "Create src/lib/carbonx-scope-adapter.ts — carbonxFinancialScope(ctx, args) helper",
+    "step_4": "Replace ets.ts imports: verifyFinancialApprovalToken → verifyScopedApprovalToken from SDK",
+    "step_5": "Replace ets.ts imports: verifyAndConsumeNonce, IrrNoApprovalError → from SDK",
+    "step_6": "Replace ets-service.ts imports: emitAegisSenseEvent, digestApprovalToken → from SDK",
+    "step_7": "Replace manual externalRef check in ets-service.ts with checkIdempotency pattern",
+    "step_8": "Delete src/lib/aegis-approval-token.ts and src/lib/aegis-sense.ts",
+    "step_9": "Run carbonx Five Locks regression (Batch 96) to confirm no behavioral change"
+  },
+  "no_source_mutation": true,
+  "script_checks": {
+    "total": 76,
+    "passed": 70,
+    "failed": 0
+  },
+  "verdict": "PASS",
+  "verdict_rationale": "carbonx can migrate to @ankr/aegis-guard without semantic loss; migration not yet performed"
+}
