@@ -1,0 +1,550 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AEGIS Fleet Quality Dashboard — Batch 92</title>
+  <style>
+    :root {
+      --bg:        #0d1117;
+      --surface:   #161b22;
+      --border:    #30363d;
+      --text:      #e6edf3;
+      --muted:     #8b949e;
+      --accent:    #58a6ff;
+      --green:     #3fb950;
+      --yellow:    #d29922;
+      --orange:    #f0883e;
+      --red:       #f85149;
+      --purple:    #bc8cff;
+      --teal:      #39d353;
+      --code-bg:   #1c2128;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: "SF Mono", "Fira Code", monospace;
+      background: var(--bg);
+      color: var(--text);
+      font-size: 13px;
+      line-height: 1.6;
+      padding: 24px;
+    }
+    a { color: var(--accent); text-decoration: none; }
+    h1 { font-size: 20px; font-weight: 600; color: var(--text); letter-spacing: -0.3px; }
+    h2 { font-size: 13px; font-weight: 600; color: var(--muted); text-transform: uppercase;
+         letter-spacing: 1px; margin-bottom: 12px; padding-bottom: 6px;
+         border-bottom: 1px solid var(--border); }
+    h3 { font-size: 14px; font-weight: 600; color: var(--text); margin-bottom: 8px; }
+    code { background: var(--code-bg); padding: 1px 5px; border-radius: 3px;
+           color: var(--accent); font-size: 12px; }
+    .header {
+      display: flex; justify-content: space-between; align-items: flex-start;
+      margin-bottom: 28px; padding-bottom: 20px; border-bottom: 1px solid var(--border);
+    }
+    .header-meta { color: var(--muted); font-size: 12px; text-align: right; }
+    .header-meta .batch-badge {
+      display: inline-block; background: var(--accent); color: var(--bg);
+      padding: 2px 10px; border-radius: 12px; font-weight: 600; margin-bottom: 4px;
+    }
+    .doctrine {
+      border-left: 3px solid var(--accent); padding: 10px 16px;
+      background: var(--surface); border-radius: 0 6px 6px 0;
+      margin-bottom: 28px; color: var(--muted); font-style: italic; font-size: 13px;
+    }
+    .doctrine strong { color: var(--text); font-style: normal; }
+    /* Cards */
+    .card-grid {
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      gap: 12px; margin-bottom: 28px;
+    }
+    .card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 8px; padding: 16px;
+    }
+    .card-value { font-size: 32px; font-weight: 700; line-height: 1; margin-bottom: 4px; }
+    .card-label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; }
+    .card-sub   { font-size: 11px; color: var(--muted); margin-top: 4px; }
+    .val-green  { color: var(--green); }
+    .val-yellow { color: var(--yellow); }
+    .val-orange { color: var(--orange); }
+    .val-red    { color: var(--red); }
+    .val-blue   { color: var(--accent); }
+    .val-muted  { color: var(--muted); }
+    /* Sections */
+    .section { margin-bottom: 32px; }
+    /* Tables */
+    table {
+      width: 100%; border-collapse: collapse;
+      background: var(--surface); border-radius: 8px;
+      overflow: hidden; border: 1px solid var(--border);
+    }
+    th {
+      background: var(--code-bg); padding: 8px 12px;
+      text-align: left; font-size: 11px; color: var(--muted);
+      text-transform: uppercase; letter-spacing: 0.5px;
+      border-bottom: 1px solid var(--border);
+    }
+    td { padding: 8px 12px; border-bottom: 1px solid var(--border); vertical-align: top; }
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: rgba(88, 166, 255, 0.04); }
+    .action-cell { color: var(--muted); font-size: 12px; max-width: 380px; }
+    .evidence-cell { color: var(--muted); font-size: 11px; max-width: 340px; }
+    /* Badges */
+    .badge {
+      display: inline-block; padding: 2px 8px; border-radius: 4px;
+      font-size: 10px; font-weight: 700; letter-spacing: 0.5px;
+    }
+    .sev-critical { background: rgba(248,81,73,.2);  color: var(--red);    border: 1px solid rgba(248,81,73,.3); }
+    .sev-high     { background: rgba(240,136,62,.2); color: var(--orange); border: 1px solid rgba(240,136,62,.3); }
+    .sev-medium   { background: rgba(210,153,34,.2); color: var(--yellow); border: 1px solid rgba(210,153,34,.3); }
+    .sev-low      { background: rgba(88,166,255,.15); color: var(--accent); border: 1px solid rgba(88,166,255,.2); }
+    .sev-info     { background: rgba(139,148,158,.15); color: var(--muted); border: 1px solid rgba(139,148,158,.2); }
+    .status-badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 10px; font-weight: 600; }
+    .status-evidenced { background: rgba(63,185,80,.15); color: var(--green); border: 1px solid rgba(63,185,80,.25); }
+    .status-unknown   { background: rgba(139,148,158,.15); color: var(--muted); border: 1px solid rgba(139,148,158,.25); }
+    .pri-badge { display: inline-block; background: var(--code-bg); color: var(--muted);
+                 padding: 1px 6px; border-radius: 3px; font-size: 10px; font-weight: 700; }
+    /* Progress bars */
+    .progress-track {
+      height: 6px; background: var(--border); border-radius: 3px;
+      overflow: hidden; margin-top: 8px;
+    }
+    .progress-fill { height: 100%; border-radius: 3px; transition: width 0.3s; }
+    /* HG risk rows */
+    .hg-row { display: flex; gap: 12px; margin-bottom: 12px; align-items: flex-start; }
+    .hg-chip {
+      min-width: 140px; padding: 8px 12px; border-radius: 6px;
+      font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;
+      text-align: center;
+    }
+    .hg-2bf { background: rgba(248,81,73,.15); color: var(--red);    border: 1px solid rgba(248,81,73,.25); }
+    .hg-2b  { background: rgba(240,136,62,.15); color: var(--orange); border: 1px solid rgba(240,136,62,.25); }
+    .hg-2a  { background: rgba(210,153,34,.15); color: var(--yellow); border: 1px solid rgba(210,153,34,.25); }
+    .hg-1   { background: rgba(88,166,255,.1);  color: var(--accent); border: 1px solid rgba(88,166,255,.2); }
+    .hg-detail { flex: 1; }
+    .hg-detail-header { display: flex; gap: 16px; align-items: center; margin-bottom: 4px; }
+    .hg-count { font-size: 18px; font-weight: 700; }
+    .hg-mask  { font-size: 11px; color: var(--muted); }
+    /* Carbonx card */
+    .carbonx-card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 8px; overflow: hidden;
+    }
+    .carbonx-header {
+      background: var(--code-bg); padding: 12px 16px;
+      border-bottom: 1px solid var(--border);
+      display: flex; justify-content: space-between; align-items: center;
+    }
+    .carbonx-body { padding: 16px; }
+    .mask-display {
+      font-family: monospace; font-size: 11px; margin-top: 8px;
+    }
+    .mask-bit {
+      display: inline-block; width: 18px; height: 18px; line-height: 18px;
+      text-align: center; border-radius: 3px; margin: 1px; font-size: 9px; font-weight: 700;
+    }
+    .bit-set    { background: var(--green);  color: #000; }
+    .bit-unset  { background: var(--border); color: var(--muted); }
+    .bit-long-set  { background: var(--purple); color: #000; }
+    .bit-long-unk  { background: var(--border); color: var(--muted); border: 1px dashed var(--purple); }
+    .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    .stat-row { display: flex; justify-content: space-between; padding: 4px 0;
+                border-bottom: 1px solid var(--border); font-size: 12px; }
+    .stat-row:last-child { border-bottom: none; }
+    .stat-label { color: var(--muted); }
+    .stat-value { font-weight: 600; }
+    /* Footer */
+    .footer {
+      margin-top: 40px; padding-top: 16px; border-top: 1px solid var(--border);
+      color: var(--muted); font-size: 11px; display: flex;
+      justify-content: space-between; align-items: center;
+    }
+    .footer-product { font-weight: 600; color: var(--text); }
+  </style>
+</head>
+<body>
+
+<!-- ── Header ──────────────────────────────────────────────────────────────── -->
+<div class="header">
+  <div>
+    <h1>AEGIS Fleet Quality Dashboard</h1>
+    <p style="color:var(--muted);margin-top:4px;font-size:12px">
+      Evidence surveillance layer — Agentic Evidence, Governance and Intelligence System
+    </p>
+  </div>
+  <div class="header-meta">
+    <div class="batch-badge">Batch 92</div><br>
+    2026-05-05<br>
+    Schema: <code>aegis-quality-16bit-v1</code>
+  </div>
+</div>
+
+<!-- ── Doctrine ────────────────────────────────────────────────────────────── -->
+<div class="doctrine">
+  <strong>AEGIS does not only stop unsafe agents.</strong>
+  It shows which agentic work still has evidence behind it.
+  <span style="float:right;font-size:11px">
+    Quality is not what passed yesterday. Quality is what still survives today.
+  </span>
+</div>
+
+<!-- ── Summary cards ──────────────────────────────────────────────────────── -->
+<div class="section">
+  <h2>Fleet Overview</h2>
+  <div class="card-grid">
+    <div class="card">
+      <div class="card-value val-blue">61</div>
+      <div class="card-label">Services Classified</div>
+      <div class="card-sub">AEGIS fleet</div>
+    </div>
+    <div class="card">
+      <div class="card-value val-green">8</div>
+      <div class="card-label">Hard-Gate Live</div>
+      <div class="card-sub">production enforcement</div>
+    </div>
+    <div class="card">
+      <div class="card-value val-yellow">1</div>
+      <div class="card-label">Quality Evidence</div>
+      <div class="card-sub">quality_mask captured</div>
+      <div class="progress-track"><div class="progress-fill" style="width:2%;background:var(--yellow)"></div></div>
+    </div>
+    <div class="card">
+      <div class="card-value val-muted">60</div>
+      <div class="card-label">Pre-Doctrine</div>
+      <div class="card-sub">quality_unaudited</div>
+      <div class="progress-track"><div class="progress-fill" style="width:98%;background:var(--border)"></div></div>
+    </div>
+    <div class="card">
+      <div class="card-value val-red">16</div>
+      <div class="card-label">Critical Findings</div>
+      <div class="card-sub">immediate action</div>
+    </div>
+    <div class="card">
+      <div class="card-value val-orange">12</div>
+      <div class="card-label">High Findings</div>
+      <div class="card-sub">evidence chain weak</div>
+    </div>
+    <div class="card">
+      <div class="card-value val-yellow">10</div>
+      <div class="card-label">Medium Findings</div>
+      <div class="card-sub">docs / codex drift</div>
+    </div>
+    <div class="card">
+      <div class="card-value val-blue">27</div>
+      <div class="card-label">Low Findings</div>
+      <div class="card-sub">pre-doctrine gap</div>
+    </div>
+  </div>
+</div>
+
+<!-- ── HG risk distribution ───────────────────────────────────────────────── -->
+<div class="section">
+  <h2>HG Group Risk Distribution</h2>
+
+  <div class="hg-row">
+    <div class="hg-chip hg-2bf">HG-2B-financial</div>
+    <div class="hg-detail">
+      <div class="hg-detail-header">
+        <span class="hg-count val-red">15</span>
+        <span class="hg-mask">Required: <code>0x0FFF</code> — all 12 point-in-time bits</span>
+        <span><span class="badge sev-critical">CRITICAL</span></span>
+      </div>
+      <div style="color:var(--muted);font-size:11px">Financial settlement, EUA surrender, eBL issuance. Zero quality evidence on 14 of 15 services.</div>
+      <div class="progress-track"><div class="progress-fill" style="width:93%;background:var(--red)"></div></div>
+    </div>
+  </div>
+
+  <div class="hg-row">
+    <div class="hg-chip hg-2b">HG-2B</div>
+    <div class="hg-detail">
+      <div class="hg-detail-header">
+        <span class="hg-count val-orange">9</span>
+        <span class="hg-mask">Required: <code>0x0FAB</code> — 9 point-in-time bits</span>
+        <span><span class="badge sev-high">HIGH</span></span>
+      </div>
+      <div style="color:var(--muted);font-size:11px">Gate authority, physical irreversibility, drone/vessel control. All 9 services lack quality evidence.</div>
+      <div class="progress-track"><div class="progress-fill" style="width:100%;background:var(--orange)"></div></div>
+    </div>
+  </div>
+
+  <div class="hg-row">
+    <div class="hg-chip hg-2a">HG-2A</div>
+    <div class="hg-detail">
+      <div class="hg-detail-header">
+        <span class="hg-count val-yellow">10</span>
+        <span class="hg-mask">Required: <code>0x0B83</code> — 6 point-in-time bits</span>
+        <span><span class="badge sev-medium">MEDIUM</span></span>
+      </div>
+      <div style="color:var(--muted);font-size:11px">External proof/validation, audit, certification. All 10 services lack quality evidence.</div>
+      <div class="progress-track"><div class="progress-fill" style="width:100%;background:var(--yellow)"></div></div>
+    </div>
+  </div>
+
+  <div class="hg-row">
+    <div class="hg-chip hg-1">HG-1</div>
+    <div class="hg-detail">
+      <div class="hg-detail-header">
+        <span class="hg-count val-blue">27</span>
+        <span class="hg-mask">Required: <code>0x0302</code> — 3 point-in-time bits</span>
+        <span><span class="badge sev-low">LOW</span></span>
+      </div>
+      <div style="color:var(--muted);font-size:11px">Standard governance, read/compute/infer. All 27 services lack quality evidence (low consequence).</div>
+      <div class="progress-track"><div class="progress-fill" style="width:100%;background:var(--accent)"></div></div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Quality evidence coverage ──────────────────────────────────────────── -->
+<div class="section">
+  <h2>Quality Evidence Coverage</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>Evidence Type</th><th>Services</th><th>Coverage</th><th>Status</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><code>quality_mask_at_promotion</code> captured</td>
+        <td>1 / 61</td>
+        <td><div class="progress-track"><div class="progress-fill" style="width:2%;background:var(--yellow)"></div></div></td>
+        <td><span class="badge sev-high">HIGH</span></td>
+      </tr>
+      <tr>
+        <td><code>quality_drift_score</code> computed</td>
+        <td>1 / 61</td>
+        <td><div class="progress-track"><div class="progress-fill" style="width:2%;background:var(--purple)"></div></div></td>
+        <td><span class="badge sev-medium">MEDIUM</span></td>
+      </tr>
+      <tr>
+        <td>quality_confidence = high</td>
+        <td>0 / 61</td>
+        <td><div class="progress-track"><div class="progress-fill" style="width:0%;background:var(--green)"></div></div></td>
+        <td><span class="badge sev-info">NONE</span></td>
+      </tr>
+      <tr>
+        <td>quality_confidence = medium</td>
+        <td>0 / 61</td>
+        <td><div class="progress-track"><div class="progress-fill" style="width:0%;background:var(--yellow)"></div></div></td>
+        <td><span class="badge sev-info">NONE</span></td>
+      </tr>
+      <tr>
+        <td>quality_confidence = low (carbonx)</td>
+        <td>1 / 61</td>
+        <td><div class="progress-track"><div class="progress-fill" style="width:2%;background:var(--orange)"></div></div></td>
+        <td><span class="badge sev-low">IMPROVING</span></td>
+      </tr>
+      <tr>
+        <td>quality_confidence = unknown (pre-doctrine)</td>
+        <td>60 / 61</td>
+        <td><div class="progress-track"><div class="progress-fill" style="width:98%;background:var(--border)"></div></div></td>
+        <td><span class="badge sev-high">HIGH</span></td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- ── Carbonx reference card ─────────────────────────────────────────────── -->
+<div class="section">
+  <h2>Carbonx Reference Card — The Fleet&#39;s Quality Benchmark</h2>
+  <p style="color:var(--muted);font-size:12px;margin-bottom:12px">
+    carbonx-backend is the first and only service with computed quality evidence.
+    It serves as the reference implementation for quality capture across the fleet.
+  </p>
+  <div class="carbonx-card">
+    <div class="carbonx-header">
+      <div>
+        <strong>carbonx-backend</strong>
+        <span style="color:var(--muted);font-size:11px;margin-left:8px">HG-2B-financial · Financial ETS Surrender · promotion batch 74 · 2026-05-04</span>
+      </div>
+      <div><span class="badge sev-low">LOW</span> <span style="color:var(--muted);font-size:11px;margin-left:6px">pre_AEG_Q_001_legacy — not a violation</span></div>
+    </div>
+    <div class="carbonx-body">
+      <div class="two-col">
+        <div>
+          <h3>Point-in-Time Evidence <code style="font-size:10px">quality_mask_at_promotion = 0x012A</code></h3>
+          <div class="mask-display">
+            <div style="margin-bottom:4px;font-size:10px;color:var(--muted)">Bits 11→0 (left=high)</div>
+            <span class="mask-bit bit-unset" title="bit 11: HR">HR</span><span class="mask-bit bit-unset" title="bit 10: NS">NS</span><span class="mask-bit bit-unset" title="bit 9: SC">SC</span><span class="mask-bit bit-set" title="bit 8: AA">AA</span><span class="mask-bit bit-unset" title="bit 7: CX">CX</span><span class="mask-bit bit-unset" title="bit 6: DC">DC</span><span class="mask-bit bit-set" title="bit 5: RB">RB</span><span class="mask-bit bit-unset" title="bit 4: MG">MG</span><span class="mask-bit bit-set" title="bit 3: ND">ND</span><span class="mask-bit bit-unset" title="bit 2: LN">LN</span><span class="mask-bit bit-set" title="bit 1: TS">TS</span><span class="mask-bit bit-unset" title="bit 0: TC">TC</span>
+          </div>
+          <div style="font-size:11px;color:var(--muted);margin-top:8px">
+            <span class="mask-bit bit-set" style="width:auto;padding:0 4px">✓</span> TC=typecheck TS=tests LN=lint ND=no-diff MG=migration RB=rollback DC=docs CX=codex AA=audit SC=src-clean NS=no-secret HR=human
+          </div>
+          <div style="margin-top:12px">
+            <div class="stat-row"><span class="stat-label">Satisfied</span><span class="stat-value" style="color:var(--green)">4/12 bits (TS, ND, RB, AA)</span></div>
+            <div class="stat-row"><span class="stat-label">Missing</span><span class="stat-value" style="color:var(--orange)">8/12 bits</span></div>
+            <div class="stat-row"><span class="stat-label">Confidence</span><span class="stat-value" style="color:var(--orange)">LOW</span></div>
+            <div class="stat-row"><span class="stat-label">Required</span><span class="stat-value" style="color:var(--muted)">0x0FFF (all 12)</span></div>
+            <div class="stat-row"><span class="stat-label">Gap</span><span class="stat-value" style="color:var(--red)">0x0ED5 (8 bits)</span></div>
+          </div>
+        </div>
+        <div>
+          <h3>Longitudinal Evidence <code style="font-size:10px">quality_drift_score = 0x3000</code></h3>
+          <div class="mask-display">
+            <div style="margin-bottom:4px;font-size:10px;color:var(--muted)">Bits 15→12 (longitudinal horizon)</div>
+            <span class="mask-bit bit-long-unk" title="bit 15: PF">PF</span><span class="mask-bit bit-long-unk" title="bit 14: RC">RC</span><span class="mask-bit bit-long-set" title="bit 13: OB">OB</span><span class="mask-bit bit-long-set" title="bit 12: IP">IP</span>
+          </div>
+          <div style="font-size:11px;color:var(--muted);margin-top:8px">
+            <span class="mask-bit bit-long-set" style="width:auto;padding:0 4px">✓</span> IP=idempotency OB=observability
+            <span class="mask-bit bit-long-unk" style="width:auto;padding:0 4px;margin-left:6px">?</span> RC=regression PF=prod-fire
+          </div>
+          <table style="margin-top:12px;font-size:11px">
+            <tr>
+      <td><code>Q-013</code></td>
+      <td>idempotency_verified</td>
+      <td><span class="status-badge status-evidenced">✓ EVIDENCED</span></td>
+      <td class="evidence-cell">externalRef added (batch 64); duplicate rejection tested in soak runs 4-7; AEG-HG-FIN-003 idempotency confirmed in batch 71</td>
+    </tr><tr>
+      <td><code>Q-014</code></td>
+      <td>observability_verified</td>
+      <td><span class="status-badge status-evidenced">✓ EVIDENCED</span></td>
+      <td class="evidence-cell">SENSE events added (batch 64 CARBONX-FIX-002); LOCK_3_observability PASS at batch 74; CA-003 before/after/delta schema verified</td>
+    </tr><tr>
+      <td><code>Q-015</code></td>
+      <td>regression_clean</td>
+      <td><span class="status-badge status-unknown">? UNKNOWN</span></td>
+      <td class="evidence-cell">7-day observation window not complete (promoted 2026-05-04, today 2026-05-05 = 1 day). 7/7 soak PASS is pre-promotion evidence, not post-promotion regression window.</td>
+    </tr><tr>
+      <td><code>Q-016</code></td>
+      <td>production_fire_zero</td>
+      <td><span class="status-badge status-unknown">? UNKNOWN</span></td>
+      <td class="evidence-cell">7-day production-fire observation window not complete (only 1 day post-promotion). Audit chain shows 0 incidents recorded so far.</td>
+    </tr>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Carbonx drift findings ─────────────────────────────────────────────── -->
+<div class="section">
+  <h2>Carbonx Specific Drift Findings</h2>
+  <table>
+    <thead>
+      <tr><th>Severity</th><th>Drift Type</th><th>Quality Bit</th><th>Recommended Action</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+      <td><span class="badge sev-critical">CRITICAL</span></td>
+      <td><code>schema_drift</code></td>
+      <td><code>Q-005</code></td>
+      <td class="action-cell">Run prisma migrate diff on carbonx repo; verify externalRef migration is safe; document in next batch artifact</td>
+    </tr><tr>
+      <td><span class="badge sev-critical">CRITICAL</span></td>
+      <td><code>security_drift</code></td>
+      <td><code>Q-011</code></td>
+      <td class="action-cell">Run truffleHog or gitleaks on carbonx repo diff; record exit code in batch artifact; add to pre-promotion gate</td>
+    </tr><tr>
+      <td><span class="badge sev-high">HIGH</span></td>
+      <td><code>test_drift</code></td>
+      <td><code>Q-001</code></td>
+      <td class="action-cell">Add tsc --noEmit to pre-promotion gate in promotion-template.ts; run and record before next soak</td>
+    </tr><tr>
+      <td><span class="badge sev-high">HIGH</span></td>
+      <td><code>provenance_drift</code></td>
+      <td><code>Q-010</code></td>
+      <td class="action-cell">Run assertSourceControlProvenance on carbonx repo; record in next batch artifact</td>
+    </tr><tr>
+      <td><span class="badge sev-high">HIGH</span></td>
+      <td><code>audit_drift</code></td>
+      <td><code>Q-012</code></td>
+      <td class="action-cell">Add carbonx to next batch 88-style human review queue for retrospective classification confirmation</td>
+    </tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- ── Unaudited services by HG group ─────────────────────────────────────── -->
+<div class="section">
+  <h2>Unaudited Services by HG Group (pre_AEG_Q_001_legacy)</h2>
+  <table>
+    <thead>
+      <tr><th>Severity</th><th>HG Group</th><th>Count</th><th>Required Mask</th><th>Evidence Gap</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+      <td><span class="badge sev-critical">CRITICAL</span></td>
+      <td><code>HG-2B-financial</code></td>
+      <td>10</td>
+      <td>0x0FFF</td>
+      <td class="action-cell">All 12 point-in-time bits</td>
+    </tr><tr>
+      <td><span class="badge sev-high">HIGH</span></td>
+      <td><code>HG-2B</code></td>
+      <td>9</td>
+      <td>0x0FAB</td>
+      <td class="action-cell">9 point-in-time bits</td>
+    </tr><tr>
+      <td><span class="badge sev-medium">MEDIUM</span></td>
+      <td><code>HG-2A</code></td>
+      <td>10</td>
+      <td>0x0B83</td>
+      <td class="action-cell">6 point-in-time bits</td>
+    </tr><tr>
+      <td><span class="badge sev-low">LOW</span></td>
+      <td><code>HG-1</code></td>
+      <td>22</td>
+      <td>0x0302</td>
+      <td class="action-cell">3 point-in-time bits</td>
+    </tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- ── Top remediation queue ──────────────────────────────────────────────── -->
+<div class="section">
+  <h2>Top Remediation Queue</h2>
+  <table>
+    <thead>
+      <tr><th>Priority</th><th>Severity</th><th>Action</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+    <td><span class="pri-badge">P0</span></td>
+    <td><span class="badge sev-critical">CRITICAL</span></td>
+    <td class="action-cell">Capture <code>quality_mask_at_promotion</code> for all 14 HG-2B-financial services. Each runs a financial hard gate with zero quality evidence.</td>
+  </tr><tr>
+    <td><span class="pri-badge">P0</span></td>
+    <td><span class="badge sev-critical">CRITICAL</span></td>
+    <td class="action-cell">Run <code>prisma migrate diff</code> on carbonx. Batch 64 added <code>externalRef</code> to schema with no migration evidence. Financial service — schema risk is critical.</td>
+  </tr><tr>
+    <td><span class="pri-badge">P0</span></td>
+    <td><span class="badge sev-critical">CRITICAL</span></td>
+    <td class="action-cell">Run <code>truffleHog</code> / <code>gitleaks</code> on carbonx. <code>aegis-approval-token.ts</code> (financial tokens) was introduced without a secret scan.</td>
+  </tr><tr>
+    <td><span class="pri-badge">P1</span></td>
+    <td><span class="badge sev-high">HIGH</span></td>
+    <td class="action-cell">Capture <code>quality_mask_at_promotion</code> for 9 HG-2B services (gate authority, physical/autonomous actions).</td>
+  </tr><tr>
+    <td><span class="pri-badge">P1</span></td>
+    <td><span class="badge sev-high">HIGH</span></td>
+    <td class="action-cell">Run <code>tsc --noEmit</code> on carbonx and record in next batch artifact. Never evidenced across 13 promotion batches.</td>
+  </tr><tr>
+    <td><span class="pri-badge">P1</span></td>
+    <td><span class="badge sev-high">HIGH</span></td>
+    <td class="action-cell">Add carbonx to next human review queue for retrospective classification confirmation (batch 88-style protocol).</td>
+  </tr><tr>
+    <td><span class="pri-badge">P2</span></td>
+    <td><span class="badge sev-medium">MEDIUM</span></td>
+    <td class="action-cell">Capture <code>quality_mask_at_promotion</code> for 10 HG-2A services (external proof/validation role).</td>
+  </tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- ── Footer ─────────────────────────────────────────────────────────────── -->
+<div class="footer">
+  <div>
+    <span class="footer-product">AEGIS</span> Fleet Quality Dashboard ·
+    Batch 92 · 2026-05-05 · Schema: <code>aegis-quality-16bit-v1</code>
+  </div>
+  <div>
+    Promotions changed: 0 ·
+    quality_mask_at_promotion: immutable ·
+    Fleet: 61 services
+  </div>
+</div>
+
+</body>
+</html>

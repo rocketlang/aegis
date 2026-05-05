@@ -1,0 +1,296 @@
+{
+  "audit_id": "batch92-fleet-quality-dashboard",
+  "batch": 92,
+  "type": "fleet_quality_dashboard",
+  "date": "2026-05-05",
+  "doctrine": "AEGIS does not only stop unsafe agents. It shows which agentic work still has evidence behind it.",
+  "no_promotion_state_changed": true,
+  "quality_mask_at_promotion_immutable": true,
+  "source_batch": 91,
+  "source_artifact": "/root/aegis/audits/batch91_fleet_quality_drift_scan.json",
+  "fleet_size": 61,
+  "services_scanned": 61,
+  "live_hard_gate_roster": [
+    "chirpee",
+    "ship-slm",
+    "chief-slm",
+    "puranic-os",
+    "pramana",
+    "domain-capture",
+    "parali-central",
+    "carbonx-backend"
+  ],
+  "live_hard_gate_count": 8,
+  "hg_distribution": {
+    "HG-1": 27,
+    "HG-2A": 10,
+    "HG-2B": 9,
+    "HG-2B-financial": 15
+  },
+  "quality_confidence_distribution": {
+    "high": 0,
+    "medium": 0,
+    "low": 1,
+    "unknown": 60
+  },
+  "quality_mask_coverage": {
+    "count": 1,
+    "of_fleet": 61,
+    "pct": "1.6%"
+  },
+  "quality_drift_coverage": {
+    "count": 1,
+    "of_fleet": 61,
+    "pct": "1.6%"
+  },
+  "severity_counts": {
+    "CRITICAL": 16,
+    "HIGH": 12,
+    "MEDIUM": 10,
+    "LOW": 27,
+    "INFO": 0
+  },
+  "carbonx_reference": {
+    "quality_mask_at_promotion": 298,
+    "quality_mask_at_promotion_hex": "0x012A",
+    "quality_drift_score": 12288,
+    "quality_drift_score_hex": "0x3000",
+    "quality_confidence": "low",
+    "quality_mask_status": "pre_AEG_Q_001_legacy",
+    "drift_bits_evidenced": [
+      "Q-013",
+      "Q-014"
+    ],
+    "drift_bits_unknown": [
+      "Q-015",
+      "Q-016"
+    ]
+  },
+  "dashboard_path": "/root/aegis/dashboard/fleet-quality-dashboard.html",
+  "markdown_path": "/root/proposals/aegis--fleet-quality-dashboard--formal--2026-05-05.md",
+  "batch_arc": [
+    {
+      "batch": 89,
+      "milestone": "AEGIS-Q doctrine defined — quality_mask schema, assertQualityEvidence(), computeQualityDriftScore()"
+    },
+    {
+      "batch": 90,
+      "milestone": "carbonx scored retroactively — quality_mask_at_promotion=0x012A, first honest score in fleet"
+    },
+    {
+      "batch": 91,
+      "milestone": "Fleet drift scan — 61 services, 65 findings, quality_drift_score=0x3000 for carbonx"
+    },
+    {
+      "batch": 92,
+      "milestone": "Fleet quality dashboard — buyer-visible product surface, three-batch arc complete"
+    }
+  ],
+  "checks_total": 39,
+  "checks_passed": 39,
+  "checks_failed": 0,
+  "checks": [
+    {
+      "id": "B92-001",
+      "pass": true,
+      "note": "Batch 91 artifact loaded, verdict=PASS"
+    },
+    {
+      "id": "B92-002",
+      "pass": true,
+      "note": "Batch 90 artifact loaded (carbonx reference), verdict=PASS"
+    },
+    {
+      "id": "B92-003",
+      "pass": true,
+      "note": "Quality schema loaded: aegis-quality-16bit-v1"
+    },
+    {
+      "id": "B92-004",
+      "pass": true,
+      "note": "Batch 91 confirms no_promotion_state_changed=true — dashboard inherits this invariant"
+    },
+    {
+      "id": "B92-005",
+      "pass": true,
+      "note": "Batch 91 confirms quality_mask_at_promotion_immutable=true"
+    },
+    {
+      "id": "B92-006",
+      "pass": true,
+      "note": "Fleet size: 61 classified services"
+    },
+    {
+      "id": "B92-007",
+      "pass": true,
+      "note": "Services scanned: 61"
+    },
+    {
+      "id": "B92-008",
+      "pass": true,
+      "note": "Live hard-gate roster: 8 services"
+    },
+    {
+      "id": "B92-009",
+      "pass": true,
+      "note": "CRITICAL findings: 16"
+    },
+    {
+      "id": "B92-010",
+      "pass": true,
+      "note": "HIGH findings: 12"
+    },
+    {
+      "id": "B92-011",
+      "pass": true,
+      "note": "MEDIUM findings: 10"
+    },
+    {
+      "id": "B92-012",
+      "pass": true,
+      "note": "LOW findings: 27"
+    },
+    {
+      "id": "B92-013",
+      "pass": true,
+      "note": "Quality confidence: unknown=60, low=1, medium=0, high=0"
+    },
+    {
+      "id": "B92-014",
+      "pass": true,
+      "note": "HG-2B-financial: 15 services (required mask: 0x0FFF)"
+    },
+    {
+      "id": "B92-015",
+      "pass": true,
+      "note": "HG-2B: 9 services (required mask: 0x0FAB)"
+    },
+    {
+      "id": "B92-016",
+      "pass": true,
+      "note": "HG-2A: 10 services (required mask: 0x0B83)"
+    },
+    {
+      "id": "B92-017",
+      "pass": true,
+      "note": "HG-1: 27 services (required mask: 0x0302)"
+    },
+    {
+      "id": "B92-018",
+      "pass": true,
+      "note": "HG distribution sums to fleet size: 61"
+    },
+    {
+      "id": "B92-019",
+      "pass": true,
+      "note": "quality_mask_at_promotion coverage: 1/61 (1.6%)"
+    },
+    {
+      "id": "B92-020",
+      "pass": true,
+      "note": "quality_drift_score coverage: 1/61 (1.6%)"
+    },
+    {
+      "id": "B92-021",
+      "pass": true,
+      "note": "60 services have quality_unaudited drift finding (pre-doctrine)"
+    },
+    {
+      "id": "B92-022",
+      "pass": true,
+      "note": "14 HG-2B-financial services without quality evidence (CRITICAL — financial hard-gate with no quality proof)"
+    },
+    {
+      "id": "B92-023",
+      "pass": true,
+      "note": "carbonx quality_mask_at_promotion = 0x012A (from Batch 90, immutable)"
+    },
+    {
+      "id": "B92-024",
+      "pass": true,
+      "note": "carbonx quality_drift_score = 0x3000 (from Batch 91, idempotency+observability EVIDENCED)"
+    },
+    {
+      "id": "B92-025",
+      "pass": true,
+      "note": "carbonx quality_confidence = low (4/12 point-in-time bits satisfied)"
+    },
+    {
+      "id": "B92-026",
+      "pass": true,
+      "note": "carbonx status = pre_AEG_Q_001_legacy (not a violation)"
+    },
+    {
+      "id": "B92-027",
+      "pass": true,
+      "note": "Carbonx idempotency + observability evidenced in drift score"
+    },
+    {
+      "id": "B92-028",
+      "pass": true,
+      "note": "Carbonx regression_clean + production_fire_zero still UNKNOWN (observation window incomplete)"
+    },
+    {
+      "id": "B92-029",
+      "pass": true,
+      "note": "HTML dashboard written: /root/aegis/dashboard/fleet-quality-dashboard.html"
+    },
+    {
+      "id": "B92-030",
+      "pass": true,
+      "note": "Dashboard title present"
+    },
+    {
+      "id": "B92-031",
+      "pass": true,
+      "note": "Dashboard shows quality_mask_at_promotion"
+    },
+    {
+      "id": "B92-032",
+      "pass": true,
+      "note": "Dashboard shows quality_drift_score"
+    },
+    {
+      "id": "B92-033",
+      "pass": true,
+      "note": "Dashboard shows HG risk distribution"
+    },
+    {
+      "id": "B92-034",
+      "pass": true,
+      "note": "Carbonx reference card: mask 0x012A shown"
+    },
+    {
+      "id": "B92-035",
+      "pass": true,
+      "note": "Carbonx reference card: drift score 0x3000 shown"
+    },
+    {
+      "id": "B92-036",
+      "pass": true,
+      "note": "Top remediation queue section present"
+    },
+    {
+      "id": "B92-037",
+      "pass": true,
+      "note": "Markdown report written: /root/proposals/aegis--fleet-quality-dashboard--formal--2026-05-05.md"
+    },
+    {
+      "id": "B92-038",
+      "pass": true,
+      "note": "Markdown includes three-batch arc (Batch 89→91→92)"
+    },
+    {
+      "id": "B92-039",
+      "pass": true,
+      "note": "Markdown includes carbonx reference card"
+    }
+  ],
+  "verdict": "PASS",
+  "next_steps": [
+    "Batch 93: Guard SDK MVP — @ankr/aegis-guard extracting approval token + SENSE + idempotency from carbonx-backend",
+    "Begin quality_mask_at_promotion capture for 14 HG-2B-financial services (CRITICAL priority)",
+    "Monitor carbonx quality_drift_score: when 7-day window passes, update Q-015 and Q-016 if clean",
+    "Add dashboard to AEGIS landing page or viewer surface for customer access"
+  ]
+}
