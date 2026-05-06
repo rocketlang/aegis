@@ -579,6 +579,202 @@ export const CARBONX_HG2B_POLICY: ServiceHardGatePolicy = {
   ]),
 };
 
+// ── freightbox HG-2B eBL policy ───────────────────────────────────────────────
+//
+// Batch 61 candidate (2026-05-06). hard_gate_enabled=false — soak pending.
+// authority_class=financial, governance_blast_radius=BR-5, human_gate_required=true
+// runtime_readiness=TIER-B (gate-ready after human_gate verification)
+//
+// eBL hard-block surface: DCSA/WAVE protocol — once an eBL is surrendered or
+// endorsed, mutating it is document fraud under UCP 600 + eUCP Supplement.
+// Five Locks apply (same doctrine as carbonx financial):
+//   LOCK-1 Decision:     approvalToken required on ISSUE_EBL, VOID_EBL, SURRENDER_EBL
+//   LOCK-2 Identity:     AEG-E-016 scoped key (service_id + capability + ebl_id + org_id)
+//   LOCK-3 Observability: SENSE event (before/after/delta + correlation_id + irreversible)
+//   LOCK-4 Rollback:     DRAFT state only — once ISSUED, void is the only rollback path
+//   LOCK-5 Idempotency:  ebl_id unique key on every issuance and transfer
+//
+// @rule:AEG-HG-001 hard_gate_enabled=false — candidate, not yet in AEGIS_HARD_GATE_SERVICES
+// @rule:AEG-HG-002 READ is in never_block
+// @rule:AEG-HG-2B-001 external_state_touch=true (DCSA registry + WAVE network)
+// @rule:AEG-HG-2B-002 approval_required_for_irreversible_action=true
+// @rule:AEG-HG-2B-003 observability_required=true
+// @rule:AEG-HG-2B-004 audit_artifact_required=true
+// @rule:AEG-HG-FIN-001 financial_settlement_doctrine=true (eBL = financial instrument)
+
+export const FREIGHTBOX_HG2B_POLICY: ServiceHardGatePolicy = {
+  service_id: "freightbox",
+  hg_group: "HG-2",
+  hard_gate_enabled: false, // @rule:AEG-HG-001 — CANDIDATE; soak pending (Batch 61)
+  rollout_order: 13,
+  stage: "Stage 6 — HG-2B eBL financial — candidate 2026-05-06; soak prep Batch 61",
+
+  external_state_touch: true,       // DCSA registry + WAVE eBL network
+  boundary_crossing: true,          // crosses DCSA + financial institution boundary
+  reversible_actions_only: false,   // ISSUED/SURRENDERED eBL is irreversible
+  approval_required_for_irreversible_action: true, // @rule:AEG-HG-2B-002
+  kill_switch_scope: "service",
+  observability_required: true,    // @rule:AEG-HG-2B-003
+  audit_artifact_required: true,   // @rule:AEG-HG-2B-004
+  rollback_path:
+    "Remove freightbox from AEGIS_HARD_GATE_SERVICES (immediate soft_canary return). " +
+    "Issued eBLs cannot be recalled — void path requires DAN-4 dual-control approval. " +
+    "DRAFT eBLs may be deleted without approval. " +
+    "Document in audits/batchNN_freightbox_rollback.json.",
+
+  financial_settlement_doctrine: true, // @rule:AEG-HG-FIN-001 — eBL is a financial instrument
+  approval_scope_fields: [
+    "service_id",
+    "capability",
+    "operation",
+    "org_id",
+    "ebl_id",
+    "shipper_id",
+    "consignee_id",
+    "notify_party_id",
+    "vessel_imo",
+    "bl_number",
+    "actor_user_id",
+  ] as const,
+
+  always_allow_capabilities: new Set([
+    // Standard read-class (AEG-HG-002)
+    "READ", "GET", "LIST", "QUERY", "SEARCH", "HEALTH",
+    // eBL read-class — idempotent, no state mutation
+    "VIEW_EBL",
+    "VERIFY_EBL_SIGNATURE",   // verify DCSA digital signature (read-only)
+    "DRAFT_EBL",              // create draft (reversible, no financial effect)
+    "GET_EBL_STATUS",
+    "DOWNLOAD_EBL",
+    "VALIDATE_EBL_FORMAT",    // DCSA schema validation (read-only)
+  ]),
+
+  never_block_capabilities: new Set([
+    "READ", // @rule:AEG-HG-002 — AEG-E-002 extended to hard mode
+  ]),
+
+  still_gate_capabilities: new Set([
+    // eBL lifecycle — all require scoped approval token
+    "ISSUE_EBL",             // first issuance — irreversible once ISSUED
+    "TRANSFER_EBL",          // change consignee — requires consignee consent
+    "ENDORSE_EBL",           // shipper endorsement — DCSA legal binding
+    "SURRENDER_EBL",         // present for import clearance — irreversible
+    "AMEND_EBL",             // amend before issuance — approval required
+    "VOID_EBL",              // void an issued eBL — requires both parties
+    "APPROVE_SURRENDER",     // approve surrender at destination
+    // Standard high-consequence ops
+    "CI_DEPLOY", "DELETE", "EXECUTE", "APPROVE", "AI_EXECUTE",
+    "FULL_AUTONOMY", "SPAWN_AGENTS", "MEMORY_WRITE", "AUDIT_WRITE", "EMIT",
+  ]),
+
+  hard_block_capabilities: new Set([
+    // Universal malformed sentinels
+    "IMPOSSIBLE_OP",
+    "EMPTY_CAPABILITY_ON_WRITE",
+    // eBL hard-blocks — IRR-NOAPPROVAL doctrine
+    "ISSUE_EBL_WITHOUT_APPROVAL",       // bypass approval token on issuance
+    "VOID_EBL_WITHOUT_TOKEN",           // void without scoped approval
+    "FORCE_EBL_TRANSFER",               // forced transfer without consignee consent
+    "BACKDATE_EBL_ISSUE",               // backdating = document fraud (UCP 600)
+    "BATCH_VOID_EBL",                   // bulk void without individual approval
+    "OVERRIDE_DCSA_SIGNATURE",          // bypass DCSA digital signature verification
+    "MUTATE_ISSUED_EBL",                // mutate an already-issued eBL (document fraud)
+    "DELETE_EBL_AUDIT_LOG",             // tamper with eBL audit trail
+    "BYPASS_EBL_IDEMPOTENCY",           // explicit idempotency bypass → duplicate issuance
+  ]),
+};
+
+// ── mari8x-community HG-2B maritime community policy ─────────────────────────
+//
+// Batch 61 candidate (2026-05-06). hard_gate_enabled=false — soak pending.
+// authority_class=external_call, governance_blast_radius=BR-5, human_gate_required=true
+// runtime_readiness=TIER-B (human_gate verification required before enforcement)
+//
+// mari8x manages officer STCW certifications and vessel registrations.
+// Wrong certification data creates SOLAS non-compliance risk — vessel detention at PSC.
+// Hard-block surface: changes that bypass the STCW/PSC verification chain.
+//
+// @rule:AEG-HG-001 hard_gate_enabled=false — candidate, not yet in AEGIS_HARD_GATE_SERVICES
+// @rule:AEG-HG-002 READ is in never_block
+// @rule:AEG-HG-2B-001 external_state_touch=true (Port State Control reporting)
+// @rule:AEG-HG-2B-002 approval_required_for_irreversible_action=true
+// @rule:AEG-HG-2B-003 observability_required=true
+// @rule:AEG-HG-2B-004 audit_artifact_required=true
+
+export const MARI8X_HG2B_POLICY: ServiceHardGatePolicy = {
+  service_id: "mari8x-community",
+  hg_group: "HG-2",
+  hard_gate_enabled: false, // @rule:AEG-HG-001 — CANDIDATE; soak pending (Batch 61)
+  rollout_order: 14,
+  stage: "Stage 6 — HG-2B maritime community — candidate 2026-05-06; soak prep Batch 61",
+
+  external_state_touch: true,       // Port State Control + flag state registry
+  boundary_crossing: true,          // STCW certificate data crosses flag state boundary
+  reversible_actions_only: false,   // vessel registration + cert revocation are irreversible
+  approval_required_for_irreversible_action: true, // @rule:AEG-HG-2B-002
+  kill_switch_scope: "service",
+  observability_required: true,    // @rule:AEG-HG-2B-003
+  audit_artifact_required: true,   // @rule:AEG-HG-2B-004
+  rollback_path:
+    "Remove mari8x-community from AEGIS_HARD_GATE_SERVICES (immediate soft_canary return). " +
+    "Vessel/officer record changes: restore from DB backup (maritime-db nightly). " +
+    "STCW certificate changes: flag state registry has 30-day amendment window. " +
+    "Document in audits/batchNN_mari8x_rollback.json.",
+
+  always_allow_capabilities: new Set([
+    // Standard read-class (AEG-HG-002)
+    "READ", "GET", "LIST", "QUERY", "SEARCH", "HEALTH",
+    // Maritime community read-class — safe, idempotent
+    "VIEW_VESSEL",
+    "VIEW_OFFICER",
+    "VIEW_CERTIFICATE",
+    "CHECK_CERTIFICATE_VALIDITY",    // STCW expiry check (read-only)
+    "GET_VESSEL_STATUS",
+    "SEARCH_COMMUNITY",
+  ]),
+
+  never_block_capabilities: new Set([
+    "READ", // @rule:AEG-HG-002
+  ]),
+
+  still_gate_capabilities: new Set([
+    // Vessel lifecycle — require approval
+    "REGISTER_VESSEL",
+    "UPDATE_VESSEL_DETAILS",
+    "DEACTIVATE_VESSEL",
+    // Officer lifecycle — require approval
+    "ASSIGN_OFFICER",
+    "UPDATE_OFFICER_PROFILE",
+    "REVOKE_OFFICER_ASSIGNMENT",
+    // Certificate management
+    "RECORD_CERTIFICATE",
+    "UPDATE_CERTIFICATE",
+    "RENEW_CERTIFICATE",
+    // Community ops
+    "SEND_NOTIFICATION",
+    "POST_ANNOUNCEMENT",
+    // Standard high-consequence ops
+    "CI_DEPLOY", "DELETE", "EXECUTE", "APPROVE", "AI_EXECUTE",
+    "FULL_AUTONOMY", "SPAWN_AGENTS", "MEMORY_WRITE", "AUDIT_WRITE", "EMIT",
+  ]),
+
+  hard_block_capabilities: new Set([
+    // Universal malformed sentinels
+    "IMPOSSIBLE_OP",
+    "EMPTY_CAPABILITY_ON_WRITE",
+    // Maritime community hard-blocks — STCW / SOLAS compliance risk
+    "OVERRIDE_OFFICER_CERTIFICATION",   // bypass STCW certificate validation
+    "FORCE_OFFICER_ASSIGNMENT",         // assign officer ignoring rank/cert requirements
+    "MASS_UPDATE_VESSELS",              // bulk update without per-vessel approval
+    "DELETE_VESSEL_RECORD",             // permanent deletion of vessel record
+    "BULK_DELETE_RECORDS",              // mass deletion without approval
+    "BACKDATE_CERTIFICATE",             // backdate STCW certificate (SOLAS fraud)
+    "BYPASS_PSC_VERIFICATION",          // skip Port State Control reporting chain
+    "REVOKE_ALL_CERTIFICATES",          // mass certificate revocation without per-cert approval
+    "MUTATE_IMMUTABLE_AUDIT_LOG",       // tamper with maritime audit trail
+  ]),
+};
+
 // ── Policy registry ───────────────────────────────────────────────────────────
 // Batch 34: ship-slm + chief-slm added (disabled). Chirpee = Stage 1 live.
 // Batch 36: ship-slm + chief-slm promoted live.
@@ -605,6 +801,9 @@ export const HARD_GATE_POLICIES: Readonly<Record<string, ServiceHardGatePolicy>>
   // HG-2B financial live (promoted Batch 74, 2026-05-04 — IN AEGIS_HARD_GATE_SERVICES)
   "carbonx-backend":   CARBONX_HG2B_POLICY,
   "carbonx":           CARBONX_HG2B_POLICY, // alias — services.json uses "carbonx" as service key
+  // HG-2B Batch 61 candidates (2026-05-06 — soak pending, hard_gate_enabled=false)
+  "freightbox":        FREIGHTBOX_HG2B_POLICY,
+  "mari8x-community":  MARI8X_HG2B_POLICY,
 };
 
 // ── Live hard-gate enforcement ────────────────────────────────────────────────

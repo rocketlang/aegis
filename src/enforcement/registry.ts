@@ -18,6 +18,7 @@ const SERVICES_JSON_PATH = join(
 const CACHE_TTL_MS = 60_000;
 
 // TIER-A services identified in Batch 15 — the enforcement pilot set
+// Batch 61 (2026-05-06): freightbox + mari8x-community added (TIER-B, human_gate_required=true, BR-5)
 // @rule:AEG-E-007 — only these services enter live enforcement pilot
 export const TIER_A_PILOT_SET = new Set([
   "granthx",
@@ -32,6 +33,9 @@ export const TIER_A_PILOT_SET = new Set([
   "chief-slm",
   "chirpee",
   "puranic-os",
+  // Batch 61 additions — TIER-B, human_gate=true, BR-5
+  "freightbox",
+  "mari8x-community",
 ]);
 
 interface RegistryCache {
