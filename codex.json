@@ -129,7 +129,7 @@
   "capability_captured_schema": "ankr-archmask-v1",
   "claw_mask": 65535,
   "claw_mask_schema": "claw-design-16bit-v1",
-  "claude_ankr_mask": 31,
+  "claude_ankr_mask": 29,
   "claude_ankr_mask_schema": "claude-ankr-5bit-v1",
   "capability_audit": {
     "kavachos_kernel_phase1": "\u2705 built \u2014 KavachOS KERNEL Phase 1: seccomp profile generator, Falco rule generator, receipt chain, profile store, runner, CLI (KOS-010 to KOS-017)",
