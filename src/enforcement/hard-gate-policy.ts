@@ -605,9 +605,9 @@ export const CARBONX_HG2B_POLICY: ServiceHardGatePolicy = {
 export const FREIGHTBOX_HG2B_POLICY: ServiceHardGatePolicy = {
   service_id: "freightbox",
   hg_group: "HG-2",
-  hard_gate_enabled: false, // @rule:AEG-HG-001 — CANDIDATE; soak pending (Batch 61)
+  hard_gate_enabled: true, // @rule:AEG-HG-001 — LIVE; promoted Batch 61 (7/7 PASS 2026-05-06)
   rollout_order: 13,
-  stage: "Stage 6 — HG-2B eBL financial — candidate 2026-05-06; soak prep Batch 61",
+  stage: "Stage 6 — HG-2B eBL financial — promoted live Batch 61 2026-05-06",
 
   external_state_touch: true,       // DCSA registry + WAVE eBL network
   boundary_crossing: true,          // crosses DCSA + financial institution boundary
@@ -704,9 +704,9 @@ export const FREIGHTBOX_HG2B_POLICY: ServiceHardGatePolicy = {
 export const MARI8X_HG2B_POLICY: ServiceHardGatePolicy = {
   service_id: "mari8x-community",
   hg_group: "HG-2",
-  hard_gate_enabled: false, // @rule:AEG-HG-001 — CANDIDATE; soak pending (Batch 61)
+  hard_gate_enabled: true, // @rule:AEG-HG-001 — LIVE; promoted Batch 61 (7/7 PASS 2026-05-06)
   rollout_order: 14,
-  stage: "Stage 6 — HG-2B maritime community — candidate 2026-05-06; soak prep Batch 61",
+  stage: "Stage 6 — HG-2B maritime community — promoted live Batch 61 2026-05-06",
 
   external_state_touch: true,       // Port State Control + flag state registry
   boundary_crossing: true,          // STCW certificate data crosses flag state boundary
@@ -788,6 +788,8 @@ export const MARI8X_HG2B_POLICY: ServiceHardGatePolicy = {
 // Batch 60: parali-central promoted live (HG-2B). 7 live hard-gate services total.
 // Batch 66: carbonx-backend added (HG-2B financial candidate, soft_canary). Roster unchanged at 7.
 // Batch 74: carbonx-backend promoted live (HG-2B financial). 8 live hard-gate services total.
+// Batch 61: freightbox + mari8x-community added (HG-2B candidates). Batch 61 7/7 PASS 2026-05-06.
+// Batch 61: freightbox + mari8x-community promoted live (HG-2B). 11 live hard-gate services total.
 
 export const HARD_GATE_POLICIES: Readonly<Record<string, ServiceHardGatePolicy>> = {
   chirpee:             CHIRPEE_HG1_POLICY,
@@ -801,7 +803,7 @@ export const HARD_GATE_POLICIES: Readonly<Record<string, ServiceHardGatePolicy>>
   // HG-2B financial live (promoted Batch 74, 2026-05-04 — IN AEGIS_HARD_GATE_SERVICES)
   "carbonx-backend":   CARBONX_HG2B_POLICY,
   "carbonx":           CARBONX_HG2B_POLICY, // alias — services.json uses "carbonx" as service key
-  // HG-2B Batch 61 candidates (2026-05-06 — soak pending, hard_gate_enabled=false)
+  // HG-2B Batch 61 promoted live (2026-05-06 — 7/7 PASS, hard_gate_enabled=true)
   "freightbox":        FREIGHTBOX_HG2B_POLICY,
   "mari8x-community":  MARI8X_HG2B_POLICY,
 };

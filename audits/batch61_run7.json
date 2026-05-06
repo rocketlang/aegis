@@ -1,0 +1,74 @@
+{
+  "batch": 61,
+  "run": "7/7",
+  "date": "2026-05-06T15:26:29.398Z",
+  "services": [
+    "carbonx",
+    "freightbox",
+    "mari8x-community"
+  ],
+  "focus": "rollback drill + promotion readiness gate",
+  "total_checks": 150,
+  "pass": 150,
+  "fail": 0,
+  "false_positives": 0,
+  "true_positives": 0,
+  "promotion_permitted_freightbox": true,
+  "promotion_permitted_mari8x": true,
+  "carbonx_formal_soak_run": 7,
+  "soak_cycle_complete": true,
+  "next_action": "Promote freightbox and mari8x-community to live (hard_gate_enabled=true + add to AEGIS_HARD_GATE_SERVICES)",
+  "rollback_drill_summary": {
+    "freightbox": {
+      "actions_attempted": 3,
+      "rollback_triggered": 2,
+      "state_mutations": 1,
+      "irr_noapproval_count": 2,
+      "all_paths_ok": true
+    },
+    "mari8x-community": {
+      "actions_attempted": 3,
+      "rollback_triggered": 2,
+      "state_mutations": 1,
+      "irr_noapproval_count": 2,
+      "all_paths_ok": true
+    },
+    "carbonx": {
+      "actions_attempted": 3,
+      "rollback_triggered": 2,
+      "state_mutations": 1,
+      "mode": "live_applyHardGate"
+    }
+  },
+  "readiness_gates": {
+    "freightbox": {
+      "service_id": "freightbox",
+      "gates_passed": 19,
+      "gates_total": 19,
+      "promotion_permitted": true,
+      "failed_gates": []
+    },
+    "mari8x-community": {
+      "service_id": "mari8x-community",
+      "gates_passed": 18,
+      "gates_total": 18,
+      "promotion_permitted": true,
+      "failed_gates": []
+    }
+  },
+  "post_promotion_simulation": {
+    "freightbox_hard_gate_active": true,
+    "freightbox_block_enforced": true,
+    "mari8x-community_hard_gate_active": true,
+    "mari8x-community_block_enforced": true
+  },
+  "soak_criteria_status": {
+    "run1": "COMPLETE — baseline surface, alias normalization, registry, FP=0",
+    "run2": "COMPLETE — GATE lifecycle, concurrent tokens, domain caps, deny+revoke",
+    "run3": "COMPLETE — IRR-NOAPPROVAL full lifecycle, SENSE completeness, kill switch",
+    "run4": "COMPLETE — TTL expiry + replay protection, AEG-E-013/014/015/016",
+    "run5": "COMPLETE — alias normalization exhaustive, unknown-safe, cross-service isolation",
+    "run6": "COMPLETE — cross-group isolation extended, HG-1/2A/2B boundaries, token rejection",
+    "run7": "COMPLETE — rollback drill + promotion readiness gate — CYCLE COMPLETE"
+  }
+}

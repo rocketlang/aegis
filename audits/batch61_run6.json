@@ -1,0 +1,55 @@
+{
+  "batch": 61,
+  "run": "6/7",
+  "date": "2026-05-06T15:20:45.170Z",
+  "services": [
+    "carbonx",
+    "freightbox",
+    "mari8x-community"
+  ],
+  "focus": "cross-group isolation extended",
+  "total_checks": 326,
+  "pass": 326,
+  "fail": 0,
+  "false_positives": 0,
+  "true_positives": 0,
+  "promotion_permitted": false,
+  "carbonx_formal_soak_run": 6,
+  "next_run": "7/7 — rollback drill + promotion readiness gate",
+  "isolation_summary": {
+    "hg1_services": [
+      "chirpee",
+      "ship-slm",
+      "chief-slm",
+      "puranic-os"
+    ],
+    "hg2a_services": [
+      "pramana",
+      "domain-capture"
+    ],
+    "hg2b_live": [
+      "parali-central",
+      "carbonx"
+    ],
+    "hg2b_candidates": [
+      "freightbox",
+      "mari8x-community"
+    ],
+    "domain_caps_checked": 26,
+    "cross_group_token_rejections": 5,
+    "universal_sentinels": [
+      "IMPOSSIBLE_OP",
+      "EMPTY_CAPABILITY_ON_WRITE"
+    ],
+    "key_finding": "No domain cap bleeds across group boundaries. Only universal sentinels fire on all services."
+  },
+  "soak_criteria_status": {
+    "run1": "COMPLETE — baseline surface, alias normalization, registry, FP=0",
+    "run2": "COMPLETE — GATE lifecycle, concurrent tokens, domain caps, deny+revoke",
+    "run3": "COMPLETE — IRR-NOAPPROVAL full lifecycle, SENSE completeness, kill switch",
+    "run4": "COMPLETE — TTL expiry + replay protection, AEG-E-013/014/015/016",
+    "run5": "COMPLETE — alias normalization exhaustive, unknown-safe, cross-service isolation",
+    "run6": "COMPLETE — cross-group isolation extended, HG-1/2A/2B boundaries, token rejection",
+    "run7": "PENDING — rollback drill + promotion readiness gate"
+  }
+}
