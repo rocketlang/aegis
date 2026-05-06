@@ -1,0 +1,18 @@
+{
+  "batch": 61,
+  "run": "2/7",
+  "date": "2026-05-06T14:43:13.585Z",
+  "services": [
+    "carbonx",
+    "freightbox",
+    "mari8x-community"
+  ],
+  "focus": "GATE approval lifecycle + concurrent tokens + domain-specific caps",
+  "total_checks": 76,
+  "pass": 76,
+  "fail": 0,
+  "false_positives": 0,
+  "true_positives": 0,
+  "promotion_permitted": false,
+  "next_run": "3/7 — IRR-NOAPPROVAL full lifecycle"
+}
