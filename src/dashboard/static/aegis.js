@@ -947,6 +947,191 @@ fetchStatus = async function () {
   }
 };
 
+// ── ASE Session Registry (Tab 6) ─────────────────────────────────────────────
+// @rule:ASE-010 declared-vs-actual audit surface
+// @rule:INF-ASE-002 drift_set = actual \ declared
+
+let aseCurrentPage  = 1;
+let aseFetchTimeout = null;
+
+function debounceAseFetch() {
+  clearTimeout(aseFetchTimeout);
+  aseFetchTimeout = setTimeout(fetchAseSessions, 400);
+}
+
+async function fetchAseSessions(page) {
+  aseCurrentPage = page || 1;
+  const typeFilter    = document.getElementById('ase-filter-type')?.value    ?? '';
+  const driftOnly     = document.getElementById('ase-filter-drift')?.checked  ?? false;
+  const serviceFilter = document.getElementById('ase-filter-service')?.value  ?? '';
+
+  const params = new URLSearchParams({ page: aseCurrentPage, limit: 20 });
+  if (typeFilter)    params.set('agent_type', typeFilter);
+  if (driftOnly)     params.set('drift_only', 'true');
+  if (serviceFilter) params.set('service_key', serviceFilter);
+
+  try {
+    const res  = await fetch(`${API}/api/v1/aegis/sessions?${params}`);
+    const data = await res.json();
+    if (!data.ok) return;
+
+    renderAseSessions(data.sessions, data._meta);
+    updateAseSummary(data.sessions, data._meta);
+    renderAsePagination(data._meta);
+  } catch {}
+}
+
+function updateAseSummary(sessions, meta) {
+  setEl('ase-total',       meta?.total ?? sessions.length);
+  const driftCount  = sessions.filter(s => s.drift_detected).length;
+  const proxyCount  = sessions.filter(s => s.agent_type === 'proxy-native').length;
+  const hookCount   = sessions.filter(s => s.agent_type === 'hook-native').length;
+  // Counts across full set — fetch drift_only for accurate drift total
+  setEl('ase-drift-count', driftCount);
+  setEl('ase-proxy-count', proxyCount);
+  setEl('ase-hook-count',  hookCount);
+
+  // Red badge on tab if drift found
+  const badge = document.getElementById('tab-badge-sessions');
+  if (badge) {
+    badge.textContent   = driftCount || '';
+    badge.style.display = driftCount ? '' : 'none';
+  }
+}
+
+function aseTypeBadge(type) {
+  const cls  = type === 'proxy-native' ? 'ase-type-proxy' : 'ase-type-hook';
+  const label = type === 'proxy-native' ? 'PROXY' : 'HOOK';
+  return `<span class="ase-type-badge ${cls}">${label}</span>`;
+}
+
+function aseBudgetBar(used, total) {
+  if (!total || total <= 0) return '<span class="text-dim">unlimited</span>';
+  const pct  = Math.min(100, Math.round((used / total) * 100));
+  const cls  = pct >= 90 ? 'ase-budget-over' : pct >= 60 ? 'ase-budget-warn' : 'ase-budget-ok';
+  return `<div class="ase-budget-bar-wrap"><div class="ase-budget-bar ${cls}" style="width:${pct}%"></div></div>
+          <span style="margin-left:5px;color:var(--text-mid)">${pct}%</span>`;
+}
+
+function renderAseSessions(sessions, meta) {
+  const tbody = document.getElementById('ase-sessions-tbody');
+  if (!tbody) return;
+  if (!sessions.length) {
+    tbody.innerHTML = '<tr><td colspan="8" class="empty-state">No sealed sessions found</td></tr>';
+    return;
+  }
+  tbody.innerHTML = sessions.map(s => {
+    const drift = s.drift_detected
+      ? '<span class="ase-drift-flag" title="actual ⊄ declared"></span>'
+      : '<span class="ase-no-drift"  title="clean"></span>';
+    const sid8  = String(s.session_id).slice(-8);
+    return `<tr onclick="fetchAseAudit('${s.session_id}')" data-sid="${s.session_id}">
+      <td class="ase-sid" title="${s.session_id}">${sid8}</td>
+      <td>${aseTypeBadge(s.agent_type)}</td>
+      <td style="color:var(--text-mid)">${s.service_key ?? '—'}</td>
+      <td>${s.declared_caps?.length ?? 0}</td>
+      <td>${s.actual_caps_used?.length ?? 0}</td>
+      <td>${aseBudgetBar(s.budget_used_usd, s.budget_usd)}</td>
+      <td style="text-align:center">${drift}</td>
+      <td style="color:var(--text-dim)">${relTime(s.issued_at)}</td>
+    </tr>`;
+  }).join('');
+}
+
+function renderAsePagination(meta) {
+  const el = document.getElementById('ase-pagination');
+  if (!el || !meta) return;
+  const total = meta.total ?? 0;
+  const pages = Math.ceil(total / (meta.limit ?? 20));
+  if (pages <= 1) { el.innerHTML = ''; return; }
+  el.innerHTML = `
+    <button class="ase-page-btn" onclick="fetchAseSessions(${aseCurrentPage - 1})" ${aseCurrentPage <= 1 ? 'disabled' : ''}>&#8592; Prev</button>
+    <span>Page ${aseCurrentPage} / ${pages}</span>
+    <button class="ase-page-btn" onclick="fetchAseSessions(${aseCurrentPage + 1})" ${aseCurrentPage >= pages ? 'disabled' : ''}>Next &#8594;</button>
+  `;
+}
+
+async function fetchAseAudit(sessionId) {
+  // Highlight selected row
+  document.querySelectorAll('#ase-sessions-tbody tr').forEach(r => r.classList.remove('ase-row-selected'));
+  const row = document.querySelector(`#ase-sessions-tbody tr[data-sid="${sessionId}"]`);
+  if (row) row.classList.add('ase-row-selected');
+
+  const section = document.getElementById('ase-audit-section');
+  const body    = document.getElementById('ase-audit-body');
+  const idEl    = document.getElementById('ase-audit-session-id');
+  if (!section || !body) return;
+
+  section.style.display = '';
+  if (idEl) idEl.textContent = sessionId.slice(-12);
+  body.innerHTML = '<div class="empty-state">Loading audit...</div>';
+
+  try {
+    const res  = await fetch(`${API}/api/v1/aegis/sessions/${encodeURIComponent(sessionId)}/audit`);
+    const data = await res.json();
+    if (!data.ok) { body.innerHTML = `<div class="empty-state">${data.error ?? 'Error'}</div>`; return; }
+
+    const verifiedCls = data.sealed_hash_verified ? 'ase-verified-ok' : 'ase-verified-fail';
+    const verifiedTxt = data.sealed_hash_verified ? '✓ VERIFIED' : '✗ TAMPERED — QUARANTINE';
+
+    const declaredHtml = (data.declared_caps?.length
+      ? data.declared_caps.map(c => `<span class="ase-cap-tag">${c}</span>`).join('')
+      : '<span class="text-dim">none declared (conservative)</span>');
+
+    const actualHtml = (data.actual_caps_used?.length
+      ? data.actual_caps_used.map(c => {
+          const isDrift = data.drift_set?.includes(c);
+          return `<span class="ase-cap-tag${isDrift ? ' ase-cap-drift' : ''}" title="${isDrift ? 'outside declared_caps' : ''}">${c}</span>`;
+        }).join('')
+      : '<span class="text-dim">none recorded</span>');
+
+    const driftHtml = (data.drift_set?.length
+      ? data.drift_set.map(c => `<span class="ase-cap-tag ase-cap-drift">${c}</span>`).join('')
+      : '<span style="color:var(--green)">none — clean session</span>');
+
+    const budgetPct = (data.budget_allocated > 0)
+      ? Math.min(100, Math.round((data.budget_used / data.budget_allocated) * 100))
+      : 0;
+
+    body.innerHTML = `
+      <div class="ase-audit-col">
+        <h3>DECLARED CAPS (${data.declared_caps?.length ?? 0})</h3>
+        <div style="margin-bottom:10px">${declaredHtml}</div>
+        <h3>ACTUAL CAPS USED (${data.actual_caps_used?.length ?? 0})</h3>
+        <div style="margin-bottom:10px">${actualHtml}</div>
+        <h3>DRIFT SET — actual ∖ declared (${data.drift_set?.length ?? 0})</h3>
+        <div>${driftHtml}</div>
+      </div>
+      <div class="ase-audit-col">
+        <h3>ENVELOPE</h3>
+        <div class="ase-audit-row"><span class="ase-audit-key">session_id</span><span class="ase-audit-val" title="${data.session_id}">${String(data.session_id).slice(-16)}</span></div>
+        <div class="ase-audit-row"><span class="ase-audit-key">agent_type</span><span class="ase-audit-val">${aseTypeBadge(data.agent_type)}</span></div>
+        <div class="ase-audit-row"><span class="ase-audit-key">service_key</span><span class="ase-audit-val">${data.service_key ?? '—'}</span></div>
+        <div class="ase-audit-row"><span class="ase-audit-key">sealed_hash</span><span class="ase-audit-val" title="${data.sealed_hash}">${String(data.sealed_hash ?? '').slice(0,12)}…</span></div>
+        <div class="ase-audit-row"><span class="ase-audit-key">hash verified</span><span class="ase-audit-val ${verifiedCls}">${verifiedTxt}</span></div>
+        <div class="ase-audit-row"><span class="ase-audit-key">parent_session</span><span class="ase-audit-val">${data.parent_session_id ? String(data.parent_session_id).slice(-8) : 'root'}</span></div>
+        <div class="ase-audit-row"><span class="ase-audit-key">children</span><span class="ase-audit-val">${(data.child_session_ids?.length ?? 0)} child sessions</span></div>
+        <div class="ase-audit-row"><span class="ase-audit-key">issued_at</span><span class="ase-audit-val">${relTime(data.issued_at)}</span></div>
+        <h3 style="margin-top:12px">BUDGET</h3>
+        <div class="ase-audit-row"><span class="ase-audit-key">allocated</span><span class="ase-audit-val">$${(data.budget_allocated ?? 0).toFixed(4)}</span></div>
+        <div class="ase-audit-row"><span class="ase-audit-key">used</span><span class="ase-audit-val">$${(data.budget_used ?? 0).toFixed(4)}</span></div>
+        <div class="ase-audit-row"><span class="ase-audit-key">remaining</span><span class="ase-audit-val">${data.budget_remaining === null ? 'unlimited' : '$' + (data.budget_remaining ?? 0).toFixed(4)}</span></div>
+        <div class="ase-audit-row"><span class="ase-audit-key">gate_calls</span><span class="ase-audit-val">${data.gate_calls ?? 0}</span></div>
+        <div class="ase-audit-row"><span class="ase-audit-key">blocks</span><span class="ase-audit-val">${data.blocks ?? 0}</span></div>
+      </div>`;
+
+    section.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  } catch (e) {
+    body.innerHTML = `<div class="empty-state">Failed to load audit: ${e.message}</div>`;
+  }
+}
+
+function closeAseAudit() {
+  const section = document.getElementById('ase-audit-section');
+  if (section) section.style.display = 'none';
+  document.querySelectorAll('#ase-sessions-tbody tr').forEach(r => r.classList.remove('ase-row-selected'));
+}
+
 // ── Tab switching ─────────────────────────────────────────────────────────────
 
 function switchTab(name) {
@@ -957,9 +1142,10 @@ function switchTab(name) {
   if (panel) panel.classList.add('active');
   if (btn)   btn.classList.add('active');
 
-  if (name === 'agents')  renderAgentTab();
-  if (name === 'limits')  loadLimits();
-  if (name === 'posture') { fetchPosture(); fetchKavachAudit(); }
+  if (name === 'agents')   renderAgentTab();
+  if (name === 'limits')   loadLimits();
+  if (name === 'posture')  { fetchPosture(); fetchKavachAudit(); }
+  if (name === 'sessions') fetchAseSessions();
 }
 
 // ── Init ──────────────────────────────────────────────────────────────────────

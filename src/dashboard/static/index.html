@@ -124,6 +124,10 @@
     POSTURE
     <span class="tab-badge tab-badge-red" id="tab-badge-posture" style="display:none"></span>
   </button>
+  <button class="tab-btn" onclick="switchTab('sessions')" id="tab-btn-sessions">
+    SESSIONS
+    <span class="tab-badge tab-badge-red" id="tab-badge-sessions" style="display:none"></span>
+  </button>
 </nav>
 
 <!-- ═══════════════════════════════════════════════════════
@@ -581,6 +585,91 @@
             <tr><td colspan="6" class="empty-state">Loading...</td></tr>
           </tbody>
         </table>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════
+     TAB 6: SESSIONS — ASE Session Registry
+     @rule:ASE-010 declared-vs-actual audit surface
+     @rule:INF-ASE-002 drift_set = actual \ declared
+═══════════════════════════════════════════════════════ -->
+<div class="tab-panel" id="tab-sessions">
+  <main class="tab-content">
+
+    <!-- Summary strip -->
+    <div class="ase-summary-row">
+      <div class="ase-summary-card">
+        <div class="ase-sum-label">TOTAL SESSIONS</div>
+        <div class="ase-sum-big" id="ase-total">—</div>
+        <div class="ase-sum-sub">sealed envelopes</div>
+      </div>
+      <div class="ase-summary-card ase-sum-drift">
+        <div class="ase-sum-label">DRIFT DETECTED</div>
+        <div class="ase-sum-big" id="ase-drift-count">—</div>
+        <div class="ase-sum-sub">actual ⊄ declared</div>
+      </div>
+      <div class="ase-summary-card ase-sum-proxy">
+        <div class="ase-sum-label">PROXY-NATIVE</div>
+        <div class="ase-sum-big" id="ase-proxy-count">—</div>
+        <div class="ase-sum-sub">via AI Proxy</div>
+      </div>
+      <div class="ase-summary-card ase-sum-hook">
+        <div class="ase-sum-label">HOOK-NATIVE</div>
+        <div class="ase-sum-big" id="ase-hook-count">—</div>
+        <div class="ase-sum-sub">via UPS hook</div>
+      </div>
+    </div>
+
+    <!-- Filter bar -->
+    <section class="card-section">
+      <div class="ase-filter-bar">
+        <label class="ase-filter-label">TYPE</label>
+        <select id="ase-filter-type" class="ase-filter-select" onchange="fetchAseSessions()">
+          <option value="">all</option>
+          <option value="hook-native">hook-native</option>
+          <option value="proxy-native">proxy-native</option>
+        </select>
+        <label class="ase-filter-label" style="margin-left:16px">DRIFT ONLY</label>
+        <input type="checkbox" id="ase-filter-drift" class="ase-filter-check" onchange="fetchAseSessions()">
+        <label class="ase-filter-label" style="margin-left:16px">SERVICE</label>
+        <input type="text" id="ase-filter-service" class="ase-filter-input" placeholder="ankr-aegis" onkeyup="debounceAseFetch()">
+        <button class="btn-xs" style="margin-left:auto" onclick="fetchAseSessions()">&#8635; Refresh</button>
+      </div>
+
+      <!-- Session Registry table -->
+      <div class="ase-table-wrap">
+        <table class="ase-table" id="ase-sessions-table">
+          <thead>
+            <tr>
+              <th>SESSION ID</th>
+              <th>TYPE</th>
+              <th>SERVICE</th>
+              <th>DECLARED</th>
+              <th>ACTUAL</th>
+              <th>BUDGET</th>
+              <th>DRIFT</th>
+              <th>ISSUED</th>
+            </tr>
+          </thead>
+          <tbody id="ase-sessions-tbody">
+            <tr><td colspan="8" class="empty-state">Loading sessions...</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div id="ase-pagination" class="ase-pagination"></div>
+    </section>
+
+    <!-- Audit drawer (shown when a row is clicked) -->
+    <section class="card-section" id="ase-audit-section" style="display:none">
+      <h2>
+        Session Audit — <span id="ase-audit-session-id" class="ase-audit-id">—</span>
+        <button class="btn-xs" style="margin-left:auto;float:right" onclick="closeAseAudit()">&#10005; Close</button>
+      </h2>
+      <div id="ase-audit-body" class="ase-audit-body">
+        <div class="empty-state">Select a session row to view its full audit.</div>
       </div>
     </section>
 
