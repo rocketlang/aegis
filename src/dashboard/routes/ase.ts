@@ -142,6 +142,7 @@ export function registerAseRoutes(app: FastifyInstance): void {
     // Emit SENSE event
     try {
       const { broadcast } = await import("../../core/events");
+      // @rule:CA-003 before_snapshot=null (new session, no prior state)
       broadcast("aegis.session.envelope.issued", {
         session_id: sessionId,
         agent_id: agentId,
@@ -151,6 +152,9 @@ export function registerAseRoutes(app: FastifyInstance): void {
         declared_caps: declaredCaps,
         parent_session_id: parentSessionId,
         rule_ref: "ASE-001",
+        before_snapshot: null,
+        after_snapshot: { session_id: sessionId, declared_caps: declaredCaps, perm_mask: permMask, budget_usd: budgetUsd, sealed_hash: sealedHash },
+        delta: { declared_caps_count: declaredCaps.length, budget_usd: budgetUsd },
       });
     } catch {}
 
@@ -187,10 +191,14 @@ export function registerAseRoutes(app: FastifyInstance): void {
     // Emit verification heartbeat
     try {
       const { broadcast } = await import("../../core/events");
+      // @rule:CA-003 verified = read-only heartbeat; before == after; delta = budget consumed
       broadcast("aegis.session.envelope.verified", {
         session_id: id,
         agent_id: envelope.agent_id,
         rule_ref: "ASE-010",
+        before_snapshot: { budget_used_usd: envelope.budget_used_usd, budget_remaining: budgetRemaining },
+        after_snapshot:  { budget_used_usd: envelope.budget_used_usd, budget_remaining: budgetRemaining },
+        delta: { budget_consumed_pct: envelope.budget_usd > 0 ? Math.round((envelope.budget_used_usd / envelope.budget_usd) * 100) : 0 },
       });
     } catch {}
 
@@ -218,19 +226,27 @@ export function registerAseRoutes(app: FastifyInstance): void {
     try {
       const { broadcast } = await import("../../core/events");
       if (result.drift_detected) {
+        // @rule:CA-003 before=declared scope, after=actual scope, delta=undeclared caps used
         broadcast("aegis.session.envelope.drift", {
           session_id: id,
           drift_set: result.drift_set,
           declared_caps: envelope.declared_caps,
           actual_caps_used: envelope.actual_caps_used,
           rule_ref: "INF-ASE-002",
+          before_snapshot: { declared_caps: envelope.declared_caps },
+          after_snapshot:  { actual_caps_used: envelope.actual_caps_used },
+          delta: { drift_set: result.drift_set, drift_count: result.drift_set.length },
         });
       }
+      // @rule:CA-003 before=open session, after=closed session
       broadcast("aegis.session.audit.written", {
         session_id: id,
         drift_detected: result.drift_detected,
         final_budget_used: result.final_budget_used,
         rule_ref: "ASE-010",
+        before_snapshot: { closed: false, budget_used_usd: envelope.budget_used_usd },
+        after_snapshot:  { closed: true,  budget_used_usd: result.final_budget_used, drift_detected: result.drift_detected },
+        delta: { budget_delta: result.final_budget_used - envelope.budget_used_usd, drift_detected: result.drift_detected },
       });
     } catch {}
 
@@ -352,11 +368,23 @@ export function registerAseRoutes(app: FastifyInstance): void {
     if (!verified) {
       try {
         const { broadcast } = await import("../../core/events");
+        // @rule:CA-003 before=expected hash (recomputed), after=stored hash (tampered)
+        const recomputed = computeSealedHash({
+          session_id: envelope.session_id,
+          perm_mask: envelope.perm_mask,
+          class_mask: envelope.class_mask,
+          declared_caps: envelope.declared_caps,
+          issued_at: envelope.issued_at,
+          parent_session_id: envelope.parent_session_id,
+        });
         broadcast("aegis.session.envelope.seal_fail", {
           session_id: id,
           agent_id: envelope.agent_id,
           sealed_hash_stored: envelope.sealed_hash,
           rule_ref: "ASE-YK-008",
+          before_snapshot: { sealed_hash: recomputed, tampered: false },
+          after_snapshot:  { sealed_hash: envelope.sealed_hash, tampered: true },
+          delta: { hash_mismatch: true, expected: recomputed.slice(0, 16), stored: envelope.sealed_hash.slice(0, 16) },
         });
       } catch {}
     }

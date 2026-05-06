@@ -88,6 +88,7 @@ export function startFalcoWatch(opts: FalcoWatchOptions): FalcoWatcher {
       const receipt = sealKernelViolation(violation);
 
       // @rule:KOS-022 broadcast to event bus
+      // @rule:CA-003 before=clean gate-valve state, after=violation recorded
       broadcast("kavach.kernel.violation.detected", {
         session_id: opts.sessionId,
         agent_id: opts.agentId ?? null,
@@ -97,6 +98,9 @@ export function startFalcoWatch(opts: FalcoWatchOptions): FalcoWatcher {
         receipt_id: receipt.receipt_id,
         receipt_hash: receipt.receipt_hash,
         sealed_at: receipt.sealed_at,
+        before_snapshot: { gate_valve: "OPEN", violations_before: 0 },
+        after_snapshot:  { gate_valve: "OPEN", violation: { rule: violation.falco_rule, severity: violation.severity }, receipt_id: receipt.receipt_id },
+        delta: { violation_added: true, severity: violation.severity },
       });
 
       // @rule:KOS-023 auto-escalate gate valve: first → THROTTLE, 3+ → CRACK, CRITICAL → LOCK
@@ -123,18 +127,26 @@ export function startFalcoWatch(opts: FalcoWatchOptions): FalcoWatcher {
             if (decision === "STOP") {
               const { lockValve } = require("../kavach/gate-valve");
               lockValve(opts.agentId, reason, "kavachos-falco");
+              // @rule:CA-003 before=OPEN gate, after=LOCKED gate
               broadcast("kavach.kernel.agent_locked", {
                 agent_id: opts.agentId,
                 reason,
                 session_id: opts.sessionId,
+                before_snapshot: { gate_valve: "OPEN" },
+                after_snapshot:  { gate_valve: "LOCKED", locked_by: "kavachos-falco", reason },
+                delta: { gate_valve_transition: "OPEN→LOCKED" },
               });
             }
             // ALLOW: gate valve stays open, incident is logged
+            // @rule:CA-003 before=pending_decision, after=decision recorded
             broadcast("kavach.kernel.critical_decision", {
               agent_id: opts.agentId,
               decision,
               reason,
               session_id: opts.sessionId,
+              before_snapshot: { decision: "PENDING", gate_valve: "OPEN" },
+              after_snapshot:  { decision, gate_valve: decision === "STOP" ? "LOCKED" : "OPEN" },
+              delta: { decision_made: decision },
             });
           }).catch(() => {
             // Notification delivery failed — fail safe: lock the agent
@@ -160,9 +172,13 @@ export function startFalcoWatch(opts: FalcoWatchOptions): FalcoWatcher {
           profile_hash: opts.profileHash,
           severity: "CRITICAL",
         });
+        // @rule:CA-003 before=normal rate, after=rate threshold breached
         broadcast("kavach.kernel.rate_exceeded", {
           session_id: opts.sessionId,
           agent_id: opts.agentId ?? null,
+          before_snapshot: { rate_status: "normal", violation_count: chain.length - 1 },
+          after_snapshot:  { rate_status: "exceeded", violation_count: chain.length },
+          delta: { rate_threshold_breached: true, violations_per_min: ">5" },
         });
         // @rule:KOS-025 Tier 3 — rate spike is an anomaly, human decides
         requestKernelApproval({
