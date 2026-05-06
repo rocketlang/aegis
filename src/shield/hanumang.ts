@@ -6,6 +6,9 @@
 // Validates every Agent tool spawn against 7 trust axes.
 // An agent that fails any axis is blocked at spawn time.
 // @rule:KAV-015 HanumanG delegation chain validation
+// @rule:KAV-081 SENSE-bridge — axis violations propagate to KAVACH gate valve
+
+import { PERM } from "../kavach/perm-mask";
 
 export interface HanumanGAxes {
   identity: boolean;        // Axis 1 — agent has a declared or resolvable identity
@@ -100,4 +103,64 @@ export function checkHanumanG(ctx: SpawnContext): HanumanGResult {
     : `HanumanG: spawn blocked — failed axes: ${failed_axes.join(", ")}`;
 
   return { passed, axes, failed_axes, reason };
+}
+
+// ── SENSE-Bridge: axis violations → gate valve narrowing ─────────────────────
+
+export interface AxisViolationBridgeResult {
+  narrowed: boolean;
+  bits_cleared: number;
+  reason: string;
+  rule_ref: "KAV-081";
+}
+
+/**
+ * Map failed HanumanG axis names to permission bits that must be cleared,
+ * then invoke the provided narrowMaskFn to apply the narrowing on the live agent record.
+ *
+ * Axis → bits cleared:
+ *   "scope" | "mandate_bounds" → SPAWN_AGENTS
+ *   "no_overreach"             → SPAWN_AGENTS | NETWORK
+ *   "identity_broadcast"       → EXTERNAL_API
+ *   "return_with_proof"        → SPAWN_AGENTS
+ *   Any violation              → always clears SPAWN_AGENTS (invariant)
+ *
+ * @rule:KAV-081 SENSE-bridge — axis violations propagate to KAVACH gate valve
+ */
+export function processAxisViolation(
+  agentId: string,
+  failedAxes: string[],
+  narrowMaskFn: (agentId: string, bits: number, reason: string) => void
+): AxisViolationBridgeResult {
+  if (failedAxes.length === 0) {
+    return { narrowed: false, bits_cleared: 0, reason: "no failed axes — no narrowing applied", rule_ref: "KAV-081" };
+  }
+
+  let bitsToClear = PERM.SPAWN_AGENTS; // invariant: any violation always clears SPAWN_AGENTS
+
+  for (const axis of failedAxes) {
+    const normalized = axis.toLowerCase().replace(/\s+/g, "_").replace(/-/g, "_");
+    if (normalized === "scope" || normalized === "mandate_bounds") {
+      bitsToClear |= PERM.SPAWN_AGENTS;
+    } else if (normalized === "no_overreach") {
+      bitsToClear |= PERM.SPAWN_AGENTS | PERM.NETWORK;
+    } else if (normalized === "identity_broadcast") {
+      bitsToClear |= PERM.EXTERNAL_API;
+    } else if (normalized === "return_with_proof") {
+      bitsToClear |= PERM.SPAWN_AGENTS;
+    }
+    // Unknown axes: invariant SPAWN_AGENTS already set above
+  }
+
+  const axesList = failedAxes.join(", ");
+  const reason = `KAV-081: HanumanG axis violation(s) [${axesList}] — clearing bits 0x${bitsToClear.toString(16).padStart(8, "0")}`;
+
+  narrowMaskFn(agentId, bitsToClear, reason);
+
+  return {
+    narrowed: true,
+    bits_cleared: bitsToClear,
+    reason,
+    rule_ref: "KAV-081",
+  };
 }

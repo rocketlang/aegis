@@ -35,6 +35,7 @@ import {
 import { getServiceEntry, isInPilotScope } from "./registry";
 import { issueApprovalToken } from "./approval";
 import { applyHardGate, HARD_GATE_GLOBALLY_ENABLED } from "./hard-gate-policy";
+import { level0Gate } from "./level0-gate";
 
 // ── Environment config ────────────────────────────────────────────────────────
 
@@ -239,6 +240,38 @@ export function evaluate(req: AegisEnforcementRequest): AegisEnforcementDecision
       caller_id: req.caller_id,
       session_id: req.session_id,
     };
+  }
+
+  // @rule:KAV-083 DAN Gate Level 0 — bitmask structural pre-filter before trust_mask gate
+  // If agent_perm_mask and required_bit are provided in metadata, run Level 0 first.
+  // A zero AND is structural proof — no human escalation path needed.
+  const agentPermMask = typeof req.metadata?.agent_perm_mask === "number" ? req.metadata.agent_perm_mask : -1;
+  const requiredBit = typeof req.metadata?.required_bit === "number" ? req.metadata.required_bit : 0;
+  if (agentPermMask !== -1 && requiredBit !== 0) {
+    const l0 = level0Gate(agentPermMask, requiredBit);
+    if (l0.blocked) {
+      return {
+        service_id: req.service_id,
+        operation: req.operation,
+        requested_capability: req.requested_capability,
+        trust_mask: entry.trust_mask,
+        trust_mask_hex: `0x${entry.trust_mask.toString(16).padStart(8, "0")}`,
+        authority_class: entry.authority_class,
+        governance_blast_radius: entry.governance_blast_radius,
+        runtime_readiness_tier: entry.runtime_readiness.tier,
+        aegis_gate_result: entry.aegis_gate.overall,
+        enforcement_mode: mode,
+        enforcement_phase: phase,
+        decision: "BLOCK" as GateDecision,
+        reason: `[KAV-083 Level 0] ${l0.reason}`,
+        pilot_scope: inPilot,
+        in_canary: inCanary,
+        dry_run: dry || phase === "shadow",
+        timestamp: now,
+        caller_id: req.caller_id,
+        session_id: req.session_id,
+      };
+    }
   }
 
   const opRisk = classifyOperationRisk(req.operation, req.requested_capability, entry.trust_mask);

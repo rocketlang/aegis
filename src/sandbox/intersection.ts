@@ -58,8 +58,10 @@ export function intersectPolicies(parent: AgentPolicy, child: AgentPolicy): Inte
   }
 
   // @rule:KAV-065 — perm_mask: child = parent.effective & requested (AND invariant)
+  // @rule:KAV-079 spawn invariant proof event
   const childPermMask = computeChildPermMask(parent.perm_mask, child.perm_mask);
   const escalationDetected = detectEscalation(parent.perm_mask, child.perm_mask);
+  if ((childPermMask & ~parent.perm_mask) !== 0) throw new Error("KAV-079: spawn invariant violated");
   if (childPermMask < child.perm_mask) narrowed.push("perm_mask");
 
   // class_mask: AND intersection — child cannot access classes parent doesn't have
@@ -101,5 +103,34 @@ export function intersectPolicies(parent: AgentPolicy, child: AgentPolicy): Inte
     policy_conflict_resolved: narrowed.length > 0,
     narrowed_fields: narrowed,
     escalation_detected: escalationDetected,
+  };
+}
+
+// @rule:KAV-079 spawn invariant proof event
+export interface SpawnProof {
+  event: "spawn.invariant_check";
+  parent_mask: number;
+  child_requested_mask: number;
+  effective_child_mask: number;
+  invariant_check: string;
+  invariant_satisfied: boolean;
+  checked_at: string;
+  rule_ref: "KAV-079";
+}
+
+export function buildSpawnProof(
+  parent: AgentPolicy,
+  child: AgentPolicy,
+  effective: number
+): SpawnProof {
+  return {
+    event: "spawn.invariant_check",
+    parent_mask: parent.perm_mask,
+    child_requested_mask: child.perm_mask,
+    effective_child_mask: effective,
+    invariant_check: `${effective} & ~${parent.perm_mask} == 0`,
+    invariant_satisfied: (effective & ~parent.perm_mask) === 0,
+    checked_at: new Date().toISOString(),
+    rule_ref: "KAV-079",
   };
 }

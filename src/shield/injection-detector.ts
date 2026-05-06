@@ -13,6 +13,7 @@
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from "fs";
 import { join } from "path";
 import { loadConfig, getAegisDir, ensureAegisDir } from "../core/config";
+import { getFeedPatterns } from "./threat-feed";
 
 export type DetectionVerdict = "PASS" | "WARN" | "BLOCK" | "QUARANTINE";
 
@@ -116,6 +117,7 @@ function saveShieldState(state: ShieldState): void {
 }
 
 // Check text for injection patterns
+// @rule:KAV-082 Live threat feed patterns merged at check time from LakshmanRekha probe.failed events
 export function detectInjection(text: string, rules: ShieldRules): DetectionResult {
   for (const pat of rules.injection_patterns) {
     try {
@@ -130,6 +132,23 @@ export function detectInjection(text: string, rules: ShieldRules): DetectionResu
       }
     } catch { /* invalid regex in rules — skip */ }
   }
+
+  // @rule:KAV-082 Merge live threat feed patterns from LakshmanRekha at check time
+  const livePatterns = getFeedPatterns();
+  for (const rawPattern of livePatterns) {
+    try {
+      const regex = new RegExp(rawPattern, "i");
+      if (regex.test(text)) {
+        return {
+          verdict: "BLOCK",
+          rule_id: "KAV-082-live",
+          reason: `Live threat feed match (LakshmanRekha probe.failed): pattern '${rawPattern.slice(0, 60)}'`,
+          category: "injection",
+        };
+      }
+    } catch { /* invalid pattern in feed — skip */ }
+  }
+
   return { verdict: "PASS", rule_id: "clean", reason: "", category: "clean" };
 }
 
