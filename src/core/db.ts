@@ -245,6 +245,29 @@ function initSchema(db: Database): void {
   )`); } catch {}
   try { db.exec(`CREATE INDEX IF NOT EXISTS idx_sdt_audit_agent ON sdt_authorize_log(agent_id)`); } catch {}
   try { db.exec(`CREATE INDEX IF NOT EXISTS idx_sdt_audit_decided ON sdt_authorize_log(decided_at)`); } catch {}
+
+  // ASE — Agent Session Envelope columns (additive migration)
+  // @rule:ASE-001 sealed_hash is the immutable proof of session birth state
+  // @rule:ASE-003 declared_caps is first-class; not derived from policy.tools_allowed
+  // @rule:ASE-008 parent_session_id in sealed_hash creates auditable delegation chain
+  try { db.exec(`ALTER TABLE agents ADD COLUMN sealed_hash TEXT`); } catch {}
+  try { db.exec(`ALTER TABLE agents ADD COLUMN declared_caps TEXT NOT NULL DEFAULT '[]'`); } catch {}
+  try { db.exec(`ALTER TABLE agents ADD COLUMN parent_session_id TEXT REFERENCES agents(agent_id)`); } catch {}
+  try { db.exec(`ALTER TABLE agents ADD COLUMN ase_issued_at TEXT`); } catch {}
+  try { db.exec(`ALTER TABLE agents ADD COLUMN ase_expires_at TEXT`); } catch {}
+  try { db.exec(`ALTER TABLE agents ADD COLUMN ase_budget_usd REAL DEFAULT 0`); } catch {}
+  try { db.exec(`ALTER TABLE agents ADD COLUMN ase_budget_used_usd REAL DEFAULT 0`); } catch {}
+  try { db.exec(`ALTER TABLE agents ADD COLUMN ase_service_key TEXT`); } catch {}
+  try { db.exec(`ALTER TABLE agents ADD COLUMN ase_agent_type TEXT DEFAULT 'hook-native'`); } catch {}
+  try { db.exec(`ALTER TABLE agents ADD COLUMN ase_trust_mask INTEGER DEFAULT 1`); } catch {}
+  try { db.exec(`ALTER TABLE agents ADD COLUMN ase_perm_mask INTEGER DEFAULT 1`); } catch {}
+  try { db.exec(`ALTER TABLE agents ADD COLUMN ase_class_mask INTEGER DEFAULT 65535`); } catch {}
+  try { db.exec(`ALTER TABLE agents ADD COLUMN ase_actual_caps TEXT NOT NULL DEFAULT '[]'`); } catch {}
+  try { db.exec(`ALTER TABLE agents ADD COLUMN ase_drift_detected INTEGER DEFAULT 0`); } catch {}
+  try { db.exec(`ALTER TABLE agents ADD COLUMN ase_closed_at TEXT`); } catch {}
+  try { db.exec(`CREATE INDEX IF NOT EXISTS idx_agents_parent_session ON agents(parent_session_id)`); } catch {}
+  try { db.exec(`CREATE INDEX IF NOT EXISTS idx_agents_sealed_hash ON agents(sealed_hash)`); } catch {}
+  try { db.exec(`CREATE INDEX IF NOT EXISTS idx_agents_service_key ON agents(ase_service_key)`); } catch {}
 }
 
 // --- Background agent tracking (KOS-T095) ---

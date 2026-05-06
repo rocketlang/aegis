@@ -20,6 +20,7 @@ import { registerForjaRoutes, emitSense } from "./routes/forja";
 import { registerBitMaskOSRoutes } from "./routes/bitmaskos";
 import { registerAuthRoutes } from "../auth/routes";
 import { registerEnforcementRoutes } from "./routes/enforcement";
+import { registerAseRoutes } from "./routes/ase";
 import { classifyCommand, runKavachGate } from "../kavach/gate";
 // [EE] Multi-tenant — graceful degradation when EE not licensed
 import { isEE, eeStatus } from "../../ee/license";
@@ -119,6 +120,10 @@ if (config.dashboard.auth?.enabled) {
       url.startsWith("/api/v2/authorize") ||
       url.startsWith("/api/v1/aegis/authorize") ||
       url.startsWith("/api/v1/aegis/sdt") ||
+      // ASE endpoints: called from hooks, AI Proxy, and agent frameworks — no browser session
+      // @rule:ASE-001 @rule:ASE-011
+      url.startsWith("/api/v1/aegis/session") ||
+      url.startsWith("/api/v1/aegis/sessions") ||
       url.startsWith("/api/bg-agents") ||
       (url === "/api/approvals" && req.method === "GET")
     ) return;
@@ -314,6 +319,8 @@ registerBitMaskOSRoutes(app);
 registerAuthRoutes(app);
 // @rule:AEG-E-001 enforcement pilot — TIER-A only, shadow mode by default
 registerEnforcementRoutes(app);
+// @rule:ASE-001 sealed session envelope — issued at every agent session birth
+registerAseRoutes(app);
 
 // --- API Routes ---
 

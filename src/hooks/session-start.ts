@@ -20,6 +20,8 @@ import { getAegisDir } from "../core/config";
 import { getDb, acknowledgeAllBgAgents } from "../core/db";
 import { issueMudrika, loadOrRotateMudrika } from "../kernel/mudrika";
 import { createTurn } from "../telemetry/turn-store";
+import { deriveTrustFromGitRemote, loadEnvelopeBySessionId, createDefaultEnvelope, storeEnvelope } from "../core/ase";
+import { DASHBOARD_PORT } from "../core/config";
 
 interface HookPayload {
   session_id?: string;
@@ -62,7 +64,7 @@ function deskPath(sessionId: string): string {
 }
 
 // @rule:KOS-076
-function run(): void {
+async function run(): Promise<void> {
   const stdin = (() => {
     try { return readFileSync("/dev/stdin", "utf-8"); } catch { return "{}"; }
   })();
@@ -94,6 +96,48 @@ function run(): void {
 
   // @rule:KOS-091 — create a new turn row for every prompt (regardless of desk-already-registered)
   try { createTurn(sessionId, payload.prompt?.slice(0, 200) ?? null); } catch {}
+
+  // @rule:ASE-012 budget check on every prompt fire (after first UPS).
+  // Runs before the desk-already-registered early return so budget is checked every turn.
+  // @rule:ASE-011 fail open if Aegis unreachable — never fail closed for inference
+  const aseSessionFile = join(getAegisDir(), "ase_session_id");
+  const aseSessionId = existsSync(aseSessionFile)
+    ? readFileSync(aseSessionFile, "utf-8").trim()
+    : null;
+  if (aseSessionId) {
+    try {
+      const AEGIS_URL = process.env.AEGIS_URL ?? `http://localhost:${DASHBOARD_PORT}`;
+      const envRes = await fetch(`${AEGIS_URL}/api/v1/aegis/session/${encodeURIComponent(aseSessionId)}`);
+      if (envRes.ok) {
+        const envData = await envRes.json() as { budget_usd?: number; budget_remaining?: number | null };
+        if (
+          typeof envData.budget_usd === "number" &&
+          envData.budget_usd > 0 &&
+          typeof envData.budget_remaining === "number" &&
+          envData.budget_remaining <= 0
+        ) {
+          // @rule:ASE-012 block prompt — budget exhausted
+          const used = (envData as any).budget_used_usd ?? envData.budget_usd;
+          process.stdout.write(JSON.stringify({
+            decision: "block",
+            reason: `AEGIS: session budget $${envData.budget_usd.toFixed(2)} exhausted (used: $${Number(used).toFixed(2)})`,
+          }));
+          // Emit budget blocked event best-effort
+          try {
+            await fetch(`${AEGIS_URL}/api/v1/forja/sense/emit`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ event: "aegis.session.budget.gate_blocked", payload: { session_id: aseSessionId, rule_ref: "ASE-012" } }),
+            });
+          } catch {}
+          process.exit(0);
+        }
+      }
+    } catch {
+      // Fail open — Aegis unreachable is not a reason to block inference
+      process.stderr.write("[KAVACH:ase] Aegis unreachable for budget check — failing open\n");
+    }
+  }
 
   // Only register desk once per session — subsequent prompts are already captured
   if (existsSync(deskPath(sessionId))) return;
@@ -149,6 +193,50 @@ function run(): void {
     }
   } catch { /* desk file is the fallback */ }
 
+  // @rule:ASE-001 @rule:ASE-013 — issue sealed ASE for this hook-native session
+  // First UPS fire only (ase_session_id file not yet written).
+  // Fail open if Aegis unreachable — desk registration must not block a new session.
+  if (!existsSync(aseSessionFile)) {
+    try {
+      const { service_key, trust_mask } = deriveTrustFromGitRemote(gitRemote);
+      const AEGIS_URL = process.env.AEGIS_URL ?? `http://localhost:${DASHBOARD_PORT}`;
+      const aseBody = {
+        agent_type: "hook-native",
+        service_key,
+        trust_mask,
+        tenant_id: "default",
+        declared_caps: [],  // conservative default; agents may call with explicit caps
+        budget_usd: 0,      // unlimited by default; set via env AEGIS_SESSION_BUDGET_USD
+        parent_session_id: null,
+      };
+      const budgetFromEnv = parseFloat(process.env.AEGIS_SESSION_BUDGET_USD ?? "0");
+      if (budgetFromEnv > 0) aseBody.budget_usd = budgetFromEnv;
+
+      const aseRes = await fetch(`${AEGIS_URL}/api/v1/aegis/session`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(aseBody),
+      });
+      if (aseRes.ok) {
+        const aseData = await aseRes.json() as { session_id?: string; sealed_hash?: string };
+        if (aseData.session_id) {
+          writeFileSync(aseSessionFile, aseData.session_id, { mode: 0o600 });
+          process.stderr.write(
+            `[KAVACH:ase] sealed session ${aseData.session_id} | hash=${aseData.sealed_hash?.slice(0, 12)}... | service=${service_key}\n`
+          );
+        }
+      } else {
+        // Fall back to local envelope creation (Aegis not running yet)
+        const localEnvelope = createDefaultEnvelope(sessionId, gitRemote);
+        storeEnvelope(localEnvelope);
+        writeFileSync(aseSessionFile, localEnvelope.session_id, { mode: 0o600 });
+        process.stderr.write(`[KAVACH:ase] local sealed session ${localEnvelope.session_id} (Aegis offline)\n`);
+      }
+    } catch (err) {
+      process.stderr.write(`[KAVACH:ase] envelope issuance failed — ${String(err)} — failing open\n`);
+    }
+  }
+
   // Issue mudrika for this session if not present
   try {
     const existing = loadOrRotateMudrika(sessionId);
@@ -166,5 +254,7 @@ function run(): void {
   );
 }
 
-run();
-process.exit(0);
+run().then(() => process.exit(0)).catch(err => {
+  process.stderr.write(`[KAVACH:session-start] fatal: ${err}\n`);
+  process.exit(0); // always exit 0 — hook failure must not block Claude Code
+});

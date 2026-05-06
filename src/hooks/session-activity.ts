@@ -15,6 +15,8 @@ import { join } from "path";
 import { getAegisDir } from "../core/config";
 import { getDb } from "../core/db";
 import { appendToolCall } from "../telemetry/turn-store";
+import { recordActualCap } from "../core/ase";
+import { DASHBOARD_PORT } from "../core/config";
 
 // Extract task_id from Agent tool response — Claude Code returns it in several possible shapes
 function extractTaskId(response: unknown): string | null {
@@ -120,6 +122,40 @@ function run(): void {
       [now, sessionId]
     );
   } catch {}
+
+  // @rule:ASE-006 @rule:ASE-003 — record tool as actual_cap used; update ASE budget estimate
+  // The ASE session tracks actual_caps_used for drift detection (actual \ declared).
+  const aseSessionFile = join(getAegisDir(), "ase_session_id");
+  const aseSessionId = existsSync(aseSessionFile)
+    ? readFileSync(aseSessionFile, "utf-8").trim()
+    : null;
+  if (aseSessionId) {
+    try {
+      // Record tool name as a capability used (cap = tool name, normalized)
+      recordActualCap(aseSessionId, toolName);
+    } catch {}
+    // Update budget via Aegis API — token cost comes from usage_in hook payload if available
+    try {
+      const usageIn = (payload as any).usage;
+      if (usageIn && typeof usageIn === "object") {
+        const inputT = Number((usageIn as any).input_tokens ?? 0);
+        const outputT = Number((usageIn as any).output_tokens ?? 0);
+        const cacheRead = Number((usageIn as any).cache_read_input_tokens ?? 0);
+        const cacheCreate = Number((usageIn as any).cache_creation_input_tokens ?? 0);
+        // Rough claude-sonnet pricing: $3/1M input, $15/1M output, $0.30/1M cache_read
+        const costEst = (inputT * 3 + outputT * 15 + cacheRead * 0.3 + cacheCreate * 3.75) / 1_000_000;
+        if (costEst > 0) {
+          const AEGIS_URL = process.env.AEGIS_URL ?? `http://localhost:${DASHBOARD_PORT}`;
+          // fire-and-forget — never block tool execution
+          fetch(`${AEGIS_URL}/api/v1/aegis/session/${encodeURIComponent(aseSessionId)}/usage`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ cost_usd_estimate: costEst, cap_used: toolName }),
+          }).catch(() => {});
+        }
+      }
+    } catch {}
+  }
 
   // @rule:KOS-T095 — capture task_id from Agent tool response (arrives here at spawn time)
   // The Notification hook uses task_id to mark the specific agent complete when it finishes.
