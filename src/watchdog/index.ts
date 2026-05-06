@@ -18,6 +18,8 @@ import { getDb, listAgentRows, setAgentState, requestStop, getDistinctDashboardI
 import { loadConfig } from "../core/config";
 import { writeManifest } from "./manifest-writer";
 import { scanBehavioralAnomalies } from "../sandbox/behavioral-baseline";
+import { listActiveSwarms, assertSwarmInvariant } from "../sandbox/swarm";
+import { readValve } from "../kavach/gate-valve";
 
 // Per-agent cost rate tracking: { agent_id → { cost_snapshot, timestamp }[] }
 const _costHistory: Map<string, Array<{ cost: number; ts: number }>> = new Map();
@@ -188,6 +190,30 @@ function checkCostAnomalies(agents: AgentRow[]): void {
   }
 }
 
+// ── Swarm invariant assertion (KAV-090) ──────────────────────────────────────
+
+// @rule:KAV-090 re-check every active swarm each poll; quarantine any member that exceeds ceiling
+function checkSwarmInvariants(): void {
+  const swarms = listActiveSwarms();
+  for (const swarm of swarms) {
+    const result = assertSwarmInvariant(swarm.swarm_id, (agentId) => {
+      try { return readValve(agentId).effective_perm_mask; } catch { return 0; }
+    });
+    if (!result.valid) {
+      for (const violation of result.violations) {
+        log(
+          `SWARM INVARIANT VIOLATION (KAV-090): agent ${violation.agent_id} mask=0x${violation.perm_mask.toString(16)} exceeds swarm ${swarm.swarm_id} ceiling=0x${violation.swarm_mask.toString(16)}`
+        );
+        // Close the violating agent's valve — it has exceeded its swarm grant
+        try {
+          const { closeValve } = require("../kavach/gate-valve");
+          closeValve(violation.agent_id, `KAV-090: swarm ceiling violation in ${swarm.swarm_id}`);
+        } catch {}
+      }
+    }
+  }
+}
+
 // ── Behavioral baseline anomaly check (KAV-085) ──────────────────────────────
 
 // @rule:KAV-085 scan all RUNNING agent behavioral profiles; soft-stop runaway-pattern agents
@@ -236,6 +262,7 @@ async function poll(): Promise<void> {
     checkOrphans(agents);
     checkVelocity(agents);
     checkCostAnomalies(agents);
+    checkSwarmInvariants();            // @rule:KAV-090
     checkBehavioralBaseline(agents);   // @rule:KAV-085
     checkHostedServiceSignal();
   } catch (err) {

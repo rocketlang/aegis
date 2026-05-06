@@ -22,6 +22,7 @@ import { PERM, requiredBitsForTool } from "../../kavach/perm-mask";
 import { checkValve } from "../../kavach/gate-valve";
 import { checkMudrika } from "../../kavach/mudrika-validator";
 import { loadAgent, transitionState } from "../../sandbox/quarantine";
+import { getAgentSwarm } from "../../sandbox/swarm";
 import { loadPolicy } from "../../sandbox/policy-loader";
 import { isStopRequested } from "../../core/db";
 
@@ -153,6 +154,20 @@ export default async function checkSpawn(_args: string[]): Promise<void> {
           );
           process.stderr.write(`[KAVACH:bg] background agent recorded — Stop hook will guard until acknowledged\n`);
         } catch {}
+      }
+    }
+
+    // --- KAV-093: Cross-swarm spawn detection ---
+    // If the spawning agent belongs to a swarm, warn that the new agent should be enrolled
+    // in the same swarm (or DAN Gate approval is required for a different swarm).
+    {
+      const agentId = process.env.CLAUDE_AGENT_ID || sessionId;
+      const spawnerSwarm = getAgentSwarm(agentId);
+      if (spawnerSwarm) {
+        process.stderr.write(
+          `[KAVACH:swarm] spawner ${agentId} belongs to swarm ${spawnerSwarm.swarm_id} (mask=0x${spawnerSwarm.swarm_mask.toString(16)}) — ` +
+          `enroll new agent via createSwarm/enrollAgent to apply KAV-090 ceiling (KAV-093)\n`
+        );
       }
     }
 

@@ -68,6 +68,8 @@ export interface AgentRecord {
   release_reason: string | null;
   released_by: string | null;
   resume_manifest_path: string | null;
+  // @rule:KAV-090 swarm membership — null for solo (non-swarm) agents
+  swarm_id: string | null;
 }
 
 function getAgentsDir(): string {
@@ -126,6 +128,7 @@ export function createAgent(opts: {
     release_reason: null,
     released_by: null,
     resume_manifest_path: null,
+    swarm_id: null,
   };
   saveAgent(record);
   return record;

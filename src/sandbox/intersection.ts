@@ -19,7 +19,12 @@ export interface IntersectionResult {
   escalation_detected: boolean; // true → child requested bits parent doesn't have
 }
 
-export function intersectPolicies(parent: AgentPolicy, child: AgentPolicy): IntersectionResult {
+// @rule:KAV-092 opts.swarm_mask applies triple AND when spawning into a swarm
+export function intersectPolicies(
+  parent: AgentPolicy,
+  child: AgentPolicy,
+  opts: { swarm_mask?: number } = {}
+): IntersectionResult {
   const narrowed: string[] = [];
 
   // Array fields: effective = intersection (only items in BOTH lists, or use parent if child is empty/broader)
@@ -59,9 +64,16 @@ export function intersectPolicies(parent: AgentPolicy, child: AgentPolicy): Inte
 
   // @rule:KAV-065 — perm_mask: child = parent.effective & requested (AND invariant)
   // @rule:KAV-079 spawn invariant proof event
-  const childPermMask = computeChildPermMask(parent.perm_mask, child.perm_mask);
+  // @rule:KAV-092 triple AND when swarm context present: child & parent & swarm_mask
+  let baseChildMask = computeChildPermMask(parent.perm_mask, child.perm_mask);
   const escalationDetected = detectEscalation(parent.perm_mask, child.perm_mask);
-  if ((childPermMask & ~parent.perm_mask) !== 0) throw new Error("KAV-079: spawn invariant violated");
+  if ((baseChildMask & ~parent.perm_mask) !== 0) throw new Error("KAV-079: spawn invariant violated");
+  // Apply swarm ceiling if context carries one
+  const swarmMask = opts.swarm_mask;
+  if (typeof swarmMask === "number" && swarmMask !== 0) {
+    baseChildMask = baseChildMask & swarmMask;
+  }
+  const childPermMask = baseChildMask;
   if (childPermMask < child.perm_mask) narrowed.push("perm_mask");
 
   // class_mask: AND intersection — child cannot access classes parent doesn't have
@@ -107,13 +119,16 @@ export function intersectPolicies(parent: AgentPolicy, child: AgentPolicy): Inte
 }
 
 // @rule:KAV-079 spawn invariant proof event
+// @rule:KAV-092 extended with swarm_mask when spawning into a swarm
 export interface SpawnProof {
   event: "spawn.invariant_check";
   parent_mask: number;
   child_requested_mask: number;
+  swarm_mask: number | null;      // null if not a swarm spawn
   effective_child_mask: number;
   invariant_check: string;
   invariant_satisfied: boolean;
+  swarm_id: string | null;        // null if not a swarm spawn
   checked_at: string;
   rule_ref: "KAV-079";
 }
@@ -121,15 +136,21 @@ export interface SpawnProof {
 export function buildSpawnProof(
   parent: AgentPolicy,
   child: AgentPolicy,
-  effective: number
+  effective: number,
+  swarmCtx: { swarm_id: string; swarm_mask: number } | null = null
 ): SpawnProof {
+  const baseCheck = `${effective} & ~${parent.perm_mask} == 0`;
+  const swarmCheck = swarmCtx ? ` && ${effective} & ~${swarmCtx.swarm_mask} == 0` : "";
   return {
     event: "spawn.invariant_check",
     parent_mask: parent.perm_mask,
     child_requested_mask: child.perm_mask,
+    swarm_mask: swarmCtx?.swarm_mask ?? null,
     effective_child_mask: effective,
-    invariant_check: `${effective} & ~${parent.perm_mask} == 0`,
-    invariant_satisfied: (effective & ~parent.perm_mask) === 0,
+    invariant_check: baseCheck + swarmCheck,
+    invariant_satisfied: (effective & ~parent.perm_mask) === 0 &&
+      (swarmCtx ? (effective & ~swarmCtx.swarm_mask) === 0 : true),
+    swarm_id: swarmCtx?.swarm_id ?? null,
     checked_at: new Date().toISOString(),
     rule_ref: "KAV-079",
   };
