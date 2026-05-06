@@ -36,6 +36,7 @@ import { getServiceEntry, isInPilotScope } from "./registry";
 import { issueApprovalToken } from "./approval";
 import { applyHardGate, HARD_GATE_GLOBALLY_ENABLED } from "./hard-gate-policy";
 import { level0Gate } from "./level0-gate";
+import { loadEnvelopeBySessionId, recordActualCap } from "../core/ase";
 
 // ── Environment config ────────────────────────────────────────────────────────
 
@@ -216,6 +217,45 @@ export function evaluate(req: AegisEnforcementRequest): AegisEnforcementDecision
   const inPilot = isInPilotScope(req.service_id);
   // @rule:AEG-E-008 — normalize capability before classification
   req = { ...req, requested_capability: normalizeCapability(req.requested_capability) };
+
+  // @rule:ASE-014 declared_caps check — the envelope is the primary authority before registry.
+  // If session has a sealed envelope with non-empty declared_caps, the requested capability
+  // must appear in that list. Absent = governance drift, blocked immediately (WARN in shadow).
+  // Pre-ASE sessions (no envelope) and sessions with declared_caps=[] fall through unchanged.
+  if (req.session_id) {
+    const envelope = loadEnvelopeBySessionId(req.session_id);
+    if (envelope && envelope.declared_caps.length > 0) {
+      const declaredNorm = envelope.declared_caps.map(c => normalizeCapability(c));
+      if (!declaredNorm.includes(req.requested_capability)) {
+        // Record as actual cap used — will surface as drift on close/audit
+        try { recordActualCap(envelope.agent_id, req.requested_capability); } catch {}
+        // In shadow/dry-run: WARN (logged, not enforced). Active enforcement: BLOCK.
+        const isShadow = phase === "shadow" || dry;
+        const driftDecision: GateDecision = isShadow ? "WARN" : "BLOCK";
+        return {
+          service_id: req.service_id,
+          operation: req.operation,
+          requested_capability: req.requested_capability,
+          trust_mask: envelope.trust_mask,
+          trust_mask_hex: `0x${envelope.trust_mask.toString(16).padStart(8, "0")}`,
+          authority_class: "read_only",
+          governance_blast_radius: "BR-0",
+          runtime_readiness_tier: "TIER-A",
+          aegis_gate_result: "ase_drift",
+          enforcement_mode: mode,
+          enforcement_phase: isShadow ? "shadow" : "hard_gate",
+          decision: driftDecision,
+          reason: `[ASE-014] "${req.requested_capability}" not in declared_caps [${envelope.declared_caps.join(", ")}] — governance drift${isShadow ? " (shadow: not enforced)" : ""}`,
+          pilot_scope: inPilot,
+          in_canary: inCanary,
+          dry_run: dry || isShadow,
+          timestamp: now,
+          caller_id: req.caller_id,
+          session_id: req.session_id,
+        };
+      }
+    }
+  }
 
   // Registry miss — shadow WARN, never BLOCK
   if (!entry) {

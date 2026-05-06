@@ -36,3 +36,11 @@ export {
   verifyAndConsumeNonce,
   verifyScopedApprovalToken,
 } from './approval-token.js';
+
+export {
+  type IssueEnvelopeParams,
+  type EnvelopeIssueResult,
+  type EnvelopeVerifyResult,
+  issueEnvelope,
+  verifyEnvelope,
+} from './envelope.js';
