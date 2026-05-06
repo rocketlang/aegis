@@ -5,6 +5,19 @@
 import { Database } from "bun:sqlite";
 import { getDbPath, ensureAegisDir } from "./config";
 import type { UsageRecord, SessionInfo, BudgetState, AlertEvent, WindowBudget, KavachApproval, KavachDecision } from "./types";
+// @rule:KAV-089 — DAN Gate approvals sealed as PRAMANA receipts (lazy import avoids circular dep)
+function sealApprovalReceipt(approvalId: string, sessionId: string, decidedBy: string, level: number): void {
+  try {
+    const { sealKernelViolation } = require("../kernel/kernel-receipt");
+    sealKernelViolation({
+      session_id: sessionId || approvalId,
+      agent_id: null,
+      event_type: "DAN_APPROVAL",
+      violation_details: JSON.stringify({ approval_id: approvalId, decided_by: decidedBy, level }),
+      severity: "WARN",
+    });
+  } catch { /* non-fatal — witnessing is best-effort; audit log is primary record */ }
+}
 
 let _db: Database | null = null;
 
@@ -557,7 +570,12 @@ export function decideKavachApproval(
       "UPDATE kavach_approvals SET status = 'allowed', decided_at = ?, decided_by = ? WHERE id = ? AND status = 'pending'",
       [now, decidedBy, id]
     );
-    return (result.changes ?? 0) > 0;
+    if ((result.changes ?? 0) > 0) {
+      // @rule:KAV-089 seal PRAMANA receipt for this human approval
+      sealApprovalReceipt(id, approval.session_id, decidedBy, approval.level);
+      return true;
+    }
+    return false;
   }
 
   if (approval.status === "pending_second" && decision === "ALLOW") {
@@ -569,7 +587,12 @@ export function decideKavachApproval(
       "UPDATE kavach_approvals SET status = 'allowed', decided_at = ?, decided_by = ? WHERE id = ? AND status = 'pending_second'",
       [now, decidedBy, id]
     );
-    return (result.changes ?? 0) > 0;
+    if ((result.changes ?? 0) > 0) {
+      // @rule:KAV-089 second approver in dual-control — seal PRAMANA receipt for final approval
+      sealApprovalReceipt(id, approval.session_id, decidedBy, approval.level);
+      return true;
+    }
+    return false;
   }
 
   return false;

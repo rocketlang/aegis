@@ -51,13 +51,31 @@ async function promptEmail(): Promise<string | undefined> {
   });
 }
 
+// @rule:KOS-091 parse --otel-endpoint <url> from init args
+function parseOtelEndpoint(args: string[]): string | null {
+  const idx = args.indexOf("--otel-endpoint");
+  if (idx === -1) return null;
+  const url = args[idx + 1];
+  return url && !url.startsWith("--") ? url : null;
+}
+
 export default async function init(args: string[]): Promise<void> {
   const sendStats = args.includes("--send-stats");
+  const otelEndpoint = parseOtelEndpoint(args);
   console.log(`\x1b[1m\x1b[36m  AEGIS Init\x1b[0m — Setting up agentic spend governance\n`);
 
   // 1. Create ~/.aegis directory + config
   ensureAegisDir();
   const config = loadConfig();
+
+  // @rule:KOS-091 — activate OTEL export if --otel-endpoint provided
+  if (otelEndpoint) {
+    config.otlp = { endpoint: otelEndpoint };
+    const { saveConfig } = require("../../core/config");
+    saveConfig(config);
+    console.log(`  [+] OTEL export: ${otelEndpoint}`);
+  }
+
   console.log(`  [+] Config: ${getAegisDir()}/config.json`);
 
   // 2. Initialize SQLite DB
@@ -194,6 +212,10 @@ ${"─".repeat(60)}
    aegis kill          # SIGKILL (hard stop)
    aegis kill --stop   # SIGSTOP (pause, resumable)
    aegis resume        # resume paused processes
+
+4. \x1b[33mOTLP trace export (optional):\x1b[0m
+   aegis init --otel-endpoint http://localhost:4318/v1/traces
+   # Grafana Tempo · Jaeger · Datadog Agent · LangSmith
 
 ${"─".repeat(60)}
 \x1b[32m  KAVACH is ready.\x1b[0m Budget governor + injection shield + agent sandbox active.

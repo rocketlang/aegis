@@ -5,7 +5,8 @@
 import { createHash, randomBytes } from "crypto";
 import { recordKernelReceipt, getReceiptChain } from "./profile-store";
 
-export type KernelEventType = "SECCOMP_BLOCK" | "FALCO_ALERT" | "PROFILE_DRIFT" | "RATE_EXCEEDED";
+// @rule:KAV-089 DAN_APPROVAL added — every human approval sealed as PRAMANA receipt
+export type KernelEventType = "SECCOMP_BLOCK" | "FALCO_ALERT" | "PROFILE_DRIFT" | "RATE_EXCEEDED" | "DAN_APPROVAL";
 
 export interface KernelViolationEvent {
   session_id: string;

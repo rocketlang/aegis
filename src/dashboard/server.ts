@@ -13,6 +13,7 @@ import { loadConfig, saveConfig } from "../core/config";
 import { issueSessionCookie, clearSessionCookie, verifySession } from "./session";
 import { loginPage } from "./login-page";
 import { getDb, getBudgetState, listActiveSessions, getRecentAlerts, setSessionStatus, addAlert, getWindowBudget, getPendingApprovals, decideKavachApproval, getRecentApprovals, queryKavachAudit, recordAgentUsage, getCostTree, listAgentRows, recordDashboardAccess, getAllBgAgents, acknowledgeAllBgAgents } from "../core/db";
+import { verifyReceiptChain, listCheckpoints } from "../kernel/merkle-ledger";
 import { sseSubscribers } from "../core/events";
 import { registerSystemRoutes } from "./routes/system";
 import { registerForjaRoutes, emitSense } from "./routes/forja";
@@ -789,6 +790,31 @@ app.get("/api/v1/kavach/audit", async (req) => {
       computed_at: new Date().toISOString(),
       duration_ms: Date.now() - t0,
       trust_mask_applied: 0,
+    },
+  };
+});
+
+// GET /api/v1/kavach/dan/audit — PRAMANA receipt chain for a session, verifiable offline
+// @rule:KAV-089 every ALLOW sealed as DAN_APPROVAL receipt; chain is non-repudiable evidence
+// @rule:KOS-T042 re-walks SHA-256 chain; verifies Merkle checkpoint inclusion
+// @rule:CA-004 _meta on every response
+app.get("/api/v1/kavach/dan/audit", async (req) => {
+  const t0 = Date.now();
+  const { session_id } = req.query as { session_id?: string };
+  if (!session_id?.trim()) {
+    return { error: "session_id required", _meta: { computed_at: new Date().toISOString(), duration_ms: Date.now() - t0 } };
+  }
+  const chain = verifyReceiptChain(session_id.trim());
+  const checkpoints = chain.checkpoint_id ? [listCheckpoints(1)[0]] : [];
+  return {
+    session_id: session_id.trim(),
+    chain,
+    checkpoints,
+    _meta: {
+      computed_at: new Date().toISOString(),
+      duration_ms: Date.now() - t0,
+      trust_mask_applied: 0,
+      rule_ref: "KAV-089",
     },
   };
 });

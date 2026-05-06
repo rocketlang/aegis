@@ -35,6 +35,8 @@ export interface GateValveRecord {
   locked_by: string | null;
   locked_at: string | null;
   quarantine_flag: boolean;     // true → quarantine system picks this up
+  // @rule:KAV-080 mask TTL — epoch ms; null = no expiry. When elapsed, effective_perm_mask → 0.
+  perm_mask_expires_at: number | null;
 }
 
 // ── Persistence ───────────────────────────────────────────────────────────────
@@ -70,6 +72,7 @@ export function readValve(agentId: string): GateValveRecord {
       locked_by: null,
       locked_at: null,
       quarantine_flag: false,
+      perm_mask_expires_at: null,
     };
     writeValve(defaultRecord);
     return defaultRecord;
@@ -94,7 +97,8 @@ function writeValve(record: GateValveRecord): void {
 export function initValve(
   agentId: string,
   declaredPermMask: number,
-  declaredClassMask: number
+  declaredClassMask: number,
+  permMaskExpiresAt: number | null = null
 ): GateValveRecord {
   const record: GateValveRecord = {
     agent_id: agentId,
@@ -110,6 +114,7 @@ export function initValve(
     locked_by: null,
     locked_at: null,
     quarantine_flag: false,
+    perm_mask_expires_at: permMaskExpiresAt,
   };
   writeValve(record);
   return record;
@@ -285,6 +290,33 @@ export function openValve(agentId: string, releasedBy: string): GateValveRecord 
   return record;
 }
 
+// ── Mask TTL ──────────────────────────────────────────────────────────────────
+
+/**
+ * Set a TTL on the agent's effective perm_mask.
+ * After expiresAtMs, checkValve() will treat the mask as 0.
+ * @rule:KAV-080
+ */
+export function setMaskExpiry(agentId: string, expiresAtMs: number): GateValveRecord {
+  const record = readValve(agentId);
+  record.perm_mask_expires_at = expiresAtMs;
+  writeValve(record);
+  process.stderr.write(`[KAVACH:valve] ${agentId} mask TTL → ${new Date(expiresAtMs).toISOString()} (KAV-080)\n`);
+  return record;
+}
+
+/**
+ * Check if the agent's perm_mask TTL has elapsed; if so, close the valve.
+ * @rule:KAV-080
+ */
+export function checkMaskExpiry(agentId: string): GateValveRecord {
+  const record = readValve(agentId);
+  if (record.perm_mask_expires_at && Date.now() > record.perm_mask_expires_at) {
+    return closeValve(agentId, `KAV-080: perm_mask TTL expired at ${new Date(record.perm_mask_expires_at).toISOString()}`);
+  }
+  return record;
+}
+
 // ── Enforcement check ─────────────────────────────────────────────────────────
 
 export interface ValveCheckResult {
@@ -305,7 +337,11 @@ export function checkValve(
   requiredPermBits: number,
   resourceClassBits: number
 ): ValveCheckResult {
-  const record = readValve(agentId);
+  // @rule:KAV-080 — check TTL before any other enforcement; expired mask = CLOSED
+  let record = readValve(agentId);
+  if (record.perm_mask_expires_at && Date.now() > record.perm_mask_expires_at) {
+    record = closeValve(agentId, `KAV-080: perm_mask TTL expired at ${new Date(record.perm_mask_expires_at).toISOString()}`);
+  }
 
   // @rule:INF-KAV-006 — CLOSED agent attempting to act
   if (record.state === "CLOSED" || record.state === "LOCKED") {
