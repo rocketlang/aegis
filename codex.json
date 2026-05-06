@@ -122,7 +122,7 @@
   "trust_mask_schema": "ankr-trust-32bit-v1",
   "k_mask": 255,
   "k_mask_schema": "ankr-prajna-8bit-v1",
-  "req_mask": 1157590239,
+  "req_mask": 1291807967,
   "req_mask_schema": "ankr-req-32bit-v1",
   "req_mask_source": "declared",
   "capability_captured": false,
@@ -225,7 +225,15 @@
     "enforcement_hg2b_soak_run5": "\u2705 run \u2014 Batch 57: parali-central soak 5/7 (239 PASS). normalizeCapability() alias normalization. PascalCase bypass risk closed.",
     "enforcement_hg2b_soak_run6": "\u2705 run \u2014 Batch 58: parali-central soak 6/7 (331 PASS). Extended cross-group isolation. HG-1 + HG-2A live regression. Token cross-group invariant proven.",
     "enforcement_hg2b_soak_run7": "\u2705 run \u2014 Batch 59: parali-central soak 7/7 (372 PASS). Rollback drill: 3 scenarios PASS. promotion_permitted_parali_central=true. Permission \u2260 promotion.",
-    "enforcement_hg2b_promote": "\u2705 run \u2014 Batch 60: parali-central HG-2B live promotion (152 PASS). hard_gate_enabled=true. AEGIS_HARD_GATE_SERVICES includes parali-central. 7 live services. Rollback drill: 3 scenarios PASS."
+    "enforcement_hg2b_promote": "\u2705 run \u2014 Batch 60: parali-central HG-2B live promotion (152 PASS). hard_gate_enabled=true. AEGIS_HARD_GATE_SERVICES includes parali-central. 7 live services. Rollback drill: 3 scenarios PASS.",
+    "ase_core_module": "\u2705 built \u2014 src/core/ase.ts: AgentSessionEnvelope interface, computeSealedHash() SHA-256 birth certificate, deriveTrustFromGitRemote(), storeEnvelope/loadEnvelope, updateBudgetUsed, recordActualCap, computeDriftSet, closeEnvelope, verifyEnvelopeIntegrity, createDefaultEnvelope (ASE-001..003, ASE-YK-001)",
+    "ase_db_migrations": "\u2705 built \u2014 aegis.db additive migrations: 15 new columns on agents table (sealed_hash, declared_caps, parent_session_id, ase_issued_at, ase_expires_at, ase_budget_*, ase_service_key, ase_agent_type, ase_trust_mask, ase_perm_mask, ase_class_mask, ase_actual_caps, ase_drift_detected, ase_closed_at); 3 new indexes (parent_session, sealed_hash, service_key)",
+    "ase_api_endpoints": "\u2705 built \u2014 src/dashboard/routes/ase.ts: 6 endpoints (POST /session, GET /session/:id, POST /session/:id/close, PATCH /session/:id/usage, GET /sessions, GET /sessions/:id/audit); vertical genetics via intersectPolicies() (KAV-065/079); drift detection; CA-004 _meta on all responses (ASE-001..015, ASE-YK-001..008, INF-ASE-001..007)",
+    "ase_ups_hook_gate": "\u2705 built \u2014 src/hooks/session-start.ts: budget block on every UPS fire (reads ase_session_id, fetches envelope, blocks if budget_remaining \u2264 0); ASE issuance on FIRST UPS fire (POST /api/v1/aegis/session); fallback to createDefaultEnvelope() if Aegis unreachable (ASE-003, ASE-011, INF-ASE-005)",
+    "ase_activity_cap_tracking": "\u2705 built \u2014 src/hooks/session-activity.ts: recordActualCap() on every PostToolUse; fire-and-forget PATCH /session/:id/usage with token cost estimate; ASE drift accumulates in real-time (ASE-006, ASE-003)",
+    "ase_ai_proxy_gate": "\u2705 built \u2014 ankr-ai-gateway/src/server.ts: checkAseBudget() fail-open function; pre-call 429 gate on X-Aegis-Session header; blocks proxy-native agents when budget exhausted (ASE-011, ASE-YK-004)",
+    "ase_dashboard_sessions_tab": "\u2705 built \u2014 SESSIONS tab in AEGIS Command Center: 4-card summary strip, filter bar (type/drift/service), ASE table with 8 columns, audit drawer with declared/actual/drift caps + sealed_hash verification status (ASE-015, CA-003, CA-004)",
+    "ase_superdomain_rules": "\u2705 seeded \u2014 30 ASE rules (15 SHASTRA + 8 YUKTI + 7 VIVEKA) imported to SuperDomain domain=ase via ankr-seed-ase-rules.ts; 0 skipped"
   },
   "protocol": "bitmask-os-v1",
   "bitmask_os_layer": 4,
@@ -238,9 +246,10 @@
       "proposals/xshieldai-kavach--logics--formal--2026-04-29.md",
       "proposals/kavachos--logics--formal--2026-04-30.md",
       "proposals/kavach-bitmaskos--logics--formal--2026-04-30.md",
-      "proposals/bitmaskos--logics--formal--2026-04-29.md"
+      "proposals/bitmaskos--logics--formal--2026-04-29.md",
+      "proposals/ase--logics--formal--2026-05-06.md"
     ],
-    "rule_count": 67,
+    "rule_count": 97,
     "proof_coverage": 95,
     "proof_endpoint": "/api/v2/forja/proof"
   },
@@ -271,7 +280,10 @@
     "todo": "ankr-todos/xshieldai-kavach--todo--formal--2026-04-29.md",
     "vivechana": "proposals/xshieldai-kavach--vivechana--formal--2026-04-29.md",
     "deep-knowledge": "proposals/xshieldai-kavach--deep-knowledge--formal--2026-04-29.md",
-    "v1_superseded": "proposals/ankr-aegis--logics--formal--2026-04-17.md"
+    "v1_superseded": "proposals/ankr-aegis--logics--formal--2026-04-17.md",
+    "ase_requirements": "proposals/ase--requirements--formal--2026-05-06.md",
+    "ase_todo": "ankr-todos/ase--todo--formal--2026-05-06.md",
+    "ase_logics": "proposals/ase--logics--formal--2026-05-06.md"
   },
   "granthx_indexed": true,
   "enforcement_rollout": {
