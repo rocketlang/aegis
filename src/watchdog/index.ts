@@ -17,6 +17,7 @@
 import { getDb, listAgentRows, setAgentState, requestStop, getDistinctDashboardIpCount, type AgentRow } from "../core/db";
 import { loadConfig } from "../core/config";
 import { writeManifest } from "./manifest-writer";
+import { scanBehavioralAnomalies } from "../sandbox/behavioral-baseline";
 
 // Per-agent cost rate tracking: { agent_id → { cost_snapshot, timestamp }[] }
 const _costHistory: Map<string, Array<{ cost: number; ts: number }>> = new Map();
@@ -187,6 +188,21 @@ function checkCostAnomalies(agents: AgentRow[]): void {
   }
 }
 
+// ── Behavioral baseline anomaly check (KAV-085) ──────────────────────────────
+
+// @rule:KAV-085 scan all RUNNING agent behavioral profiles; soft-stop runaway-pattern agents
+function checkBehavioralBaseline(agents: AgentRow[]): void {
+  const runningIds = agents.filter((a) => a.state === "RUNNING").map((a) => a.agent_id);
+  if (runningIds.length === 0) return;
+
+  const results = scanBehavioralAnomalies(runningIds);
+  for (const r of results) {
+    if (!r.anomaly_flag || r.bootstrapping) continue;
+    log(`BEHAVIORAL ANOMALY (KAV-085): ${r.agent_id} — ${r.anomaly_detail} (${r.observation_count} obs)`);
+    requestStop(r.agent_id); // L1 Soft Stop — agent is in runaway-tool pattern
+  }
+}
+
 // ── Hosted-service detection (@rule:KAV-066, V2-101) ─────────────────────────
 // Non-blocking: if distinct IPs accessing dashboard > 2 within 7 days, emit a
 // one-time warning. AEGIS is designed for local use — multiple external IPs are
@@ -220,6 +236,7 @@ async function poll(): Promise<void> {
     checkOrphans(agents);
     checkVelocity(agents);
     checkCostAnomalies(agents);
+    checkBehavioralBaseline(agents);   // @rule:KAV-085
     checkHostedServiceSignal();
   } catch (err) {
     process.stderr.write(`[AEGIS:watchdog] poll error: ${(err as Error).message}\n`);

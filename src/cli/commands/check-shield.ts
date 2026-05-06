@@ -23,6 +23,9 @@ import {
 } from "../../shield/injection-detector";
 import { touchAgent, isStopRequested } from "../../core/db";
 import { checkMudrika } from "../../kavach/mudrika-validator";
+import { checkReachMask, checkBashReachMask } from "../../kavach/reach-mask";
+import { recordObservation, extractBashFirstToken, normalizePathPrefix } from "../../sandbox/behavioral-baseline";
+import { readValve } from "../../kavach/gate-valve";
 
 function readStdin(): string {
   try {
@@ -65,6 +68,10 @@ export default async function checkShield(_args: string[]): Promise<void> {
     // V2-041 — touch agent in DB (last_seen + tool_calls)
     try { touchAgent(agentId); } catch {}
 
+    // @rule:KAV-088 / KAV-085 — resolve caller perm_mask for reach check + behavioral baseline
+    let callerPermMask = 0;
+    try { callerPermMask = readValve(agentId).effective_perm_mask; } catch {}
+
     // V2-048 — L1 Soft Stop: check stop_requested flag before proceeding
     try {
       if (isStopRequested(agentId)) {
@@ -90,7 +97,20 @@ export default async function checkShield(_args: string[]): Promise<void> {
     // Tool-specific checks
     const toolInputData = (toolInput.tool_input as Record<string, unknown>) || {};
 
-    if (toolName === "Read") {
+    if (toolName === "WebFetch") {
+      // @rule:KAV-088 reach mask check for cross-service calls
+      const url = (toolInputData.url as string) ?? "";
+      if (url) {
+        const reachResult = checkReachMask(callerPermMask, url);
+        if (reachResult.checked && !reachResult.allowed) {
+          emitBlock("REACH", "KAV-088", `caller mask 0x${reachResult.caller_mask.toString(16)} lacks bits for ${reachResult.target_service} (required 0x${reachResult.required_mask.toString(16)})`, "reach_mask");
+          process.exit(2);
+        }
+      }
+      // @rule:KAV-085 behavioral baseline
+      try { recordObservation(agentId, { tool_name: "WebFetch" }); } catch {}
+
+    } else if (toolName === "Read") {
       const filePath = (toolInputData.file_path as string) ?? "";
       if (!filePath) process.exit(0);
       const credResult = detectCredentialRead(filePath, 0, rules);
@@ -98,6 +118,8 @@ export default async function checkShield(_args: string[]): Promise<void> {
         emitBlock("SHIELD", credResult.rule_id, credResult.reason, credResult.category);
         process.exit(2);
       }
+      // @rule:KAV-085 behavioral baseline — path prefix observation
+      try { recordObservation(agentId, { tool_name: "Read", path_prefix: normalizePathPrefix(filePath) }); } catch {}
 
     } else if (toolName === "Write" || toolName === "Edit") {
       const filePath = (toolInputData.file_path as string) ?? "";
@@ -107,6 +129,8 @@ export default async function checkShield(_args: string[]): Promise<void> {
         emitBlock("SHIELD", persResult.rule_id, persResult.reason, persResult.category);
         process.exit(2);
       }
+      // @rule:KAV-085 behavioral baseline
+      try { recordObservation(agentId, { tool_name: toolName, path_prefix: normalizePathPrefix(filePath) }); } catch {}
 
     } else if (toolName === "Bash") {
       const command = (toolInputData.command as string) ?? "";
@@ -134,6 +158,28 @@ export default async function checkShield(_args: string[]): Promise<void> {
         // Alert mode: warn but allow
         process.stderr.write(`[SHIELD] EXFIL WARNING (${exfilResult.rule_id}): ${exfilResult.reason}\n`);
       }
+
+      // @rule:KAV-088 reach mask check for curl/wget/http calls within bash
+      const bashReachResult = checkBashReachMask(callerPermMask, command);
+      if (bashReachResult.checked && !bashReachResult.allowed) {
+        emitBlock("REACH", "KAV-088", `bash command targets ${bashReachResult.target_service}:${bashReachResult.target_port} — caller mask 0x${bashReachResult.caller_mask.toString(16)} lacks required 0x${bashReachResult.required_mask.toString(16)}`, "reach_mask");
+        process.exit(2);
+      }
+
+      // @rule:KAV-085 behavioral baseline — bash first-token observation
+      const firstToken = extractBashFirstToken(command);
+      const behaviorResult = (() => { try { return recordObservation(agentId, { tool_name: "Bash", bash_first_token: firstToken }); } catch { return null; } })();
+      if (behaviorResult?.anomaly && enforce) {
+        process.stderr.write(`[SHIELD] BEHAVIORAL ANOMALY (KAV-085): ${behaviorResult.reason}\n`);
+        // Soft signal — warn in alert mode, request stop in enforce mode
+        try { const { requestStop } = require("../../core/db"); requestStop(agentId); } catch {}
+      } else if (behaviorResult?.anomaly) {
+        process.stderr.write(`[SHIELD] BEHAVIORAL WARN (KAV-085): ${behaviorResult.reason}\n`);
+      }
+
+    } else {
+      // All other tools — record for baseline
+      try { recordObservation(agentId, { tool_name: toolName }); } catch {}
     }
 
     process.exit(0);
