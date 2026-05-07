@@ -67,6 +67,8 @@ export type EnforcementPhase = "shadow" | "soft_canary" | "soft_global" | "hard"
 
 export interface AegisEnforcementDecision {
   service_id: string;
+  // @rule:KAV-SHT-002 — policy version at decision time; enables audit-grade policy drift detection
+  policy_hash?: string;
   operation: string;
   requested_capability: string;
   trust_mask: number;

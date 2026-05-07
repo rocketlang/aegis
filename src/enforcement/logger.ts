@@ -9,6 +9,7 @@
 import { appendFileSync, mkdirSync, existsSync } from "fs";
 import { join, dirname } from "path";
 import type { AegisEnforcementDecision } from "./types";
+import { hashServicePolicy } from "../machine-law/policy-hash";
 
 // @rule:AEG-E-005 path evaluated lazily — env override must work at call time, not module load
 function resolveLogPath(): string {
@@ -22,10 +23,14 @@ function ensureLogDir(path: string): void {
 }
 
 // @rule:AEG-E-005 log never throws — failure is silent, enforcement is unaffected
+// @rule:KAV-SHT-002 policy_hash stamped at log time — covers all callers uniformly
 export function logDecision(decision: AegisEnforcementDecision): void {
   try {
     const path = resolveLogPath();
     ensureLogDir(path);
+    if (!decision.policy_hash) {
+      decision.policy_hash = hashServicePolicy(decision.trust_mask);
+    }
     // schema_version is stable so Pulse can consume without migration guards
     const line = JSON.stringify({ schema_version: "aegis.decision.v1", ...decision }) + "\n";
     appendFileSync(path, line, "utf-8");

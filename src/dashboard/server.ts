@@ -21,6 +21,7 @@ import { registerBitMaskOSRoutes } from "./routes/bitmaskos";
 import { registerAuthRoutes } from "../auth/routes";
 import { registerEnforcementRoutes } from "./routes/enforcement";
 import { registerAseRoutes } from "./routes/ase";
+import { registerMachineLawRoutes } from "./routes/machine-law";
 import { classifyCommand, runKavachGate } from "../kavach/gate";
 // [EE] Multi-tenant — graceful degradation when EE not licensed
 import { isEE, eeStatus } from "../../ee/license";
@@ -125,6 +126,8 @@ if (config.dashboard.auth?.enabled) {
       url.startsWith("/api/v1/aegis/session") ||
       url.startsWith("/api/v1/aegis/sessions") ||
       url.startsWith("/api/bg-agents") ||
+      // Machine-law: called from agent frameworks before planning — no browser session
+      url.startsWith("/api/v2/machine-law/") ||
       (url === "/api/approvals" && req.method === "GET")
     ) return;
 
@@ -321,6 +324,8 @@ registerAuthRoutes(app);
 registerEnforcementRoutes(app);
 // @rule:ASE-001 sealed session envelope — issued at every agent session birth
 registerAseRoutes(app);
+// @rule:KAV-SHT-001 machine law — lawful action map before agent planning
+registerMachineLawRoutes(app);
 
 // --- API Routes ---
 
