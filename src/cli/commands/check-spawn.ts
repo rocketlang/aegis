@@ -14,10 +14,13 @@
 // @rule:KAV-061 Level 0 perm_mask enforcement — SPAWN_AGENTS bit
 // @rule:KAV-067 Minimum Viable Toolset — warn when tools_allowed=[] (maximum surface)
 // @rule:KAV-068 Loop count runaway detection
+// @rule:GNT-001 child.trust_mask = parent.trust_mask & requested — never union
 
 import { readFileSync } from "fs";
 import { loadConfig } from "../../core/config";
 import { getSessionSpawnCount, getBudgetState, recordBackgroundAgent } from "../../core/db";
+import { loadEnvelopeBySessionId } from "../../core/ase";
+import { computeChildMask, formatGnt001Log } from "../../kavach/genetic-trust";
 import { PERM, requiredBitsForTool } from "../../kavach/perm-mask";
 import { checkValve } from "../../kavach/gate-valve";
 import { checkMudrika } from "../../kavach/mudrika-validator";
@@ -236,6 +239,7 @@ export default async function checkSpawn(_args: string[]): Promise<void> {
     }
 
     // @rule:AGS-003 Issue SDT for the spawned agent at spawn-time (intra-org, local-signed)
+    // @rule:GNT-001 child mask = parent trust_mask & requested — never hardcode a ceiling
     // This gives the child agent its delegation envelope before it starts executing.
     // Failure is non-fatal — the child can still run; it just won't carry an SDT.
     try {
@@ -243,13 +247,22 @@ export default async function checkSpawn(_args: string[]): Promise<void> {
       const agentDepth = (loadAgent(agentId)?.depth ?? 0) + 1;
       const parentId = agentId !== sessionId ? agentId : undefined;
 
+      // GNT-001: read parent trust_mask from the envelope store. Default to 1 (read-only) if unknown.
+      const parentEnvelope = loadEnvelopeBySessionId(agentId);
+      const parentTrustMask = parentEnvelope?.trust_mask ?? 1;
+
+      // Child requests full inheritance — parent mask is the ceiling, bitmask AND enforces it.
+      // A child cannot request more than the parent holds; computeChildMask ensures this.
+      const gntResult = computeChildMask(parentTrustMask);
+      process.stderr.write(formatGnt001Log(gntResult) + "\n");
+
       const { issueSdt } = await import("../../auth/sdt");
       const sdtResult = issueSdt({
         agent_id: `child-${Date.now()}`,
         agent_class: "worker",
         spawner_id: agentId,
         parent_token_id: parentId ? agentId : undefined,
-        requested_mask: config.budget.spawn_limit_per_session > 0 ? 0xFFFF : 0xFF,
+        requested_mask: gntResult.child_mask,
         task_scope: [],           // unconstrained — policy layer may narrow later
         max_depth: config.budget.max_depth ?? 5,
         expiry: "task_end",

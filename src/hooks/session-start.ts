@@ -21,6 +21,7 @@ import { getDb, acknowledgeAllBgAgents } from "../core/db";
 import { issueMudrika, loadOrRotateMudrika } from "../kernel/mudrika";
 import { createTurn } from "../telemetry/turn-store";
 import { deriveTrustFromGitRemote, loadEnvelopeBySessionId, createDefaultEnvelope, storeEnvelope } from "../core/ase";
+import { verifyLineage, formatGnt002Log } from "../kavach/genetic-trust";
 import { DASHBOARD_PORT } from "../core/config";
 
 interface HookPayload {
@@ -200,6 +201,9 @@ async function run(): Promise<void> {
     try {
       const { service_key, trust_mask } = deriveTrustFromGitRemote(gitRemote);
       const AEGIS_URL = process.env.AEGIS_URL ?? `http://localhost:${DASHBOARD_PORT}`;
+      // @rule:GNT-002 — read parent session ID from env (set by Claude Code for child agents)
+      const parentSessionId = process.env.CLAUDE_PARENT_SESSION_ID ?? null;
+
       const aseBody = {
         agent_type: "hook-native",
         service_key,
@@ -207,7 +211,7 @@ async function run(): Promise<void> {
         tenant_id: "default",
         declared_caps: [],  // conservative default; agents may call with explicit caps
         budget_usd: 0,      // unlimited by default; set via env AEGIS_SESSION_BUDGET_USD
-        parent_session_id: null,
+        parent_session_id: parentSessionId,
       };
       const budgetFromEnv = parseFloat(process.env.AEGIS_SESSION_BUDGET_USD ?? "0");
       if (budgetFromEnv > 0) aseBody.budget_usd = budgetFromEnv;
@@ -236,6 +240,29 @@ async function run(): Promise<void> {
       process.stderr.write(`[KAVACH:ase] envelope issuance failed — ${String(err)} — failing open\n`);
     }
   }
+
+  // @rule:GNT-002 — verify child trust_mask is a valid subset of parent trust_mask
+  // Fires only when CLAUDE_PARENT_SESSION_ID is set (child agent session).
+  // Fail open — lineage violation is an alert, not a session block.
+  try {
+    const parentSessionId = process.env.CLAUDE_PARENT_SESSION_ID ?? null;
+    if (parentSessionId) {
+      const childEnvelope = loadEnvelopeBySessionId(sessionId);
+      const parentEnvelope = loadEnvelopeBySessionId(parentSessionId);
+      const childMask = childEnvelope?.trust_mask ?? 1;
+      const parentMask = parentEnvelope?.trust_mask ?? null;
+      const lineage = verifyLineage(childMask, parentMask);
+      process.stderr.write(formatGnt002Log(lineage) + "\n");
+      if (!lineage.valid && lineage.reason === "MASK_OVERFLOW") {
+        // Overflow: child has bits parent doesn't. This is a self-elevation attempt.
+        // Alert — do not block (fail open); AEGIS enforcement layer handles escalation.
+        process.stderr.write(
+          `[KAVACH:GNT-002] ALERT — child session ${sessionId} has elevated trust beyond ` +
+          `parent ${parentSessionId} — potential self-elevation — GNT-002\n`
+        );
+      }
+    }
+  } catch { /* GNT-002 is advisory — never block session start */ }
 
   // Issue mudrika for this session if not present
   try {

@@ -1,0 +1,13 @@
+{
+  "batch": "100",
+  "service": "ankr-aegis",
+  "rule_refs": [
+    "GNT-001",
+    "GNT-002"
+  ],
+  "verdict": "PASS",
+  "checks_passed": 16,
+  "checks_total": 16,
+  "timestamp": "2026-05-08T05:13:16.015Z",
+  "promotion_permitted": true
+}
