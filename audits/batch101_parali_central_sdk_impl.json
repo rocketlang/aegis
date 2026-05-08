@@ -1,0 +1,23 @@
+{
+  "batch": "101",
+  "batch_name": "parali-central-sdk-adoption-impl",
+  "service": "parali-central",
+  "hg_group": "HG-2B",
+  "rule_refs": [
+    "AEG-HG-2B-003",
+    "CA-003",
+    "FRJ-SE-001"
+  ],
+  "sdk_package": "@ankr/aegis-guard",
+  "migration_type": "additive",
+  "verdict": "PASS",
+  "checks_passed": 22,
+  "checks_total": 22,
+  "lock_1_decision_gate": "deferred — APPROVE_DIVIDEND not yet implemented in source",
+  "lock_2_identity": "deferred — conditional on lock 1",
+  "lock_3_observability": "WIRED — emitAegisSenseEvent + configureSenseTransport",
+  "lock_4_rollback": "deferred — simulateDividend not yet implemented",
+  "lock_5_idempotency": "deferred — dividend action ref table not yet added",
+  "timestamp": "2026-05-08T05:38:31.434Z",
+  "promotion_permitted": true
+}
