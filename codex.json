@@ -134,6 +134,7 @@
   "req_mask_source": "declared",
   "capability_captured": false,
   "capability_captured_schema": "ankr-archmask-v1",
+  "spawn_chain_enforced": true,
   "claw_mask": 65535,
   "claw_mask_schema": "claw-design-16bit-v1",
   "claude_ankr_mask": 31,
