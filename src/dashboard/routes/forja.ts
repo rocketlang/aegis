@@ -20,6 +20,7 @@ import {
 } from "../../core/db";
 import { broadcast } from "../../core/events";
 import { issueSpawn } from "../../oracle/spawn-gate";
+import { revokeAgentExpiry } from "../../core/db";
 
 // ── SENSE event ring buffer (last 200 events) ────────────────────────────────
 const SENSE_RING: Array<{ event: string; payload: unknown; ts: string }> = [];
@@ -292,6 +293,33 @@ export function registerForjaRoutes(app: FastifyInstance): void {
     }
   });
 
+  // ── POST /api/v2/forja/spawn/revoke ──────────────────────────────────────
+  // @rule:BMOS-008 Revocation via expiry: set expires_at = now → immediate invalidation
+  // Subsequent tool calls by the revoked agent will be blocked by BMOS-T-016 expiry gate.
+  app.post("/api/v2/forja/spawn/revoke", async (req, reply) => {
+    const body = req.body as { agent_id?: string; reason?: string };
+    if (!body?.agent_id) return reply.code(400).send({ error: "agent_id required" });
+
+    const result = revokeAgentExpiry(body.agent_id);
+    if (!result.revoked) {
+      return reply.code(404).send({ error: "agent not found", agent_id: body.agent_id });
+    }
+
+    emitSense("SPAWN_REVOKED", {
+      agent_id: body.agent_id,
+      revoked_at: result.expires_at,
+      reason: body.reason ?? "manual revocation",
+    });
+
+    return {
+      revoked: true,
+      agent_id: body.agent_id,
+      expires_at: result.expires_at,
+      effect: "all subsequent tool calls and spawns by this agent will be blocked",
+      rule: "BMOS-008",
+    };
+  });
+
   // ── POST /api/v2/forja/sense/emit ─────────────────────────────────────────
   // @rule:KAV-019 Always-on daemon fires SENSE events on lifecycle transitions
   // @rule:KAV-YK-001 Event-driven posture propagation
@@ -324,6 +352,8 @@ export function registerForjaRoutes(app: FastifyInstance): void {
       // BitMask OS Phase 1 — spawn gate events
       "SPAWN_ISSUED",
       "SPAWN_REJECTED",
+      // BitMask OS Phase 3 — revocation event
+      "SPAWN_REVOKED",
     ]);
 
     if (!ALLOWED_EVENTS.has(body.event)) {

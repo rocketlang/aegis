@@ -771,6 +771,16 @@ export function requestStop(agentId: string): void {
   db.run("UPDATE agents SET stop_requested = 1 WHERE agent_id = ?", [agentId]);
 }
 
+// @rule:BMOS-008 Revocation via expiry: set ase_expires_at = now → immediate credential expiry
+// Subsequent tool calls and spawn attempts will be blocked by the expiry gate (BMOS-T-018).
+export function revokeAgentExpiry(agentId: string): { revoked: boolean; expires_at: string } {
+  const db = getDb();
+  const now = new Date().toISOString();
+  db.run("UPDATE agents SET ase_expires_at = ? WHERE agent_id = ?", [now, agentId]);
+  const changed = db.query("SELECT changes() as n").get() as { n: number };
+  return { revoked: changed.n > 0, expires_at: now };
+}
+
 /** V2-048 — check if stop_requested is set for this agent. */
 export function isStopRequested(agentId: string): boolean {
   const db = getDb();

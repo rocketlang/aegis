@@ -238,6 +238,27 @@ export default async function checkSpawn(_args: string[]): Promise<void> {
       }
     }
 
+    // --- BMOS-T-016: Expiry gate on spawner session ---
+    // @rule:BMOS-008 Expiry gate: a spawner whose session has expired cannot issue new spawns
+    {
+      const agentId = process.env.CLAUDE_AGENT_ID || sessionId;
+      try {
+        const spawnerEnvelope = loadEnvelopeBySessionId(agentId);
+        if (spawnerEnvelope?.expires_at && spawnerEnvelope.expires_at !== "task_end" && spawnerEnvelope.expires_at !== "") {
+          const expired = new Date(spawnerEnvelope.expires_at).getTime() < Date.now();
+          if (expired) {
+            const msg = `[BMOS:expiry] Spawner ${agentId} session expired at ${spawnerEnvelope.expires_at} — spawn blocked (BMOS-008)`;
+            if (enforce) {
+              process.stderr.write(`\n${msg}\n\n`);
+              process.exit(2);
+            } else {
+              process.stderr.write(`${msg} (warn only)\n`);
+            }
+          }
+        }
+      } catch { /* non-fatal */ }
+    }
+
     // @rule:AGS-003 Issue SDT for the spawned agent at spawn-time (intra-org, local-signed)
     // @rule:GNT-001 child mask = parent trust_mask & requested — never hardcode a ceiling
     // This gives the child agent its delegation envelope before it starts executing.
@@ -256,6 +277,12 @@ export default async function checkSpawn(_args: string[]): Promise<void> {
       const gntResult = computeChildMask(parentTrustMask);
       process.stderr.write(formatGnt001Log(gntResult) + "\n");
 
+      // @rule:BMOS-008 TTL inheritance: child SDT expiry <= parent session expiry (BMOS-T-017)
+      // If parent has a concrete expiry, child cannot outlive it. "task_end" = no wall-clock bound.
+      const parentExpiry = parentEnvelope?.expires_at && parentEnvelope.expires_at !== "" && parentEnvelope.expires_at !== "task_end"
+        ? parentEnvelope.expires_at
+        : "task_end";
+
       const { issueSdt } = await import("../../auth/sdt");
       const sdtResult = issueSdt({
         agent_id: `child-${Date.now()}`,
@@ -265,7 +292,7 @@ export default async function checkSpawn(_args: string[]): Promise<void> {
         requested_mask: gntResult.child_mask,
         task_scope: [],           // unconstrained — policy layer may narrow later
         max_depth: config.budget.max_depth ?? 5,
-        expiry: "task_end",
+        expiry: parentExpiry,
       });
       process.stderr.write(
         `[KAVACH:sdt] SDT issued: depth=${sdtResult.token.delegation.depth} ` +

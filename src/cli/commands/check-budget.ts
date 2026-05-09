@@ -14,11 +14,33 @@
 
 import { loadConfig } from "../../core/config";
 import { getBudgetState, getAgentCostProjection, requestStop } from "../../core/db";
+import { loadEnvelopeBySessionId } from "../../core/ase";
 
 export default function checkBudget(_args: string[]): void {
   try {
     const config = loadConfig();
     const enforce = config.enforcement?.mode === "enforce";
+
+    // --- BMOS-T-016: Expiry gate — check agent session expiry before any tool use ---
+    // @rule:BMOS-008 Expiry gate: expired credential blocks all further tool calls
+    {
+      const agentId = process.env.CLAUDE_AGENT_ID || process.env.CLAUDE_SESSION_ID || "unknown";
+      try {
+        const envelope = loadEnvelopeBySessionId(agentId);
+        if (envelope?.expires_at && envelope.expires_at !== "task_end" && envelope.expires_at !== "") {
+          const expired = new Date(envelope.expires_at).getTime() < Date.now();
+          if (expired) {
+            const msg = `[BMOS:expiry] Session ${agentId} expired at ${envelope.expires_at} (BMOS-008)`;
+            if (enforce) {
+              process.stderr.write(msg + " — BLOCKED\n");
+              process.exit(2);
+            } else {
+              process.stderr.write(msg + " — WARNING (enforce mode off)\n");
+            }
+          }
+        }
+      } catch { /* non-fatal — fail-open */ }
+    }
 
     // --- Session-level budget check ---
     const daily = getBudgetState("daily", config.budget.daily_limit_usd);
