@@ -737,6 +737,7 @@ export function touchAgent(agentId: string): void {
   );
 }
 
+// @rule:KAV-008 — quarantine state is durable across KAVACH restarts; SQLite agents table persists it
 /** V2-047 — set state (quarantine durability). */
 export function setAgentState(
   agentId: string,

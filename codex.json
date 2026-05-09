@@ -129,6 +129,7 @@
   "trust_mask_schema": "ankr-trust-32bit-v1",
   "k_mask": 255,
   "k_mask_schema": "ankr-prajna-8bit-v1",
+  "k_mask_note": "All 8 bits legitimately set 2026-05-09. Bits 0-3: all docs exist (brainstorm+project+logics+todo). Bit 4: deep-knowledge session note appended. Bit 5: capability_audit updated. Bit 6: 27 AGS-* rules seeded to SuperDomain (ankr-seed-aegis-rules.ts, imported=27 skipped=0). Bit 7: PROOF 100% (54/54 EXPECTED_RULES covered after KAV-008 annotation added to db.ts). k_mask=255 (0b11111111).",
   "req_mask": 1291807967,
   "req_mask_schema": "ankr-req-32bit-v1",
   "req_mask_source": "declared",
