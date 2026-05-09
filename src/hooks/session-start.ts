@@ -16,6 +16,7 @@ import { readFileSync, writeFileSync, existsSync, mkdirSync, readdirSync, rename
 import { join } from "path";
 import { hostname } from "os";
 import { execSync } from "child_process";
+import { detectServiceComposite, runProbe } from "../oracle/probe";
 import { getAegisDir } from "../core/config";
 import { getDb, acknowledgeAllBgAgents } from "../core/db";
 import { issueMudrika, loadOrRotateMudrika } from "../kernel/mudrika";
@@ -54,44 +55,43 @@ function tryExec(cmd: string): string | null {
   }
 }
 
-// ─── Oracle Phase 1 — Baseline Snapshot (SOR-T-101 to SOR-T-104) ─────────────
-// @rule:SOR-001 @rule:SOR-003 @rule:SOR-004
+// ─── Oracle Phase 2 — Baseline + Active Probe (SOR-T-101 to SOR-T-205) ───────
+// @rule:SOR-001 @rule:SOR-003 @rule:SOR-004 @rule:SOR-008
 
 const SERVICES_JSON   = "/root/.ankr/config/services.json";
 const PROPOSALS_DIR   = "/root/proposals";
 const TODOS_DIR       = "/root/ankr-todos";
 const DOC_TYPES       = ["brainstorm", "project", "logics", "todo", "deep-knowledge"] as const;
 
-function detectService(cwd: string): { service_key: string | null; detection_method: string } {
-  // SOR-YK-001 Phase 1: CWD-based detection only
-  try {
-    const registry = JSON.parse(readFileSync(SERVICES_JSON, "utf-8")).services ?? {};
-    const cwdKey = cwd.split("/").pop() ?? "";
-    if (cwdKey && registry[cwdKey]) return { service_key: cwdKey, detection_method: "cwd" };
-    // Try stripping -backend / -api suffix
-    const stripped = cwdKey.replace(/-(backend|api)$/, "");
-    if (stripped !== cwdKey && registry[stripped]) return { service_key: stripped, detection_method: "cwd-stripped" };
-  } catch { /* fail open */ }
-  return { service_key: null, detection_method: "none" };
-}
-
-function runOraclePhase1(sessionId: string, cwd: string): void {
-  const baselinePath = join(sessionsDir(), `${sessionId}.baseline.json`);
+function runOracle(sessionId: string, cwd: string, gitRemote: string | null): void {
+  const sessDir      = sessionsDir();
+  const baselinePath = join(sessDir, `${sessionId}.baseline.json`);
   if (existsSync(baselinePath)) return; // SOR-INF-007: skip on /resume
 
   const now = new Date().toISOString();
-  const { service_key, detection_method } = detectService(cwd);
 
+  // SOR-T-205: composite service detection
+  const { service_key, detection_method } = detectServiceComposite(cwd, gitRemote);
+
+  let registry: Record<string, unknown> = {};
   let codex: Record<string, unknown> = {};
-  let detected = false;
+  let svcEntry: Record<string, unknown> | null = null;
+  let detected   = false;
   let codexPath: string | null = null;
+
+  try { registry = JSON.parse(readFileSync(SERVICES_JSON, "utf-8")).services ?? {}; } catch {}
 
   if (service_key) {
     try {
-      const registry = JSON.parse(readFileSync(SERVICES_JSON, "utf-8")).services ?? {};
-      const svcEntry = registry[service_key];
-      const candidate = svcEntry?.path ? join(svcEntry.path, "codex.json") : join("/root", service_key, "codex.json");
-      if (existsSync(candidate)) { codex = JSON.parse(readFileSync(candidate, "utf-8")); codexPath = candidate; detected = true; }
+      svcEntry = (registry[service_key] as Record<string, unknown>) ?? null;
+      const candidate = svcEntry?.path
+        ? join(svcEntry.path as string, "codex.json")
+        : join("/root", service_key, "codex.json");
+      if (existsSync(candidate)) {
+        codex = JSON.parse(readFileSync(candidate, "utf-8"));
+        codexPath = candidate;
+        detected  = true;
+      }
     } catch { /* partial baseline still valid */ }
   }
 
@@ -108,24 +108,42 @@ function runOraclePhase1(sessionId: string, cwd: string): void {
     }
   }
 
+  // SOR-YK-008: atomic baseline write
   const baseline = {
     session_id: sessionId, service_key, detection_method, detected_at: now, detected,
     ...(codexPath ? { codex_path: codexPath } : {}),
-    k_mask:      codex.k_mask      ?? null,
-    trust_mask:  codex.trust_mask  ?? null,
-    req_mask:    codex.req_mask    ?? null,
+    k_mask:       codex.k_mask      ?? null,
+    trust_mask:   codex.trust_mask  ?? null,
+    req_mask:     codex.req_mask    ?? null,
     docs_present: docsPresent,
     docs_missing: docsMissing,
   };
-
-  // SOR-YK-008: atomic write
-  const tmp = baselinePath + ".tmp";
-  writeFileSync(tmp, JSON.stringify(baseline, null, 2), { mode: 0o600 });
-  renameSync(tmp, baselinePath);
+  const bTmp = baselinePath + ".tmp";
+  writeFileSync(bTmp, JSON.stringify(baseline, null, 2), { mode: 0o600 });
+  renameSync(bTmp, baselinePath);
 
   process.stderr.write(
-    `[KAVACH:oracle] baseline | service=${service_key ?? "none"} | k_mask=${codex.k_mask ?? "?"} | missing=${docsMissing.join(",") || "none"}\n`
+    `[KAVACH:oracle] baseline | service=${service_key ?? "none"} | method=${detection_method} | k_mask=${codex.k_mask ?? "?"} | missing=${docsMissing.join(",") || "none"}\n`
   );
+
+  // SOR-T-202 + SOR-T-203: active probe — only when service detected and codex found
+  if (service_key && detected) {
+    try {
+      const probe = runProbe(sessionId, service_key, codex, svcEntry);
+      const probePath = join(sessDir, `${sessionId}.probe.json`);
+      const pTmp = probePath + ".tmp";
+      writeFileSync(pTmp, JSON.stringify(probe, null, 2), { mode: 0o600 });
+      renameSync(pTmp, probePath);
+
+      if (probe.high_count > 0 || probe.medium_count > 0) {
+        process.stderr.write(
+          `[KAVACH:oracle] probe | HIGH=${probe.high_count} MEDIUM=${probe.medium_count} | ${
+            probe.items.filter(i => i.severity === "HIGH").map(i => `bit${i.bit}(${i.detail})`).join("; ") || "no HIGH"
+          }\n`
+        );
+      }
+    } catch { /* probe is advisory — never block session start */ }
+  }
 }
 
 function sessionsDir(): string {
@@ -254,9 +272,9 @@ async function run(): Promise<void> {
   // Written fresh on every new desk registration. Preserved on /resume (desk already exists).
   writeFileSync(join(getAegisDir(), "current_session_mask"), "1", { mode: 0o600 });
 
-  // @rule:SOR-001 @rule:SOR-004 oracle Phase 1: capture pre-session baseline
+  // @rule:SOR-001 @rule:SOR-004 oracle: baseline + active probe
   // Fail open — any error here must never block session start
-  try { runOraclePhase1(sessionId, cwd); } catch { /* SOR-004 */ }
+  try { runOracle(sessionId, cwd, gitRemote); } catch { /* SOR-004 */ }
 
   // Register in sessions table
   try {
