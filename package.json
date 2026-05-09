@@ -1,9 +1,16 @@
 {
   "name": "@rocketlang/aegis",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "description": "AEGIS / KavachOS — Agentic runtime governance: budget enforcement, DAN gate (human-in-loop), seccomp-bpf kernel enforcement, and Falco anomaly detection for AI agents.",
   "license": "AGPL-3.0",
   "type": "module",
+  "main": "./index.ts",
+  "module": "./index.ts",
+  "exports": {
+    ".": "./index.ts",
+    "./lite": "./src/sdk/lite.ts",
+    "./sdk": "./src/sdk/index.ts"
+  },
   "author": "Capt. Anil Sharma <capt.anil.sharma@powerpbox.org>",
   "homepage": "https://github.com/rocketlang/aegis",
   "repository": {
@@ -37,6 +44,7 @@
   "files": [
     "bin/",
     "src/",
+    "index.ts",
     "docs/",
     "rules/",
     "examples/",
