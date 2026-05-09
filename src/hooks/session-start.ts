@@ -176,6 +176,10 @@ async function run(): Promise<void> {
   // Persist session ID so PostToolUse + Stop hooks can correlate without payload
   writeFileSync(join(getAegisDir(), "current_session"), sessionId, { mode: 0o600 });
 
+  // @rule:BMC-003 initialise session_mask = 1 (bit 0: core-invariants always on)
+  // Written fresh on every new desk registration. Preserved on /resume (desk already exists).
+  writeFileSync(join(getAegisDir(), "current_session_mask"), "1", { mode: 0o600 });
+
   // Register in sessions table
   try {
     const db = getDb();

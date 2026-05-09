@@ -10,7 +10,7 @@
 //
 // Output: ~/.aegis/sessions/{session_id}.jsonl (one JSON object per line)
 
-import { readFileSync, appendFileSync, existsSync, mkdirSync } from "fs";
+import { readFileSync, writeFileSync, appendFileSync, existsSync, mkdirSync, renameSync } from "fs";
 import { join } from "path";
 import { getAegisDir } from "../core/config";
 import { getDb } from "../core/db";
@@ -52,6 +52,52 @@ function sessionsDir(): string {
   const dir = join(getAegisDir(), "sessions");
   if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
   return dir;
+}
+
+// ─── session_mask bit-transition (BMC-003 / BMC-006) ─────────────────────────
+// Maps file-path patterns to session_mask bit positions.
+// Bit 0 (1) = core-invariants — always on, never matched here.
+// Bit 7 (128) = session-close — set by session-end / dream-phase.
+
+const SESSION_MASK_BITS: Array<[number, RegExp]> = [
+  [  2, /\/codex\.json$|\/proposals\/|\/ankr-todos\//],        // bit 1: new-service
+  [  4, /\/prisma\/|\/migrations\/|schema\.prisma$|databases\.json$/], // bit 2: db-ops
+  [  8, /\/proposals\/|\/ankr-todos\//],                        // bit 3: knowledge-docs
+  [ 16, /\/forja\/|\/services\.json$|services\.json$/],         // bit 4: design-laws
+  [ 32, /mari8x|ankr-maritime|ankrgrid-maritime|liner8x|mpv8x|feeder8x|watch8x|ship8x/i], // bit 5: maritime
+  [ 64, /\/chetna\/|\/jaal[\./]|superdomain|ankr-ai-gateway/],  // bit 6: agi-layer
+];
+
+// @rule:BMC-003 bits are append-only within a session — never cleared mid-session
+// @rule:NFR-002 atomic write via tmp-then-rename
+function updateSessionMask(filePath: string): void {
+  const maskFile = join(getAegisDir(), "current_session_mask");
+  try {
+    const current = existsSync(maskFile)
+      ? parseInt(readFileSync(maskFile, "utf-8").trim(), 10) || 1
+      : 1;
+
+    let updated = current;
+    for (const [bit, pattern] of SESSION_MASK_BITS) {
+      if (pattern.test(filePath)) updated |= bit;
+    }
+
+    if (updated !== current) {
+      const tmp = maskFile + ".tmp";
+      writeFileSync(tmp, String(updated), { mode: 0o600 });
+      renameSync(tmp, maskFile);
+      // Emit to stderr for observability only — never block tool execution
+      process.stderr.write(`[KAVACH:mask] session_mask ${current}→${updated} (touched: ${filePath.split("/").slice(-2).join("/")})\n`);
+    }
+  } catch { /* never block tool execution */ }
+}
+
+// Extract the primary file path from tool input (Read / Edit / Write)
+function extractFilePath(toolName: string, input: Record<string, unknown>): string | null {
+  if (toolName === "Read" || toolName === "Edit" || toolName === "Write") {
+    return typeof input.file_path === "string" ? input.file_path : null;
+  }
+  return null;
 }
 
 // @rule:KOS-077
@@ -105,6 +151,10 @@ function run(): void {
   try {
     appendFileSync(logPath, JSON.stringify(record) + "\n");
   } catch { /* never block tool execution */ }
+
+  // @rule:BMC-003 update session_mask when file-touching tools fire
+  const filePath = extractFilePath(toolName, payload.tool_input ?? {});
+  if (filePath) updateSessionMask(filePath);
 
   // @rule:KOS-091 — append tool call to the current open turn for OTLP span assembly
   try {
