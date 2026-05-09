@@ -12,6 +12,7 @@
 //   ~/.aegis/sessions/{session_id}.summary.json  (self-contained)
 
 import { readFileSync, writeFileSync, existsSync, mkdirSync, unlinkSync } from "fs";
+import { spawn } from "child_process";
 import { join } from "path";
 import { getAegisDir, loadConfig } from "../core/config";
 import { getDb, getUnacknowledgedBgAgents } from "../core/db";
@@ -210,6 +211,19 @@ async function run(): Promise<void> {
 
   // Clean up state file so the next claude session gets a fresh ID
   try { unlinkSync(currentSessionFile); } catch {}
+
+  // @rule:DRM-003 — spawn dream phase as detached background process (never blocks session close)
+  try {
+    const child = spawn("bun", ["/root/ankr-dream-phase.ts", sessionId], {
+      detached: true,
+      stdio: "ignore",
+    });
+    child.unref();
+    process.stderr.write(`[KAVACH:dream] spawned dream-phase for ${sessionId}\n`);
+  } catch (err) {
+    // Non-blocking — dream phase failure must never prevent session close
+    process.stderr.write(`[KAVACH:dream] spawn failed (non-fatal): ${(err as Error).message}\n`);
+  }
 
   process.stderr.write(
     `[KAVACH:session] closed ${sessionId} | reason=${stopReason} | tools=${toolCallCount} | DAN=${danEventCount} | cost=$${totalCostUsd.toFixed(4)} | duration=${summary.duration_human ?? "?"}\n`
