@@ -168,6 +168,34 @@ export async function startProxy(config: ProxyConfig): Promise<void> {
         return Response.json({ id, status: rec.status, decided_at: rec.decided_at });
       }
 
+      // ── ASE budget gate (ASE-T010) ──────────────────────────────────────
+      // @rule:ASE-011 fail open if Aegis unreachable — inference > enforcement
+      // @rule:ASE-YK-002 failure mode asymmetry: proxy fails open, gate.ts fails closed
+      if (config.sessionId) {
+        try {
+          const aegisPort = process.env.AEGIS_PORT ?? "4850";
+          const envRes = await fetch(
+            `http://127.0.0.1:${aegisPort}/api/v1/aegis/session/${encodeURIComponent(config.sessionId)}`,
+            { signal: AbortSignal.timeout(2000) }
+          );
+          if (envRes.ok) {
+            const env = await envRes.json() as { budget_usd?: number; budget_remaining?: number | null; session_id?: string };
+            if (typeof env.budget_usd === "number" && env.budget_usd > 0 && (env.budget_remaining ?? Infinity) <= 0) {
+              process.stderr.write(`[kavachos:proxy] ASE-011 budget exhausted — session=${config.sessionId} — failing open with 429\n`);
+              return Response.json({
+                error: "ase_budget_exhausted",
+                session_id: config.sessionId,
+                rule_ref: "ASE-011",
+                kavachos: "L7-proxy@ASE-011",
+              }, { status: 429 });
+            }
+          }
+        } catch {
+          // @rule:ASE-011 Aegis unreachable → fail open, log only
+          process.stderr.write(`[kavachos:proxy] ASE-011 Aegis unreachable — failing open\n`);
+        }
+      }
+
       // ── Read request body (consumed once, passed everywhere) ─────────────
 
       const bodyText = (req.method !== "GET" && req.method !== "HEAD")

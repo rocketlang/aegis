@@ -6,11 +6,32 @@
 // @rule:ASE-001 POST /aegis/session issues sealed envelope before agent's first action
 // @rule:ASE-002 sealed_hash computed once at issuance — GET /audit re-verifies
 // @rule:ASE-003 declared_caps validated against trust_mask at issuance
+// @rule:ASE-004 actual_caps_used derived from gate.ts audit log; drift = actual \ declared
+// @rule:ASE-005 vertical AND: child perm_mask = parent.perm_mask AND requested
 // @rule:ASE-006 budget_usd fixed at issuance; budget_used_usd is the mutable counter
+// @rule:ASE-007 expires_at = issued_at + session_ttl; expired envelopes rejected by gate
 // @rule:ASE-008 child envelopes carry parent_session_id in sealed_hash
+// @rule:ASE-009 horizontal AND: service_effective_policy = intersect(archetype, overrides)
 // @rule:ASE-010 GET /sessions and GET /sessions/:id/audit are the declared-vs-actual surface
 // @rule:ASE-011 GET /session/:id used by AI Proxy pre-call budget gate (fails open)
+// @rule:ASE-012 UPS hook blocks prompt when budget_remaining <= 0 (hook-native agents)
+// @rule:ASE-013 trust_mask derived from git_remote → services.json → codex.json at birth
+// @rule:ASE-014 gate.ts checks declared_caps from envelope before registry (ASE-014 ordering)
+// @rule:ASE-015 swarm session: triple AND = child & parent & swarm_mask (KAV-092)
+// @rule:ASE-YK-001 reject, never cap silently — declared cap not in service caps → 400
+// @rule:ASE-YK-002 failure mode asymmetry: proxy fails open; gate.ts fails closed
+// @rule:ASE-YK-003 escalation detected → log, surface in audit; do not suppress
+// @rule:ASE-YK-004 drift = audit gap not enforcement gap; gate.ts must check declared_caps first
+// @rule:ASE-YK-005 no archetype = defer governance; bespoke policy without soak = unknown
+// @rule:ASE-YK-006 renewal = re-declaration not reset; delta surfaced for human review
+// @rule:ASE-YK-007 kavach.budget.threshold_warning includes envelope_session_id (ASE-YK-007)
+// @rule:ASE-YK-008 seal_fail → quarantine immediately; emit seal_fail SENSE event
+// @rule:INF-ASE-001 unproven bit = attack surface; req_mask > trust_mask → adversarial target
 // @rule:INF-ASE-002 drift_set = actual_caps_used \ declared_caps
+// @rule:INF-ASE-003 agentic service → adversarial evaluation priority (SAMIKSHA)
+// @rule:INF-ASE-004 successful attack → corpus entry + co-evolution trigger (SAMIKSHA)
+// @rule:INF-ASE-005 no envelope at UPS fire → create default conservative envelope
+// @rule:INF-ASE-006 stale envelope (past expires_at) → gate rejects; renewal challenge issued
 // @rule:INF-ASE-007 declared_caps must not contain hard_block capabilities
 
 import type { FastifyInstance } from "fastify";
@@ -277,6 +298,29 @@ export function registerAseRoutes(app: FastifyInstance): void {
 
     const cost = typeof body.cost_usd_estimate === "number" ? body.cost_usd_estimate : 0;
     updateBudgetUsed(envelope.agent_id, cost, body.cap_used);
+
+    // @rule:ASE-YK-007 — budget warning carries envelope_session_id
+    // Emit kavach.budget.threshold_warning when budget_used >= 80% of budget_usd
+    if (envelope.budget_usd > 0) {
+      const newUsed = envelope.budget_used_usd + cost;
+      const pct = newUsed / envelope.budget_usd;
+      if (pct >= 0.8 && envelope.budget_used_usd / envelope.budget_usd < 0.8) {
+        try {
+          const { broadcast } = await import("../../core/events");
+          broadcast("kavach.budget.threshold_warning", {
+            envelope_session_id: id,
+            agent_id: envelope.agent_id,
+            budget_usd: envelope.budget_usd,
+            budget_used_usd: newUsed,
+            pct_used: Math.round(pct * 100),
+            rule_ref: "ASE-YK-007",
+            before_snapshot: { budget_used_usd: envelope.budget_used_usd, pct_used: Math.round((envelope.budget_used_usd / envelope.budget_usd) * 100) },
+            after_snapshot:  { budget_used_usd: newUsed, pct_used: Math.round(pct * 100) },
+            delta: { cost_usd: cost, threshold_crossed: "80pct" },
+          });
+        } catch {}
+      }
+    }
 
     return { ok: true, _meta: meta(start) };
   });
