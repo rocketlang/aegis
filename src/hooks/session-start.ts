@@ -12,11 +12,12 @@
 //   ~/.aegis/aegis.db  sessions table  (structured, queryable)
 //   ~/.aegis/sessions/{session_id}.desk.json  (self-contained, offline-verifiable)
 
-import { readFileSync, writeFileSync, existsSync, mkdirSync, readdirSync, renameSync } from "fs";
+import { readFileSync, writeFileSync, existsSync, mkdirSync, readdirSync, renameSync, symlinkSync, unlinkSync } from "fs";
 import { join } from "path";
 import { hostname } from "os";
 import { execSync } from "child_process";
 import { detectServiceComposite, runProbe } from "../oracle/probe";
+import { generateBrief } from "../oracle/brief";
 import { getAegisDir } from "../core/config";
 import { getDb, acknowledgeAllBgAgents } from "../core/db";
 import { issueMudrika, loadOrRotateMudrika } from "../kernel/mudrika";
@@ -127,22 +128,42 @@ function runOracle(sessionId: string, cwd: string, gitRemote: string | null): vo
   );
 
   // SOR-T-202 + SOR-T-203: active probe — only when service detected and codex found
+  let probeResult = null;
   if (service_key && detected) {
     try {
-      const probe = runProbe(sessionId, service_key, codex, svcEntry);
+      probeResult = runProbe(sessionId, service_key, codex, svcEntry);
       const probePath = join(sessDir, `${sessionId}.probe.json`);
       const pTmp = probePath + ".tmp";
-      writeFileSync(pTmp, JSON.stringify(probe, null, 2), { mode: 0o600 });
+      writeFileSync(pTmp, JSON.stringify(probeResult, null, 2), { mode: 0o600 });
       renameSync(pTmp, probePath);
 
-      if (probe.high_count > 0 || probe.medium_count > 0) {
+      if (probeResult.high_count > 0 || probeResult.medium_count > 0) {
         process.stderr.write(
-          `[KAVACH:oracle] probe | HIGH=${probe.high_count} MEDIUM=${probe.medium_count} | ${
-            probe.items.filter(i => i.severity === "HIGH").map(i => `bit${i.bit}(${i.detail})`).join("; ") || "no HIGH"
+          `[KAVACH:oracle] probe | HIGH=${probeResult.high_count} MEDIUM=${probeResult.medium_count} | ${
+            probeResult.items.filter(i => i.severity === "HIGH").map(i => `bit${i.bit}(${i.detail})`).join("; ") || "no HIGH"
           }\n`
         );
       }
     } catch { /* probe is advisory — never block session start */ }
+  }
+
+  // SOR-T-301 + SOR-T-302: health brief + latest.brief.md symlink
+  if (service_key) {
+    try {
+      const briefContent = generateBrief(baseline, probeResult);
+      const briefPath    = join(sessDir, `${sessionId}.brief.md`);
+      const latestPath   = join(sessDir, "latest.brief.md");
+
+      writeFileSync(briefPath, briefContent, { mode: 0o600 });
+
+      // Atomic symlink swap: tmp → rename (SOR-YK-006)
+      const tmpLink = latestPath + ".tmp.lnk";
+      try { unlinkSync(tmpLink); } catch {}
+      symlinkSync(briefPath, tmpLink);
+      renameSync(tmpLink, latestPath);
+
+      process.stderr.write(`[KAVACH:oracle] brief written → ${briefPath}\n`);
+    } catch { /* brief is advisory — never block session start */ }
   }
 }
 
