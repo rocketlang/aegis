@@ -59,6 +59,7 @@ function tryExec(cmd: string): string | null {
 
 const SERVICES_JSON   = "/root/.ankr/config/services.json";
 const PROPOSALS_DIR   = "/root/proposals";
+const TODOS_DIR       = "/root/ankr-todos";
 const DOC_TYPES       = ["brainstorm", "project", "logics", "todo", "deep-knowledge"] as const;
 
 function detectService(cwd: string): { service_key: string | null; detection_method: string } {
@@ -100,7 +101,8 @@ function runOraclePhase1(sessionId: string, cwd: string): void {
   if (service_key) {
     for (const dt of DOC_TYPES) {
       try {
-        const found = readdirSync(PROPOSALS_DIR).some(f => f.startsWith(`${service_key}--${dt}--`));
+        const dir = dt === "todo" ? TODOS_DIR : PROPOSALS_DIR;
+        const found = readdirSync(dir).some(f => f.startsWith(`${service_key}--${dt}--`));
         (found ? docsPresent : docsMissing).push(dt);
       } catch { docsMissing.push(dt); }
     }
