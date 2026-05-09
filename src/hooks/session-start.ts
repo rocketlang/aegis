@@ -12,7 +12,7 @@
 //   ~/.aegis/aegis.db  sessions table  (structured, queryable)
 //   ~/.aegis/sessions/{session_id}.desk.json  (self-contained, offline-verifiable)
 
-import { readFileSync, writeFileSync, existsSync, mkdirSync } from "fs";
+import { readFileSync, writeFileSync, existsSync, mkdirSync, readdirSync, renameSync } from "fs";
 import { join } from "path";
 import { hostname } from "os";
 import { execSync } from "child_process";
@@ -52,6 +52,78 @@ function tryExec(cmd: string): string | null {
   } catch {
     return null;
   }
+}
+
+// ─── Oracle Phase 1 — Baseline Snapshot (SOR-T-101 to SOR-T-104) ─────────────
+// @rule:SOR-001 @rule:SOR-003 @rule:SOR-004
+
+const SERVICES_JSON   = "/root/.ankr/config/services.json";
+const PROPOSALS_DIR   = "/root/proposals";
+const DOC_TYPES       = ["brainstorm", "project", "logics", "todo", "deep-knowledge"] as const;
+
+function detectService(cwd: string): { service_key: string | null; detection_method: string } {
+  // SOR-YK-001 Phase 1: CWD-based detection only
+  try {
+    const registry = JSON.parse(readFileSync(SERVICES_JSON, "utf-8")).services ?? {};
+    const cwdKey = cwd.split("/").pop() ?? "";
+    if (cwdKey && registry[cwdKey]) return { service_key: cwdKey, detection_method: "cwd" };
+    // Try stripping -backend / -api suffix
+    const stripped = cwdKey.replace(/-(backend|api)$/, "");
+    if (stripped !== cwdKey && registry[stripped]) return { service_key: stripped, detection_method: "cwd-stripped" };
+  } catch { /* fail open */ }
+  return { service_key: null, detection_method: "none" };
+}
+
+function runOraclePhase1(sessionId: string, cwd: string): void {
+  const baselinePath = join(sessionsDir(), `${sessionId}.baseline.json`);
+  if (existsSync(baselinePath)) return; // SOR-INF-007: skip on /resume
+
+  const now = new Date().toISOString();
+  const { service_key, detection_method } = detectService(cwd);
+
+  let codex: Record<string, unknown> = {};
+  let detected = false;
+  let codexPath: string | null = null;
+
+  if (service_key) {
+    try {
+      const registry = JSON.parse(readFileSync(SERVICES_JSON, "utf-8")).services ?? {};
+      const svcEntry = registry[service_key];
+      const candidate = svcEntry?.path ? join(svcEntry.path, "codex.json") : join("/root", service_key, "codex.json");
+      if (existsSync(candidate)) { codex = JSON.parse(readFileSync(candidate, "utf-8")); codexPath = candidate; detected = true; }
+    } catch { /* partial baseline still valid */ }
+  }
+
+  // SOR-T-103: doc presence check for k_mask bits 0-4
+  const docsPresent: string[] = [];
+  const docsMissing: string[] = [];
+  if (service_key) {
+    for (const dt of DOC_TYPES) {
+      try {
+        const found = readdirSync(PROPOSALS_DIR).some(f => f.startsWith(`${service_key}--${dt}--`));
+        (found ? docsPresent : docsMissing).push(dt);
+      } catch { docsMissing.push(dt); }
+    }
+  }
+
+  const baseline = {
+    session_id: sessionId, service_key, detection_method, detected_at: now, detected,
+    ...(codexPath ? { codex_path: codexPath } : {}),
+    k_mask:      codex.k_mask      ?? null,
+    trust_mask:  codex.trust_mask  ?? null,
+    req_mask:    codex.req_mask    ?? null,
+    docs_present: docsPresent,
+    docs_missing: docsMissing,
+  };
+
+  // SOR-YK-008: atomic write
+  const tmp = baselinePath + ".tmp";
+  writeFileSync(tmp, JSON.stringify(baseline, null, 2), { mode: 0o600 });
+  renameSync(tmp, baselinePath);
+
+  process.stderr.write(
+    `[KAVACH:oracle] baseline | service=${service_key ?? "none"} | k_mask=${codex.k_mask ?? "?"} | missing=${docsMissing.join(",") || "none"}\n`
+  );
 }
 
 function sessionsDir(): string {
@@ -179,6 +251,10 @@ async function run(): Promise<void> {
   // @rule:BMC-003 initialise session_mask = 1 (bit 0: core-invariants always on)
   // Written fresh on every new desk registration. Preserved on /resume (desk already exists).
   writeFileSync(join(getAegisDir(), "current_session_mask"), "1", { mode: 0o600 });
+
+  // @rule:SOR-001 @rule:SOR-004 oracle Phase 1: capture pre-session baseline
+  // Fail open — any error here must never block session start
+  try { runOraclePhase1(sessionId, cwd); } catch { /* SOR-004 */ }
 
   // Register in sessions table
   try {
