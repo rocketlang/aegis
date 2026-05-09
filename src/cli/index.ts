@@ -32,6 +32,8 @@ async function main() {
       return (await import("./commands/check-destructive")).default(args);
     case "check-shield":
       return (await import("./commands/check-shield")).default(args);
+    case "check-chitta":
+      return (await import("./commands/check-chitta")).default(args);
     case "register":
       return (await import("./commands/register")).default(args);
     case "close":
