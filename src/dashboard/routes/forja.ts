@@ -19,6 +19,7 @@ import {
   listActiveSessions,
 } from "../../core/db";
 import { broadcast } from "../../core/events";
+import { issueSpawn } from "../../oracle/spawn-gate";
 
 // ── SENSE event ring buffer (last 200 events) ────────────────────────────────
 const SENSE_RING: Array<{ event: string; payload: unknown; ts: string }> = [];
@@ -43,6 +44,8 @@ export function emitSense(event: string, payload: SensePayload): void {
 const EXPECTED_RULES = new Set([
   // SHASTRA
   "KAV-001", "KAV-002", "KAV-003", "KAV-004", "KAV-005",
+  // BMOS — spawn gate (Phase 1)
+  "BMOS-001", "BMOS-003", "BMOS-005", "BMOS-008", "BMOS-010",
   "KAV-006", "KAV-007", "KAV-008", "KAV-009", "KAV-010",
   "KAV-011", "KAV-012", "KAV-013", "KAV-014", "KAV-015",
   "KAV-016", "KAV-017", "KAV-018", "KAV-019", "KAV-020",
@@ -71,8 +74,8 @@ function collectAnnotations(dir: string): Map<string, string[]> {
     } else if (entry.name.endsWith(".ts") && !entry.name.endsWith(".test.ts")) {
       try {
         const src = readFileSync(full, "utf-8");
-        // match @rule:KAV-NNN, @rule:KAV-YK-NNN, @rule:INF-KAV-NNN
-        const matches = src.matchAll(/@rule:((?:INF-)?KAV-(?:YK-)?\d+)/g);
+        // match @rule:KAV-*, @rule:BMOS-*, @rule:INF-*
+        const matches = src.matchAll(/@rule:((?:INF-)?(?:KAV|BMOS)(?:-YK)?-\d+)/g);
         for (const m of matches) {
           const ruleId = m[1];
           const existing = found.get(ruleId) ?? [];
@@ -216,6 +219,79 @@ export function registerForjaRoutes(app: FastifyInstance): void {
     };
   });
 
+  // ── POST /api/v2/forja/spawn ──────────────────────────────────────────────
+  // @rule:BMOS-001 Spawn invariant — child cannot exceed parent capability surface
+  // @rule:BMOS-003 Narrowing formula: child = parent & purpose & ~blocked
+  // @rule:BMOS-005 Runtime spawn gate — 403 on invariant violation
+  // @rule:BMOS-008 Expiry gate — child TTL <= parent TTL
+  // @rule:BMOS-010 Spawn audit record written for every call
+  app.post("/api/v2/forja/spawn", async (req, reply) => {
+    const body = req.body as {
+      caller_id?: string;
+      parent_mask?: number;
+      purpose_mask?: number;
+      blocked_mask?: number;
+      delegate_autonomy?: boolean;
+      ttl_seconds?: number;
+      parent_expires_at?: string;
+      task_description?: string;
+    };
+
+    if (!body?.caller_id) return reply.code(400).send({ error: "caller_id required" });
+    if (body.purpose_mask === undefined) return reply.code(400).send({ error: "purpose_mask required" });
+
+    // Resolve parent_mask — self-reported in Phase 1; Phase 4 audit validates chain
+    let parentMask: number;
+    if (body.parent_mask !== undefined) {
+      parentMask = body.parent_mask >>> 0;
+    } else {
+      // Fall back to TRUST role lookup for human callers
+      const role = resolveRole(body.caller_id, config);
+      parentMask = role === "admin" ? 63 : role === "operator" ? 7 : 1;
+    }
+
+    const t0 = Date.now();
+    try {
+      const result = issueSpawn({
+        caller_id: body.caller_id,
+        parent_mask: parentMask,
+        purpose_mask: body.purpose_mask >>> 0,
+        blocked_mask: body.blocked_mask,
+        delegate_autonomy: body.delegate_autonomy,
+        ttl_seconds: body.ttl_seconds,
+        parent_expires_at: body.parent_expires_at,
+        task_description: body.task_description,
+      });
+
+      emitSense("SPAWN_ISSUED", {
+        audit_ref: result.audit_ref,
+        caller_id: result.caller_id,
+        child_spawn_mask: result.child_spawn_mask,
+        parent_mask: result.parent_mask,
+        expires_at: result.expires_at,
+      });
+
+      return {
+        ...result,
+        _meta: { computed_at: new Date().toISOString(), duration_ms: Date.now() - t0 },
+      };
+    } catch (err: any) {
+      if (err.message === "SPAWN_INVARIANT_VIOLATED") {
+        emitSense("SPAWN_REJECTED", {
+          caller_id: body.caller_id,
+          ...err.spawnViolation,
+        });
+        return reply.code(403).send({
+          error: "SPAWN_INVARIANT_VIOLATED",
+          detail: "child_spawn_mask & ~parent_mask != 0 — child exceeds parent capability surface",
+          ...err.spawnViolation,
+          rule: "BMOS-001",
+        });
+      }
+      throw err;
+    }
+  });
+
   // ── POST /api/v2/forja/sense/emit ─────────────────────────────────────────
   // @rule:KAV-019 Always-on daemon fires SENSE events on lifecycle transitions
   // @rule:KAV-YK-001 Event-driven posture propagation
@@ -245,6 +321,9 @@ export function registerForjaRoutes(app: FastifyInstance): void {
       "VALVE_THROTTLED",
       "VALVE_LOCKED",
       "VELOCITY_SPIKE",
+      // BitMask OS Phase 1 — spawn gate events
+      "SPAWN_ISSUED",
+      "SPAWN_REJECTED",
     ]);
 
     if (!ALLOWED_EVENTS.has(body.event)) {
