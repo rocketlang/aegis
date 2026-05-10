@@ -12,6 +12,7 @@
 
 import { readFileSync, writeFileSync, appendFileSync, existsSync, mkdirSync, renameSync } from "fs";
 import { join } from "path";
+import { spawn } from "child_process";
 import { getAegisDir } from "../core/config";
 import { getDb } from "../core/db";
 import { appendToolCall } from "../telemetry/turn-store";
@@ -92,6 +93,90 @@ function updateSessionMask(filePath: string): void {
   } catch { /* never block tool execution */ }
 }
 
+// ─── Capability re-confirmation on code touch (BMC-004 / ANKR-T-004) ─────────
+// When ≥2 source files of a service are read in the same session, fire-and-forget
+// invoke ankr-capability-reconfirm.ts to detect drift between codex.json and code.
+// Trigger once per (session, service) — the script writes drift to capability-drift.json.
+
+const SERVICES_JSON_PATH = "/root/.ankr/config/services.json";
+const RECONFIRM_THRESHOLD = 2;
+const RECONFIRM_SCRIPT = "/root/ankr-capability-reconfirm.ts";
+
+interface ServicePathEntry { key: string; path: string; }
+
+// Cache services.json path index per hook process invocation (process is short-lived).
+let _servicePathIndex: ServicePathEntry[] | null = null;
+function loadServicePathIndex(): ServicePathEntry[] {
+  if (_servicePathIndex) return _servicePathIndex;
+  try {
+    const raw = JSON.parse(readFileSync(SERVICES_JSON_PATH, "utf-8")) as { services?: Record<string, { path?: string }> };
+    const svcs = raw.services ?? raw as Record<string, { path?: string }>;
+    const entries: ServicePathEntry[] = [];
+    for (const [key, val] of Object.entries(svcs)) {
+      const path = val && typeof (val as any).path === "string" ? (val as any).path as string : null;
+      if (!path) continue;
+      // Reject paths that are too shallow to be specific (e.g. "/root", "/").
+      // These match every file under them and produce spurious reconfirm spawns.
+      // Require ≥ 2 non-empty segments (e.g. "/root/foo" is OK; "/root" is not).
+      if (path.split("/").filter(Boolean).length < 2) continue;
+      entries.push({ key, path });
+    }
+    // Longest-path-first so first match wins
+    entries.sort((a, b) => b.path.length - a.path.length);
+    _servicePathIndex = entries;
+    return entries;
+  } catch { _servicePathIndex = []; return []; }
+}
+
+// @rule:BMC-004 longest-prefix match: file at /root/apps/x/backend/src/foo.ts → service whose path is /root/apps/x/backend
+function findServiceForFile(filePath: string): string | null {
+  const idx = loadServicePathIndex();
+  for (const { key, path } of idx) {
+    if (filePath === path || filePath.startsWith(path + "/")) return key;
+  }
+  return null;
+}
+
+// Per-session per-service touch counter.
+// Shape: { "{session_id}": { "{service_key}": { count, reconfirmed } } }
+// Atomic write via tmp+rename. Returns true iff this Read crossed the threshold for the FIRST time.
+function bumpAndCheckTouchCount(sessionId: string, serviceKey: string): boolean {
+  const file = join(getAegisDir(), "per-session-service-touches.json");
+  let store: Record<string, Record<string, { count: number; reconfirmed: boolean }>> = {};
+  try {
+    if (existsSync(file)) {
+      store = JSON.parse(readFileSync(file, "utf-8"));
+    }
+  } catch { store = {}; }
+
+  if (!store[sessionId]) store[sessionId] = {};
+  const slot = store[sessionId][serviceKey] ?? { count: 0, reconfirmed: false };
+  slot.count += 1;
+  const justCrossed = slot.count >= RECONFIRM_THRESHOLD && !slot.reconfirmed;
+  if (justCrossed) slot.reconfirmed = true;
+  store[sessionId][serviceKey] = slot;
+
+  try {
+    const tmp = file + ".tmp";
+    writeFileSync(tmp, JSON.stringify(store), { mode: 0o600 });
+    renameSync(tmp, file);
+  } catch { /* never block tool execution */ }
+
+  return justCrossed;
+}
+
+// Fire-and-forget child process. Reconfirm script writes drift to ~/.aegis/capability-drift.json.
+function spawnReconfirm(serviceKey: string): void {
+  try {
+    const child = spawn("bun", [RECONFIRM_SCRIPT, "--service", serviceKey, "--depth", "2"], {
+      detached: true,
+      stdio: "ignore",
+    });
+    child.unref();
+    process.stderr.write(`[KAVACH:reconfirm] spawned capability-reconfirm for service=${serviceKey}\n`);
+  } catch { /* never block tool execution */ }
+}
+
 // Extract the primary file path from tool input (Read / Edit / Write)
 function extractFilePath(toolName: string, input: Record<string, unknown>): string | null {
   if (toolName === "Read" || toolName === "Edit" || toolName === "Write") {
@@ -155,6 +240,17 @@ function run(): void {
   // @rule:BMC-003 update session_mask when file-touching tools fire
   const filePath = extractFilePath(toolName, payload.tool_input ?? {});
   if (filePath) updateSessionMask(filePath);
+
+  // @rule:BMC-004 / ANKR-T-004 — capability re-confirm on code touch
+  // When Read tool reads the 2nd+ source file of a service in this session,
+  // spawn capability-reconfirm (fire-and-forget; writes drift to ~/.aegis/capability-drift.json).
+  // Trigger once per (session, service) to avoid re-spawning on every subsequent Read.
+  if (toolName === "Read" && filePath) {
+    const serviceKey = findServiceForFile(filePath);
+    if (serviceKey && bumpAndCheckTouchCount(sessionId, serviceKey)) {
+      spawnReconfirm(serviceKey);
+    }
+  }
 
   // @rule:KOS-091 — append tool call to the current open turn for OTLP span assembly
   try {
