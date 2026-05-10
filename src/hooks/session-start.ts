@@ -14,7 +14,8 @@
 
 import { readFileSync, writeFileSync, existsSync, mkdirSync, readdirSync, renameSync, symlinkSync, unlinkSync } from "fs";
 import { join } from "path";
-import { hostname } from "os";
+import { hostname, homedir } from "os";
+import { createHash } from "crypto";
 import { execSync } from "child_process";
 import { detectServiceComposite, runProbe } from "../oracle/probe";
 import { generateBrief } from "../oracle/brief";
@@ -397,8 +398,77 @@ async function run(): Promise<void> {
     }
   } catch { /* mudrika optional at session start */ }
 
+  // @rule:ANKR-T-005 Phase 1 — surface unack'd HIGH capability drift (no block yet)
+  // Phase 2 (later) will switch this to a stdout decision-block via UserPromptSubmit.
+  try { surfaceDriftSummary(); } catch { /* never block session start */ }
+
   process.stderr.write(
     `[KAVACH:session] registered ${sessionId} | host=${desk.hostname} | model=${desk.model ?? "unknown"} | cwd=${cwd}\n`
+  );
+}
+
+// ─── ANKR-T-005 Phase 1 — Capability drift visibility ────────────────────────
+// Reads ~/.aegis/capability-drift.json + ~/.aegis/drift-acknowledgements.jsonl,
+// computes unack'd HIGH count, surfaces summary to stderr. No block (Phase 2).
+// Drift IDs computed via sha256(service_key|drift_type|detail) truncated to 12
+// hex chars — same scheme as /root/aegis-drift-ack.ts CLI.
+
+interface DriftItem {
+  service_key: string;
+  drift_type: string;
+  severity: "HIGH" | "MEDIUM" | "LOW";
+  detail: string;
+}
+
+function computeDriftId(item: DriftItem): string {
+  return createHash("sha256")
+    .update(`${item.service_key}|${item.drift_type}|${item.detail}`)
+    .digest("hex")
+    .slice(0, 12);
+}
+
+function surfaceDriftSummary(): void {
+  const aegisDir = join(homedir(), ".aegis");
+  const driftFile = join(aegisDir, "capability-drift.json");
+  const ackFile = join(aegisDir, "drift-acknowledgements.jsonl");
+  if (!existsSync(driftFile)) return;
+
+  let items: DriftItem[] = [];
+  try {
+    const raw = JSON.parse(readFileSync(driftFile, "utf-8"));
+    items = Array.isArray(raw) ? raw : (raw.drifts ?? raw.items ?? []);
+  } catch { return; }
+
+  const ackedIds = new Set<string>();
+  if (existsSync(ackFile)) {
+    try {
+      const lines = readFileSync(ackFile, "utf-8").split("\n").filter(Boolean);
+      for (const line of lines) {
+        try {
+          const ack = JSON.parse(line) as { drift_id?: string };
+          if (ack.drift_id) ackedIds.add(ack.drift_id);
+        } catch {}
+      }
+    } catch {}
+  }
+
+  const high = items.filter(i => i.severity === "HIGH");
+  const unackedHigh = high.filter(i => !ackedIds.has(computeDriftId(i)));
+  if (unackedHigh.length === 0) return;
+
+  // Group by service_key for compact display
+  const byService: Record<string, number> = {};
+  for (const item of unackedHigh) {
+    byService[item.service_key] = (byService[item.service_key] ?? 0) + 1;
+  }
+  const summary = Object.entries(byService)
+    .sort(([, a], [, b]) => b - a)
+    .map(([k, n]) => `${k}:${n}`)
+    .join(" · ");
+
+  process.stderr.write(
+    `[KAVACH:drift] ${unackedHigh.length} HIGH unack'd (of ${high.length} HIGH total) — ${summary}\n` +
+    `[KAVACH:drift] review/ack: bun /root/aegis-drift-ack.ts  (Phase 1: visibility only; Phase 2 will block)\n`
   );
 }
 
