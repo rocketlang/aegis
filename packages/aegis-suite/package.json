@@ -1,0 +1,76 @@
+{
+  "name": "@rocketlang/aegis-suite",
+  "version": "0.1.0",
+  "description": "Meta-package — installs the full @rocketlang AI agent governance stack in one shot: aegis + kavachos + aegis-guard + chitta-detect + lakshmanrekha + hanumang-mandate. Open-source counter to Fin Operator's hosted governance plane.",
+  "license": "AGPL-3.0-only",
+  "type": "module",
+  "author": "Capt. Anil Sharma <capt.anil.sharma@powerpbox.org>",
+  "homepage": "https://github.com/rocketlang/aegis/tree/main/packages/aegis-suite",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/rocketlang/aegis.git",
+    "directory": "packages/aegis-suite"
+  },
+  "bugs": {
+    "url": "https://github.com/rocketlang/aegis/issues"
+  },
+  "keywords": [
+    "aegis",
+    "aegis-suite",
+    "rocketlang",
+    "xshieldai",
+    "ai-governance",
+    "ai-agent-safety",
+    "agent-spend",
+    "agent-behavior",
+    "memory-poisoning",
+    "llm-redteam",
+    "agent-delegation",
+    "open-source",
+    "fin-operator-alternative"
+  ],
+  "exports": {
+    ".": {
+      "import": "./src/index.ts",
+      "types": "./src/index.ts"
+    }
+  },
+  "main": "./src/index.ts",
+  "files": [
+    "src/",
+    "README.md",
+    "LICENSE"
+  ],
+  "dependencies": {
+    "@rocketlang/aegis": "^2.1.0",
+    "@rocketlang/kavachos": "^2.0.2",
+    "@rocketlang/aegis-guard": "^0.1.0",
+    "@rocketlang/chitta-detect": "^0.1.0",
+    "@rocketlang/lakshmanrekha": "^0.1.0",
+    "@rocketlang/hanumang-mandate": "^0.1.0"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "typescript": "^5.4.0",
+    "@types/node": "^20.0.0"
+  },
+  "engines": {
+    "bun": ">=1.0.0",
+    "node": ">=18.0.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "aegis_suite": {
+    "purpose": "single-install bundle of the OSS half of the AEGIS / KavachOS / xShieldAI governance stack",
+    "bundled_packages": 6,
+    "deliberately_excluded": [
+      "@rocketlang/n8n-nodes-kavachos (n8n-specific integration, install separately if using n8n)"
+    ],
+    "not_bundled_because_ee": [
+      "@rocketlang/kavachos-ee (BSL-1.1, not on npm — contact captain@ankr.in)"
+    ]
+  }
+}
