@@ -1,0 +1,70 @@
+{
+  "name": "@rocketlang/chitta-detect",
+  "version": "0.1.0",
+  "description": "Memory poisoning detection primitives for AI agents — pure pattern matchers (RAG trust, agent-role imperatives, tool-output poisoning, capability expansion, injection fingerprints). Extracted from chitta-guard.",
+  "license": "AGPL-3.0-only",
+  "type": "module",
+  "author": "Capt. Anil Sharma <capt.anil.sharma@powerpbox.org>",
+  "homepage": "https://github.com/rocketlang/aegis/tree/main/packages/chitta-detect",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/rocketlang/aegis.git",
+    "directory": "packages/chitta-detect"
+  },
+  "bugs": {
+    "url": "https://github.com/rocketlang/aegis/issues"
+  },
+  "keywords": [
+    "chitta",
+    "chitta-guard",
+    "xshieldai",
+    "rocketlang",
+    "ai-governance",
+    "ai-agent-safety",
+    "memory-poisoning",
+    "prompt-injection",
+    "rag-security",
+    "agent-safety",
+    "tool-output-validation"
+  ],
+  "exports": {
+    ".": {
+      "import": "./src/index.ts",
+      "types": "./src/index.ts"
+    }
+  },
+  "main": "./src/index.ts",
+  "files": [
+    "src/",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "typescript": "^5.4.0",
+    "@types/node": "^20.0.0"
+  },
+  "engines": {
+    "bun": ">=1.0.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "chitta_detect": {
+    "extracted_from": "chitta-guard (internal Fastify service)",
+    "rules_implemented": [
+      "CG-002", "CG-003", "CG-006", "CG-010", "CG-012",
+      "CG-YK-001", "CG-YK-002", "CG-YK-003", "CG-YK-006", "CG-YK-007",
+      "INF-CG-001", "INF-CG-002", "INF-CG-004", "INF-CG-005", "INF-CG-006"
+    ],
+    "rules_left_in_ee": [
+      "CG-006 (DB persistence)",
+      "CG-007 (PRAMANA receipt emit)",
+      "CG-008 (immutable quarantine store)",
+      "CG-009 (baseline supersede chain)",
+      "CG-YK-006 (posture persistence across restarts)"
+    ]
+  }
+}
