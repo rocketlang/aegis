@@ -536,6 +536,29 @@ Read the incident that spawned this project: [`docs/incident.md`](docs/incident.
 
 ---
 
+## On the category — Fin Operator and the case for open primitives
+
+On **15 May 2026**, Intercom (since renamed to **Fin**) launched [Fin Operator](https://www.fin.ai/), a Pro-tier subscription product whose **"proposal system"** puts a human approval gate between an AI agent and the systems it changes. Every modification appears as a diff. Nothing goes live without a click.
+
+If you've read this far, you'll recognise the pattern — it is structurally the same as the KAVACH DAN Gate above. A pull-request-shaped intercept between agent intent and irreversible action.
+
+AEGIS was born from a real $200 incident on **17 April 2026**, about a month before Fin Operator's launch. The 7-axis HanumanG spawn check, the PRAMANA attestation chain, and the human-approval default-deny gate are the same architectural primitives that a $400M-ARR vendor has now validated as the category answer to agentic governance.
+
+| | Fin Operator (2026-05-15) | AEGIS (2026-04-17) |
+|---|---|---|
+| Distribution | Pro-tier subscription, vendor-hosted | `npm install @rocketlang/aegis`, self-hosted |
+| License | Proprietary | AGPL-3.0 (kernel) + BSL-1.1 → AGPL-3.0 in 4 years (EE) |
+| Scope | Bound to the Fin platform | Vendor-neutral (Claude Code, OpenAI Codex, Cursor, custom) |
+| Self-host | No | Yes — local-first by default |
+| Audit | Trust the vendor | `grep -rn "fetch(" src/` |
+| Pricing | Pro tier + usage blocks | $0 OSS · BSL-1.1 EE free up to 3 concurrent sessions |
+
+AEGIS does not compete with Fin Operator on customer-service workflows — that is a different product surface and not the contest. AEGIS competes with the *idea* that agent governance has to be a subscription you cannot read the source of.
+
+The category becoming legitimate is welcome news. The primitive being open is the part worth choosing.
+
+---
+
 ## AGPL3 Core vs Enterprise Edition (EE)
 
 KavachOS ships in two tiers. The kernel enforcement layer — the part that actually stops syscalls — is **open source**. You can audit what runs next to your production agents.
