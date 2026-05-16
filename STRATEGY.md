@@ -106,6 +106,22 @@ ankrSLM internals · base weights · Layer-1 architecture · classified
 
 ---
 
+## The codex+Forja answer to scope discovery (added 2026-05-16)
+
+A Brandon Foley CNCF benchmark (2026-05-15) of AI agents on Kubernetes bugs surfaced a finding worth quoting directly:
+
+> "The dominant failure mode was not incorrect fixes but incomplete ones. Agents addressed the 'main' bug while overlooking adjacent changes... Agents don't ask 'what else needs to change?' They stop once the immediate issue appears resolved."
+
+The article concludes that "structured agent skills or curated playbooks might improve system-level reasoning. However, in large codebases, these skills require constant maintenance to stay aligned with the repository."
+
+**ANKR's `codex.json` + Forja architecture is one answer to this exact problem.** Every service declares its `can_do`, `can_answer`, `emits`, `depends_on` in a machine-readable manifest that the agent reads BEFORE acting. The Forja PROOF endpoint verifies the codex stays in sync with code (FRJ-P-001) — so the "constant maintenance" concern the article raises is addressed by build-time enforcement, not by humans manually keeping playbooks current.
+
+This isn't a feature claim — it's a discipline that the OSS stack already implements. The `@rocketlang/aegis` package + the codex+Forja pattern across the 290-service universe is a worked example of the structured-playbook approach the article calls for. Worth surfacing in future positioning (a blog post when there's a blog; a Zenodo paper as an extension of the existing AEGIS DOI 10.5281/zenodo.19625473).
+
+**Implication for the extraction queue:** the scope-discovery gap suggests a sibling primitive package — `@rocketlang/scope-mandate` — that scores agents on three additional axes (scope_completeness, dependency_propagation, reuse_first). Queued as candidate #11 in `EXTRACTION-QUEUE.md`.
+
+---
+
 ## Resolution path
 
 This document is locked v1.0 as of 2026-05-16 late evening. Updates when:
