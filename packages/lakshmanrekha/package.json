@@ -1,0 +1,71 @@
+{
+  "name": "@rocketlang/lakshmanrekha",
+  "version": "0.1.0",
+  "description": "LLM endpoint probe suite — 8 deterministic attack probes + replayable refusal classifier + multi-provider runner (OpenAI / Anthropic / Azure / ankr-proxy). Extracted from xshieldai-asm-ai-module.",
+  "license": "AGPL-3.0-only",
+  "type": "module",
+  "author": "Capt. Anil Sharma <capt.anil.sharma@powerpbox.org>",
+  "homepage": "https://github.com/rocketlang/aegis/tree/main/packages/lakshmanrekha",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/rocketlang/aegis.git",
+    "directory": "packages/lakshmanrekha"
+  },
+  "bugs": {
+    "url": "https://github.com/rocketlang/aegis/issues"
+  },
+  "keywords": [
+    "lakshmanrekha",
+    "xshieldai",
+    "rocketlang",
+    "llm-security",
+    "ai-redteam",
+    "prompt-injection",
+    "llm-probes",
+    "ai-safety",
+    "jailbreak-detection",
+    "byok",
+    "owasp-llm-top10",
+    "nist-ai-rmf",
+    "eu-ai-act"
+  ],
+  "exports": {
+    ".": {
+      "import": "./src/index.ts",
+      "types": "./src/index.ts"
+    }
+  },
+  "main": "./src/index.ts",
+  "files": [
+    "src/",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "typescript": "^5.4.0",
+    "@types/node": "^20.0.0"
+  },
+  "engines": {
+    "bun": ">=1.0.0",
+    "node": ">=18.0.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "lakshmanrekha": {
+    "extracted_from": "xshieldai-asm-ai-module (internal Fastify service, port 4256)",
+    "phase": "phase-1-complete (deterministic regex classifier; sequential runner)",
+    "probes_included": 8,
+    "framework_mappings": ["NIST AI RMF", "EU AI Act", "ISO 42001"],
+    "rules_implemented": ["ASMAI-S-001", "ASMAI-S-002", "ASMAI-S-003", "ASMAI-S-005"],
+    "rules_left_in_ee": [
+      "ASMAI-S-006 (ownership verification — honor-system only in OSS)",
+      "ASMAI-S-007 (rules-of-engagement gate)",
+      "Attestation persistence (SQLite-backed)",
+      "Forja STATE/TRUST/SENSE/PROOF endpoints"
+    ]
+  }
+}
