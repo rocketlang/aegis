@@ -1,6 +1,6 @@
 # AEGIS — Open-Core Boundary Doc
 
-**Status:** v0.3 — reflects the 4-package campaign of 2026-05-16. Supersedes v0.2.
+**Status:** v0.4 — adds the `@rocketlang/aegis-suite` meta-package (path-A consolidation). Supersedes v0.3.
 **Lives at:** `/root/aegis/OPEN-CORE-BOUNDARY.md` (co-located with code; doc and code change together)
 **Audience:** ANKR contributors, future cohort members, anyone deciding "does this go in the AGPL-3.0 OSS package or the BSL-1.1 EE package"
 
@@ -27,8 +27,9 @@ This is the same shape Sentry, MariaDB, CockroachDB use — BSL with a Change Da
 | `@rocketlang/chitta-detect` | 0.1.0 | new (2026-05-16 10:46 UTC) | Memory-poisoning detection primitives (8 namespaces: trust, imperative, toolOutput, capabilityExpansion, fingerprint, rateLimit, retrospective, scan) — extracted from chitta-guard |
 | `@rocketlang/lakshmanrekha` | 0.1.0 | new (2026-05-16 12:00 UTC) | LLM endpoint probe suite (8 probes + deterministic refusal classifier + multi-provider runner) — extracted from xshieldai-asm-ai-module |
 | `@rocketlang/hanumang-mandate` | 0.1.0 | new (2026-05-16 12:30 UTC) | Mudrika delegation-credential verifier + 7-axis posture scorer — extracted from xshieldai-hanumang |
+| `@rocketlang/aegis-suite` | 0.1.0 | new (2026-05-16 12:58 UTC) | **Meta-package** — single-install bundle: depends on 6 OSS primitives above (excludes n8n-nodes-kavachos which is integration-specific). `npm install @rocketlang/aegis-suite` pulls the full OSS stack. |
 
-**Total monthly downloads across @rocketlang npm (as of campaign):** ~1,372 (older 3) + 0 (new 4). New packages start at 0 by definition; expect adoption to compound over the next 30 days.
+**Total monthly downloads across @rocketlang npm (as of campaign):** ~1,372 (older 3) + 0 (new 5). New packages start at 0 by definition; expect adoption to compound over the next 30 days.
 
 ### LIVE on PyPI (AGPL-3.0)
 
@@ -204,6 +205,7 @@ If this doc and reality ever diverge, **reality is wrong**, not the doc. The doc
 - **v0.1** (2026-05-16, morning) — greenfield-shaped; said EE was "commercial EULA"; assumed `@xshieldai` scope. Wrong on three counts. Replaced.
 - **v0.2** (2026-05-16, afternoon) — reality-aligned after KAVACH triage. Captured 3 live packages + EE BSL-1.1 reality. §6 added for three-HanumanG situation.
 - **v0.3** (2026-05-16, evening) — adds 4 packages shipped today: aegis-guard, chitta-detect, lakshmanrekha, hanumang-mandate. §6 updated: now FOUR HanumanG implementations (2 OSS, 1 EE, 1 internal). §2 grew. §8 EE pipeline gained the 3 internal-service-hosted-versions as natural future-EE candidates that would consume the new OSS primitives.
+- **v0.4** (2026-05-16, late evening) — adds `@rocketlang/aegis-suite` meta-package (path-A consolidation per founder ask). §2 LIVE-on-npm table grows by one row; ecosystem now 8 packages. Meta-package is the convenience installer (`npm install @rocketlang/aegis-suite` → all 6 OSS primitives), deliberately does NOT re-export sub-packages (imports stay honest about which primitive is in use). Excludes n8n-nodes-kavachos (integration-specific) and kavachos-ee (BSL-1.1, not on npm).
 
 ---
 
@@ -221,4 +223,4 @@ If this doc and reality ever diverge, **reality is wrong**, not the doc. The doc
 
 ---
 
-*End of boundary doc v0.3. ~2,400 words. Lives at `/root/aegis/OPEN-CORE-BOUNDARY.md`. Updated 2026-05-16 evening after the 4-package campaign.*
+*End of boundary doc v0.4. ~2,450 words. Lives at `/root/aegis/OPEN-CORE-BOUNDARY.md`. Updated 2026-05-16 late evening after `@rocketlang/aegis-suite` meta-package shipped (5th publish of the day).*
