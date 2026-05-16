@@ -1,0 +1,81 @@
+{
+  "name": "@rocketlang/hanumang-mandate",
+  "version": "0.1.0",
+  "description": "HanumanG mandate primitives — Mudrika delegation credential verifier + 7-axis posture scorer (mudrika_integrity, identity_broadcast, mandate_bounds, proportional_force, return_with_proof, no_overreach, truthful_report). Extracted from xshieldai-hanumang.",
+  "license": "AGPL-3.0-only",
+  "type": "module",
+  "author": "Capt. Anil Sharma <capt.anil.sharma@powerpbox.org>",
+  "homepage": "https://github.com/rocketlang/aegis/tree/main/packages/hanumang-mandate",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/rocketlang/aegis.git",
+    "directory": "packages/hanumang-mandate"
+  },
+  "bugs": {
+    "url": "https://github.com/rocketlang/aegis/issues"
+  },
+  "keywords": [
+    "hanumang",
+    "mudrika",
+    "xshieldai",
+    "rocketlang",
+    "ai-agent-delegation",
+    "agent-governance",
+    "ai-attestation",
+    "posture-scoring",
+    "agent-safety",
+    "delegation-credential",
+    "ai-mandate"
+  ],
+  "exports": {
+    ".": {
+      "import": "./src/index.ts",
+      "types": "./src/index.ts"
+    }
+  },
+  "main": "./src/index.ts",
+  "files": [
+    "src/",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "typescript": "^5.4.0",
+    "@types/node": "^20.0.0"
+  },
+  "engines": {
+    "bun": ">=1.0.0",
+    "node": ">=18.0.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "hanumang_mandate": {
+    "extracted_from": "xshieldai-hanumang (internal Fastify service, port 4255)",
+    "complementary_to": "@rocketlang/aegis HanumanG (spawn-time governance)",
+    "phase": "phase-1-complete (structural mudrika verification; signature crypto deferred to phase-2)",
+    "rules_implemented": [
+      "HNG-S-001 (mudrika integrity axis)",
+      "HNG-S-002 (identity broadcast axis)",
+      "HNG-S-003 (mandate bounds axis)",
+      "HNG-S-004 (proportional force axis)",
+      "HNG-S-005 (return with proof axis)",
+      "HNG-S-006 (no overreach axis)",
+      "HNG-S-007 (truthful report axis)",
+      "HNG-S-008 (mudrika structure)",
+      "HNG-S-009 (mudrika TTL check)",
+      "HNG-S-010 (trust_mask range)",
+      "HNG-YK-001 (worst-axis floor aggregate grade)"
+    ],
+    "rules_left_in_ee": [
+      "HNG-S-011 (revocation URL reachability — requires HTTP)",
+      "Signature crypto verification (Phase-2)",
+      "Attestation persistence (SQLite-backed)",
+      "Regression alert routing (partial in EE)",
+      "Forja STATE/TRUST/SENSE/PROOF endpoints"
+    ]
+  }
+}
