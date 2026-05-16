@@ -1,4 +1,4 @@
-// @ankr/aegis-guard — AEGIS Guard SDK public API
+// @rocketlang/aegis-guard — AEGIS Guard SDK public API
 // Five Locks proved in carbonx-backend (batches 62-74). Batch 93 makes them reusable.
 
 export { IrrNoApprovalError, AegisNonceError } from './errors.js';

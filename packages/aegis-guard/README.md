@@ -1,4 +1,4 @@
-# @ankr/aegis-guard
+# @rocketlang/aegis-guard
 
 AEGIS Guard SDK — reusable approval-token, nonce, idempotency, SENSE, and quality-evidence primitives for AEGIS-governed services.
 
@@ -19,7 +19,9 @@ The Five Locks were proven across 13 batches (62–74) of carbonx-backend. This 
 ## Install
 
 ```bash
-bun add @ankr/aegis-guard
+bun add @rocketlang/aegis-guard
+# or
+npm install @rocketlang/aegis-guard
 ```
 
 ## Usage
@@ -27,7 +29,7 @@ bun add @ankr/aegis-guard
 ### LOCK_1 + LOCK_2 — decision + identity
 
 ```typescript
-import { verifyApprovalToken, verifyScopedApprovalToken } from '@ankr/aegis-guard';
+import { verifyApprovalToken, verifyScopedApprovalToken } from '@rocketlang/aegis-guard';
 
 // LOCK_1 — base token verification (service_id + capability + operation)
 const payload = verifyApprovalToken(token, 'my-service', 'settle', 'record_settle');
@@ -42,7 +44,7 @@ const payload = verifyScopedApprovalToken(
 ### LOCK_3 — observability (SENSE)
 
 ```typescript
-import { emitAegisSenseEvent, digestApprovalToken, configureSenseTransport } from '@ankr/aegis-guard';
+import { emitAegisSenseEvent, digestApprovalToken, configureSenseTransport } from '@rocketlang/aegis-guard';
 
 // Wire your logger (default: process.stdout JSON)
 configureSenseTransport((event) => logger.info(event, `SENSE:${event.event_type}`));
@@ -65,7 +67,7 @@ emitAegisSenseEvent({
 ### LOCK_4 — rollback guard (idempotency check)
 
 ```typescript
-import { checkIdempotency, buildIdempotencyFingerprint } from '@ankr/aegis-guard';
+import { checkIdempotency, buildIdempotencyFingerprint } from '@rocketlang/aegis-guard';
 
 const existing = await db.findByExternalRef(args.externalRef);
 const fp = buildIdempotencyFingerprint({ amount: args.amount, vessel_id: args.vesselId });
@@ -78,7 +80,7 @@ if (isDuplicate && !safeNoOp) throw new Error('payload mismatch on duplicate ext
 ### LOCK_5 — nonce replay prevention
 
 ```typescript
-import { verifyAndConsumeNonce } from '@ankr/aegis-guard';
+import { verifyAndConsumeNonce } from '@rocketlang/aegis-guard';
 
 // Requires nonce in payload; throws IrrNoApprovalError on missing or replayed nonce
 await verifyAndConsumeNonce(payload, redisNonceStore);
@@ -87,7 +89,7 @@ await verifyAndConsumeNonce(payload, redisNonceStore);
 ### Quality evidence
 
 ```typescript
-import { buildQualityMaskAtPromotion, meetsHgQualityRequirement } from '@ankr/aegis-guard';
+import { buildQualityMaskAtPromotion, meetsHgQualityRequirement } from '@rocketlang/aegis-guard';
 
 const mask = buildQualityMaskAtPromotion({
   tests_passed: true,
@@ -103,7 +105,7 @@ const ready = meetsHgQualityRequirement('HG-2B-financial', mask);
 The default `defaultNonceStore` is in-memory (single-process only). Multi-instance deployments must provide a Redis-backed store:
 
 ```typescript
-import { type NonceStore } from '@ankr/aegis-guard';
+import { type NonceStore } from '@rocketlang/aegis-guard';
 
 const redisNonceStore: NonceStore = {
   async consumeNonce(nonce, ttlMs) {

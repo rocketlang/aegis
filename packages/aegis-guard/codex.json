@@ -1,6 +1,6 @@
 {
   "service_key": "aegis-guard",
-  "service_name": "@ankr/aegis-guard",
+  "service_name": "@rocketlang/aegis-guard",
   "description": "AEGIS Guard SDK — reusable approval-token, nonce, idempotency, SENSE, and quality-evidence primitives for AEGIS-governed services",
   "port": null,
   "type": "sdk-package",

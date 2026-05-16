@@ -1,4 +1,4 @@
-// @ankr/aegis-guard — SDK MVP test suite (Batch 93)
+// @rocketlang/aegis-guard — SDK MVP test suite (Batch 93)
 // 63 checks across §1-§9 covering all Five Locks primitives
 
 import { describe, it, expect, beforeEach } from 'bun:test';
