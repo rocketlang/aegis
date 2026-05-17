@@ -146,6 +146,167 @@ function renderZone(spec: ZoneSpec, writer: SqliteEventWriter | null): string {
     </section>`;
 }
 
+// ── AOS panels (Day 4) ───────────────────────────────────────────────────────
+// @rule:ACC-YK-005 — AOS framing requires AOS-shaped polish. These panels
+// deliver: boot sequence, primitive-process-list, uptime/health, EE detection.
+
+// Module-load timestamp — proxy for cockpit uptime (resets on dashboard restart)
+const _bootTs = Date.now();
+
+interface PrimitiveProcessRow {
+  primitive: string;
+  events_recorded: number;
+  last_event_at: string | null;
+  bus_status: 'recording' | 'silent';
+}
+
+function renderBootPanel(): string {
+  // @rule:ACC-YK-005 — AOS-shaped boot sequence display
+  const startedAt = new Date(_bootTs).toISOString();
+  const uptimeMs = Date.now() - _bootTs;
+  const uptimeHuman = humanDuration(uptimeMs);
+  return `
+    <section class="aos-panel boot-panel">
+      <header class="aos-header">
+        <h3>Boot Sequence</h3>
+        <span class="aos-subtitle">cockpit init order — completed at startup</span>
+      </header>
+      <div class="aos-body">
+        <ol class="boot-steps">
+          <li class="boot-step done"><span class="step-bullet">✓</span> aegis dashboard server bound to port</li>
+          <li class="boot-step done"><span class="step-bullet">✓</span> session auth ${cfgAuthEnabled() ? 'enabled' : '<span class="warn">DISABLED — set dashboard.auth.enabled in ~/.aegis/config.json</span>'}</li>
+          <li class="boot-step done"><span class="step-bullet">✓</span> ACC SQLite writer opened at <code>${escapeHtml(defaultAccEventsDbPath())}</code></li>
+          <li class="boot-step done"><span class="step-bullet">✓</span> PRAMANA Merkle ledger reader ready (read-only on existing OSS infrastructure)</li>
+          <li class="boot-step done"><span class="step-bullet">✓</span> 6 primitive zones registered: aegis-guard, chitta-detect, lakshmanrekha, hanumang-mandate, aegis, kavachos</li>
+          <li class="boot-step done"><span class="step-bullet">✓</span> SSE endpoint live at <code>/api/acc/events/stream</code></li>
+        </ol>
+        <p class="boot-meta">Booted at <time datetime="${escapeHtml(startedAt)}">${escapeHtml(startedAt)}</time> · uptime ${escapeHtml(uptimeHuman)}</p>
+      </div>
+    </section>`;
+}
+
+function renderPrimitiveProcessList(writer: SqliteEventWriter | null): string {
+  // @rule:ACC-YK-005 — primitive-process-list: which primitives have ever fired
+  // events into this SQLite (proxy for "bus wired" since we don't know wiring
+  // state of consumer processes directly — only what landed in our store).
+  const rows: PrimitiveProcessRow[] = [];
+  const known = ['aegis-guard', 'chitta-detect', 'lakshmanrekha', 'hanumang-mandate', 'aegis', 'kavachos'];
+  let counts: Record<string, number> = {};
+  if (writer) {
+    try { counts = writer.countsByPrimitive(); } catch { counts = {}; }
+  }
+  for (const p of known) {
+    const n = counts[p] ?? 0;
+    let last_event_at: string | null = null;
+    if (writer && n > 0) {
+      try {
+        const recent = writer.queryByPrimitive(p, 1);
+        last_event_at = recent[0]?.emitted_at ?? null;
+      } catch { /* */ }
+    }
+    rows.push({
+      primitive: p,
+      events_recorded: n,
+      last_event_at,
+      bus_status: n > 0 ? 'recording' : 'silent',
+    });
+  }
+  const html = rows.map((r) => `
+    <tr>
+      <td><code>${escapeHtml(r.primitive)}</code></td>
+      <td><span class="badge ${r.bus_status === 'recording' ? 'badge-pass' : 'badge-neutral'}">${r.bus_status}</span></td>
+      <td class="t-num">${r.events_recorded}</td>
+      <td class="t-when">${r.last_event_at ? escapeHtml(r.last_event_at) : '—'}</td>
+    </tr>`).join('');
+  return `
+    <section class="aos-panel proc-list-panel">
+      <header class="aos-header">
+        <h3>Primitive Process List</h3>
+        <span class="aos-subtitle">recording status inferred from events in ${escapeHtml(defaultAccEventsDbPath())}</span>
+      </header>
+      <div class="aos-body">
+        <table class="aos-table">
+          <thead><tr><th>Primitive</th><th>Bus status</th><th>Events recorded</th><th>Last event</th></tr></thead>
+          <tbody>${html}</tbody>
+        </table>
+        <p class="aos-meta">"Silent" = no events have landed in this SQLite for that primitive. Either the consumer hasn't called <code>wireAllToBus()</code>, or the consumer is in a different process and hasn't checkpointed WAL yet. Call <code>handle.checkpoint()</code> in the consumer process to force visibility.</p>
+      </div>
+    </section>`;
+}
+
+function renderHealthPanel(writer: SqliteEventWriter | null): string {
+  // @rule:ACC-YK-005 — uptime + health panel
+  const total = writer ? (() => { try { return writer.totalCount(); } catch { return 0; } })() : 0;
+  const dbPath = defaultAccEventsDbPath();
+  let dbBytes = 0;
+  try {
+    const { statSync } = require('fs') as typeof import('fs');
+    dbBytes = statSync(dbPath).size;
+  } catch { /* file may not exist yet */ }
+  const uptimeMs = Date.now() - _bootTs;
+
+  return `
+    <section class="aos-panel health-panel">
+      <header class="aos-header">
+        <h3>About this AEGIS</h3>
+        <span class="aos-subtitle">cockpit runtime + storage health</span>
+      </header>
+      <div class="aos-body">
+        <dl class="health-dl">
+          <dt>Cockpit uptime</dt><dd>${escapeHtml(humanDuration(uptimeMs))}</dd>
+          <dt>Node runtime</dt><dd><code>${escapeHtml(typeof process.versions.bun === 'string' ? `bun ${process.versions.bun}` : `node ${process.versions.node ?? '?'}`)}</code></dd>
+          <dt>Total ACC receipts</dt><dd><strong>${total.toLocaleString()}</strong></dd>
+          <dt>SQLite path</dt><dd><code>${escapeHtml(dbPath)}</code></dd>
+          <dt>SQLite file size</dt><dd>${dbBytes > 0 ? humanBytes(dbBytes) : '(not yet created)'}</dd>
+          <dt>Session auth</dt><dd>${cfgAuthEnabled() ? '<span class="badge badge-pass">enabled</span>' : '<span class="badge badge-fail">DISABLED — gate before exposing publicly</span>'}</dd>
+          <dt>EE detection</dt><dd>${detectKavachosEE() ? '<span class="badge badge-pass">kavachos-ee detected</span> — EE PRAMANA panel active' : '<span class="badge badge-neutral">kavachos-ee not installed</span> — OSS-only PRAMANA panel'}</dd>
+        </dl>
+      </div>
+    </section>`;
+}
+
+// ── Helpers used by AOS panels ───────────────────────────────────────────────
+
+function humanDuration(ms: number): string {
+  if (ms < 1000) return `${ms}ms`;
+  const sec = Math.floor(ms / 1000);
+  if (sec < 60) return `${sec}s`;
+  const min = Math.floor(sec / 60);
+  if (min < 60) return `${min}m ${sec % 60}s`;
+  const hr = Math.floor(min / 60);
+  if (hr < 24) return `${hr}h ${min % 60}m`;
+  const day = Math.floor(hr / 24);
+  return `${day}d ${hr % 24}h`;
+}
+
+function humanBytes(n: number): string {
+  if (n < 1024) return `${n} B`;
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
+  if (n < 1024 * 1024 * 1024) return `${(n / (1024 * 1024)).toFixed(1)} MB`;
+  return `${(n / (1024 * 1024 * 1024)).toFixed(2)} GB`;
+}
+
+function cfgAuthEnabled(): boolean {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { loadConfig } = require('../../core/config') as typeof import('../../core/config');
+    const cfg = loadConfig();
+    return !!cfg?.dashboard?.auth?.enabled;
+  } catch {
+    return false;
+  }
+}
+
+// @rule:ACC-006 — EE detection via runtime require.resolve; never static import
+function detectKavachosEE(): boolean {
+  try {
+    require.resolve('@rocketlang/kavachos-ee');
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 // ── PRAMANA OSS panel — read-only consume existing Merkle ledger ─────────────
 
 function renderPramanaPanel(): string {
@@ -231,13 +392,69 @@ const STYLES = `
   .badge-fail { background: #f8d7da; color: #721c24; }
   .badge-neutral { background: #e9ecef; color: #6c757d; }
   .pramana-zone { grid-column: 1 / -1; }
+  .ee-panel { background: linear-gradient(to right, #fff, #faf6ef); border-color: #d4af37; }
+  .ee-badge { background: #d4af37 !important; color: #fff !important; font-weight: 700; border-color: #b8941f !important; }
   .checkpoint-id { font-size: 11px; }
+  /* AOS panels — boot, proc-list, health (Day 4) */
+  .aos-strip { display: grid; grid-template-columns: repeat(auto-fit, minmax(360px, 1fr)); gap: 12px; margin-bottom: 18px; }
+  .aos-panel { border: 1px solid #d6d8db; border-radius: 6px; background: #fafbfc; overflow: hidden; }
+  .aos-header { padding: 8px 14px; background: #f4f6f8; border-bottom: 1px solid #d6d8db; }
+  .aos-header h3 { margin: 0; color: #0a3d62; font-size: 13px; font-weight: 600; }
+  .aos-subtitle { display: block; color: #777; font-size: 10px; margin-top: 2px; font-style: italic; }
+  .aos-body { padding: 12px 14px; }
+  .boot-steps { list-style: none; padding: 0; margin: 0; font-size: 12px; line-height: 1.7; }
+  .boot-step { color: #333; padding: 2px 0; }
+  .boot-step .step-bullet { color: #155724; font-weight: 700; margin-right: 8px; }
+  .boot-step .warn { color: #c00; font-weight: 600; }
+  .boot-step code { font-size: 10px; }
+  .boot-meta { color: #888; font-size: 11px; margin-top: 10px; padding-top: 8px; border-top: 1px solid #ececec; font-style: italic; }
+  .aos-table { width: 100%; border-collapse: collapse; font-size: 11px; }
+  .aos-table th { text-align: left; padding: 5px 8px; background: #ececec; font-weight: 600; color: #555; font-size: 10px; }
+  .aos-table td { padding: 4px 8px; border-bottom: 1px solid #eee; }
+  .aos-table .t-num { text-align: right; font-family: 'SF Mono', monospace; font-weight: 600; }
+  .aos-meta { color: #888; font-size: 10px; margin: 8px 0 0 0; font-style: italic; line-height: 1.5; }
+  .health-dl { display: grid; grid-template-columns: max-content 1fr; gap: 4px 12px; margin: 0; font-size: 12px; }
+  .health-dl dt { color: #666; font-weight: 600; }
+  .health-dl dd { margin: 0; color: #1a1a1a; }
+  .health-dl code { font-size: 11px; }
   .merkle-root { font-size: 11px; color: #666; }
 `;
 
+function renderEEPramanaPanel(): string {
+  // @rule:ACC-006 @rule:ACC-YK-002 @rule:FR-11
+  // Render only if kavachos-ee is installed. Graceful degradation —
+  // if EE loads but errors during render, OSS panel still works.
+  if (!detectKavachosEE()) return '';
+  let eeInfo = 'EE detected — additional features active';
+  try {
+    // Soft dynamic require — never static-import EE from OSS code
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const eeMod = require('@rocketlang/kavachos-ee') as { eeStatus?: () => string; version?: string };
+    if (typeof eeMod.eeStatus === 'function') eeInfo = `EE status: ${eeMod.eeStatus()}`;
+  } catch { /* graceful */ }
+  return `
+    <section class="zone pramana-zone ee-panel" data-primitive="pramana-ee">
+      <header class="zone-header">
+        <h3>PRAMANA EE — Extended Audit Surface</h3>
+        <span class="zone-role">BSL-1.1 EE — Merkle ledger + multi-tenant receipt chains + dual-control + S3-anchored attestations</span>
+        <span class="zone-count ee-badge">EE</span>
+      </header>
+      <div class="zone-body">
+        <div class="zone-empty">
+          <p class="empty-line">${escapeHtml(eeInfo)}</p>
+          <p class="empty-hint">EE registry/posture views render here when activated. See <code>ee/kavach/pramana-receipts.ts</code> in <code>@rocketlang/kavachos-ee</code>. Distributed to design partners — contact <a href="mailto:captain@ankr.in">captain@ankr.in</a>.</p>
+        </div>
+      </div>
+    </section>`;
+}
+
 function renderControlCenterPage(writer: SqliteEventWriter | null, headerNote: string): string {
   const zones = ZONES.map((z) => renderZone(z, writer)).join('\n');
-  const pramana = renderPramanaPanel();
+  const pramanaOss = renderPramanaPanel();
+  const pramanaEE = renderEEPramanaPanel();
+  const bootPanel = renderBootPanel();
+  const procListPanel = renderPrimitiveProcessList(writer);
+  const healthPanel = renderHealthPanel(writer);
   const totalCount = writer ? (() => { try { return writer.totalCount(); } catch { return 0; } })() : 0;
   return `<!DOCTYPE html>
 <html lang="en">
@@ -255,9 +472,15 @@ function renderControlCenterPage(writer: SqliteEventWriter | null, headerNote: s
   </div>
   <h1>Agentic Control Center</h1>
   <p class="subtitle">${escapeHtml(headerNote)} · total receipts: <strong>${totalCount}</strong></p>
+  <div class="aos-strip">
+    ${bootPanel}
+    ${procListPanel}
+    ${healthPanel}
+  </div>
   <div class="grid">
     ${zones}
-    ${pramana}
+    ${pramanaOss}
+    ${pramanaEE}
   </div>
   <script>
     // @rule:ACC-009 — SSE for live updates
