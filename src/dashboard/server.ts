@@ -22,7 +22,7 @@ import { registerAuthRoutes } from "../auth/routes";
 import { registerEnforcementRoutes } from "./routes/enforcement";
 import { registerAseRoutes } from "./routes/ase";
 import { registerMachineLawRoutes } from "./routes/machine-law";
-import { registerCockpitRoutes } from "./routes/cockpit";  // @rule:COCKPIT-001
+import { registerAccRoutes } from "./routes/acc";  // @rule:ACC-001
 import { classifyCommand, runKavachGate } from "../kavach/gate";
 // [EE] Multi-tenant — graceful degradation when EE not licensed
 import { isEE, eeStatus } from "../../ee/license";
@@ -327,7 +327,7 @@ registerEnforcementRoutes(app);
 registerAseRoutes(app);
 // @rule:KAV-SHT-001 machine law — lawful action map before agent planning
 registerMachineLawRoutes(app);
-registerCockpitRoutes(app);  // @rule:COCKPIT-001 — Day 1: /suite + /api/suite/inventory
+registerAccRoutes(app);  // @rule:ACC-001 — ACC Day 1: /suite + /api/suite/inventory
 
 // --- API Routes ---
 
