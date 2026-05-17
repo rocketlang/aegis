@@ -14,6 +14,8 @@
 // signature verification. Today, mudrika trust is assumed to come from an
 // authenticated channel; callers must verify provenance themselves.
 
+import { emitAccReceipt } from './acc-bus.js';
+
 export interface MudrikaPayload {
   mudrika_version: string;
   mudrika_id: string;
@@ -76,7 +78,7 @@ export function verifyMudrika(raw: unknown, expected_agent_id?: string): VerifyR
   if (isNaN(issuedAt)) return fail('invalid_issued_at', t0);
   const expiresAt = new Date(issuedAt + (m.ttl_seconds ?? 0) * 1000);
   if (Date.now() > expiresAt.getTime()) {
-    return {
+    const expiredResult: VerifyResult = {
       outcome: 'EXPIRED',
       failure_reason: `mudrika expired at ${expiresAt.toISOString()}`,
       expires_at: expiresAt.toISOString(),
@@ -87,6 +89,15 @@ export function verifyMudrika(raw: unknown, expected_agent_id?: string): VerifyR
       pramana_chain: m.pramana_chain ?? [],
       duration_ms: Date.now() - t0,
     };
+    emitAccReceipt({
+      receipt_id: `hanumang-mudrika-expired-${m.mudrika_id ?? t0}`,
+      event_type: 'mudrika.rejected',
+      agent_id: m.agent_id,
+      verdict: 'EXPIRED',
+      rules_fired: ['HNG-S-009'],
+      summary: `mudrika ${m.mudrika_id ?? '?'} expired at ${expiresAt.toISOString()}`,
+    });
+    return expiredResult;
   }
 
   // Spawn invariant — child trust_mask ≤ declared maximum (32-bit)
@@ -99,7 +110,7 @@ export function verifyMudrika(raw: unknown, expected_agent_id?: string): VerifyR
   // Pramana chain present (warning if empty — not blocking at verification stage)
   const pramana_chain = m.pramana_chain ?? [];
 
-  return {
+  const result: VerifyResult = {
     outcome: 'PASS',
     failure_reason: null,
     expires_at: expiresAt.toISOString(),
@@ -110,10 +121,28 @@ export function verifyMudrika(raw: unknown, expected_agent_id?: string): VerifyR
     pramana_chain,
     duration_ms: Date.now() - t0,
   };
+
+  // @rule:ACC-003 @rule:ACC-004 — emit ACC receipt for cockpit observability
+  emitAccReceipt({
+    receipt_id: `hanumang-mudrika-${m.mudrika_id}`,
+    event_type: 'mudrika.verified',
+    agent_id: m.agent_id,
+    verdict: 'PASS',
+    rules_fired: ['HNG-S-008', 'HNG-S-009', 'HNG-S-010'],
+    summary: `mudrika ${m.mudrika_id} verified for ${m.principal_id} → ${m.agent_id} scope=${m.scope_key}`,
+    payload: {
+      trust_mask,
+      expires_at: result.expires_at,
+      pramana_chain_depth: pramana_chain.length,
+      duration_ms: result.duration_ms,
+    },
+  });
+
+  return result;
 }
 
 function fail(reason: string, t0: number): VerifyResult {
-  return {
+  const result: VerifyResult = {
     outcome: 'FAIL',
     failure_reason: reason,
     expires_at: new Date().toISOString(),
@@ -124,4 +153,15 @@ function fail(reason: string, t0: number): VerifyResult {
     pramana_chain: [],
     duration_ms: Date.now() - t0,
   };
+
+  // @rule:ACC-003 — emit failure receipt for cockpit observability
+  emitAccReceipt({
+    receipt_id: `hanumang-mudrika-fail-${t0}`,
+    event_type: 'mudrika.rejected',
+    verdict: 'FAIL',
+    rules_fired: ['HNG-S-008', 'HNG-S-009', 'HNG-S-010'],
+    summary: `mudrika rejected: ${reason}`,
+  });
+
+  return result;
 }

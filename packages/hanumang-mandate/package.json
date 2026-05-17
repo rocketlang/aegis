@@ -1,7 +1,7 @@
 {
   "name": "@rocketlang/hanumang-mandate",
-  "version": "0.1.0",
-  "description": "HanumanG mandate primitives — Mudrika delegation credential verifier + 7-axis posture scorer (mudrika_integrity, identity_broadcast, mandate_bounds, proportional_force, return_with_proof, no_overreach, truthful_report). Extracted from xshieldai-hanumang.",
+  "version": "0.2.0",
+  "description": "HanumanG mandate primitives — Mudrika delegation credential verifier + 7-axis posture scorer (mudrika_integrity, identity_broadcast, mandate_bounds, proportional_force, return_with_proof, no_overreach, truthful_report) + opt-in Agentic Control Center event bus. Extracted from xshieldai-hanumang.",
   "license": "AGPL-3.0-only",
   "type": "module",
   "author": "Capt. Anil Sharma <capt.anil.sharma@powerpbox.org>",

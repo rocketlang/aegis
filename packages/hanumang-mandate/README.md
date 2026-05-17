@@ -181,3 +181,71 @@ AGPL-3.0-only. See [LICENSE](LICENSE). Any modified version run as a network ser
 The full xshieldai-hanumang service is internal (port 4255) and not currently distributed.
 
 For commercial dual-licensing or partnership: [captain@ankr.in](mailto:captain@ankr.in).
+
+---
+
+## v0.2.0 — Opt-in Agentic Control Center (ACC) event bus
+
+Added 2026-05-17. `verifyMudrika()`, `scoreAxis()`, and
+`computePostureScore()` now emit `AccReceipt` events, **but only when
+you wire a bus**. Without `setEventBus`, v0.2.0 behaves identically to
+v0.1.0 — no emission, no state, no side effect.
+
+### Wire it in 3 lines
+
+```typescript
+import { setEventBus, type EventBus, type AccReceipt } from '@rocketlang/hanumang-mandate';
+
+const myBus: EventBus = {
+  emit: (r: AccReceipt) => console.log(`[ACC] ${r.event_type} ${r.verdict} ${r.summary}`),
+};
+setEventBus(myBus);
+```
+
+### Receipt events emitted
+
+| Primitive | event_type | verdict |
+|---|---|---|
+| `verifyMudrika` (PASS) | `mudrika.verified` | PASS |
+| `verifyMudrika` (FAIL / EXPIRED) | `mudrika.rejected` | FAIL |
+| `scoreAxis` (per axis) | `posture.axis_scored` | PASS / WARN / FAIL |
+| `computePostureScore` (aggregate) | `posture.scored` | `{grade}-{verdict}` (e.g. `A-PASS`, `D-FAIL`) |
+
+### Receipt shape
+
+```typescript
+interface AccReceipt {
+  receipt_id: string;       // primitive-prefixed: 'hanumang-mudrika-{mudrikaId}' etc.
+  primitive: string;        // always 'hanumang-mandate'
+  event_type: string;       // 'mudrika.verified' | 'mudrika.rejected' | 'posture.axis_scored' | 'posture.scored'
+  emitted_at: string;       // ISO 8601
+  agent_id?: string;        // populated from mudrika.agent_id on verifyMudrika; not yet on scoreAxis
+  verdict?: string;
+  rules_fired?: string[];   // HNG-* rule IDs
+  summary?: string;
+  payload?: Record<string, unknown>;
+}
+```
+
+Strict subset of EE PRAMANA receipt format — EE consumers ingest without translation.
+
+### Phase-1 limits (v0.2.0)
+
+- **agent_id is populated on `mudrika.verified` only** — scoreAxis and
+  computePostureScore don't currently receive an agent_id parameter. Future
+  versions may add an optional `agent_id` field to `AxisInput`; today,
+  post-process receipts in the bus to add agent context from your own tracking.
+- **scoreAxis emits per call** — if you score 7 axes for one agent, that's
+  7 `posture.axis_scored` events + 1 `posture.scored` aggregate = 8 receipts.
+  Cockpit consumers may want to collapse these for display.
+- **Mudrika signature crypto NOT verified** (unchanged from v0.1.0) —
+  emission says `mudrika.verified` based on structural + TTL + trust_mask
+  range checks only. Phase-2 will add cryptographic signature verification.
+- **Default bus is in-process only.** Multi-process buses are a consumer choice.
+
+### Use with `@rocketlang/aegis-suite`
+
+```typescript
+import { wireAllToBus } from '@rocketlang/aegis-suite';  // suite v0.2.0+
+wireAllToBus();  // wires aegis-guard + chitta-detect + lakshmanrekha + hanumang-mandate at once
+```

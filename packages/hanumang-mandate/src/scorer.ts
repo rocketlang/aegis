@@ -12,6 +12,8 @@
 // @rule:HNG-S-007  axis 7: truthful report
 // @rule:HNG-YK-001 — aggregate grade uses worst-axis floor, not average
 
+import { emitAccReceipt } from './acc-bus.js';
+
 export type Axis =
   | 'mudrika_integrity'
   | 'identity_broadcast'
@@ -230,7 +232,20 @@ export function scoreAxis(input: AxisInput): AxisScore {
 
   score = Math.max(0, Math.min(100, score));
   const outcome: AxisOutcome = score >= 80 ? 'PASS' : score >= 50 ? 'WARN' : 'FAIL';
-  return { axis: input.axis, score, outcome, rule_id: AXIS_RULES[input.axis], notes };
+  const result: AxisScore = { axis: input.axis, score, outcome, rule_id: AXIS_RULES[input.axis], notes };
+
+  // @rule:ACC-003 — emit per-axis score (no-op when bus unset)
+  emitAccReceipt({
+    receipt_id: `hanumang-axis-${input.axis}-${input.task_id ?? 'unspec'}-${Date.now()}`,
+    event_type: 'posture.axis_scored',
+    agent_id: undefined,
+    verdict: outcome,
+    rules_fired: [result.rule_id],
+    summary: `axis=${input.axis} score=${score} outcome=${outcome} task=${input.task_id ?? 'unspec'}`,
+    payload: { axis: input.axis, score, notes: notes.slice(0, 5) },
+  });
+
+  return result;
 }
 
 export function computePostureScore(axisScores: AxisScore[]): PostureScore {
@@ -257,7 +272,23 @@ export function computePostureScore(axisScores: AxisScore[]): PostureScore {
   const axes: Record<Axis, AxisScore> = {} as Record<Axis, AxisScore>;
   for (const a of axisScores) axes[a.axis as Axis] = a;
 
-  return { overall_score, overall_grade, axes, violation_count, warn_count };
+  const result: PostureScore = { overall_score, overall_grade, axes, violation_count, warn_count };
+
+  // @rule:ACC-003 @rule:HNG-YK-001 — emit aggregate posture (worst-axis floor)
+  const verdict =
+    overall_grade === 'A' || overall_grade === 'B' ? 'PASS'
+    : overall_grade === 'C' ? 'WARN'
+    : 'FAIL';
+  emitAccReceipt({
+    receipt_id: `hanumang-posture-${Date.now()}`,
+    event_type: 'posture.scored',
+    verdict: `${overall_grade}-${verdict}`,
+    rules_fired: ['HNG-YK-001'],
+    summary: `posture grade=${overall_grade} score=${overall_score}/100 violations=${violation_count} warns=${warn_count}`,
+    payload: { overall_score, overall_grade, violation_count, warn_count, axes_evaluated: axisScores.length },
+  });
+
+  return result;
 }
 
 function popcount(n: number): number {
