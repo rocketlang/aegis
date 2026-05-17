@@ -127,3 +127,89 @@ const redisNonceStore: NonceStore = {
 ## License
 
 AGPL-3.0 — Capt. Anil Sharma, powerpbox.org
+
+---
+
+## v0.2.0 — Opt-in Agentic Control Center (ACC) event bus
+
+Added 2026-05-17. Each Five Locks primitive now emits an `AccReceipt` on
+success or failure, **but only when you wire a bus**. Without `setEventBus`,
+v0.2.0 behaves identically to v0.1.0 — no emission, no state, no side effect.
+
+### Wire it in 3 lines
+
+```typescript
+import { setEventBus, type EventBus, type AccReceipt } from '@rocketlang/aegis-guard';
+
+const myBus: EventBus = {
+  emit: (r: AccReceipt) => console.log(`[ACC] ${r.event_type} verdict=${r.verdict} ${r.summary}`),
+};
+setEventBus(myBus);
+```
+
+Now every primitive call emits a receipt. Pass `null` to `setEventBus` to detach.
+
+### Receipt events emitted
+
+| Primitive | event_type on success | event_type on failure |
+|---|---|---|
+| `verifyApprovalToken` | `lock.approval.verified` (PASS) | `lock.approval.rejected` (FAIL) |
+| `verifyAndConsumeNonce` | `lock.nonce.consumed` (PASS) | `lock.nonce.rejected` (FAIL) |
+| `checkIdempotency` | `lock.idempotency.duplicate` (PASS) OR `lock.idempotency.mismatch` (WARN) | (no event for non-duplicate path) |
+| `emitAegisSenseEvent` | `lock.sense.emitted` (PASS or WARN if irreversible) | — |
+
+### Receipt shape
+
+```typescript
+interface AccReceipt {
+  receipt_id: string;       // primitive-prefixed identifier
+  primitive: string;        // always 'aegis-guard' for this package
+  event_type: string;       // lock.*
+  emitted_at: string;       // ISO 8601
+  agent_id?: string;        // reserved — not yet populated by aegis-guard
+  verdict?: string;         // PASS | FAIL | WARN
+  rules_fired?: string[];   // e.g. ['AEG-E-016']
+  summary?: string;         // ≤200 chars
+  payload?: Record<string, unknown>;
+}
+```
+
+The shape is a strict subset of the EE PRAMANA receipt format. EE
+consumers ingest these events without translation.
+
+### Phase-1 limits (v0.2.0)
+
+- **agent_id is not yet populated** — primitives don't receive an agent
+  context as parameter. Future versions may add an optional `agent_id`
+  argument to each primitive; today you can post-process receipts in the
+  bus to add agent context from your own tracking.
+- **`buildIdempotencyFingerprint`, `digestApprovalToken`, `mintApprovalToken`
+  do NOT emit** — they're pure helpers called many times per operation.
+  Emitting from them would flood the bus.
+- **`buildQualityMaskAtPromotion`, `buildQualityDriftScore`,
+  `meetsHgQualityRequirement` do NOT emit** — quality computation is
+  scoring, not a governance decision. They're called during promotion
+  decisions; the calling code emits the governance event.
+- **Default bus is in-process only.** Multi-process buses (Redis-backed,
+  etc.) are a consumer choice — implement the `EventBus` interface and
+  call `setEventBus(yourBus)`.
+
+### Use with `@rocketlang/aegis-suite`
+
+If you installed the meta-package, you can wire all 6 primitives in one call:
+
+```typescript
+import { wireAllToBus } from '@rocketlang/aegis-suite';  // available in suite v0.2.0+
+wireAllToBus();  // default: in-memory bus + SQLite writer to ~/.aegis/acc-events.db
+```
+
+This sets up the bus on aegis-guard + chitta-detect + lakshmanrekha + hanumang-mandate
+all at once, and persists events for the Agentic Control Center page.
+
+### Discipline
+
+- **Stateless contract preserved.** Primitives hold no state beyond a
+  module-private bus reference. Pass `null` to `setEventBus` to detach.
+- **Emission must never throw.** If your bus implementation throws,
+  the primitive's caller is unaffected — the receipt is silently dropped.
+  This is intentional; observability must not break the governed path.

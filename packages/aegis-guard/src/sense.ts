@@ -33,6 +33,26 @@ export function configureSenseTransport(transport: SenseTransport): void {
 
 // @rule:CA-003 — all three snapshot fields are required by the type; callers must supply them.
 // approval_token_ref, if present, must already be the output of digestApprovalToken (AEG-HG-2B-005).
+// @rule:ACC-003 — also emit an ACC receipt for cockpit observability (no-op when bus unset).
 export function emitAegisSenseEvent(event: AegisSenseEvent): void {
   _transport(event);
+  emitAccReceiptFromSense(event);
+}
+
+import { emitAccReceipt } from './acc-bus.js';
+
+function emitAccReceiptFromSense(event: AegisSenseEvent): void {
+  emitAccReceipt({
+    receipt_id: `aegis-guard-sense-${event.correlation_id || Date.now()}`,
+    event_type: 'lock.sense.emitted',
+    verdict: event.irreversible ? 'WARN' : 'PASS',
+    rules_fired: ['CA-003', 'AEG-HG-2B-003', 'AEG-HG-2B-005'],
+    summary: `${event.service_id}/${event.capability}/${event.operation} ${event.irreversible ? '(irreversible)' : ''}`,
+    payload: {
+      event_type: event.event_type,
+      correlation_id: event.correlation_id,
+      approval_token_ref: event.approval_token_ref,
+      delta: event.delta,
+    },
+  });
 }

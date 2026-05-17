@@ -1,6 +1,8 @@
 // @rule:AEG-HG-2B-006 — idempotency protects the operation; nonce protects the approval (separate locks)
 // Pattern: check DB for externalRef before mutating. Matching fingerprint = safe no-op. Mismatch = warn + reject.
 
+import { emitAccReceipt } from './acc-bus.js';
+
 export interface IdempotencyCheckResult {
   isDuplicate: boolean;
   payloadMismatch: boolean;
@@ -22,11 +24,21 @@ export function checkIdempotency(
   }
   const payloadMismatch =
     existingFingerprint !== undefined && existingFingerprint !== newFingerprint;
-  return {
+  const result: IdempotencyCheckResult = {
     isDuplicate: true,
     payloadMismatch,
     safeNoOp: !payloadMismatch,
   };
+  emitAccReceipt({
+    receipt_id: `aegis-guard-idem-${_externalRef}`,
+    event_type: payloadMismatch ? 'lock.idempotency.mismatch' : 'lock.idempotency.duplicate',
+    verdict: payloadMismatch ? 'WARN' : 'PASS',
+    rules_fired: ['AEG-HG-2B-006'],
+    summary: payloadMismatch
+      ? `duplicate externalRef ${_externalRef} with payload mismatch — caller must reject or escalate`
+      : `duplicate externalRef ${_externalRef} — safe no-op, return existing`,
+  });
+  return result;
 }
 
 // Build a stable base64 fingerprint from an arbitrary operation payload.

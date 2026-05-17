@@ -5,6 +5,7 @@
 import { createHash } from 'crypto';
 import { IrrNoApprovalError } from './errors.js';
 import { type NonceStore, defaultNonceStore } from './nonce.js';
+import { emitAccReceipt } from './acc-bus.js';
 
 // Token may arrive up to 60s before local clock (NTP tolerance).
 const CLOCK_SKEW_MS = 60_000;
@@ -41,48 +42,63 @@ export function verifyApprovalToken(
   expectedCapability: string,
   expectedOperation: string,
 ): ApprovalTokenPayload {
-  let payload: ApprovalTokenPayload;
-
+  // @rule:ACC-003 @rule:ACC-004 — emit ACC receipt on success OR failure
+  const scope = `${expectedServiceId}/${expectedCapability}/${expectedOperation}`;
   try {
-    const decoded = Buffer.from(token, 'base64url').toString('utf8');
-    payload = JSON.parse(decoded) as ApprovalTokenPayload;
-  } catch {
-    throw new IrrNoApprovalError(expectedCapability, 'token could not be decoded');
-  }
+    let payload: ApprovalTokenPayload;
+    try {
+      const decoded = Buffer.from(token, 'base64url').toString('utf8');
+      payload = JSON.parse(decoded) as ApprovalTokenPayload;
+    } catch {
+      throw new IrrNoApprovalError(expectedCapability, 'token could not be decoded');
+    }
 
-  if (payload.service_id !== expectedServiceId) {
-    throw new IrrNoApprovalError(
-      expectedCapability,
-      `AEG-E-016: token scoped to '${payload.service_id}', not '${expectedServiceId}'`,
-    );
-  }
+    if (payload.service_id !== expectedServiceId) {
+      throw new IrrNoApprovalError(
+        expectedCapability,
+        `AEG-E-016: token scoped to '${payload.service_id}', not '${expectedServiceId}'`,
+      );
+    }
+    if (payload.capability !== expectedCapability) {
+      throw new IrrNoApprovalError(
+        expectedCapability,
+        `AEG-E-016: token capability '${payload.capability}' does not match '${expectedCapability}'`,
+      );
+    }
+    if (payload.operation !== expectedOperation) {
+      throw new IrrNoApprovalError(
+        expectedCapability,
+        `AEG-E-016: token operation '${payload.operation}' does not match '${expectedOperation}'`,
+      );
+    }
+    if (Date.now() > payload.expires_at) {
+      throw new IrrNoApprovalError(expectedCapability, 'AEG-E-016: token expired');
+    }
+    if (payload.issued_at !== undefined && payload.issued_at > Date.now() + CLOCK_SKEW_MS) {
+      throw new IrrNoApprovalError(
+        expectedCapability,
+        'AEG-E-016: token issued_at is in the future (clock skew > 60s or forged timestamp)',
+      );
+    }
 
-  if (payload.capability !== expectedCapability) {
-    throw new IrrNoApprovalError(
-      expectedCapability,
-      `AEG-E-016: token capability '${payload.capability}' does not match '${expectedCapability}'`,
-    );
+    emitAccReceipt({
+      receipt_id: `aegis-guard-verify-${digestApprovalToken(token)}`,
+      event_type: 'lock.approval.verified',
+      verdict: 'PASS',
+      rules_fired: ['AEG-E-016'],
+      summary: scope,
+    });
+    return payload;
+  } catch (err) {
+    emitAccReceipt({
+      receipt_id: `aegis-guard-verify-fail-${Date.now()}`,
+      event_type: 'lock.approval.rejected',
+      verdict: 'FAIL',
+      rules_fired: ['AEG-E-016'],
+      summary: `${scope} — ${(err as Error).message?.slice(0, 160) ?? 'verification failed'}`,
+    });
+    throw err;
   }
-
-  if (payload.operation !== expectedOperation) {
-    throw new IrrNoApprovalError(
-      expectedCapability,
-      `AEG-E-016: token operation '${payload.operation}' does not match '${expectedOperation}'`,
-    );
-  }
-
-  if (Date.now() > payload.expires_at) {
-    throw new IrrNoApprovalError(expectedCapability, 'AEG-E-016: token expired');
-  }
-
-  if (payload.issued_at !== undefined && payload.issued_at > Date.now() + CLOCK_SKEW_MS) {
-    throw new IrrNoApprovalError(
-      expectedCapability,
-      'AEG-E-016: token issued_at is in the future (clock skew > 60s or forged timestamp)',
-    );
-  }
-
-  return payload;
 }
 
 // @rule:AEG-HG-2B-006 — consume nonce before any state mutation; missing nonce = hard reject.
@@ -91,19 +107,39 @@ export async function verifyAndConsumeNonce(
   payload: ApprovalTokenPayload,
   store: NonceStore = defaultNonceStore,
 ): Promise<void> {
-  if (!payload.nonce) {
-    throw new IrrNoApprovalError(
-      payload.capability,
-      'AEG-E-016: irreversible operation requires nonce for replay prevention',
-    );
-  }
-  const ttlMs = Math.max(0, payload.expires_at - Date.now());
-  const consumed = await store.consumeNonce(payload.nonce, ttlMs);
-  if (!consumed) {
-    throw new IrrNoApprovalError(
-      payload.capability,
-      `AEG-E-016: nonce '${payload.nonce}' already consumed — approval replay rejected`,
-    );
+  // @rule:ACC-003 @rule:ACC-004 — emit ACC receipt on success OR failure
+  const scope = `${payload.service_id}/${payload.capability}/${payload.operation}`;
+  try {
+    if (!payload.nonce) {
+      throw new IrrNoApprovalError(
+        payload.capability,
+        'AEG-E-016: irreversible operation requires nonce for replay prevention',
+      );
+    }
+    const ttlMs = Math.max(0, payload.expires_at - Date.now());
+    const consumed = await store.consumeNonce(payload.nonce, ttlMs);
+    if (!consumed) {
+      throw new IrrNoApprovalError(
+        payload.capability,
+        `AEG-E-016: nonce '${payload.nonce}' already consumed — approval replay rejected`,
+      );
+    }
+    emitAccReceipt({
+      receipt_id: `aegis-guard-nonce-${payload.nonce}`,
+      event_type: 'lock.nonce.consumed',
+      verdict: 'PASS',
+      rules_fired: ['AEG-HG-2B-006'],
+      summary: scope,
+    });
+  } catch (err) {
+    emitAccReceipt({
+      receipt_id: `aegis-guard-nonce-fail-${Date.now()}`,
+      event_type: 'lock.nonce.rejected',
+      verdict: 'FAIL',
+      rules_fired: ['AEG-HG-2B-006'],
+      summary: `${scope} — ${(err as Error).message?.slice(0, 160) ?? 'nonce check failed'}`,
+    });
+    throw err;
   }
 }
 
