@@ -1,7 +1,7 @@
 # OSS Extraction Queue
 
-**Status:** v1.1 — updated 2026-05-17 evening after Day 5 of the Agentic Control Center wave. Phase-2 v0.2.0 work shipped for 4 primitives + aegis-suite + aegis v2.2.0. Test-suite follow-ups still outstanding.
-**Purpose:** running list of `@rocketlang/*` OSS extraction candidates from the 500+ Verdaccio + 200+ services. Updated as items move through queue.
+**Status:** v1.2 — updated 2026-05-17 late evening after brand consolidation wave. All packages now under `@xshieldai/*` (npm) and `xshieldai-*` (PyPI). Old packages under `@` + `rocketlang` + `/*` are deprecated on npm. Phase-2 v0.2.0 work shipped under new names. See `MIGRATION.md`.
+**Purpose:** running list of `@xshieldai/*` OSS extraction candidates from the 500+ Verdaccio + 200+ services. Updated as items move through queue.
 **Pace target:** 1-2 packages per week sustained (per `STRATEGY.md`).
 
 ---
@@ -42,17 +42,17 @@ The following 10 are the seed list. Each is grounded in code seen this session; 
 
 | # | Candidate package | Source | Effort | Status | Notes |
 |---|---|---|---|---|---|
-| 1 | `@rocketlang/pramana-receipts` | `/root/aegis/ee/kavach/pramana-receipts.ts` (currently BSL-1.1) | S | queued | Moves from EE → OSS. Completes the OSS PRAMANA proof loop (the OSS Merkle ledger is already there; receipts were the missing producer). 165 lines. DOI 10.5281/zenodo.19273330. |
-| 2 | `@rocketlang/dual-control` | `/root/aegis/ee/kavach/*` (currently BSL-1.1) | S | queued | Two-key approval primitive. Pure logic; no infra. |
-| 3 | `@rocketlang/hanumang-registry` | `/root/aegis/ee/shield/hanumang-ee.ts` (currently BSL-1.1) | S | queued | Domain registry + GREEN/AMBER/RED scoring. The "registry" sub-primitive that complements the OSS spawn-check + mandate scorer. |
-| 4 | `@rocketlang/maritime-injection-signatures` | `/root/aegis/ee/shield/maritime-signatures.ts` (currently BSL-1.1) | S | queued | Pattern data for maritime OT injection signatures. Same shape as lakshmanrekha PROBE_REGISTRY but for vessel protocols. |
-| 5 | `@rocketlang/slack-notifier` | `/root/aegis/ee/kavach/slack-notifier.ts` (currently BSL-1.1) | S | queued | Alternative: merge into `@rocketlang/aegis` rather than separate package. Decide at audit time. |
-| 6 | `@rocketlang/session-oracle` | `/root/aegis/src/oracle/` (currently inside aegis OSS but un-broken-out) | M | queued | brief.ts + probe.ts + spawn-gate.ts. Session-start health brief generator. Already runs in aegis; extract as standalone primitive so other services can use it. |
-| 7 | `@rocketlang/machine-law` | `/root/aegis/src/machine-law/` (currently inside aegis OSS) | M | queued | lawful-action-map.ts + policy-hash.ts (aegis-shastra MVP). Same shape — extract from aegis to standalone primitive. |
-| 8 | `@rocketlang/genetic-trust` | `/root/aegis/src/kavach/genetic-trust.ts` (currently inside kavachos OSS) | S | queued | GNT-001 + GNT-002 trust mask inheritance primitive. Single-file extraction. |
-| 9 | `@rocketlang/sdge` | `ankr-sovereign-doc.ts` (referenced by merkle-ledger.ts) | M | triage | Sovereign Document signing pattern reused by Merkle STH. Needs audit to find the actual source file + assess scope. |
-| 10 | `@rocketlang/bitmask-os` | `/root/apps/bitmaskos/` | M-L | triage | Per-process bitmask OS layer. Phases 1, 3, 5 done (spawn gate, TTL inheritance, spawn_chain_enforced). Needs audit to classify Group A vs B. Could be substantial. |
-| 11 | `@rocketlang/scope-mandate` (or hanumang-mandate v0.2 axes) | new code — design choice at extraction time | M | queued | Addresses "scope discovery" failure surfaced by Foley's CNCF Kubernetes benchmark (2026-05-15). Three candidate axes: `scope_completeness` (agent enumerated all touched files/functions/tests + named what it considered AND rejected as out-of-scope), `dependency_propagation` (agent identified downstream consumers and either updated or explicitly deferred), `reuse_first` (agent searched for existing abstractions before introducing new ones — counters the "new Attempt field vs existing RestartCount" failure). **Design choice at extraction time:** new sibling package OR hanumang-mandate v0.2 added axes. My lean: sibling package — current 7 axes are about *behaving correctly during the action*; scope is about *recognising the action's extent*. Different concern, different package. |
+| 1 | `@xshieldai/pramana-receipts` | `/root/aegis/ee/kavach/pramana-receipts.ts` (currently BSL-1.1) | S | queued | Moves from EE → OSS. Completes the OSS PRAMANA proof loop (the OSS Merkle ledger is already there; receipts were the missing producer). 165 lines. DOI 10.5281/zenodo.19273330. |
+| 2 | `@xshieldai/dual-control` | `/root/aegis/ee/kavach/*` (currently BSL-1.1) | S | queued | Two-key approval primitive. Pure logic; no infra. |
+| 3 | `@xshieldai/hanumang-registry` | `/root/aegis/ee/shield/hanumang-ee.ts` (currently BSL-1.1) | S | queued | Domain registry + GREEN/AMBER/RED scoring. The "registry" sub-primitive that complements the OSS spawn-check + mandate scorer. |
+| 4 | `@xshieldai/maritime-injection-signatures` | `/root/aegis/ee/shield/maritime-signatures.ts` (currently BSL-1.1) | S | queued | Pattern data for maritime OT injection signatures. Same shape as lakshmanrekha PROBE_REGISTRY but for vessel protocols. |
+| 5 | `@xshieldai/slack-notifier` | `/root/aegis/ee/kavach/slack-notifier.ts` (currently BSL-1.1) | S | queued | Alternative: merge into `@xshieldai/aegis` rather than separate package. Decide at audit time. |
+| 6 | `@xshieldai/session-oracle` | `/root/aegis/src/oracle/` (currently inside aegis OSS but un-broken-out) | M | queued | brief.ts + probe.ts + spawn-gate.ts. Session-start health brief generator. Already runs in aegis; extract as standalone primitive so other services can use it. |
+| 7 | `@xshieldai/machine-law` | `/root/aegis/src/machine-law/` (currently inside aegis OSS) | M | queued | lawful-action-map.ts + policy-hash.ts (aegis-shastra MVP). Same shape — extract from aegis to standalone primitive. |
+| 8 | `@xshieldai/genetic-trust` | `/root/aegis/src/kavach/genetic-trust.ts` (currently inside kavachos OSS) | S | queued | GNT-001 + GNT-002 trust mask inheritance primitive. Single-file extraction. |
+| 9 | `@xshieldai/sdge` | `ankr-sovereign-doc.ts` (referenced by merkle-ledger.ts) | M | triage | Sovereign Document signing pattern reused by Merkle STH. Needs audit to find the actual source file + assess scope. |
+| 10 | `@xshieldai/bitmask-os` | `/root/apps/bitmaskos/` | M-L | triage | Per-process bitmask OS layer. Phases 1, 3, 5 done (spawn gate, TTL inheritance, spawn_chain_enforced). Needs audit to classify Group A vs B. Could be substantial. |
+| 11 | `@xshieldai/scope-mandate` (or hanumang-mandate v0.2 axes) | new code — design choice at extraction time | M | queued | Addresses "scope discovery" failure surfaced by Foley's CNCF Kubernetes benchmark (2026-05-15). Three candidate axes: `scope_completeness` (agent enumerated all touched files/functions/tests + named what it considered AND rejected as out-of-scope), `dependency_propagation` (agent identified downstream consumers and either updated or explicitly deferred), `reuse_first` (agent searched for existing abstractions before introducing new ones — counters the "new Attempt field vs existing RestartCount" failure). **Design choice at extraction time:** new sibling package OR hanumang-mandate v0.2 added axes. My lean: sibling package — current 7 axes are about *behaving correctly during the action*; scope is about *recognising the action's extent*. Different concern, different package. |
 
 ---
 
@@ -62,18 +62,18 @@ Status snapshot after Day 5 of the ACC wave (2026-05-17):
 
 | Package | Phase-2 work | Effort | Status |
 |---|---|---|---|
-| `@rocketlang/aegis-guard` | v0.2.0 opt-in `setEventBus()` for ACC | S | **shipped 2026-05-16 — v0.2.0 on npm** |
-| `@rocketlang/chitta-detect` | v0.2.0 opt-in `setEventBus()` for ACC | S | **shipped 2026-05-16 — v0.2.0 on npm** |
-| `@rocketlang/lakshmanrekha` | v0.2.0 opt-in `setEventBus()` for ACC | S | **shipped 2026-05-16 — v0.2.0 on npm** (async runner still pending v0.3) |
-| `@rocketlang/hanumang-mandate` | v0.2.0 opt-in `setEventBus()` for ACC | S | **shipped 2026-05-16 — v0.2.0 on npm** (signature crypto still pending v0.3 — unblocks untrusted-channel use) |
-| `@rocketlang/aegis-suite` | v0.2.0 `wireAllToBus()` helper + self-contained bus + SqliteEventWriter | S | **shipped 2026-05-17 — v0.2.0 on npm** |
-| `@rocketlang/aegis` | v2.2.0 with Agentic Control Center (`/control-center`, `/agent/:id`, `/suite`, SSE, AOS panels, EE-aware PRAMANA panel) + README Fin parity callout | M | **shipped 2026-05-17 — v2.2.0 on npm** |
-| `@rocketlang/aegis-guard` | Test suite (independent v0.2.1) | S | queued — mid priority |
-| `@rocketlang/chitta-detect` | Test suite (independent v0.2.1) | S | queued — mid priority |
-| `@rocketlang/lakshmanrekha` | Test suite + async runner (v0.3) | M | queued — mid priority |
-| `@rocketlang/hanumang-mandate` | Test suite + signature crypto (v0.3) | M | queued — high priority (signature crypto unblocks untrusted-channel use) |
-| `@rocketlang/aegis-suite` | Smoke tests for `wireAllToBus()` end-to-end + filter UI for `/control-center` | S-M | queued — to land with aegis v2.3.0 |
-| `@rocketlang/aegis` | LICENSE wording cleanup (current LICENSE has "Commercial use requires separate license" clause technically incompatible with pure AGPL-3.0) | S | queued — low priority; non-blocking; clarify dual-licensing language |
+| `@xshieldai/aegis-guard` | v0.2.0 opt-in `setEventBus()` for ACC | S | **shipped 2026-05-16 — v0.2.0 on npm** |
+| `@xshieldai/chitta-detect` | v0.2.0 opt-in `setEventBus()` for ACC | S | **shipped 2026-05-16 — v0.2.0 on npm** |
+| `@xshieldai/lakshmanrekha` | v0.2.0 opt-in `setEventBus()` for ACC | S | **shipped 2026-05-16 — v0.2.0 on npm** (async runner still pending v0.3) |
+| `@xshieldai/hanumang-mandate` | v0.2.0 opt-in `setEventBus()` for ACC | S | **shipped 2026-05-16 — v0.2.0 on npm** (signature crypto still pending v0.3 — unblocks untrusted-channel use) |
+| `@xshieldai/aegis-suite` | v0.2.0 `wireAllToBus()` helper + self-contained bus + SqliteEventWriter | S | **shipped 2026-05-17 — v0.2.0 on npm** |
+| `@xshieldai/aegis` | v2.2.0 with Agentic Control Center (`/control-center`, `/agent/:id`, `/suite`, SSE, AOS panels, EE-aware PRAMANA panel) + README Fin parity callout | M | **shipped 2026-05-17 — v2.2.0 on npm** |
+| `@xshieldai/aegis-guard` | Test suite (independent v0.2.1) | S | queued — mid priority |
+| `@xshieldai/chitta-detect` | Test suite (independent v0.2.1) | S | queued — mid priority |
+| `@xshieldai/lakshmanrekha` | Test suite + async runner (v0.3) | M | queued — mid priority |
+| `@xshieldai/hanumang-mandate` | Test suite + signature crypto (v0.3) | M | queued — high priority (signature crypto unblocks untrusted-channel use) |
+| `@xshieldai/aegis-suite` | Smoke tests for `wireAllToBus()` end-to-end + filter UI for `/control-center` | S-M | queued — to land with aegis v2.3.0 |
+| `@xshieldai/aegis` | LICENSE wording cleanup (current LICENSE has "Commercial use requires separate license" clause technically incompatible with pure AGPL-3.0) | S | queued — low priority; non-blocking; clarify dual-licensing language |
 
 ---
 
@@ -106,9 +106,9 @@ Candidate services to audit (not all OSS-extractable; this is the audit candidat
 
 | Service | Path | Current state |
 |---|---|---|
-| chitta-guard | `/root/chitta-guard/` | Primitive shipped as `@rocketlang/chitta-detect`. Shell stays internal. ✅ done. |
-| xshieldai-asm-ai-module | `/root/ankrshield/apps/xshieldai-asm-ai-module/` | Primitive shipped as `@rocketlang/lakshmanrekha`. ✅ done. |
-| xshieldai-hanumang | `/root/ankrshield/apps/xshieldai-hanumang/` | Primitive shipped as `@rocketlang/hanumang-mandate`. ✅ done. |
+| chitta-guard | `/root/chitta-guard/` | Primitive shipped as `@xshieldai/chitta-detect`. Shell stays internal. ✅ done. |
+| xshieldai-asm-ai-module | `/root/ankrshield/apps/xshieldai-asm-ai-module/` | Primitive shipped as `@xshieldai/lakshmanrekha`. ✅ done. |
+| xshieldai-hanumang | `/root/ankrshield/apps/xshieldai-hanumang/` | Primitive shipped as `@xshieldai/hanumang-mandate`. ✅ done. |
 | xshieldai-kavach | (registered but no source dir) | Spec only, no extraction needed. |
 | xshieldai-varuna | `/root/ankrshield/apps/xshieldai-varuna/` | Pre-build; revisit when service ships. |
 | (200+ more) | various | Not yet triaged |

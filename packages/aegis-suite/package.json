@@ -1,7 +1,7 @@
 {
-  "name": "@rocketlang/aegis-suite",
+  "name": "@xshieldai/aegis-suite",
   "version": "0.2.0",
-  "description": "Meta-package — installs the full @rocketlang AI agent governance stack in one shot + wireAllToBus() helper that connects all 4 primitives to a single SQLite event bus for the Agentic Control Center. Open-source counter to Fin Operator's hosted governance plane.",
+  "description": "Meta-package — installs the full xShieldAI Posture Suite (AEGIS + Agent Kernel + 4 primitives) in one shot + wireAllToBus() helper that connects all 4 primitives to a single SQLite event bus for the Agentic Control Center. Open-source counter to Fin Operator's hosted governance plane.",
   "license": "AGPL-3.0-only",
   "type": "module",
   "author": "Capt. Anil Sharma <capt.anil.sharma@powerpbox.org>",
@@ -42,12 +42,12 @@
     "LICENSE"
   ],
   "dependencies": {
-    "@rocketlang/aegis": "^2.1.0",
-    "@rocketlang/kavachos": "^2.0.2",
-    "@rocketlang/aegis-guard": "^0.2.0",
-    "@rocketlang/chitta-detect": "^0.2.0",
-    "@rocketlang/lakshmanrekha": "^0.2.0",
-    "@rocketlang/hanumang-mandate": "^0.2.0"
+    "@xshieldai/aegis": "^2.2.0",
+    "@xshieldai/agent-kernel": "^2.0.2",
+    "@xshieldai/aegis-guard": "^0.2.0",
+    "@xshieldai/chitta-detect": "^0.2.0",
+    "@xshieldai/lakshmanrekha": "^0.2.0",
+    "@xshieldai/hanumang-mandate": "^0.2.0"
   },
   "scripts": {
     "typecheck": "tsc --noEmit"
@@ -64,13 +64,13 @@
     "access": "public"
   },
   "aegis_suite": {
-    "purpose": "single-install bundle of the OSS half of the AEGIS / KavachOS / xShieldAI governance stack",
+    "purpose": "single-install bundle of the OSS half of the xShieldAI Posture Suite (AEGIS + Agent Kernel + primitives)",
     "bundled_packages": 6,
     "deliberately_excluded": [
-      "@rocketlang/n8n-nodes-kavachos (n8n-specific integration, install separately if using n8n)"
+      "@xshieldai/n8n-nodes (n8n-specific integration, install separately if using n8n)"
     ],
     "not_bundled_because_ee": [
-      "@rocketlang/kavachos-ee (BSL-1.1, not on npm — contact captain@ankr.in)"
+      "@xshieldai/agent-kernel-ee (BSL-1.1, not on npm — contact captain@ankr.in)"
     ]
   }
 }

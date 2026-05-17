@@ -1,5 +1,5 @@
 {
-  "name": "@rocketlang/lakshmanrekha",
+  "name": "@xshieldai/lakshmanrekha",
   "version": "0.2.0",
   "description": "LLM endpoint probe suite — 8 deterministic attack probes + replayable refusal classifier + multi-provider runner (OpenAI / Anthropic / Azure / ankr-proxy) + opt-in Agentic Control Center event bus. Extracted from xshieldai-asm-ai-module.",
   "license": "AGPL-3.0-only",

@@ -1,5 +1,5 @@
 {
-  "name": "@rocketlang/aegis",
+  "name": "@xshieldai/aegis",
   "version": "2.2.0",
   "description": "AEGIS / KavachOS — Agentic runtime governance: budget enforcement, DAN gate (human-in-loop), seccomp-bpf kernel enforcement, Falco anomaly detection + Agentic Control Center (cockpit page rendering all @rocketlang/* primitive events in one view, PRAMANA Merkle audit, per-agent timeline).",
   "license": "AGPL-3.0",

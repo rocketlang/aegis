@@ -1,5 +1,5 @@
 {
-  "name": "@rocketlang/hanumang-mandate",
+  "name": "@xshieldai/hanumang-mandate",
   "version": "0.2.0",
   "description": "HanumanG mandate primitives — Mudrika delegation credential verifier + 7-axis posture scorer (mudrika_integrity, identity_broadcast, mandate_bounds, proportional_force, return_with_proof, no_overreach, truthful_report) + opt-in Agentic Control Center event bus. Extracted from xshieldai-hanumang.",
   "license": "AGPL-3.0-only",

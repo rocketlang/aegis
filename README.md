@@ -2,7 +2,7 @@
 
 > **Stops your AI agent from destroying your database without asking.**
 
-[![npm version](https://img.shields.io/npm/v/@rocketlang/aegis.svg)](https://www.npmjs.com/package/@rocketlang/aegis)
+[![npm version](https://img.shields.io/npm/v/@xshieldai/aegis.svg)](https://www.npmjs.com/package/@xshieldai/aegis)
 [![License: AGPL-3.0](https://img.shields.io/badge/License-AGPL%20v3-blue.svg)](LICENSE)
 [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.19625473.svg)](https://doi.org/10.5281/zenodo.19625473)
 [![CI](https://github.com/rocketlang/aegis/actions/workflows/ci.yml/badge.svg)](https://github.com/rocketlang/aegis/actions/workflows/ci.yml)
@@ -14,14 +14,35 @@ Born on **17 April 2026** from a real $200 incident: a user stopped using Claude
 
 ---
 
+## ⚠️ Package rename (2026-05-17) — `@rocketlang/*` → `@xshieldai/*`
+
+Same code, new home. As of v2.2.0 the AEGIS / Agent Kernel / primitive packages publish under the **xShieldAI Posture Suite** umbrella:
+
+| Old | New |
+|---|---|
+| `@rocketlang/aegis` | `@xshieldai/aegis` |
+| `@rocketlang/kavachos` | `@xshieldai/agent-kernel` |
+| `@rocketlang/n8n-nodes-kavachos` | `@xshieldai/n8n-nodes` |
+| `@rocketlang/aegis-guard` | `@xshieldai/aegis-guard` |
+| `@rocketlang/chitta-detect` | `@xshieldai/chitta-detect` |
+| `@rocketlang/lakshmanrekha` | `@xshieldai/lakshmanrekha` |
+| `@rocketlang/hanumang-mandate` | `@xshieldai/hanumang-mandate` |
+| `@rocketlang/aegis-suite` | `@xshieldai/aegis-suite` |
+| `langchain-kavachos` (PyPI) | `xshieldai-langchain` (PyPI) |
+| `crewai-kavachos` (PyPI) | `xshieldai-crewai` (PyPI) |
+
+Old packages are **deprecated on npm** with redirect messages. Existing installs keep working; please migrate on next `npm update` or `pip install`. See **[MIGRATION.md](MIGRATION.md)** for one-line migrations.
+
+---
+
 ## The AEGIS / KavachOS / PRAMANA stack
 
 Three layers. One coherent governance stack for agentic AI.
 
 | Layer | Package | What it governs |
 |-------|---------|-----------------|
-| **AEGIS** | `@rocketlang/aegis` (this package) | Agent **spend** — budget caps, spawn governance, cross-surface usage visibility, kill-switches |
-| **KavachOS** | [`@rocketlang/kavachos`](https://www.npmjs.com/package/@rocketlang/kavachos) | Agent **behavior** — syscall mediation, exec allowlist, egress firewall, sandboxed runtime |
+| **AEGIS** | `@xshieldai/aegis` (this package) | Agent **spend** — budget caps, spawn governance, cross-surface usage visibility, kill-switches |
+| **KavachOS** | [`@xshieldai/agent-kernel`](https://www.npmjs.com/package/@xshieldai/agent-kernel) | Agent **behavior** — syscall mediation, exec allowlist, egress firewall, sandboxed runtime |
 | **PRAMANA** | DOI [10.5281/zenodo.19273330](https://doi.org/10.5281/zenodo.19273330) | Cryptographic **attestation** — tamper-evident chain of every decision either layer made |
 
 AEGIS governs what the agent spends. KavachOS governs what the agent does. PRAMANA proves what happened.
@@ -34,7 +55,7 @@ For EU AI Act Article 14 (human oversight): PRAMANA alone is just logging — it
 
 ```bash
 # 1. Install
-npm install -g @rocketlang/aegis
+npm install -g @xshieldai/aegis
 
 # 2. Initialize (wires hooks into Claude Code automatically)
 aegis init
@@ -546,7 +567,7 @@ AEGIS was born from a real $200 incident on **17 April 2026**, about a month bef
 
 | | Fin Operator (2026-05-15) | AEGIS (2026-04-17) |
 |---|---|---|
-| Distribution | Pro-tier subscription, vendor-hosted | `npm install @rocketlang/aegis`, self-hosted |
+| Distribution | Pro-tier subscription, vendor-hosted | `npm install @xshieldai/aegis`, self-hosted |
 | License | Proprietary | AGPL-3.0 (kernel) + BSL-1.1 → AGPL-3.0 in 4 years (EE) |
 | Scope | Bound to the Fin platform | Vendor-neutral (Claude Code, OpenAI Codex, Cursor, custom) |
 | Self-host | No | Yes — local-first by default |
@@ -567,19 +588,19 @@ KavachOS ships in two tiers. The kernel enforcement layer — the part that actu
 
 | Capability | Layer | License | Install |
 |---|---|---|---|
-| Budget governor (daily/session/agent) | KAVACH orchestrator | **AGPL-3.0** | `@rocketlang/aegis` |
-| DAN gate — WhatsApp / Telegram human-in-loop | KAVACH orchestrator | **AGPL-3.0** | `@rocketlang/aegis` |
-| `perm_mask` / `class_mask` bitmask policy | KAVACH orchestrator | **AGPL-3.0** | `@rocketlang/aegis` |
-| Gate valve (throttle → crack → close) | KAVACH orchestrator | **AGPL-3.0** | `@rocketlang/aegis` |
-| HTTP Gate API (`/api/v1/kavach/gate`) | KAVACH orchestrator | **AGPL-3.0** | `@rocketlang/aegis` |
-| n8n community nodes (4 nodes) | KAVACH adapters | **AGPL-3.0** | `@rocketlang/n8n-nodes-kavachos` |
-| LangChain callback adapter | KAVACH adapters | **AGPL-3.0** | `langchain-kavachos` |
-| CA-006 LLM injection detection | KAVACH-POSTURE | **AGPL-3.0** | `@rocketlang/aegis` |
-| Basic HanumanG (7 delegation axes) | KAVACH-POSTURE | **AGPL-3.0** | `@rocketlang/aegis` |
-| seccomp-bpf profile generator | KAVACH-KERNEL | **AGPL-3.0** | `@rocketlang/aegis` |
-| Falco rule generator + event watcher | KAVACH-KERNEL | **AGPL-3.0** | `@rocketlang/aegis` |
-| SCMP_ACT_NOTIFY supervisor (no-restart expansion) | KAVACH-KERNEL | **AGPL-3.0** | `@rocketlang/aegis` |
-| KavachOS CLI (`kavachos run/audit/generate/rules`) | KAVACH-KERNEL | **AGPL-3.0** | `@rocketlang/aegis` |
+| Budget governor (daily/session/agent) | KAVACH orchestrator | **AGPL-3.0** | `@xshieldai/aegis` |
+| DAN gate — WhatsApp / Telegram human-in-loop | KAVACH orchestrator | **AGPL-3.0** | `@xshieldai/aegis` |
+| `perm_mask` / `class_mask` bitmask policy | KAVACH orchestrator | **AGPL-3.0** | `@xshieldai/aegis` |
+| Gate valve (throttle → crack → close) | KAVACH orchestrator | **AGPL-3.0** | `@xshieldai/aegis` |
+| HTTP Gate API (`/api/v1/kavach/gate`) | KAVACH orchestrator | **AGPL-3.0** | `@xshieldai/aegis` |
+| n8n community nodes (4 nodes) | KAVACH adapters | **AGPL-3.0** | `@xshieldai/n8n-nodes` |
+| LangChain callback adapter | KAVACH adapters | **AGPL-3.0** | `xshieldai-langchain` |
+| CA-006 LLM injection detection | KAVACH-POSTURE | **AGPL-3.0** | `@xshieldai/aegis` |
+| Basic HanumanG (7 delegation axes) | KAVACH-POSTURE | **AGPL-3.0** | `@xshieldai/aegis` |
+| seccomp-bpf profile generator | KAVACH-KERNEL | **AGPL-3.0** | `@xshieldai/aegis` |
+| Falco rule generator + event watcher | KAVACH-KERNEL | **AGPL-3.0** | `@xshieldai/aegis` |
+| SCMP_ACT_NOTIFY supervisor (no-restart expansion) | KAVACH-KERNEL | **AGPL-3.0** | `@xshieldai/aegis` |
+| KavachOS CLI (`kavachos run/audit/generate/rules`) | KAVACH-KERNEL | **AGPL-3.0** | `@xshieldai/aegis` |
 | PRAMANA Merkle receipt chain + S3 anchoring | KAVACH orchestrator | **BSL-1.1 → AGPL-3.0\*** | contact [captain@ankr.in](mailto:captain@ankr.in) |
 | HanumanG EE — posture registry + report cards | KAVACH-POSTURE | **BSL-1.1 → AGPL-3.0\*** | contact [captain@ankr.in](mailto:captain@ankr.in) |
 | Dual-control L4 approval (two approvers) | KAVACH orchestrator | **BSL-1.1 → AGPL-3.0\*** | contact [captain@ankr.in](mailto:captain@ankr.in) |
@@ -605,7 +626,7 @@ aegis status   # EE: active
 ## What's new in v2.2.0 (2026-05-17) — Agentic Control Center
 
 The dashboard at port 4850 now includes a consolidated cockpit page that
-renders events from every `@rocketlang/*` primitive in one view.
+renders events from every `@xshieldai/*` primitive in one view.
 
 **New routes** (all gated by the same session auth as existing dashboard
 routes — opt-in via `dashboard.auth.enabled: true` in `~/.aegis/config.json`,
@@ -614,9 +635,9 @@ which is the default after `aegis init`):
 - **`/control-center`** — single-page cockpit with 6 primitive zones
   + AOS-shaped strip (Boot Sequence · Primitive Process List · About this AEGIS)
   + PRAMANA OSS panel (renders existing `src/kernel/merkle-ledger.ts`)
-  + EE-aware PRAMANA extra panel (renders only when `@rocketlang/kavachos-ee` is installed)
+  + EE-aware PRAMANA extra panel (renders only when `@xshieldai/agent-kernel-ee` is installed)
 - **`/agent/:id`** — per-agent timeline across all primitives, ordered by emission time
-- **`/suite`** — `@rocketlang/*` package inventory (from consumer's `node_modules`)
+- **`/suite`** — `@xshieldai/*` package inventory (from consumer's `node_modules`)
 - **`/api/acc/health`** — JSON event counts by primitive
 - **`/api/acc/events`** — JSON event query (by primitive or agent_id)
 - **`/api/acc/events/stream`** — SSE stream of new events (1.5s polling)
@@ -625,30 +646,30 @@ which is the default after `aegis init`):
 **To populate the cockpit**, install the meta-package + call `wireAllToBus()`:
 
 ```bash
-npm install @rocketlang/aegis-suite
+npm install @xshieldai/aegis-suite
 ```
 
 ```typescript
-import { wireAllToBus } from '@rocketlang/aegis-suite';
+import { wireAllToBus } from '@xshieldai/aegis-suite';
 wireAllToBus();
-// → every @rocketlang/* primitive event now records to ~/.aegis/acc-events.db
+// → every @xshieldai/* primitive event now records to ~/.aegis/acc-events.db
 // → visit http://localhost:4850/control-center
 ```
 
 Same release wave shipped these v0.2.0 primitive packages with opt-in
 `setEventBus()` API:
-[`@rocketlang/aegis-guard`](https://www.npmjs.com/package/@rocketlang/aegis-guard)
-· [`@rocketlang/chitta-detect`](https://www.npmjs.com/package/@rocketlang/chitta-detect)
-· [`@rocketlang/lakshmanrekha`](https://www.npmjs.com/package/@rocketlang/lakshmanrekha)
-· [`@rocketlang/hanumang-mandate`](https://www.npmjs.com/package/@rocketlang/hanumang-mandate)
-· [`@rocketlang/aegis-suite`](https://www.npmjs.com/package/@rocketlang/aegis-suite) v0.2.0 with `wireAllToBus()`.
+[`@xshieldai/aegis-guard`](https://www.npmjs.com/package/@xshieldai/aegis-guard)
+· [`@xshieldai/chitta-detect`](https://www.npmjs.com/package/@xshieldai/chitta-detect)
+· [`@xshieldai/lakshmanrekha`](https://www.npmjs.com/package/@xshieldai/lakshmanrekha)
+· [`@xshieldai/hanumang-mandate`](https://www.npmjs.com/package/@xshieldai/hanumang-mandate)
+· [`@xshieldai/aegis-suite`](https://www.npmjs.com/package/@xshieldai/aegis-suite) v0.2.0 with `wireAllToBus()`.
 
 **Phase-1 limits** (v2.2.0):
 - SSE polling at 1.5s interval (not push-based) — fine for most cockpits, finer-grained push deferred to v2.3+
 - WAL cross-process visibility — if consumer + dashboard are in different processes, call `handle.checkpoint()` after batches OR rely on auto-checkpoint at ~1000 writes
-- PRAMANA EE panel detected via runtime `require.resolve('@rocketlang/kavachos-ee')` — invisible if EE not installed
+- PRAMANA EE panel detected via runtime `require.resolve('@xshieldai/agent-kernel-ee')` — invisible if EE not installed
 - Filter UI on `/agent/:id` deferred to v2.3 (timeline works without it)
-- Consumer needs `@rocketlang/aegis-suite` v0.2.0+ for `wireAllToBus()` — direct `setEventBus()` per-primitive also works
+- Consumer needs `@xshieldai/aegis-suite` v0.2.0+ for `wireAllToBus()` — direct `setEventBus()` per-primitive also works
 
 See [DAILY-LOG.md](DAILY-LOG.md) for the 5-day build chronology.
 

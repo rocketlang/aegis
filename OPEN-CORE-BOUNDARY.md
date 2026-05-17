@@ -1,6 +1,6 @@
 # AEGIS — Open-Core Boundary Doc
 
-**Status:** v0.6 — release-wave edition. Captures the full @rocketlang ecosystem state after the 5-day Agentic Control Center build wave (2026-05-16 → 2026-05-17). Builds on v0.5's strategic pivot; no policy changes.
+**Status:** v0.7 — **brand consolidation edition** (2026-05-17 evening). All packages renamed from `@rocketlang/*` → `@xshieldai/*` (npm) and `*-kavachos` → `xshieldai-*` (PyPI). Same code, same versions, new umbrella under xShieldAI Posture Suite. Builds on v0.6 release-wave state; no other policy changes. See `MIGRATION.md` for the full mapping.
 **Lives at:** `/root/aegis/OPEN-CORE-BOUNDARY.md` (co-located with code; doc and code change together)
 **Companion docs:** `STRATEGY.md` (the why) · `EXTRACTION-QUEUE.md` (the what-next list)
 **Audience:** ANKR contributors, future cohort members, anyone deciding "does this go in the AGPL-3.0 OSS package or the BSL-1.1 EE package"
@@ -19,25 +19,33 @@ OSS license: **AGPL-3.0-only**. EE license: **BSL-1.1** (4-year Change Date to A
 
 ### LIVE on npm (AGPL-3.0)
 
-| Package | Version | Downloads (snapshot 2026-05-17) | Role |
+After 2026-05-17 evening's brand consolidation, all live packages are under `@xshieldai/*`. Old `@rocketlang/*` packages are marked deprecated on npm with redirect messages; they remain installable but emit deprecation warnings.
+
+| Package (current) | Was | Version | Role |
 |---|---|---|---|
-| `@rocketlang/aegis` | **2.2.0** (Day 5) | **869 / 30d** | AEGIS dashboard + KAVACH DAN gate + **Agentic Control Center** (cockpit page at `/control-center` + per-agent timeline at `/agent/:id` + SSE + AOS panels + PRAMANA OSS panel reading existing `src/kernel/merkle-ledger.ts` + EE-aware extra panel via runtime require.resolve). Also contains the OSS PRAMANA Merkle ledger (CT-style), Ed25519-signed STH, S3 anchoring, and SQLite append-only turn-store. |
-| `@rocketlang/kavachos` | 2.0.2 | **381 / 30d** | KavachOS — agent BEHAVIOR: seccomp-bpf, Falco, syscall mediation, exec allowlist, egress firewall |
-| `@rocketlang/n8n-nodes-kavachos` | 1.1.0 | **144 / 30d** | n8n community nodes |
-| `@rocketlang/aegis-guard` | **0.2.0** (Day 2) | **154 / 7d** | Five Locks SDK + opt-in `setEventBus()` for cockpit observability |
-| `@rocketlang/chitta-detect` | **0.2.0** (Day 2) | **129 / 7d** | Memory-poisoning detection + opt-in `setEventBus()` (scan.evaluate emits) |
-| `@rocketlang/lakshmanrekha` | **0.2.0** (Day 2) | **127 / 7d** | LLM endpoint probe suite + opt-in `setEventBus()` (runProbe emits per probe) |
-| `@rocketlang/hanumang-mandate` | **0.2.0** (Day 2) | **143 / 7d** | Mudrika verifier + 7-axis posture scorer + opt-in `setEventBus()` (mudrika + posture events) |
-| `@rocketlang/aegis-suite` | **0.2.0** (Day 3) | **116 / 7d** | Meta-package + **`wireAllToBus()`** helper: one call wires all 4 new primitives to a single in-memory bus + SQLite writer at `~/.aegis/acc-events.db` |
+| `@xshieldai/aegis` | `@rocketlang/aegis` | **2.2.0** | AEGIS dashboard + KAVACH DAN gate + **Agentic Control Center** (`/control-center` + `/agent/:id` + SSE + AOS panels + PRAMANA OSS panel + EE-aware extra panel via runtime require.resolve). Also contains OSS PRAMANA Merkle ledger (CT-style), Ed25519-signed STH, S3 anchoring, SQLite append-only turn-store. |
+| `@xshieldai/agent-kernel` | `@rocketlang/kavachos` | 2.0.2 | Agent Kernel (formerly KavachOS) — seccomp-bpf + Falco + syscall mediation + exec allowlist + egress firewall. Bin name `kavachos` preserved for CLI continuity. |
+| `@xshieldai/n8n-nodes` | `@rocketlang/n8n-nodes-kavachos` | 1.1.0 | n8n community nodes — DAN gate / kernel / budget / audit |
+| `@xshieldai/aegis-guard` | `@rocketlang/aegis-guard` | **0.2.0** | Five Locks SDK + opt-in `setEventBus()` for cockpit observability |
+| `@xshieldai/chitta-detect` | `@rocketlang/chitta-detect` | **0.2.0** | Memory-poisoning detection + opt-in `setEventBus()` |
+| `@xshieldai/lakshmanrekha` | `@rocketlang/lakshmanrekha` | **0.2.0** | LLM endpoint probe suite + opt-in `setEventBus()` |
+| `@xshieldai/hanumang-mandate` | `@rocketlang/hanumang-mandate` | **0.2.0** | Mudrika verifier + 7-axis posture scorer + opt-in `setEventBus()` |
+| `@xshieldai/aegis-suite` | `@rocketlang/aegis-suite` | **0.2.0** | Meta-package + **`wireAllToBus()`** helper, internal deps re-pointed to `@xshieldai/*` |
+
+**Pre-rename traffic (snapshot 2026-05-17):** combined ~2,700/mo across the 8 npm packages, growing weekly. The rename resets discoverability — accepted cost of brand consolidation while absolute numbers are still small.
 
 ### LIVE on PyPI (AGPL-3.0)
 
-| Package | Version | Downloads (snapshot 2026-05-17) | Role |
+| Package (current) | Was | Version | Role |
 |---|---|---|---|
-| `langchain-kavachos` | 1.0.0 | **194 / 30d** | LangChain callback for KavachOS DAN gate — pre-execution governance via AEGIS. Source: `/root/aegis/packages/langchain-kavachos/`. |
-| `crewai-kavachos` | 1.0.0 | **~192 / 30d** | CrewAI integration — DAN gate + budget guard. Source: `/root/aegis/packages/crewai-kavachos/`. |
+| `xshieldai-langchain` | `langchain-kavachos` | 1.0.0 | LangChain callback for AEGIS DAN gate — pre-execution governance. Import: `from xshieldai_langchain import KavachGateCallback`. |
+| `xshieldai-crewai` | `crewai-kavachos` | 1.0.0 | CrewAI integration — DAN gate + budget guard. Depends on `xshieldai-langchain>=1.0.0`. |
 
-**Naming disambiguation:** the bare `kavachos` PyPI package (v0.1.0, MIT, `kavachos.com` / `github.com/kavachos/kavachos`, "auth OS for AI agents and humans") is **NOT ours** — a name collision under a different org. Our PyPI presence is the two scoped-by-prefix `*-kavachos` packages only. Never claim or reference the bare `kavachos` package as ours; do not depend on it; if migrating Python users, point them to our prefixed names explicitly.
+**Old PyPI packages** (`langchain-kavachos`, `crewai-kavachos`) remain installable at v1.0.0 — PyPI has no `npm deprecate` equivalent. Follow-up v1.0.1 with `DeprecationWarning` pending.
+
+**Two name collisions to remember:**
+- The bare `kavachos` PyPI package (v0.1.0, MIT, kavachos.com — different org, "auth OS for AI agents and humans") is **NOT ours**.
+- `@powerpbox` npm scope is **taken by an unrelated org** (discovered 2026-05-17). If you need `@powerpbox` for ANKR internal packages, use `@powerpboxx` (double-x) as the workaround. Note already added to `~/.npmrc`.
 
 ### EE — BSL-1.1, deliberately not on npm (NARROW after v0.5)
 
@@ -206,6 +214,7 @@ If this doc and reality ever diverge, **reality is wrong**, not the doc.
 - **v0.4** (2026-05-16, late evening) — added `@rocketlang/aegis-suite` meta-package. Ecosystem reached 8 packages.
 - **v0.5** (2026-05-16, late evening) — **strategic pivot**. Founder is pre-revenue + frugal + intermittent sale revenue + can-survive-forever → aggressive OSS-first is correct. EE shrunk from 16 items to ~5 (operational only). PRAMANA misclassification fixed (was wrongly marked EE in v0.2–v0.4; actually in OSS aegis package — `src/kernel/merkle-ledger.ts`, `merkle-anchor.ts`, `src/telemetry/turn-store.ts`). Default for new features inverted: was "default closed", now "default open". `STRATEGY.md` + `EXTRACTION-QUEUE.md` companion docs created same session.
 - **v0.6** (2026-05-17, evening) — **release-wave edition**. Captures the 5-day Agentic Control Center build wave: 5 primitive packages all at v0.2.0 with opt-in `setEventBus()`, `@rocketlang/aegis-suite` v0.2.0 with `wireAllToBus()` helper, `@rocketlang/aegis` v2.2.0 with new `/control-center` + `/agent/:id` + SSE routes + 3 AOS panels + EE-aware PRAMANA extra panel. No policy changes from v0.5 — just state update reflecting what's now live. Build chronology captured in `DAILY-LOG.md`.
+- **v0.7** (2026-05-17, late evening) — **brand consolidation**. All `@rocketlang/*` packages republished under `@xshieldai/*` umbrella. Two name changes within the rename: `kavachos` → `agent-kernel`, `n8n-nodes-kavachos` → `n8n-nodes`. PyPI: `*-kavachos` → `xshieldai-*` (product-first convention). All `@rocketlang/*` packages `npm deprecate`'d with redirect messages. Old PyPI packages remain installable (no PyPI deprecate). See `MIGRATION.md` for full mapping. Also documented: `@powerpbox` npm scope collision (taken by unrelated org).
 
 ---
 

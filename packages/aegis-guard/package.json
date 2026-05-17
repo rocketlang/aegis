@@ -1,5 +1,5 @@
 {
-  "name": "@rocketlang/aegis-guard",
+  "name": "@xshieldai/aegis-guard",
   "version": "0.2.0",
   "description": "AEGIS Guard SDK — Five Locks primitives (approval-token, nonce, idempotency, SENSE, quality-evidence) + opt-in Agentic Control Center event bus for AEGIS-governed services",
   "license": "AGPL-3.0-only",

@@ -1,7 +1,7 @@
 {
-  "name": "@rocketlang/n8n-nodes-kavachos",
+  "name": "@xshieldai/n8n-nodes",
   "version": "1.1.0",
-  "description": "KavachOS n8n community nodes — DAN gate, kernel enforcement, budget check, and audit log for AI agents.",
+  "description": "xShieldAI n8n community nodes — DAN gate, kernel enforcement, budget check, and audit log for AI agents.",
   "license": "AGPL-3.0",
   "author": "Capt. Anil Sharma <capt.anil.sharma@powerpbox.org>",
   "homepage": "https://kavachos.xshieldai.com",
