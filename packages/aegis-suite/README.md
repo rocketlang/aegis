@@ -128,3 +128,149 @@ AGPL-3.0-only (the meta-package itself + all 6 bundled packages). Any modified v
 EE packages (BSL-1.1) are separate — see boundary doc at [OPEN-CORE-BOUNDARY.md](https://github.com/rocketlang/aegis/blob/main/OPEN-CORE-BOUNDARY.md).
 
 For commercial dual-licensing: [captain@ankr.in](mailto:captain@ankr.in).
+
+---
+
+## v0.2.0 — `wireAllToBus()` + Agentic Control Center event bus
+
+Added 2026-05-17. One call wires all 4 OSS primitives (aegis-guard,
+chitta-detect, lakshmanrekha, hanumang-mandate) to a single event bus
++ persists every event to SQLite at `~/.aegis/acc-events.db`. The
+aegis dashboard (v2.2.0+, ships same release wave) reads from this
+file to render the **Agentic Control Center** page at
+`http://localhost:4850/control-center`.
+
+### Quick start
+
+```typescript
+import { wireAllToBus } from '@rocketlang/aegis-suite';
+
+// One call — wires all 4 primitives + sets up SQLite writer
+const handle = wireAllToBus();
+
+console.log('Events persisting to:', handle.sqlitePath);
+// → /home/you/.aegis/acc-events.db
+
+// Now use any of the @rocketlang primitives normally — every operation
+// emits a receipt that lands in the SQLite file:
+import { verifyApprovalToken } from '@rocketlang/aegis-guard';
+import { scan } from '@rocketlang/chitta-detect';
+
+verifyApprovalToken(token, 'svc', 'cap', 'op');     // → emits lock.approval.verified
+scan.evaluate(content, { agent_id: 'agent-1' });    // → emits scan.evaluated
+```
+
+### View live in the Agentic Control Center
+
+If you also have `@rocketlang/aegis` v2.2.0+ installed and the dashboard
+running (`aegis-dashboard &`), visit:
+
+- **`http://localhost:4850/control-center`** — single-page grid with 6
+  zones (one per primitive + PRAMANA panel)
+- **`http://localhost:4850/agent/:id`** — per-agent timeline across all
+  primitives, ordered by emission time
+- **`http://localhost:4850/api/acc/events`** — JSON query API
+- **`http://localhost:4850/api/acc/health`** — counts by primitive
+
+All routes are gated by the dashboard's session auth when
+`dashboard.auth.enabled: true` in `~/.aegis/config.json` (the default
+after `aegis init`).
+
+### Subscribe to events live (custom processing)
+
+```typescript
+const handle = wireAllToBus();
+const unsub = handle.subscribe!((receipt) => {
+  if (receipt.verdict === 'BLOCK' || receipt.verdict === 'FAIL') {
+    notifyOps(receipt);  // your custom alerting
+  }
+});
+// later: unsub() to detach
+```
+
+### Bring your own bus
+
+```typescript
+import type { EventBus, AccReceipt } from '@rocketlang/aegis-suite';
+
+const myBus: EventBus = {
+  emit: (r: AccReceipt) => sendToRedis(r),  // your transport
+};
+
+wireAllToBus({ bus: myBus });  // no SQLite, no in-memory fan-out — fully delegated
+```
+
+### Detach when done
+
+```typescript
+import { unwireAll } from '@rocketlang/aegis-suite';
+unwireAll();  // all 4 primitives revert to v0.1.0 (no emission)
+```
+
+### Architecture
+
+```
+consumer process
+  ├─ wireAllToBus() ──┬─ setEventBus on aegis-guard
+  │                   ├─ setEventBus on chitta-detect
+  │                   ├─ setEventBus on lakshmanrekha
+  │                   └─ setEventBus on hanumang-mandate
+  │
+  ├─ InMemoryBus ──┬─ fan-out to subscribers (your live listeners)
+  │                └─ SqliteEventWriter ──> ~/.aegis/acc-events.db
+  │
+  └─ (your code calls primitives normally)
+
+aegis-dashboard (separate process, v2.2.0+)
+  └─ reads ~/.aegis/acc-events.db
+     └─ /control-center, /agent/:id, /api/acc/*
+```
+
+### Phase-1 limits (v0.2.0)
+
+- **Same-process vs cross-process visibility.** When the consumer
+  process and dashboard process are different (typical: your app + the
+  aegis-dashboard service), the consumer writes to SQLite via WAL.
+  Reader-side visibility lags slightly because WAL pages are not
+  automatically checkpointed back to the main DB file until
+  ~1000 writes accumulate. **If you want immediate cross-process
+  visibility, call `handle.checkpoint!()`** after a batch of activity
+  (e.g., end-of-request handler) or periodically (e.g., every 30s).
+  Single-process (consumer == dashboard) needs no checkpointing.
+- **`@rocketlang/aegis` v2.2.0 required for the cockpit UI.** The
+  dashboard at port 4850 needs aegis v2.2.0 (which ships in this same
+  release wave) to expose the `/control-center` route. Events still
+  persist to SQLite with any aegis version; only the rendering layer
+  needs v2.2.0.
+- **Default bus is in-process only.** Multi-process buses (Redis,
+  Kafka, NATS) are a consumer choice — implement the `EventBus`
+  interface and pass via `wireAllToBus({ bus: yourBus })`.
+- **WAL files (`-wal`, `-shm`) accompany `acc-events.db`.** If you
+  move/copy the SQLite file, take all three together or call
+  `checkpoint()` first to consolidate into the main file.
+- **`@rocketlang/n8n-nodes-kavachos` is NOT wired.** It's an n8n
+  integration, not a primitive — its event-bus story is the consumer's
+  n8n workflow, not `wireAllToBus`.
+
+### SQLite schema (for direct query access)
+
+```sql
+CREATE TABLE acc_events (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  receipt_id  TEXT NOT NULL,
+  primitive   TEXT NOT NULL,      -- 'aegis-guard' | 'chitta-detect' | etc.
+  event_type  TEXT NOT NULL,      -- 'lock.approval.verified' | 'scan.evaluated' | etc.
+  emitted_at  TEXT NOT NULL,      -- ISO 8601
+  agent_id    TEXT,
+  verdict     TEXT,               -- PASS | FAIL | BLOCK | etc.
+  rules_fired TEXT,               -- JSON array, e.g. '["AEG-E-016"]'
+  summary     TEXT,
+  payload     TEXT,               -- JSON object
+  ingested_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+-- Indexes on (primitive, emitted_at), (agent_id, emitted_at), event_type, id
+```
+
+Schema is forward-compatible-additive only (ACC-YK-006) — fields added,
+never removed or renamed. Direct SQL queries from external tools
+(Grafana, datadog-agent, custom scripts) are supported and stable.

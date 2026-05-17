@@ -13,7 +13,7 @@
 // The `aegis` and `kavachos` CLIs ship as bin entries in those packages.
 // See README for the unified workflow.
 
-export const AEGIS_SUITE_VERSION = '0.1.0';
+export const AEGIS_SUITE_VERSION = '0.2.0';
 export const AEGIS_SUITE_BUNDLED_PACKAGES = [
   '@rocketlang/aegis',
   '@rocketlang/kavachos',
@@ -28,6 +28,10 @@ export interface SuiteManifest {
   bundled_packages: typeof AEGIS_SUITE_BUNDLED_PACKAGES;
   excluded: { package: string; reason: string }[];
 }
+
+// @rule:ACC-003 — wireAllToBus helper (v0.2.0+)
+export { wireAllToBus, unwireAll, getWiredHandle } from './wire.js';
+export type { EventBus, AccReceipt, WireHandle, WireAllOpts } from './wire.js';
 
 export const SUITE_MANIFEST: SuiteManifest = {
   version: AEGIS_SUITE_VERSION,

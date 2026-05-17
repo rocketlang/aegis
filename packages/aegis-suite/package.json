@@ -1,7 +1,7 @@
 {
   "name": "@rocketlang/aegis-suite",
-  "version": "0.1.0",
-  "description": "Meta-package — installs the full @rocketlang AI agent governance stack in one shot: aegis + kavachos + aegis-guard + chitta-detect + lakshmanrekha + hanumang-mandate. Open-source counter to Fin Operator's hosted governance plane.",
+  "version": "0.2.0",
+  "description": "Meta-package — installs the full @rocketlang AI agent governance stack in one shot + wireAllToBus() helper that connects all 4 primitives to a single SQLite event bus for the Agentic Control Center. Open-source counter to Fin Operator's hosted governance plane.",
   "license": "AGPL-3.0-only",
   "type": "module",
   "author": "Capt. Anil Sharma <capt.anil.sharma@powerpbox.org>",
@@ -44,10 +44,10 @@
   "dependencies": {
     "@rocketlang/aegis": "^2.1.0",
     "@rocketlang/kavachos": "^2.0.2",
-    "@rocketlang/aegis-guard": "^0.1.0",
-    "@rocketlang/chitta-detect": "^0.1.0",
-    "@rocketlang/lakshmanrekha": "^0.1.0",
-    "@rocketlang/hanumang-mandate": "^0.1.0"
+    "@rocketlang/aegis-guard": "^0.2.0",
+    "@rocketlang/chitta-detect": "^0.2.0",
+    "@rocketlang/lakshmanrekha": "^0.2.0",
+    "@rocketlang/hanumang-mandate": "^0.2.0"
   },
   "scripts": {
     "typecheck": "tsc --noEmit"
