@@ -9,7 +9,9 @@
   "exports": {
     ".": "./index.ts",
     "./lite": "./src/sdk/lite.ts",
-    "./sdk": "./src/sdk/index.ts"
+    "./sdk": "./src/sdk/index.ts",
+    "./acc/bus": "./src/acc/bus.ts",
+    "./acc/types": "./src/acc/types.ts"
   },
   "author": "Capt. Anil Sharma <capt.anil.sharma@powerpbox.org>",
   "homepage": "https://github.com/rocketlang/aegis",
