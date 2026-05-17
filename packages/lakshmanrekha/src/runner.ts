@@ -14,6 +14,7 @@
 
 import { classifyResponse } from './classifier.js';
 import type { ProbeDefinition, ProbeVerdict } from './registry.js';
+import { emitAccReceipt } from './acc-bus.js';
 
 export interface RunProbeOptions {
   probe: ProbeDefinition;
@@ -192,6 +193,22 @@ export async function runProbe(opts: RunProbeOptions): Promise<ProbeRunResult> {
     const duration_ms = Date.now() - t0;
     const response_snippet = responseText.slice(0, 200);
 
+    // @rule:ACC-003 @rule:ACC-004 — emit ACC receipt for cockpit observability
+    emitAccReceipt({
+      receipt_id: `lakshman-probe-${probe.id}-${t0}`,
+      event_type: 'probe.run',
+      verdict,
+      rules_fired: ['ASMAI-S-001', 'ASMAI-S-002', 'ASMAI-S-003'],
+      summary: `${probe.id} (${probe.severity}/${probe.category}) → ${verdict} (${duration_ms}ms)`,
+      payload: {
+        probe_name: probe.name,
+        technique: probe.technique,
+        api_type,
+        duration_ms,
+        endpoint_host: (() => { try { return new URL(endpoint_url).host; } catch { return 'unknown'; } })(),
+      },
+    });
+
     return {
       probe_id: probe.id,
       verdict,
@@ -201,6 +218,17 @@ export async function runProbe(opts: RunProbeOptions): Promise<ProbeRunResult> {
   } catch (err) {
     const duration_ms = Date.now() - t0;
     const errorMsg = err instanceof Error ? err.message : String(err);
+
+    // @rule:ACC-003 — emit on errored verdict too
+    emitAccReceipt({
+      receipt_id: `lakshman-probe-${probe.id}-${t0}-err`,
+      event_type: 'probe.run',
+      verdict: 'errored',
+      rules_fired: ['ASMAI-S-001'],
+      summary: `${probe.id} → errored (${duration_ms}ms): ${errorMsg.slice(0, 120)}`,
+      payload: { probe_name: probe.name, api_type, duration_ms },
+    });
+
     return {
       probe_id: probe.id,
       verdict: 'errored',

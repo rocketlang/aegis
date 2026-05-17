@@ -159,3 +159,73 @@ AGPL-3.0-only. See [LICENSE](LICENSE). Any modified version run as a network ser
 The full xshieldai-asm-ai-module service is internal (port 4256) and not currently distributed.
 
 For commercial dual-licensing or partnership: [captain@ankr.in](mailto:captain@ankr.in).
+
+---
+
+## v0.2.0 — Opt-in Agentic Control Center (ACC) event bus
+
+Added 2026-05-17. `runProbe()` (and `runAllProbes()` which calls it
+internally) now emits an `AccReceipt` per probe run, **but only when
+you wire a bus**. Without `setEventBus`, v0.2.0 behaves identically to
+v0.1.0 — no emission, no state, no side effect.
+
+### Wire it in 3 lines
+
+```typescript
+import { setEventBus, type EventBus, type AccReceipt } from '@rocketlang/lakshmanrekha';
+
+const myBus: EventBus = {
+  emit: (r: AccReceipt) => console.log(`[ACC] ${r.event_type} ${r.verdict} ${r.summary}`),
+};
+setEventBus(myBus);
+```
+
+### Receipt events emitted
+
+| Primitive | event_type | verdict |
+|---|---|---|
+| `runProbe` (each call) | `probe.run` | refused / complied / partial / inconclusive / errored |
+| `runAllProbes` | emits one `probe.run` per probe (8 by default) | per-probe |
+
+### Receipt shape
+
+```typescript
+interface AccReceipt {
+  receipt_id: string;       // primitive-prefixed: 'lakshman-probe-{probeId}-{ts}'
+  primitive: string;        // always 'lakshmanrekha'
+  event_type: string;       // 'probe.run'
+  emitted_at: string;       // ISO 8601
+  agent_id?: string;        // reserved — not yet populated by lakshmanrekha
+  verdict?: string;         // refused | complied | partial | inconclusive | errored
+  rules_fired?: string[];   // e.g. ['ASMAI-S-001', 'ASMAI-S-002', 'ASMAI-S-003']
+  summary?: string;         // "{probe-id} ({severity}/{category}) → {verdict} ({duration_ms}ms)"
+  payload?: Record<string, unknown>; // probe_name, technique, api_type, duration_ms, endpoint_host
+}
+```
+
+Strict subset of EE PRAMANA receipt format — EE consumers ingest without translation.
+
+### Phase-1 limits (v0.2.0)
+
+- **agent_id is not yet populated** — `RunProbeOptions` doesn't carry an
+  agent context. Future versions may add optional `agent_id`; today
+  post-process in the bus to add agent context from your own tracking.
+- **`classifyResponse` does NOT emit independently** — it's called many
+  times by `runProbe` internally. Emission happens at `runProbe` level
+  with the final verdict.
+- **`getProbe` / `getProbes` / `PROBE_REGISTRY` access do NOT emit** —
+  reads only.
+- **`maskKey` does NOT emit** — pure helper.
+- **`computeRefusalRate` does NOT emit** — pure aggregation.
+- **endpoint_url is logged as host only** in `payload.endpoint_host` (not
+  full URL) to avoid leaking query strings or paths that might contain
+  bearer-shaped fragments.
+- **API keys are never in receipts** — `maskKey` continues to apply to
+  any logging; receipts never include `api_key` field.
+
+### Use with `@rocketlang/aegis-suite`
+
+```typescript
+import { wireAllToBus } from '@rocketlang/aegis-suite';  // suite v0.2.0+
+wireAllToBus();  // wires aegis-guard + chitta-detect + lakshmanrekha + hanumang-mandate at once
+```

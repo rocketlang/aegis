@@ -1,7 +1,7 @@
 {
   "name": "@rocketlang/lakshmanrekha",
-  "version": "0.1.0",
-  "description": "LLM endpoint probe suite — 8 deterministic attack probes + replayable refusal classifier + multi-provider runner (OpenAI / Anthropic / Azure / ankr-proxy). Extracted from xshieldai-asm-ai-module.",
+  "version": "0.2.0",
+  "description": "LLM endpoint probe suite — 8 deterministic attack probes + replayable refusal classifier + multi-provider runner (OpenAI / Anthropic / Azure / ankr-proxy) + opt-in Agentic Control Center event bus. Extracted from xshieldai-asm-ai-module.",
   "license": "AGPL-3.0-only",
   "type": "module",
   "author": "Capt. Anil Sharma <capt.anil.sharma@powerpbox.org>",

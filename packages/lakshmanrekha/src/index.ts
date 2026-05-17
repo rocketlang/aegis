@@ -38,3 +38,13 @@ export {
 } from './runner.js';
 
 export type { RunProbeOptions, ProbeRunResult } from './runner.js';
+
+// @rule:ACC-003 — Opt-in event bus for Agentic Control Center observability.
+//                 Stateless contract preserved (ACC-YK-003): emit is no-op
+//                 when setEventBus has not been called. v0.2.0+.
+export {
+  type AccReceipt,
+  type EventBus,
+  setEventBus,
+  isBusWired,
+} from './acc-bus.js';
