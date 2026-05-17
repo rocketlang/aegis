@@ -602,12 +602,65 @@ aegis status   # EE: active
 
 ---
 
+## What's new in v2.2.0 (2026-05-17) — Agentic Control Center
+
+The dashboard at port 4850 now includes a consolidated cockpit page that
+renders events from every `@rocketlang/*` primitive in one view.
+
+**New routes** (all gated by the same session auth as existing dashboard
+routes — opt-in via `dashboard.auth.enabled: true` in `~/.aegis/config.json`,
+which is the default after `aegis init`):
+
+- **`/control-center`** — single-page cockpit with 6 primitive zones
+  + AOS-shaped strip (Boot Sequence · Primitive Process List · About this AEGIS)
+  + PRAMANA OSS panel (renders existing `src/kernel/merkle-ledger.ts`)
+  + EE-aware PRAMANA extra panel (renders only when `@rocketlang/kavachos-ee` is installed)
+- **`/agent/:id`** — per-agent timeline across all primitives, ordered by emission time
+- **`/suite`** — `@rocketlang/*` package inventory (from consumer's `node_modules`)
+- **`/api/acc/health`** — JSON event counts by primitive
+- **`/api/acc/events`** — JSON event query (by primitive or agent_id)
+- **`/api/acc/events/stream`** — SSE stream of new events (1.5s polling)
+- **`/api/suite/inventory`** — JSON inventory
+
+**To populate the cockpit**, install the meta-package + call `wireAllToBus()`:
+
+```bash
+npm install @rocketlang/aegis-suite
+```
+
+```typescript
+import { wireAllToBus } from '@rocketlang/aegis-suite';
+wireAllToBus();
+// → every @rocketlang/* primitive event now records to ~/.aegis/acc-events.db
+// → visit http://localhost:4850/control-center
+```
+
+Same release wave shipped these v0.2.0 primitive packages with opt-in
+`setEventBus()` API:
+[`@rocketlang/aegis-guard`](https://www.npmjs.com/package/@rocketlang/aegis-guard)
+· [`@rocketlang/chitta-detect`](https://www.npmjs.com/package/@rocketlang/chitta-detect)
+· [`@rocketlang/lakshmanrekha`](https://www.npmjs.com/package/@rocketlang/lakshmanrekha)
+· [`@rocketlang/hanumang-mandate`](https://www.npmjs.com/package/@rocketlang/hanumang-mandate)
+· [`@rocketlang/aegis-suite`](https://www.npmjs.com/package/@rocketlang/aegis-suite) v0.2.0 with `wireAllToBus()`.
+
+**Phase-1 limits** (v2.2.0):
+- SSE polling at 1.5s interval (not push-based) — fine for most cockpits, finer-grained push deferred to v2.3+
+- WAL cross-process visibility — if consumer + dashboard are in different processes, call `handle.checkpoint()` after batches OR rely on auto-checkpoint at ~1000 writes
+- PRAMANA EE panel detected via runtime `require.resolve('@rocketlang/kavachos-ee')` — invisible if EE not installed
+- Filter UI on `/agent/:id` deferred to v2.3 (timeline works without it)
+- Consumer needs `@rocketlang/aegis-suite` v0.2.0+ for `wireAllToBus()` — direct `setEventBus()` per-primitive also works
+
+See [DAILY-LOG.md](DAILY-LOG.md) for the 5-day build chronology.
+
+---
+
 ## Roadmap
 
 - [x] Phase 0 — Monitor + CLI + Dashboard + Max Plan + Codex support
 - [x] Phase 1 — KAVACH-KERNEL: seccomp-bpf + Falco + SCMP_ACT_NOTIFY supervisor (v2.0.0)
 - [x] Phase 1A — Framework adapters: n8n (4 nodes) + LangChain callback (v2.0.0)
-- [ ] Phase 2 — PRAMANA Merkle ledger + S3 anchoring (EE)
+- [x] Phase 2 — PRAMANA Merkle ledger + S3 anchoring (in OSS since v2.1.0 — corrected from earlier EE misclassification per OPEN-CORE-BOUNDARY.md v0.5)
+- [x] Phase 2a — **Agentic Control Center (v2.2.0)** — cockpit page + per-agent timeline + SSE + AOS-shaped polish
 - [ ] Phase 3 — L7 transparent proxy (TLS-terminating, zero agent code change)
 - [ ] Phase 4 — SPIFFE/mudrika identity (agent SVID, 55-min auto-rotate)
 - [ ] Phase 5 — EU AI Act evidence package (Aug 2, 2026 deadline)

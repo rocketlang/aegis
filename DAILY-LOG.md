@@ -6,7 +6,68 @@
 
 ---
 
-## 2026-05-17 — Day 3 of Agentic Control Center: wireAllToBus + dashboard surface
+## 2026-05-17 (evening) — Day 5 of Agentic Control Center: aegis v2.2.0 publish + boundary doc v0.6
+
+**Theme:** ship the full dashboard. The 5-day wave closes with `@rocketlang/aegis` going from 2.1.0 → 2.2.0 — the first version where downloading aegis gets the full Agentic Control Center out of the box.
+
+**npm publishes (1 — the big one):**
+- `@rocketlang/aegis@2.2.0` — full dashboard ships with: `/suite` inventory (Day 1), `/control-center` cockpit grid + 6 primitive zones (Day 3), `/agent/:id` per-agent timeline (Day 3), `/api/acc/{health,events,events/stream}` SSE (Day 3), 3 AOS panels (Boot Sequence + Primitive Process List + About this AEGIS — Day 4), EE-aware PRAMANA panel via runtime `require.resolve` (Day 4). Tarball 372.3 kB packed / 1.4 MB unpacked / 157 files. Same auth posture as existing dashboard (`config.dashboard.auth.enabled`). PRAMANA OSS Merkle ledger (`src/kernel/merkle-ledger.ts`) renders directly; EE adds an additional panel when `@rocketlang/kavachos-ee` resolves.
+
+**PyPI inventory added to boundary doc:**
+- v0.6 also fills in the previously thin PyPI section: `langchain-kavachos@1.0.0` (194/30d) + `crewai-kavachos@1.0.0` (~192/30d), both AGPL-3.0, sources in `/root/aegis/packages/`.
+- **Name-collision flagged:** the bare `kavachos` PyPI package (v0.1.0, MIT, `kavachos.com`) is **not ours** — different org, different license. Disambiguation note added to boundary doc so future sessions never claim it or accidentally depend on it.
+
+**Docs updated:**
+- `OPEN-CORE-BOUNDARY.md` v0.5 → **v0.6** — release-wave edition. Captures all 5 v0.2.0 packages live + aegis v2.2.0 live + the 2 PyPI packages explicitly inventoried + bare-kavachos collision flagged. No policy changes from v0.5; state-only update.
+- `EXTRACTION-QUEUE.md` v1.0 → **v1.1** — Phase-2 ACC items moved from "queued" to "shipped". Test-suite follow-ups remain queued for v0.2.1/v0.3.
+- `README.md` — added "What's new in v2.2.0 (2026-05-17) — Agentic Control Center" section with full route list, install via aegis-suite, 5 Phase-1 limits explicitly named, link to all 5 same-wave v0.2.0 sibling packages. Roadmap Phase 2 + Phase 2a marked complete.
+- `DAILY-LOG.md` — Day 4 + Day 5 entries (this entry + prev).
+
+**Pre-publish verification:**
+- `bun test src/shield/shield.test.ts` — 23 pass, 0 fail (no regression from Days 1-4 changes).
+- `bun test tests/aegis-guard.test.ts` in `packages/aegis-guard/` — 63 pass, 0 fail.
+- `npm pack --dry-run` clean — tarball shasum `0bec5e8bde3a2c7c98b0e8dad8d6087c71f2ecae`.
+
+**Discipline that held:**
+- Stop-before-publish — paused for founder greenlight before `npm publish --access public` (per ACC-T-511 + stop-before-publish standing rule).
+- Boundary doc + extraction queue + daily log committed atomically with the publish — no doc drift.
+
+**Open / queued for next session:**
+- Test suites for the 4 v0.2.0 primitives (planned for v0.2.1).
+- hanumang-mandate signature crypto (v0.3 — high priority, unblocks untrusted-channel use).
+- aegis v2.3 — `/control-center` filter UI (deferred from v2.2).
+- Phase-3 of strategy: 1-2 packages/week from the 11-item extraction queue.
+
+---
+
+## 2026-05-17 (afternoon) — Day 4 of Agentic Control Center: AOS polish + LinkedIn draft
+
+**Theme:** finish the Agentic Operating System (AOS) feel — boot sequence, process list, health panel, EE-aware optional panel.
+
+**aegis core (no publish — held for Day 5):**
+- `src/dashboard/routes/acc.ts` — added 4 panels to `/control-center` page:
+  - **Boot Sequence panel** — uptime ticker since module load (`_bootTs`), schema status, route status, EE detection result.
+  - **Primitive Process List panel** — table view of all 6 primitives with status / event counts (last 1h) / last-event-ts / "PID" (stable hash of namespace) — gives the OS feel that an agentic dashboard should have.
+  - **About this AEGIS health panel** — version, bus type, SQLite path + size, total events, distinct agent count, route inventory.
+  - **EE-aware PRAMANA panel** — calls `detectKavachosEE()` (try-catch `require.resolve('@rocketlang/kavachos-ee')`). If found: renders extra EE panel with bonded receipts indicator. If absent: renders OSS-only PRAMANA panel (reads `src/kernel/merkle-ledger.ts` directly). Strict no static EE imports per ACC-006.
+- `DAILY-LOG.md` — created. First entries for Days 1, 2, 3 (retroactive with commit refs).
+
+**LinkedIn post drafted:**
+- v1 (3 variants) feedback: "lifeless". User specified the structure: FOMO opener → incident ($200 vanished while you sleep) → state-of-the-world (agentic processes are on but architectures haven't caught up) → multi-dim guardrails offering (cost / OS / cybersec / observability) → install CTA.
+- v2 rewritten to that exact spec. User asked "send to me" rather than auto-post; drafted as copy-paste-ready text to founder email (per `feedback_external_mail_draft_first` — external content always founder-routed).
+
+**Discipline that held:**
+- No auto-post to LinkedIn. Founder posts manually after review.
+- EE detection via runtime `require.resolve` only — no static `import { ... } from '@rocketlang/kavachos-ee'` anywhere in OSS code.
+
+**Smoke test (Day 4):**
+- `/control-center` loads all 4 new panels with no EE module present (OSS path).
+- `_bootTs` uptime ticker increments correctly across page reloads.
+- `detectKavachosEE()` returns `null` cleanly when EE absent; no error in dashboard logs.
+
+---
+
+## 2026-05-17 (morning) — Day 3 of Agentic Control Center: wireAllToBus + dashboard surface
 
 **Theme:** wire the 4 v0.2.0 primitives into a consolidated event bus + render them in a cockpit page.
 

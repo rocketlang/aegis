@@ -1,6 +1,6 @@
 # OSS Extraction Queue
 
-**Status:** v1.0 — seeded 2026-05-16 evening alongside `OPEN-CORE-BOUNDARY.md` v0.5 + `STRATEGY.md` v1.0.
+**Status:** v1.1 — updated 2026-05-17 evening after Day 5 of the Agentic Control Center wave. Phase-2 v0.2.0 work shipped for 4 primitives + aegis-suite + aegis v2.2.0. Test-suite follow-ups still outstanding.
 **Purpose:** running list of `@rocketlang/*` OSS extraction candidates from the 500+ Verdaccio + 200+ services. Updated as items move through queue.
 **Pace target:** 1-2 packages per week sustained (per `STRATEGY.md`).
 
@@ -58,16 +58,22 @@ The following 10 are the seed list. Each is grounded in code seen this session; 
 
 ## Phase-2 work on shipped packages
 
-Not new packages, but follow-up work on the 4 packages shipped today:
+Status snapshot after Day 5 of the ACC wave (2026-05-17):
 
-| Package | Phase-2 work | Effort | Priority |
+| Package | Phase-2 work | Effort | Status |
 |---|---|---|---|
-| `@rocketlang/aegis-guard` | Test suite (v0.1.1) | S | mid |
-| `@rocketlang/chitta-detect` | Test suite (v0.1.1) | S | mid |
-| `@rocketlang/lakshmanrekha` | Test suite + async runner (v0.2) | M | mid |
-| `@rocketlang/hanumang-mandate` | Test suite + signature crypto (v0.2) | M | high — signature crypto unblocks untrusted-channel use |
-| `@rocketlang/aegis` | v2.2.0 publish for README Fin parity callout to show on npmjs.com | S | low — already on GitHub |
-| `@rocketlang/aegis` | LICENSE wording cleanup (current LICENSE has "Commercial use requires separate license" clause technically incompatible with pure AGPL-3.0) | S | low — non-blocking; clarify dual-licensing language |
+| `@rocketlang/aegis-guard` | v0.2.0 opt-in `setEventBus()` for ACC | S | **shipped 2026-05-16 — v0.2.0 on npm** |
+| `@rocketlang/chitta-detect` | v0.2.0 opt-in `setEventBus()` for ACC | S | **shipped 2026-05-16 — v0.2.0 on npm** |
+| `@rocketlang/lakshmanrekha` | v0.2.0 opt-in `setEventBus()` for ACC | S | **shipped 2026-05-16 — v0.2.0 on npm** (async runner still pending v0.3) |
+| `@rocketlang/hanumang-mandate` | v0.2.0 opt-in `setEventBus()` for ACC | S | **shipped 2026-05-16 — v0.2.0 on npm** (signature crypto still pending v0.3 — unblocks untrusted-channel use) |
+| `@rocketlang/aegis-suite` | v0.2.0 `wireAllToBus()` helper + self-contained bus + SqliteEventWriter | S | **shipped 2026-05-17 — v0.2.0 on npm** |
+| `@rocketlang/aegis` | v2.2.0 with Agentic Control Center (`/control-center`, `/agent/:id`, `/suite`, SSE, AOS panels, EE-aware PRAMANA panel) + README Fin parity callout | M | **shipped 2026-05-17 — v2.2.0 on npm** |
+| `@rocketlang/aegis-guard` | Test suite (independent v0.2.1) | S | queued — mid priority |
+| `@rocketlang/chitta-detect` | Test suite (independent v0.2.1) | S | queued — mid priority |
+| `@rocketlang/lakshmanrekha` | Test suite + async runner (v0.3) | M | queued — mid priority |
+| `@rocketlang/hanumang-mandate` | Test suite + signature crypto (v0.3) | M | queued — high priority (signature crypto unblocks untrusted-channel use) |
+| `@rocketlang/aegis-suite` | Smoke tests for `wireAllToBus()` end-to-end + filter UI for `/control-center` | S-M | queued — to land with aegis v2.3.0 |
+| `@rocketlang/aegis` | LICENSE wording cleanup (current LICENSE has "Commercial use requires separate license" clause technically incompatible with pure AGPL-3.0) | S | queued — low priority; non-blocking; clarify dual-licensing language |
 
 ---
 

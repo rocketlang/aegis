@@ -1,6 +1,6 @@
 # AEGIS — Open-Core Boundary Doc
 
-**Status:** v0.5 — strategic-pivot edition. Aggressive OSS, EE only for operational leverage. Fixes the PRAMANA misclassification carried from v0.2–v0.4.
+**Status:** v0.6 — release-wave edition. Captures the full @rocketlang ecosystem state after the 5-day Agentic Control Center build wave (2026-05-16 → 2026-05-17). Builds on v0.5's strategic pivot; no policy changes.
 **Lives at:** `/root/aegis/OPEN-CORE-BOUNDARY.md` (co-located with code; doc and code change together)
 **Companion docs:** `STRATEGY.md` (the why) · `EXTRACTION-QUEUE.md` (the what-next list)
 **Audience:** ANKR contributors, future cohort members, anyone deciding "does this go in the AGPL-3.0 OSS package or the BSL-1.1 EE package"
@@ -19,23 +19,25 @@ OSS license: **AGPL-3.0-only**. EE license: **BSL-1.1** (4-year Change Date to A
 
 ### LIVE on npm (AGPL-3.0)
 
-| Package | Version | Downloads (30d, 2026-05-16) | Role |
+| Package | Version | Downloads (snapshot 2026-05-17) | Role |
 |---|---|---|---|
-| `@rocketlang/aegis` | 2.1.0 | **859** | AEGIS — agent SPEND governance: budget caps, kill-switch, DAN gate, HanumanG 7-axis spawn check. **Also contains the OSS PRAMANA Merkle ledger (CT-style), Ed25519-signed STH, and S3 anchoring** (`src/kernel/merkle-ledger.ts`, `merkle-anchor.ts`) + **the SQLite append-only turn-store** (`src/telemetry/turn-store.ts`) — corrected in v0.5; v0.2–v0.4 incorrectly marked these as EE. |
-| `@rocketlang/kavachos` | 2.0.2 | **370** | KavachOS — agent BEHAVIOR: seccomp-bpf, Falco, syscall mediation, exec allowlist, egress firewall |
-| `@rocketlang/n8n-nodes-kavachos` | 1.1.0 | **143** | n8n community nodes — DAN gate / kernel enforcement / budget check / audit log |
-| `@rocketlang/aegis-guard` | 0.1.0 | new (2026-05-16 09:59 UTC) | Five Locks SDK — approval-token, nonce, idempotency, SENSE emit, quality evidence |
-| `@rocketlang/chitta-detect` | 0.1.0 | new (2026-05-16 10:46 UTC) | Memory-poisoning detection primitives (8 namespaces) |
-| `@rocketlang/lakshmanrekha` | 0.1.0 | new (2026-05-16 12:00 UTC) | LLM endpoint probe suite (8 probes + replayable classifier + multi-provider runner) |
-| `@rocketlang/hanumang-mandate` | 0.1.0 | new (2026-05-16 12:30 UTC) | Mudrika delegation-credential verifier + 7-axis posture scorer |
-| `@rocketlang/aegis-suite` | 0.1.0 | new (2026-05-16 12:58 UTC) | Meta-package — single-install bundle of all 6 OSS primitives above |
+| `@rocketlang/aegis` | **2.2.0** (Day 5) | **869 / 30d** | AEGIS dashboard + KAVACH DAN gate + **Agentic Control Center** (cockpit page at `/control-center` + per-agent timeline at `/agent/:id` + SSE + AOS panels + PRAMANA OSS panel reading existing `src/kernel/merkle-ledger.ts` + EE-aware extra panel via runtime require.resolve). Also contains the OSS PRAMANA Merkle ledger (CT-style), Ed25519-signed STH, S3 anchoring, and SQLite append-only turn-store. |
+| `@rocketlang/kavachos` | 2.0.2 | **381 / 30d** | KavachOS — agent BEHAVIOR: seccomp-bpf, Falco, syscall mediation, exec allowlist, egress firewall |
+| `@rocketlang/n8n-nodes-kavachos` | 1.1.0 | **144 / 30d** | n8n community nodes |
+| `@rocketlang/aegis-guard` | **0.2.0** (Day 2) | **154 / 7d** | Five Locks SDK + opt-in `setEventBus()` for cockpit observability |
+| `@rocketlang/chitta-detect` | **0.2.0** (Day 2) | **129 / 7d** | Memory-poisoning detection + opt-in `setEventBus()` (scan.evaluate emits) |
+| `@rocketlang/lakshmanrekha` | **0.2.0** (Day 2) | **127 / 7d** | LLM endpoint probe suite + opt-in `setEventBus()` (runProbe emits per probe) |
+| `@rocketlang/hanumang-mandate` | **0.2.0** (Day 2) | **143 / 7d** | Mudrika verifier + 7-axis posture scorer + opt-in `setEventBus()` (mudrika + posture events) |
+| `@rocketlang/aegis-suite` | **0.2.0** (Day 3) | **116 / 7d** | Meta-package + **`wireAllToBus()`** helper: one call wires all 4 new primitives to a single in-memory bus + SQLite writer at `~/.aegis/acc-events.db` |
 
 ### LIVE on PyPI (AGPL-3.0)
 
-| Package | Version | Downloads (30d) | Role |
+| Package | Version | Downloads (snapshot 2026-05-17) | Role |
 |---|---|---|---|
-| `langchain-kavachos` | 1.0.0 | **192** | LangChain integration for KavachOS gates |
-| `crewai-kavachos` | 1.0.0 | **192** | CrewAI integration (depends on langchain-kavachos) |
+| `langchain-kavachos` | 1.0.0 | **194 / 30d** | LangChain callback for KavachOS DAN gate — pre-execution governance via AEGIS. Source: `/root/aegis/packages/langchain-kavachos/`. |
+| `crewai-kavachos` | 1.0.0 | **~192 / 30d** | CrewAI integration — DAN gate + budget guard. Source: `/root/aegis/packages/crewai-kavachos/`. |
+
+**Naming disambiguation:** the bare `kavachos` PyPI package (v0.1.0, MIT, `kavachos.com` / `github.com/kavachos/kavachos`, "auth OS for AI agents and humans") is **NOT ours** — a name collision under a different org. Our PyPI presence is the two scoped-by-prefix `*-kavachos` packages only. Never claim or reference the bare `kavachos` package as ours; do not depend on it; if migrating Python users, point them to our prefixed names explicitly.
 
 ### EE — BSL-1.1, deliberately not on npm (NARROW after v0.5)
 
@@ -203,6 +205,7 @@ If this doc and reality ever diverge, **reality is wrong**, not the doc.
 - **v0.3** (2026-05-16, evening) — added 4 packages shipped today: aegis-guard, chitta-detect, lakshmanrekha, hanumang-mandate. §6 updated to FOUR HanumanG implementations.
 - **v0.4** (2026-05-16, late evening) — added `@rocketlang/aegis-suite` meta-package. Ecosystem reached 8 packages.
 - **v0.5** (2026-05-16, late evening) — **strategic pivot**. Founder is pre-revenue + frugal + intermittent sale revenue + can-survive-forever → aggressive OSS-first is correct. EE shrunk from 16 items to ~5 (operational only). PRAMANA misclassification fixed (was wrongly marked EE in v0.2–v0.4; actually in OSS aegis package — `src/kernel/merkle-ledger.ts`, `merkle-anchor.ts`, `src/telemetry/turn-store.ts`). Default for new features inverted: was "default closed", now "default open". `STRATEGY.md` + `EXTRACTION-QUEUE.md` companion docs created same session.
+- **v0.6** (2026-05-17, evening) — **release-wave edition**. Captures the 5-day Agentic Control Center build wave: 5 primitive packages all at v0.2.0 with opt-in `setEventBus()`, `@rocketlang/aegis-suite` v0.2.0 with `wireAllToBus()` helper, `@rocketlang/aegis` v2.2.0 with new `/control-center` + `/agent/:id` + SSE routes + 3 AOS panels + EE-aware PRAMANA extra panel. No policy changes from v0.5 — just state update reflecting what's now live. Build chronology captured in `DAILY-LOG.md`.
 
 ---
 
