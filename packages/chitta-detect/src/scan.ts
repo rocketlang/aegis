@@ -13,6 +13,7 @@ import { resolve as resolveTrust } from './trust.js';
 import { scan as fingerprintScan } from './fingerprint.js';
 import { classify as classifyToolOutput } from './tool-output.js';
 import type { SourceMetadata } from './trust.js';
+import { emitAccReceipt } from './acc-bus.js';
 
 export type ScanVerdict = 'PASS' | 'ADVISORY' | 'INJECT_SUSPECT' | 'BLOCK';
 
@@ -140,7 +141,26 @@ export function evaluate(
     verdict = 'PASS';
   }
 
-  return buildResult(scan_id, verdict, combinedConfidence, rules_fired, imp, fp, trust, toolOutputClassification, scanned_at);
+  const result = buildResult(scan_id, verdict, combinedConfidence, rules_fired, imp, fp, trust, toolOutputClassification, scanned_at);
+
+  // @rule:ACC-003 @rule:ACC-004 — emit cockpit receipt (no-op when bus unset)
+  emitAccReceipt({
+    receipt_id: scan_id,
+    event_type: 'scan.evaluated',
+    agent_id: agentContext.agent_id,
+    verdict: result.verdict,
+    rules_fired: result.rules_fired,
+    summary: `${agentContext.scan_type ?? 'memory_write'} → ${result.verdict} (confidence=${result.confidence}, action=${result.action})`,
+    payload: {
+      scan_type: agentContext.scan_type,
+      posture: agentContext.posture,
+      confidence: result.confidence,
+      fingerprint_matched: result.details.fingerprint_matched,
+      tool_output_classification: result.details.tool_output_classification,
+    },
+  });
+
+  return result;
 }
 
 function buildResult(

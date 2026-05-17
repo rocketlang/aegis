@@ -181,3 +181,66 @@ AGPL-3.0-only. The full chitta-guard service is BSL-1.1 (converts to AGPL-3.0 af
 See [LICENSE](LICENSE) for the AGPL-3.0 terms. Any modified version run as a network service must publish source per AGPL clause 13.
 
 For commercial dual-licensing or EE-tier access: [captain@ankr.in](mailto:captain@ankr.in).
+
+---
+
+## v0.2.0 — Opt-in Agentic Control Center (ACC) event bus
+
+Added 2026-05-17. `scan.evaluate()` now emits an `AccReceipt` on every
+scan, **but only when you wire a bus**. Without `setEventBus`, v0.2.0
+behaves identically to v0.1.0 — no emission, no state, no side effect.
+
+### Wire it in 3 lines
+
+```typescript
+import { setEventBus, type EventBus, type AccReceipt } from '@rocketlang/chitta-detect';
+
+const myBus: EventBus = {
+  emit: (r: AccReceipt) => console.log(`[ACC] ${r.event_type} ${r.verdict} ${r.summary}`),
+};
+setEventBus(myBus);
+```
+
+### Receipt events emitted
+
+| Primitive | event_type | verdict |
+|---|---|---|
+| `scan.evaluate` | `scan.evaluated` | PASS / ADVISORY / INJECT_SUSPECT / BLOCK |
+
+### Receipt shape
+
+```typescript
+interface AccReceipt {
+  receipt_id: string;       // primitive-prefixed (cg-scan-{ts}-{counter})
+  primitive: string;        // always 'chitta-detect'
+  event_type: string;       // 'scan.evaluated'
+  emitted_at: string;       // ISO 8601
+  agent_id?: string;        // copied from agentContext.agent_id
+  verdict?: string;         // PASS | ADVISORY | INJECT_SUSPECT | BLOCK
+  rules_fired?: string[];   // e.g. ['CG-006', 'CG-003', 'INF-CG-002']
+  summary?: string;         // "{scan_type} → {verdict} (confidence=X, action=Y)"
+  payload?: Record<string, unknown>; // scan_type, posture, confidence, fingerprint_matched, tool_output_classification
+}
+```
+
+Strict subset of EE PRAMANA receipt format — EE consumers ingest without translation.
+
+### Phase-1 limits (v0.2.0)
+
+- **Only `scan.evaluate` emits** — the orchestrator that combines all
+  detectors. Individual detector primitives (`fingerprint.scan`,
+  `imperative.scan`, `trust.resolve`, `toolOutput.classify`,
+  `capabilityExpansion.scan`, `rateLimit.check`, `retrospective.audit`)
+  do NOT emit independently. Reasoning: emitting from every detector
+  would flood the bus (a single `scan.evaluate` call runs 4+ detectors).
+  If you call detectors directly outside `scan.evaluate`, no event is
+  emitted — that's a Phase-1 limit.
+- **Default bus is in-process only.** Multi-process buses (Redis-backed,
+  etc.) are a consumer choice.
+
+### Use with `@rocketlang/aegis-suite`
+
+```typescript
+import { wireAllToBus } from '@rocketlang/aegis-suite';  // suite v0.2.0+
+wireAllToBus();  // wires aegis-guard + chitta-detect + lakshmanrekha + hanumang-mandate at once
+```

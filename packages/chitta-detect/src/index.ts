@@ -31,6 +31,16 @@ export * as rateLimit from './rate-limit.js';
 export * as retrospective from './retrospective.js';
 export * as scan from './scan.js';
 
+// @rule:ACC-003 — Opt-in event bus for Agentic Control Center observability.
+//                 Stateless contract preserved (ACC-YK-003): emit is no-op
+//                 when setEventBus has not been called. v0.2.0+.
+export {
+  type AccReceipt,
+  type EventBus,
+  setEventBus,
+  isBusWired,
+} from './acc-bus.js';
+
 // Re-export the types most consumers will name explicitly
 export type { SourceMetadata, TrustClassification, TrustClassifyResult } from './trust.js';
 export type { ImperativeScanResult } from './imperative.js';
