@@ -2,10 +2,10 @@
 // AEGIS — Public SDK entry point
 //
 // Lite (beginners — no setup required):
-//   import { lite, TRUST_PERM, ROLE_MASK } from '@rocketlang/aegis'
+//   import { lite, TRUST_PERM, ROLE_MASK } from '@xshieldai/aegis'
 //
 // Full (advanced — wraps enforcement registry):
-//   import { aegis } from '@rocketlang/aegis'
+//   import { aegis } from '@xshieldai/aegis'
 
 export { lite, TRUST_PERM, ROLE_MASK, AegisLiteError } from './src/sdk/lite.js';
 export type { LiteAgent, LiteGuardResult, TrustPerm } from './src/sdk/lite.js';

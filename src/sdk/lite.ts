@@ -3,7 +3,7 @@
 // No services.json, no database, no ANKR infra required.
 //
 // Usage (Terrence / beginner profile):
-//   import { lite, TRUST_PERM } from '@rocketlang/aegis'
+//   import { lite, TRUST_PERM } from '@xshieldai/aegis'
 //   const agent = lite.create({ id: 'my-agent', trust_mask: TRUST_PERM.READ | TRUST_PERM.EXECUTE })
 //   lite.can(agent, TRUST_PERM.WRITE)   // false
 //   lite.can(agent, TRUST_PERM.READ)    // true
