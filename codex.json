@@ -488,5 +488,8 @@
       "capability_reconfirm": "fail",
       "duration_ms": 997
     }
-  }
+  },
+  "cim_mask": 12,
+  "cim_mask_schema": "cim-mask-v1",
+  "cim_mask_last_refresh": {"at":"2026-05-22T10:30:21.371Z","mask_before":0,"mask_after":12,"flipped":["+bit2(invariants_declared)","+bit3(invariants_holding)"],"probe_summary":{"pass":0,"fail":0,"skip":1}}
 }
