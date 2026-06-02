@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "crewai-kavachos"
-version = "1.0.0"
-description = "KavachOS DAN gate + budget guard for CrewAI agents — pre-execution governance via AEGIS"
+version = "1.0.1"
+description = "DEPRECATED — renamed to xshieldai-crewai. Install xshieldai-crewai instead."
 readme = "README.md"
 license = { text = "AGPL-3.0" }
 authors = [{ name = "Capt. Anil Sharma", email = "capt.anil.sharma@powerpbox.org" }]
@@ -23,7 +23,7 @@ classifiers = [
   "Topic :: Security",
 ]
 requires-python = ">=3.9"
-dependencies = ["langchain-kavachos>=1.0.0"]
+dependencies = ["xshieldai-crewai>=1.0.0"]
 
 [project.optional-dependencies]
 crewai = ["crewai>=0.28.0"]

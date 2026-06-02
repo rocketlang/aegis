@@ -1,0 +1,39 @@
+[build-system]
+requires = ["setuptools>=61", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "xshieldai-crewai"
+version = "1.0.0"
+description = "xShieldAI / AEGIS DAN gate + budget guard for CrewAI agents — pre-execution governance via @xshieldai/aegis"
+readme = "README.md"
+license = { text = "AGPL-3.0" }
+authors = [{ name = "Capt. Anil Sharma", email = "capt.anil.sharma@powerpbox.org" }]
+keywords = ["crewai", "xshieldai", "aegis", "ai-governance", "agent-safety", "langchain"]
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "Intended Audience :: Developers",
+  "License :: OSI Approved :: GNU Affero General Public License v3",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.9",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Topic :: Software Development :: Libraries",
+  "Topic :: Security",
+]
+requires-python = ">=3.9"
+dependencies = ["xshieldai-langchain>=1.0.0"]
+
+[project.optional-dependencies]
+crewai = ["crewai>=0.28.0"]
+dev = ["pytest>=7", "crewai>=0.28.0"]
+
+[project.urls]
+Homepage = "https://xshieldai.com"
+Repository = "https://github.com/rocketlang/aegis/tree/main/packages/xshieldai-crewai"
+Documentation = "https://xshieldai.com/docs/crewai"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["xshieldai_crewai*"]

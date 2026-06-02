@@ -1,5 +1,13 @@
 # @ankr/n8n-nodes-kavachos
 
+> **🔍 Verification status (2026-05-17 IST)**
+> - **Tests:** ⚠️ none yet — n8n node test fixtures planned. See [PROOF-STACK.md](../../PROOF-STACK.md).
+> - **Examples:** ✅ 1 importable workflow: [examples/n8n-governed-agent.json](examples/n8n-governed-agent.json). Drag into n8n, wire the Aegis API credential pointing at `http://localhost:4850`, run.
+> - **Live demo:** ⚠️ planned (Tier 3)
+> - **Phase-1 limits:** KavachRun is Linux-only with graceful fallback (`warn`/`skip`/`throw` configurable) on macOS/Windows. KavachGate works on any OS — it's a thin HTTP relay to AEGIS.
+>
+> The KavachGate node's behaviour is end-to-end testable against a live AEGIS instance — start AEGIS, import the example workflow, fire a `rm -rf /` command, watch it block. Automated CI fixtures still to come.
+
 **KavachOS n8n community nodes** — pre-execution DAN gate and kernel enforcement for AI agents.
 
 Part of the **xShieldAI Posture Suite** · [kavachos.xshieldai.com](https://kavachos.xshieldai.com)

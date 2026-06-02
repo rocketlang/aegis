@@ -35,6 +35,23 @@ Old packages are **deprecated on npm** with redirect messages. Existing installs
 
 ---
 
+## 🔍 Verification status (2026-05-17 IST)
+
+Security tooling without proof is just marketing. The honest current state of `@xshieldai/aegis` v2.2.0:
+
+- **Tests:** 📄 23 passing shield unit tests ([`src/shield/shield.test.ts`](src/shield/shield.test.ts) — `bun test`). Covers CA-006 sanitisation, injection / persistence / credential / exfil detection, and HanumanG spawn check. Broader coverage (DAN gate, budget engine, dashboard routes, ACC bus integration) lands in v2.3.
+- **Examples:** 📄 `examples/agents/` — Claude Code + OpenAI Codex hooks. Plus the README "Verify it yourself" `grep` commands in the **Trust** section below are runnable proof of zero phone-home.
+- **Live demo:** ✅ **PUBLIC at https://xshieldai.com/demo** — paste text → pick primitive → see verdict + live receipt in the stream below. 4 primitives invokable, SSE streaming through Cloudflare, per-visitor rate-limited (30 req/min). Also available locally at `http://localhost:4850/demo` when `ankr-aegis-dashboard` runs.
+- **Forja receipt stream:** ⚠️ planned (Tier 4 — "binary truth, not interpretation" answer).
+
+The **bundled primitives** (`@xshieldai/aegis-guard`, `chitta-detect`, `lakshmanrekha`, `hanumang-mandate`, `agent-kernel`) each have their own verification banner. Full per-package matrix: **[PROOF-STACK.md](PROOF-STACK.md)**.
+
+`aegis-guard` has 63 passing tests today (the Five Locks SDK extracted from carbonx-backend). The other 3 primitives ship code-only this week; their v0.2.1 patches add ~30 tests each.
+
+This banner exists because *"how do I know it does what it claims?"* is the right question for security tooling. We'd rather under-claim with proof than over-claim with vibes.
+
+---
+
 ## The AEGIS / KavachOS / PRAMANA stack
 
 Three layers. One coherent governance stack for agentic AI.

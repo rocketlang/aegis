@@ -23,6 +23,7 @@ import { registerEnforcementRoutes } from "./routes/enforcement";
 import { registerAseRoutes } from "./routes/ase";
 import { registerMachineLawRoutes } from "./routes/machine-law";
 import { registerAccRoutes } from "./routes/acc";  // @rule:ACC-001
+import { registerDemoRoutes } from "./routes/demo";  // Tier 3 playground
 import { classifyCommand, runKavachGate } from "../kavach/gate";
 // [EE] Multi-tenant — graceful degradation when EE not licensed
 import { isEE, eeStatus } from "../../ee/license";
@@ -110,6 +111,11 @@ if (config.dashboard.auth?.enabled) {
       url === "/logout" ||
       url === "/kavachos" ||    // public landing page (KOS-093)
       url === "/commands" ||
+      url === "/demo" ||         // Tier 3 public playground
+      url.startsWith("/api/demo/") ||  // /api/demo/run + /api/demo/health
+      url === "/control-center" ||    // Tier 3: public read-only cockpit (already SSE)
+      url === "/api/acc/events/stream" ||
+      url.startsWith("/api/acc/") ||
       url.endsWith(".css") ||
       url.endsWith(".js") ||
       url.endsWith(".ico") ||
@@ -328,6 +334,7 @@ registerAseRoutes(app);
 // @rule:KAV-SHT-001 machine law — lawful action map before agent planning
 registerMachineLawRoutes(app);
 registerAccRoutes(app);  // @rule:ACC-001 — ACC Day 1: /suite + /api/suite/inventory
+registerDemoRoutes(app);  // Tier 3 — /demo playground
 
 // --- API Routes ---
 

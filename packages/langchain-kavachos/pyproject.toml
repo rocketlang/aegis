@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "langchain-kavachos"
-version = "1.0.0"
-description = "KavachOS DAN gate callback for LangChain agents — pre-execution governance via AEGIS"
+version = "1.0.1"
+description = "DEPRECATED — renamed to xshieldai-langchain. Install xshieldai-langchain instead."
 readme = "README.md"
 license = { text = "AGPL-3.0" }
 authors = [{ name = "Capt. Anil Sharma", email = "capt.anil.sharma@powerpbox.org" }]
@@ -23,7 +23,7 @@ classifiers = [
   "Topic :: Security",
 ]
 requires-python = ">=3.9"
-dependencies = []
+dependencies = ["xshieldai-langchain>=1.0.0"]
 
 [project.optional-dependencies]
 langchain = ["langchain-core>=0.1.0"]

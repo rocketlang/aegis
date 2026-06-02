@@ -1,5 +1,13 @@
 # @rocketlang/kavachos
 
+> **🔍 Verification status (2026-05-17 IST)**
+> - **Tests:** ⚠️ none in OSS dist. The full internal `kavachos-ee` service has its own test suite covering seccomp-bpf profile generation, BPF egress firewall, and Falco rule synthesis — those tests are not currently distributed with this package.
+> - **Examples:** 📄 CLI quick-start in this README is runnable on Linux x86_64 (kernel ≥ 3.5 for seccomp-bpf, ≥ 5.8 for Falco modern-bpf). Try: `kavachos generate --trust-mask=0xFF --domain=maritime --json` (no exec, just inspect the generated profile).
+> - **Live demo:** ⚠️ planned (Tier 3)
+> - **Phase-1 limits:** Linux x86_64 only. macOS/Windows degrade gracefully via the n8n nodes' `fallback` setting but the CLI requires Linux.
+>
+> The kernel-enforcement primitives (seccomp-bpf default-deny, exit_group/futex/rt_sigreturn always allowed, cgroup BPF connect4/connect6 hooks) match the [KavachOS Protocol paper](https://doi.org/10.5281/zenodo.19908430). OSS-package-level test artifact lands in v2.1.0.
+
 **KavachOS** — seccomp-bpf + Falco kernel enforcement for AI agents.
 
 Part of the **xShieldAI Posture Suite** · [kavachos.xshieldai.com](https://kavachos.xshieldai.com)

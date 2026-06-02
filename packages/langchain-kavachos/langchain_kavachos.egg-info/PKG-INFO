@@ -1,7 +1,7 @@
 Metadata-Version: 2.4
 Name: langchain-kavachos
-Version: 1.0.0
-Summary: KavachOS DAN gate callback for LangChain agents — pre-execution governance via AEGIS
+Version: 1.0.1
+Summary: DEPRECATED — renamed to xshieldai-langchain. Install xshieldai-langchain instead.
 Author-email: "Capt. Anil Sharma" <capt.anil.sharma@powerpbox.org>
 License: AGPL-3.0
 Project-URL: Homepage, https://kavachos.xshieldai.com
@@ -20,6 +20,7 @@ Classifier: Topic :: Software Development :: Libraries
 Classifier: Topic :: Security
 Requires-Python: >=3.9
 Description-Content-Type: text/markdown
+Requires-Dist: xshieldai-langchain>=1.0.0
 Provides-Extra: langchain
 Requires-Dist: langchain-core>=0.1.0; extra == "langchain"
 Provides-Extra: dev

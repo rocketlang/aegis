@@ -1,0 +1,39 @@
+{
+  "batch": 61,
+  "run": "5/7",
+  "date": "2026-05-06T15:14:02.087Z",
+  "services": [
+    "carbonx",
+    "freightbox",
+    "mari8x-community"
+  ],
+  "focus": "alias normalization exhaustive",
+  "total_checks": 245,
+  "pass": 245,
+  "fail": 0,
+  "false_positives": 0,
+  "true_positives": 0,
+  "promotion_permitted": false,
+  "carbonx_formal_soak_run": 5,
+  "next_run": "6/7 — cross-group isolation extended",
+  "normalization_layers": {
+    "layer_1": "normalizeCapability() in gate.ts — alias expansion + .toUpperCase()",
+    "layer_2": "requestedCapability.toUpperCase().trim() in hard-gate-policy.ts"
+  },
+  "capability_aliases_count": 24,
+  "unknown_safe_invariant": "malformed caps (hyphenated/camelCase/space-only) do NOT match canonical → NOT hard-BLOCK",
+  "cross_service_isolation": "per-service hard_block caps are non-overlapping (except universal sentinels)",
+  "universal_sentinels": [
+    "IMPOSSIBLE_OP",
+    "EMPTY_CAPABILITY_ON_WRITE"
+  ],
+  "soak_criteria_status": {
+    "run1": "COMPLETE — baseline surface, alias normalization, registry, FP=0",
+    "run2": "COMPLETE — GATE lifecycle, concurrent tokens, domain caps, deny+revoke",
+    "run3": "COMPLETE — IRR-NOAPPROVAL full lifecycle, SENSE completeness, kill switch",
+    "run4": "COMPLETE — TTL expiry + replay protection, AEG-E-013/014/015/016",
+    "run5": "COMPLETE — alias normalization exhaustive, unknown-safe, cross-service isolation",
+    "run6": "PENDING — cross-group isolation extended",
+    "run7": "PENDING — rollback drill + promotion readiness gate"
+  }
+}

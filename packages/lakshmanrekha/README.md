@@ -1,5 +1,12 @@
 # @rocketlang/lakshmanrekha
 
+> **🔍 Verification status (2026-05-17 IST — v0.2.1)**
+> - **Tests:** ✅ **36/36 passing** ([tests/lakshmanrekha.test.ts](tests/lakshmanrekha.test.ts) — `bun test`). Covers §1 registry, §2 classifier (incl. determinism), §3 refusal rate, §4 maskKey, §5 runner (fetch stubbed for openai + anthropic + HTTP errors + network errors), §6 ACC bus + API-key safety regression.
+> - **Examples:** ✅ runnable quickstart: [examples/quickstart.ts](examples/quickstart.ts) — `bun run examples/quickstart.ts` lists all 8 probes + classifies 6 sample responses (no live LLM endpoint needed). For a real probe against your own endpoint, see "Run a single probe" below.
+> - **Live demo:** ⚠️ planned (Tier 3)
+> - **Phase-1 limits:** documented in "Phase 1 limits" + "Authorization" sections below (incl. honor-system endpoint ownership)
+> - **Test-found behavior worth knowing:** `runProbe` error path can echo the network error message verbatim (sliced to 200 chars). The runner masks the API key in *receipts* (verified in LR-035 — receipt JSON never contains the secret, and query strings are stripped from `endpoint_host`), but a hostile network library could theoretically include the key in its own error string. If you log the returned `error` field directly, also pipe through `maskKey()`.
+
 LLM endpoint probe suite — 8 deterministic attack probes, a replayable refusal classifier, and a multi-provider runner. Extracted from the internal **xshieldai-asm-ai-module** Fastify service into a standalone SDK.
 
 **Probe any LLM endpoint you have authorisation to test. Get a deterministic verdict per probe. Replayable.**

@@ -1,5 +1,13 @@
 # @rocketlang/aegis-suite
 
+> **🔍 Verification status (2026-05-17 IST)**
+> - **Tests:** ⚠️ `wireAllToBus()` helper has no standalone tests yet (tracked for v0.2.2). Bundled primitives' test status: **4 of 6** bundled packages have automated tests today (aegis-guard: 63, chitta-detect: 60, lakshmanrekha: 36, hanumang-mandate: 46 — **205 tests total** across primitives, all passing on `bun test`).
+> - **Examples:** ✅ runnable quickstart: [examples/quickstart.ts](examples/quickstart.ts) — `bun run examples/quickstart.ts` calls `wireAllToBus()` then exercises each primitive, showing receipts unified into one stream (primitive name in `[brackets]` per line). Writes to `~/.aegis/acc-events.db` for later inspection.
+> - **Live demo:** ⚠️ planned (Tier 3)
+> - **Phase-1 limits:** documented in "Phase-1 limits (v0.2.0)" section below (SQLite WAL checkpointing, in-process vs cross-process visibility, etc.)
+>
+> This is the **installer convenience layer**. The verification trust transfers from the underlying primitives — see [PROOF-STACK.md](../../PROOF-STACK.md) for the full per-package matrix. Do not assume "the suite is tested" because the meta-package version went up; check each primitive's banner.
+
 **Meta-package.** Installs the full open-source AEGIS / KavachOS / xShieldAI agent governance stack in one shot.
 
 ```bash

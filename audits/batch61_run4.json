@@ -1,0 +1,70 @@
+{
+  "batch": 61,
+  "run": "4/7",
+  "date": "2026-05-06T15:01:24.449Z",
+  "services": [
+    "carbonx",
+    "freightbox",
+    "mari8x-community"
+  ],
+  "focus": "TTL expiry + replay protection",
+  "total_checks": 150,
+  "pass": 150,
+  "fail": 0,
+  "false_positives": 0,
+  "true_positives": 0,
+  "promotion_permitted": false,
+  "carbonx_formal_soak_run": 4,
+  "next_run": "5/7 — alias normalization exhaustive",
+  "ttl_ms": 900000,
+  "rules_verified": [
+    "AEG-E-013",
+    "AEG-E-014",
+    "AEG-E-015",
+    "AEG-E-016"
+  ],
+  "ttl_cycles": [
+    {
+      "svc": "carbonx",
+      "cap": "SURRENDER_ETS_ALLOWANCES",
+      "ttl_ms": 900000,
+      "all_passed": true
+    },
+    {
+      "svc": "freightbox",
+      "cap": "ISSUE_EBL",
+      "ttl_ms": 900000,
+      "all_passed": true
+    },
+    {
+      "svc": "mari8x-community",
+      "cap": "REGISTER_VESSEL",
+      "ttl_ms": 900000,
+      "all_passed": true
+    }
+  ],
+  "sense_events_generated": 6,
+  "expired_path_events": 3,
+  "approved_path_events": 3,
+  "replay_rejection_paths_verified": [
+    "expired",
+    "consumed",
+    "denied",
+    "revoked"
+  ],
+  "binding_checks_verified": [
+    "wrong_capability",
+    "wrong_service",
+    "cross_service_and_cap",
+    "correct_binding"
+  ],
+  "soak_criteria_status": {
+    "run1": "COMPLETE — baseline surface, alias normalization, registry, FP=0",
+    "run2": "COMPLETE — GATE lifecycle, concurrent tokens, domain caps, deny+revoke",
+    "run3": "COMPLETE — IRR-NOAPPROVAL full lifecycle, SENSE completeness, kill switch",
+    "run4": "COMPLETE — TTL expiry + replay protection, AEG-E-013/014/015/016",
+    "run5": "PENDING — alias normalization exhaustive",
+    "run6": "PENDING — cross-group isolation extended",
+    "run7": "PENDING — rollback drill + promotion readiness gate"
+  }
+}

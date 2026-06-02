@@ -1,0 +1,110 @@
+{
+  "batch": 61,
+  "run": "3/7",
+  "date": "2026-05-06T14:53:55.574Z",
+  "services": [
+    "carbonx",
+    "freightbox",
+    "mari8x-community"
+  ],
+  "focus": "IRR-NOAPPROVAL full lifecycle",
+  "total_checks": 539,
+  "pass": 539,
+  "fail": 0,
+  "false_positives": 0,
+  "true_positives": 0,
+  "promotion_permitted": false,
+  "carbonx_formal_soak_run": 3,
+  "next_run": "4/7 — TTL expiry + replay protection",
+  "irr_noapproval_doctrine": {
+    "level_1_hard_block": "doctrinally_forbidden — no approval possible",
+    "level_2_gate_no_token": "approval absent — IRR-NOAPPROVAL finding + rollback_triggered",
+    "level_2_happy_path": "approval present — approval_consumed=true, rollback_required=false"
+  },
+  "sense_events_generated": 57,
+  "irr_noapproval_findings": 15,
+  "unique_correlation_ids": 57,
+  "doctrine_fields_verified": {
+    "carbonx": {
+      "approval_required_for_irreversible_action": true,
+      "external_state_touch": true,
+      "financial_settlement_doctrine": true
+    },
+    "freightbox": {
+      "approval_required_for_irreversible_action": true,
+      "external_state_touch": true,
+      "financial_settlement_doctrine": true
+    },
+    "mari8x-community": {
+      "approval_required_for_irreversible_action": true,
+      "external_state_touch": true
+    }
+  },
+  "hard_block_caps_verified": {
+    "carbonx": [
+      "SUBMIT_ETS_SURRENDER_UNAPPROVED",
+      "BULK_EUA_SURRENDER",
+      "BACKDATE_ETS_SURRENDER",
+      "FORCE_EUA_OVERWRITE",
+      "DELETE_ETS_TRANSACTION",
+      "BYPASS_EUA_IDEMPOTENCY",
+      "IMPOSSIBLE_OP"
+    ],
+    "freightbox": [
+      "ISSUE_EBL_WITHOUT_APPROVAL",
+      "VOID_EBL_WITHOUT_TOKEN",
+      "FORCE_EBL_TRANSFER",
+      "BACKDATE_EBL_ISSUE",
+      "BATCH_VOID_EBL",
+      "OVERRIDE_DCSA_SIGNATURE",
+      "MUTATE_ISSUED_EBL",
+      "DELETE_EBL_AUDIT_LOG",
+      "BYPASS_EBL_IDEMPOTENCY",
+      "IMPOSSIBLE_OP"
+    ],
+    "mari8x-community": [
+      "OVERRIDE_OFFICER_CERTIFICATION",
+      "FORCE_OFFICER_ASSIGNMENT",
+      "MASS_UPDATE_VESSELS",
+      "DELETE_VESSEL_RECORD",
+      "BULK_DELETE_RECORDS",
+      "BACKDATE_CERTIFICATE",
+      "BYPASS_PSC_VERIFICATION",
+      "REVOKE_ALL_CERTIFICATES",
+      "MUTATE_IMMUTABLE_AUDIT_LOG",
+      "IMPOSSIBLE_OP"
+    ]
+  },
+  "still_gate_caps_verified": {
+    "carbonx": [
+      "SURRENDER_ETS_ALLOWANCES",
+      "UPDATE_EUA_BALANCE",
+      "TRANSFER_EUA",
+      "SETTLE_CARBON_POSITION",
+      "GENERATE_COMPLIANCE_FILING"
+    ],
+    "freightbox": [
+      "ISSUE_EBL",
+      "SURRENDER_EBL",
+      "VOID_EBL",
+      "ENDORSE_EBL",
+      "AMEND_EBL"
+    ],
+    "mari8x-community": [
+      "REGISTER_VESSEL",
+      "ASSIGN_OFFICER",
+      "RECORD_CERTIFICATE",
+      "DEACTIVATE_VESSEL",
+      "REVOKE_OFFICER_ASSIGNMENT"
+    ]
+  },
+  "soak_criteria_status": {
+    "run1": "COMPLETE — baseline surface, alias normalization, registry, FP=0",
+    "run2": "COMPLETE — GATE lifecycle, concurrent tokens, domain caps, deny+revoke",
+    "run3": "COMPLETE — IRR-NOAPPROVAL full lifecycle, SENSE completeness, kill switch",
+    "run4": "PENDING — TTL expiry + replay protection",
+    "run5": "PENDING — alias normalization exhaustive",
+    "run6": "PENDING — cross-group isolation extended",
+    "run7": "PENDING — rollback drill + promotion readiness gate"
+  }
+}

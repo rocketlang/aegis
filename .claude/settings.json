@@ -1,5 +1,18 @@
 {
   "permissions": {
     "defaultMode": "auto"
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/root/ankr-rvf-precommit-wrapper.sh"
+          }
+        ]
+      }
+    ]
   }
 }

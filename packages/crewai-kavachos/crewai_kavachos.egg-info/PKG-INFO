@@ -1,7 +1,7 @@
 Metadata-Version: 2.4
 Name: crewai-kavachos
-Version: 1.0.0
-Summary: KavachOS DAN gate + budget guard for CrewAI agents — pre-execution governance via AEGIS
+Version: 1.0.1
+Summary: DEPRECATED — renamed to xshieldai-crewai. Install xshieldai-crewai instead.
 Author-email: "Capt. Anil Sharma" <capt.anil.sharma@powerpbox.org>
 License: AGPL-3.0
 Project-URL: Homepage, https://kavachos.xshieldai.com
@@ -20,7 +20,7 @@ Classifier: Topic :: Software Development :: Libraries
 Classifier: Topic :: Security
 Requires-Python: >=3.9
 Description-Content-Type: text/markdown
-Requires-Dist: langchain-kavachos>=1.0.0
+Requires-Dist: xshieldai-crewai>=1.0.0
 Provides-Extra: crewai
 Requires-Dist: crewai>=0.28.0; extra == "crewai"
 Provides-Extra: dev

@@ -1,10 +1,10 @@
-# LinkedIn post — xShieldAI Posture Suite launch (v2.2.0 + brand consolidation)
+# LinkedIn post — xShieldAI Posture Suite launch (v2.2.0 + Tier 3 live demo)
 
-**Drafted:** 2026-05-17 (Day 6 — post-rename version)
+**Drafted:** 2026-05-17 (Day 6 — v7, post-live-demo)
 **Status:** ready to post — founder posts manually (per `feedback_external_mail_draft_first`)
-**Target length:** ~1,800 chars (under LinkedIn 3,000 limit)
-**Hook strategy:** "$200 vanished" appears before LinkedIn's ~210-char "see more" truncation
-**Umbrella:** xShieldAI Posture Suite (the consolidated brand)
+**Target length:** ~2,200 chars (under LinkedIn 3,000 limit)
+**Hook strategy:** `$200 vanished` opener fits in LinkedIn's ~210-char "see more" truncation
+**Key shift from v6:** lead with the **live URL** as the primary CTA. Tier 3 deployed today — visitors don't need to `npm install` to evaluate. Proof story (5 levels) added.
 
 ---
 
@@ -15,43 +15,50 @@ $200 vanished while I slept.
 
 One unattended agent. One runaway loop. By morning, my LLM bill had a $200 hole.
 
-I'm not alone. The agentic shift is real — autonomous agents are spawning agents, calling tools, writing to production. But the architectures haven't caught up.
+I'm not alone. Agents are autonomous now — spawning agents, calling tools, writing to prod. The architectures haven't caught up:
 
-Today's reality:
 → No cost ceiling that actually halts
-→ No kernel-level guard on what the agent can syscall
+→ No kernel guard on what the agent can syscall
 → No cybersec layer between "LLM said do X" and X happening
-→ No observability that shows you *which agent* did *what* *when*
+→ No observability that shows which agent did what when
 
-That's why we built the xShieldAI Posture Suite — multi-dimensional guardrails for AI agents, in one install.
+So we built the xShieldAI Posture Suite — multi-dimensional guardrails for AI agents.
 
-🛡️ Agentic Control Center (shipped today, v2.2.0)
-One dashboard. Every agent. Every primitive event. Live.
+Cost. OS. Cybersec. Observability. All open. All today.
 
-The OSS stack — all AGPL-3.0, all on npm under @xshieldai/*:
+You don't need to install anything to try it:
 
-• @xshieldai/aegis — budget caps + kill-switch + DAN gate (human-in-loop)
-• @xshieldai/agent-kernel — seccomp-bpf + Falco + syscall mediation + egress firewall
-• @xshieldai/aegis-guard — Five Locks (approval tokens, nonces, idempotency)
-• @xshieldai/chitta-detect — memory-poisoning detection
-• @xshieldai/lakshmanrekha — LLM endpoint probe suite
-• @xshieldai/hanumang-mandate — delegation credentials + 7-axis posture scoring
-• @xshieldai/aegis-suite — one install, all primitives wired to the cockpit
+→ https://xshieldai.com/demo
+
+Paste a prompt-injection attempt. Click "scan". See the verdict. Watch the receipt land in the live stream. 4 primitives invokable from your browser:
+
+• chitta-detect — memory-poisoning detection (8 detectors, 16 bootstrap fingerprints)
+• lakshmanrekha — LLM endpoint refusal classifier (8 deterministic attack probes)
+• hanumang-mandate — agent delegation credentials + 7-axis posture scoring
+• aegis-guard — Five Locks (approval tokens, nonces, idempotency)
+
+This isn't a marketing demo. It's the actual published packages running in-process. Same code that ships on npm.
+
+Proof, not vibes:
+
+1. 205 unit tests passing — `npm install @xshieldai/chitta-detect && bun test`
+2. 5 runnable CLI quickstarts that print receipts in <5 sec
+3. The live playground above
+4. Public SSE receipt stream — `curl -N https://xshieldai.com/api/acc/events/stream`
+5. Open repo, AGPL-3.0, GitHub-auditable
+
+When you're ready to wire it into your own agent:
 
 npm install @xshieldai/aegis @xshieldai/aegis-suite
-npx aegis init
-npx aegis dashboard
-# open http://localhost:4850/control-center
+npx aegis init && npx aegis dashboard
 
-LangChain? CrewAI? Python users get `pip install xshieldai-langchain` or `pip install xshieldai-crewai`.
-
-Multi-dimensional guardrails. Cost. OS. Cybersec. Observability. All open. All today.
+LangChain or CrewAI? `pip install xshieldai-langchain` or `pip install xshieldai-crewai`.
 
 Don't wake up to a $200 hole. Wire your agents through aegis before they touch your wallet.
 
-→ github.com/rocketlang/aegis
-→ npmjs.com/package/@xshieldai/aegis
-→ xshieldai.com
+→ https://xshieldai.com/demo (try it now, no install)
+→ github.com/rocketlang/aegis (source)
+→ npmjs.com/package/@xshieldai/aegis (install)
 
 #AI #Agents #LLMOps #Cybersecurity #OpenSource #FinOps #LangChain #CrewAI
 ```
@@ -60,31 +67,34 @@ Don't wake up to a $200 hole. Wire your agents through aegis before they touch y
 
 ## Posting notes
 
-- Code block renders as monospace in LinkedIn web composer; mobile collapses to plain text — still readable.
-- First three lines = hook. LinkedIn truncates at ~210 chars on feed; the "$200 vanished while I slept" opener is what people see before "see more".
-- Tags at end help reach — `#LLMOps` is hot right now.
-- **GitHub URL** stays at `github.com/rocketlang/aegis` because the repo hasn't been renamed (only the npm scope was; repo rename is a separate, longer-horizon decision per OPEN-CORE-BOUNDARY.md v0.7).
-- **xshieldai.com** added as third link — emphasises the umbrella brand.
+- First three lines = hook. LinkedIn truncates at ~210 chars on feed; `$200 vanished while I slept` is what people see before "see more".
+- The live URL appears ~one-third in (after the gap framing, before the package list). This is the single biggest change from v6 — visitors can evaluate without installing.
+- The "Proof, not vibes" block is the differentiator. Every other AI-governance launch post claims "production-ready" — this one lists 5 verifiable artefacts.
+- Code block (install commands) renders monospace in LinkedIn web; mobile collapses to plain text — still readable.
+- **GitHub URL** stays at `github.com/rocketlang/aegis` — repo wasn't renamed (only npm scope).
+- Tags at end help reach; `#LLMOps` and `#Agents` are hot in May 2026.
 
-## Why this structure (per founder spec, Day 4 — preserved across rename)
+## Why this structure
 
-Founder direction verbatim:
+Founder direction (preserved from v6, still load-bearing):
 > "we start with Fomo, also our incidence 200+$ vanished in sleep, then also agentic process is definately on but archietectures havent caught up, we give agentic control tower and multi dimensional guardrails. costs, os level, cybersec level etc and then we give solution installs and what they want cta"
 
-Structure followed:
-1. FOMO opener ($200 vanished)
-2. Real incident
-3. State-of-world gap (4 bullets — what's missing)
-4. **xShieldAI Posture Suite** brand placement (new in v6, replaces "@rocketlang/aegis" name-drop)
-5. Multi-dim guardrails offer (cost / OS / cybersec / observability)
-6. Stack list — 7 packages under `@xshieldai/*` umbrella
-7. Install commands using new names
-8. CTA + links (now includes xshieldai.com) + hashtags
+v7 addition (Tier 3 wave):
+- Move the live URL ABOVE the package list — "click first, then explore"
+- Add the 5-tier proof block — answers "how do I know it works?" before reader has to ask
+- "This isn't a marketing demo" sentence — pre-empts the skepticism that public-facing AI demos usually deserve
 
-## Changes from v1 (pre-rename):
-- `@rocketlang/aegis` → `@xshieldai/aegis` everywhere
-- `kavachos` package → `@xshieldai/agent-kernel`
-- `langchain-kavachos` → `xshieldai-langchain`
-- `crewai-kavachos` → `xshieldai-crewai`
-- Added "xShieldAI Posture Suite" as umbrella in narrative
-- Added `xshieldai.com` link
+## Changes from v6 (pre-Tier-3 deploy)
+
+- Added live URL `https://xshieldai.com/demo` as primary CTA (appears 3× in post: mid-body, mid-list framing, and final CTA section)
+- Added "5 levels of proof" enumerated block (205 tests, 5 CLI quickstarts, live playground, SSE stream, OSS repo)
+- Reframed install commands as "when you're ready to wire it" instead of the only call-to-action
+- Added "no install needed" framing — lowers friction for skeptical evaluators
+- Kept `$200 vanished` hook unchanged (proven structure)
+
+## Hold-back items NOT in the post (intentional)
+
+- Cryptographic merkle-chain proof — that's Tier 4 / v0.3, don't preview it
+- Internal trade secrets (SLM, classified architecture) — per `feedback_slm_trade_secret`
+- Test discrepancies surfaced this morning (chitta-detect README v0.99 vs actual 0.95) — internal cleanup, not marketing-relevant
+- The CG-YK-006 unreachability bug we documented — also internal-only

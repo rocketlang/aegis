@@ -1,3 +1,4 @@
+xshieldai-langchain>=1.0.0
 
 [dev]
 pytest>=7

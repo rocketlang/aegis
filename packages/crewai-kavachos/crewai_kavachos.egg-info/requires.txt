@@ -1,4 +1,4 @@
-langchain-kavachos>=1.0.0
+xshieldai-crewai>=1.0.0
 
 [crewai]
 crewai>=0.28.0

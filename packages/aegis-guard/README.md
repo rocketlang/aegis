@@ -1,5 +1,11 @@
 # @rocketlang/aegis-guard
 
+> **🔍 Verification status (2026-05-17 IST)**
+> - **Tests:** ✅ **63/63 passing** ([tests/aegis-guard.test.ts](tests/aegis-guard.test.ts) — `bun test`)
+> - **Examples:** ✅ runnable quickstart: [examples/quickstart.ts](examples/quickstart.ts) — `bun run examples/quickstart.ts` shows all 5 Locks in action with receipts
+> - **Live demo:** ⚠️ planned (Tier 3, see [PROOF-STACK.md](../../PROOF-STACK.md))
+> - **Phase-1 limits:** documented in the v0.2.0 ACC section below
+
 AEGIS Guard SDK — reusable approval-token, nonce, idempotency, SENSE, and quality-evidence primitives for AEGIS-governed services.
 
 **Carbonx proved the locks. Batch 93 makes the locks reusable.**

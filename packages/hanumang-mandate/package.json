@@ -1,6 +1,6 @@
 {
   "name": "@xshieldai/hanumang-mandate",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "HanumanG mandate primitives — Mudrika delegation credential verifier + 7-axis posture scorer (mudrika_integrity, identity_broadcast, mandate_bounds, proportional_force, return_with_proof, no_overreach, truthful_report) + opt-in Agentic Control Center event bus. Extracted from xshieldai-hanumang.",
   "license": "AGPL-3.0-only",
   "type": "module",
@@ -36,11 +36,13 @@
   "main": "./src/index.ts",
   "files": [
     "src/",
+    "tests/",
     "README.md",
     "LICENSE"
   ],
   "scripts": {
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "bun test"
   },
   "devDependencies": {
     "typescript": "^5.4.0",

@@ -1,10 +1,19 @@
 # SPDX-License-Identifier: AGPL-3.0-only
-# langchain-kavachos — KavachOS governance callbacks for LangChain agents
-# @rule:AEG-012 framework-agnostic: thin HTTP client, all policy in aegis
-# @rule:KAV-001 every dangerous action intercepted before execution
-# @rule:INF-KAV-025 LangChain callback intercepts tool calls at on_tool_start
+# DEPRECATED: this package was renamed to xshieldai-langchain on 2026-05-17.
+# This v1.0.1 release is a deprecation shim that re-exports from xshieldai-langchain.
+# Future updates land on xshieldai-langchain only.
 
-from .gate import KavachGateCallback, KavachGateError, AegisClient
+import warnings
+
+warnings.warn(
+    "langchain-kavachos has been renamed to xshieldai-langchain. "
+    "Please install 'xshieldai-langchain' and update imports to 'from xshieldai_langchain import ...'. "
+    "This shim will receive no further updates.",
+    DeprecationWarning,
+    stacklevel=2,
+)
+
+from xshieldai_langchain import KavachGateCallback, KavachGateError, AegisClient
 
 __all__ = ["KavachGateCallback", "KavachGateError", "AegisClient"]
-__version__ = "1.0.0"
+__version__ = "1.0.1"

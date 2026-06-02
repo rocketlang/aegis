@@ -1,14 +1,14 @@
-# Twitter/X thread — xShieldAI Posture Suite launch (v2.2.0 + brand consolidation)
+# Twitter/X thread — xShieldAI Posture Suite launch (v2.2.0 + Tier 3 live demo)
 
-**Drafted:** 2026-05-17 (Day 6 — post-rename version)
+**Drafted:** 2026-05-17 (Day 6 — v7, post-live-demo)
 **Status:** ready to post — founder posts manually
-**Format:** 7 tweets, each within 280 chars
-**Hook strategy:** tweet 1 has to land alone; "🧵" signals thread worth opening
-**Umbrella:** xShieldAI Posture Suite (the consolidated brand)
+**Format:** 8 tweets, each within 280 chars
+**Hook strategy:** tweet 1 lands alone; `$200 vanished` + 🧵 signal thread worth opening
+**Key shift from v6:** tweet 4 = the click-to-try URL (was buried at tweet 7 install)
 
 ---
 
-## Tweet 1/7 — the hook (238 chars)
+## Tweet 1/8 — the hook (238 chars)
 
 ```
 $200 vanished while I slept.
@@ -22,7 +22,7 @@ So we built the missing layer. Open. AGPL-3.0. Today.
 🧵
 ```
 
-## Tweet 2/7 — state of world (278 chars)
+## Tweet 2/8 — state of world (278 chars)
 
 ```
 The agentic shift is real.
@@ -37,32 +37,32 @@ But the guardrails most teams have?
 → No "which agent did what when"
 ```
 
-## Tweet 3/7 — positioning (236 chars)
+## Tweet 3/8 — positioning (231 chars)
 
 ```
 We built the xShieldAI Posture Suite to fix all four — multi-dimensional guardrails for AI agents.
 
 Cost. OS. Cybersec. Observability.
 
-Not a SaaS gate. Not a free trial. AGPL-3.0 on npm. Run on your laptop in 60 seconds.
+Not a SaaS gate. Not a free trial. AGPL-3.0 on npm. AND a live demo you can try in 10 seconds.
 ```
 
-## Tweet 4/7 — the new thing (254 chars)
+## Tweet 4/8 — THE LIVE URL (245 chars)
 
 ```
-Shipped today — @xshieldai/aegis v2.2.0:
+Try it now. No install:
 
-🛡 Agentic Control Center
+→ https://xshieldai.com/demo
 
-One dashboard. Every agent. Every primitive event. Live SSE feed. Per-agent timeline. PRAMANA Merkle audit log.
+Paste a prompt-injection attempt. Click "scan". See the verdict + watch the receipt land in the live SSE stream below.
 
-The "did my agent really do that?" question — answered in receipts, not vibes.
+4 primitives invokable from your browser. Same code that ships on npm.
 ```
 
-## Tweet 5/7 — the stack (276 chars)
+## Tweet 5/8 — the stack (275 chars)
 
 ```
-The stack (AGPL-3.0, all on npm @xshieldai/*):
+Stack (AGPL-3.0, all on npm @xshieldai/*):
 
 • aegis — budget + kill-switch + DAN gate
 • agent-kernel — seccomp-bpf + Falco + egress firewall
@@ -72,10 +72,26 @@ The stack (AGPL-3.0, all on npm @xshieldai/*):
 • hanumang-mandate — 7-axis posture
 ```
 
-## Tweet 6/7 — install (208 chars)
+## Tweet 6/8 — proof, not vibes (278 chars)
 
 ```
-60-second install:
+Other AI-governance launches: "production-ready" 🤷
+
+This one ships with:
+
+→ 205 unit tests anyone can re-run
+→ 5 CLI quickstarts (print receipts in 5s)
+→ Live web playground ↑
+→ Public SSE receipt stream
+→ Open repo, AGPL-3.0
+
+curl -N https://xshieldai.com/api/acc/events/stream
+```
+
+## Tweet 7/8 — install (215 chars)
+
+```
+Ready to wire it into your own agents? 60 seconds:
 
 npm i @xshieldai/aegis @xshieldai/aegis-suite
 npx aegis init
@@ -86,18 +102,18 @@ npx aegis dashboard
 Python? pip install xshieldai-langchain or xshieldai-crewai.
 ```
 
-## Tweet 7/7 — CTA (266 chars)
+## Tweet 8/8 — CTA (252 chars)
 
 ```
 Don't wake up to a $200 hole.
 
 Wire your agents through aegis before they touch your wallet.
 
-→ xshieldai.com
-→ github.com/rocketlang/aegis
-→ npmjs.com/package/@xshieldai/aegis
+→ xshieldai.com/demo (try it now)
+→ github.com/rocketlang/aegis (star)
+→ xshieldai.com (suite)
 
-Star, fork, break it, tell me what's missing.
+Break it. Tell me what's missing.
 
 #AI #Agents #LLMOps #OpenSource
 ```
@@ -106,18 +122,43 @@ Star, fork, break it, tell me what's missing.
 
 ## Posting notes
 
-- Tweet 1 is the only one most people will see — it must land alone.
-- Code blocks (tweets 5 + 6) render as plain text in timeline but readable; for prettier appearance, screenshot from a code editor and attach as image.
-- Quote-tweet tweet 1 a day later with one new line ("update: X stars in 24h") for a second algorithm wind.
-- Don't @-mention LangChain / CrewAI in tweet text — adds friction; they're already in install commands.
-- Post tweets ~30-60 seconds apart for thread to render correctly (or use the composer's native thread builder).
-- **`@xshieldai` is the npm scope, NOT a Twitter handle** — Twitter will not auto-link it to a profile. Safe to leave as-is (people understand context).
-- **GitHub URL** stays at `github.com/rocketlang/aegis` because the repo wasn't renamed (only the npm scope).
+- Tweet 1 is the only one most people will see — must land alone. `$200 vanished` opener tested in v6, kept.
+- **Tweet 4 is the breakthrough** — pre-Tier-3 there was no public URL. Now there is, and it's the most clickable thing in the thread. Pulling it forward to tweet 4 (was tweet 7 install in v6) maximises click-through.
+- Tweet 6 is the proof block — the differentiator. Most AI-governance launches don't enumerate verification artefacts at all. Listing 5 sets a credibility bar competitors can't match without doing the same work.
+- Code blocks (tweets 5 + 7) render as plain text in timeline but readable; for prettier appearance, screenshot from an editor and attach as images.
+- Post tweets 30-60s apart for thread to render correctly, or use composer's native thread builder.
+- **Quote-tweet tweet 1 a day later** with one new line ("update: X tries in 24h" — assuming the receipt stream count is non-zero) for a second algorithm wind.
+- Don't @-mention LangChain / CrewAI in tweet text — adds friction; they're in install commands instead.
+- **`@xshieldai` is npm scope, NOT a Twitter handle** — Twitter won't auto-link. Safe in code blocks (context obvious); avoid in body prose.
+- **GitHub URL** stays at `github.com/rocketlang/aegis` — repo wasn't renamed (only npm scope).
 
-## Changes from v1 (pre-rename):
-- `@rocketlang/aegis` → `@xshieldai/aegis`
-- `kavachos` package → `agent-kernel` (in tweet 5)
-- `langchain-kavachos` → `xshieldai-langchain` (in tweet 6)
-- `crewai-kavachos` → `xshieldai-crewai` (in tweet 6)
-- Added "xShieldAI Posture Suite" as umbrella (tweet 3)
-- Added `xshieldai.com` link (tweet 7)
+## Why this structure
+
+Same founder-spec backbone as LinkedIn (FOMO → world-gap → 4 dimensions → suite → CTA), restructured for thread cadence:
+
+| Tweet | Role | Why this position |
+|---|---|---|
+| 1 | Hook | The only tweet that has to stand alone |
+| 2 | World gap | Establishes urgency before the offer |
+| 3 | Brand placement | Names the suite + AGPL-3.0 + "AND demo" teaser |
+| 4 | **Click-CTA** | Highest-value tweet — pulled forward from v6's tweet-7 position |
+| 5 | Stack | Convince the technical reader who clicked through |
+| 6 | Proof block | Pre-empt skepticism with 5 verifiable artefacts |
+| 7 | Install path | For readers who skipped tweet 4 and want to install first |
+| 8 | Final CTA + tags | Algorithm fuel + "break it, tell me what's missing" engagement bait |
+
+## Changes from v6 (pre-Tier-3 deploy)
+
+- Inserted NEW tweet 4 (live URL CTA) — pushed install + CTA tweets down by one each
+- Reframed tweet 3 to tease "AND a live demo" so the next tweet pays off
+- Added NEW tweet 6 (proof block) — 5 enumerated verification artefacts, the differentiator vs. competitor launches
+- Kept `$200 vanished` hook + 🧵 signal unchanged (proven in v6)
+- Final CTA tweet — `xshieldai.com/demo` now leads, `xshieldai.com` (suite landing) moved to last
+
+## Hold-back items NOT in the thread (intentional)
+
+- Cryptographic merkle-chain proof (Tier 4 / v0.3)
+- SLM internals (trade secret per `feedback_slm_trade_secret`)
+- Today's test-surfaced discrepancies (3 README numbers in chitta-detect) — internal cleanup
+- The CG-YK-006 unreachability bug — internal regression target
+- The 4 deferred hardening items (demo-mode flag, cookied agent_id, retention rotation, CORS) — internal next-iteration

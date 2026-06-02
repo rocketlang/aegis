@@ -1,5 +1,14 @@
 # @rocketlang/hanumang-mandate
 
+> **🔍 Verification status (2026-05-17 IST — v0.2.1)**
+> - **Tests:** ✅ **46/46 passing** ([tests/hanumang-mandate.test.ts](tests/hanumang-mandate.test.ts) — `bun test`). Covers §1 verifyMudrika (structural/TTL/trust-mask/agent-id), §2 scoreAxis (all 7 axes incl. spawn invariant + overreach), §3 computePostureScore (HNG-YK-001 worst-axis-floor enforced + grade thresholds), §4 ACC bus.
+> - **Examples:** ✅ runnable quickstart: [examples/quickstart.ts](examples/quickstart.ts) — `bun run examples/quickstart.ts` runs 3 mudrika verifications (PASS/EXPIRED/FAIL) + 7-axis posture demo + the HNG-YK-001 worst-axis-floor invariant in action (one FAIL caps grade at D even with average 86)
+> - **Live demo:** ⚠️ planned (Tier 3)
+> - **Phase-1 limits:** **`verifyMudrika()` does NOT cryptographically verify the signature** — see "Phase-1 limit" callout below. Test HM-011 explicitly documents this: a mudrika with a fake `signature` field still PASSES today. Signature crypto lands in v0.3 — HM-011 will then flip to expect FAIL. Use only in trusted-transport environments until then.
+> - **Verified invariants:** HNG-YK-001 worst-axis floor (single FAIL caps grade at D regardless of average — HM-035), spawn invariant (HM-020), no-overreach bitmask check (HM-030), receipt emission swallow-on-error (HM-046).
+>
+> The receipt emission `mudrika.verified` reflects structural + TTL + trust_mask checks ONLY — not a crypto attestation. Do not use over untrusted channels until v0.3.
+
 Agent delegation credential verifier + 7-axis posture scorer. Pure primitives extracted from the internal **xshieldai-hanumang** Fastify service.
 
 **Two primitives. No DB. No HTTP. Install and use.**
