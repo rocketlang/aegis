@@ -134,3 +134,16 @@ Every update bumps the version, dates the change, and explains the trigger. Like
 ---
 
 *Companion docs: `OPEN-CORE-BOUNDARY.md` (the what) · `EXTRACTION-QUEUE.md` (the next list).*
+
+---
+
+## Amendment 2026-06-10 — Domain-app open-core (deployment-split), founder-approved
+
+The 2026-05-16 lock stands: no EE-feature-gating of capabilities; EE = narrow operational leverage; packages = aggressive OSS. **One extension:** the domain apps (FreightBox, Mari8x) gain an **open community edition** — Odoo-style funnel, but split by **deployment & scale, not capability percentage**:
+
+- **Community (AGPL-3.0, self-hosted):** the COMPLETE single-org workflow — full freight/voyage lifecycle + the governed-turn spine (Forja, bitmask, QRC/gate, legal gates, agents). Never a paywalled lifecycle step: a freight workflow is a chain, not modules; a 60%-capable forwarder is a broken one and generates no adoption.
+- **EE (BSL-1.1):** only what one org cannot self-host — hosted multi-tenant SaaS, the cross-company exchange (fr8x), maintained/operated connectors (carrier/INTTRA/ICEGATE keys + upkeep), cross-customer benchmarks, SOC2/fleet governance packaging, SLA. This is the lock's own EE definition applied to the domain apps.
+- **Test:** "can one org self-host this and get full value?" YES → community. NO → EE.
+- **Sequence:** community-complete first → 3-5 design partners on the free edition → erect the EE fence when someone climbs it. No EE engineering pre-revenue.
+
+Full rationale + concrete line: `/root/proposals/freightbox-mari8x-gtm--brainstorm--formal--2026-06-10.md`.
