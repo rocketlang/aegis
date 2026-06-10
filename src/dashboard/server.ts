@@ -112,6 +112,8 @@ if (config.dashboard.auth?.enabled) {
       url === "/kavachos" ||    // public landing page (KOS-093)
       url === "/commands" ||
       url === "/demo" ||         // Tier 3 public playground
+      url === "/early-access" ||       // AEGIS waitlist page (public, GTM Phase 0)
+      url === "/api/early-access" ||   // waitlist signup POST
       url.startsWith("/api/demo/") ||  // /api/demo/run + /api/demo/health
       url === "/control-center" ||    // Tier 3: public read-only cockpit (already SSE)
       url === "/api/acc/events/stream" ||
@@ -166,6 +168,88 @@ app.get("/health", async () => ({ status: "ok", service: "aegis-dashboard", ee: 
 app.get("/kavachos", async (_req, reply) => {
   reply.type("text/html").send(kavachosLandingPage());
 });
+
+// ── AEGIS early-access waitlist (GTM Phase 0, 2026-06-10) ───────────────────
+// Public signup → /root/.aegis/waitlist.jsonl. Rate-limited; email-deduped.
+const waitlistBuckets = new Map<string, { count: number; resetAt: number }>();
+app.post("/api/early-access", async (req, reply) => {
+  const ip = ((req.headers["x-forwarded-for"] as string) || req.ip || "?").split(",")[0].trim();
+  const now = Date.now();
+  const b = waitlistBuckets.get(ip);
+  if (!b || now > b.resetAt) waitlistBuckets.set(ip, { count: 1, resetAt: now + 3_600_000 });
+  else if (++b.count > 10) return reply.code(429).send({ error: "Too many signups from this address." });
+
+  const body = req.body as Record<string, string> | undefined;
+  const email = (body?.email || "").trim().toLowerCase();
+  const note = (body?.note || "").slice(0, 500);
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return reply.code(400).send({ error: "Valid email required." });
+
+  const { appendFileSync, readFileSync, existsSync } = await import("node:fs");
+  const FILE = "/root/.aegis/waitlist.jsonl";
+  try {
+    if (existsSync(FILE) && readFileSync(FILE, "utf8").includes('"' + email + '"')) {
+      return { ok: true, message: "You are already on the list." };
+    }
+  } catch { /* fall through to append */ }
+  appendFileSync(FILE, JSON.stringify({ at: new Date().toISOString(), email, note, ip_hash: ip.length }) + "\n");
+  return { ok: true, message: "You are on the list. We will be in touch." };
+});
+
+app.get("/early-access", async (_req, reply) => {
+  reply.type("text/html").send(earlyAccessPage());
+});
+
+function earlyAccessPage(): string {
+  return `<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AEGIS — early access</title>
+<style>
+  body{margin:0;background:#06090d;color:#c9d4dc;font-family:'JetBrains Mono','SF Mono',Consolas,monospace;display:flex;min-height:100vh;align-items:center;justify-content:center}
+  .card{max-width:640px;padding:48px 40px;border:1px solid #14222e;border-radius:12px;background:#080d13;box-shadow:0 30px 80px rgba(0,0,0,.6)}
+  h1{color:#e8f1f8;font-size:26px;margin:0 0 4px;letter-spacing:2px}
+  .tag{color:#39d3bb;font-size:13px;margin-bottom:24px}
+  .story{border-left:3px solid #d4574e;padding:10px 16px;background:#0d1218;color:#aab8c2;font-size:14px;line-height:1.65;margin:18px 0 26px}
+  .story b{color:#e8b04b}
+  ul{padding-left:18px;font-size:14px;line-height:1.9;color:#9fb3c0}
+  form{display:flex;gap:10px;margin-top:26px}
+  input{flex:1;background:#0b1118;border:1px solid #1d3242;border-radius:8px;padding:12px 14px;color:#e8f1f8;font-family:inherit;font-size:14px}
+  button{background:#0e7c6b;border:0;border-radius:8px;padding:12px 22px;color:#fff;font-family:inherit;font-size:14px;cursor:pointer;letter-spacing:1px}
+  button:hover{background:#13967f}
+  .msg{margin-top:14px;font-size:13px;color:#39d3bb;min-height:18px}
+  .foot{margin-top:30px;font-size:11px;color:#54707f;letter-spacing:.5px}
+</style></head><body>
+<div class="card">
+  <h1>A E G I S</h1>
+  <div class="tag">the kill-switch between your AI agents and your credit card</div>
+  <div class="story">A single runaway AI agent once made <b>847 LLM API calls in 6 minutes</b> before a human noticed. AEGIS was built from that incident — not from a market report.</div>
+  <ul>
+    <li>Per-session meters — messages, spawns, money — across your whole agent fleet</li>
+    <li>Budgets as <b style="color:#e8b04b">hard gates</b>: token ceilings, spawn depth, daily/weekly money limits</li>
+    <li>Heartbeat that pauses anything that goes silent; one kill-switch, held by a human</li>
+    <li>Every action sealed in a SHA-256 chained ledger</li>
+    <li>Native governance for Claude Code fleets</li>
+  </ul>
+  <form id="f">
+    <input id="email" type="email" placeholder="you@company.com" required>
+    <button type="submit">GET EARLY ACCESS</button>
+  </form>
+  <div class="msg" id="msg"></div>
+  <div class="foot">AEGIS v0.2 · runs live in production over 290+ services · built by PowerPBox</div>
+</div>
+<script>
+document.getElementById('f').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const msg = document.getElementById('msg');
+  msg.textContent = '…';
+  try {
+    const r = await fetch('/api/early-access', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ email: document.getElementById('email').value }) });
+    const d = await r.json();
+    msg.textContent = d.ok ? d.message : (d.error || 'Something went wrong.');
+  } catch { msg.textContent = 'Network error — try again.'; }
+});
+</script>
+</body></html>`;
+}
 
 function kavachosLandingPage(): string {
   return `<!DOCTYPE html>
