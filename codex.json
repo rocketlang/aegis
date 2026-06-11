@@ -491,5 +491,37 @@
   },
   "cim_mask": 12,
   "cim_mask_schema": "cim-mask-v1",
-  "cim_mask_last_refresh": {"at":"2026-05-22T10:30:21.371Z","mask_before":0,"mask_after":12,"flipped":["+bit2(invariants_declared)","+bit3(invariants_holding)"],"probe_summary":{"pass":0,"fail":0,"skip":1}}
+  "cim_mask_last_refresh": {
+    "at": "2026-05-22T10:30:21.371Z",
+    "mask_before": 0,
+    "mask_after": 12,
+    "flipped": [
+      "+bit2(invariants_declared)",
+      "+bit3(invariants_holding)"
+    ],
+    "probe_summary": {
+      "pass": 0,
+      "fail": 0,
+      "skip": 1
+    }
+  },
+  "reach_permissions": {
+    "service": 3,
+    "agent": 16777216,
+    "human": 1,
+    "*": 0
+  },
+  "reach_meta": {
+    "schema": "bmos-reach-v1",
+    "derived_from": "depends_on",
+    "derived_at": "2026-06-11T20:11:25.221Z",
+    "callers": [
+      "ankr-agentic-enforcement-flow",
+      "ankrshield-desktop-rtbf",
+      "bitmask-os",
+      "gtp-gate",
+      "svadhyaya"
+    ],
+    "note": "structural default (BMOS-YK-002); tighten per-service as owners review"
+  }
 }
