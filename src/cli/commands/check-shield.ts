@@ -26,6 +26,12 @@ import { checkMudrika } from "../../kavach/mudrika-validator";
 import { checkReachMask, checkBashReachMask } from "../../kavach/reach-mask";
 import { recordObservation, extractBashFirstToken, normalizePathPrefix } from "../../sandbox/behavioral-baseline";
 import { readValve } from "../../kavach/gate-valve";
+import { emitReceipt } from "../../kavach/pramana-emit";
+import type { ReceiptVerdict } from "../../../ee/kavach/pramana-receipts";
+
+// Session id for the current hook invocation — captured once, read by emitBlock
+// when it records the PRAMANA receipt. Each hook run is its own process.
+let _shieldSession = "unknown";
 
 function readStdin(): string {
   try {
@@ -57,6 +63,7 @@ export default async function checkShield(_args: string[]): Promise<void> {
     const toolName = (toolInput.tool_name as string) || "";
     const sessionId = (toolInput.session_id as string) || process.env.CLAUDE_SESSION_ID || "unknown";
     const agentId = process.env.CLAUDE_AGENT_ID || sessionId;
+    _shieldSession = sessionId;
 
     // @rule:KOS-062 mudrika identity check before shield scan
     const mudrika = checkMudrika(agentId);
@@ -90,7 +97,7 @@ export default async function checkShield(_args: string[]): Promise<void> {
     // Scans tool_result / content arrays in any PreToolUse payload
     const mcpResult = detectMCPInjection(toolInput);
     if (mcpResult.verdict === "QUARANTINE") {
-      emitBlock("SHIELD", mcpResult.rule_id, mcpResult.reason, mcpResult.category);
+      emitBlock("SHIELD", mcpResult.rule_id, mcpResult.reason, mcpResult.category, "QUARANTINED");
       process.exit(2);
     }
 
@@ -115,7 +122,7 @@ export default async function checkShield(_args: string[]): Promise<void> {
       if (!filePath) process.exit(0);
       const credResult = detectCredentialRead(filePath, 0, rules);
       if (credResult.verdict === "QUARANTINE") {
-        emitBlock("SHIELD", credResult.rule_id, credResult.reason, credResult.category);
+        emitBlock("SHIELD", credResult.rule_id, credResult.reason, credResult.category, "QUARANTINED");
         process.exit(2);
       }
       // @rule:KAV-085 behavioral baseline — path prefix observation
@@ -126,7 +133,7 @@ export default async function checkShield(_args: string[]): Promise<void> {
       if (!filePath) process.exit(0);
       const persResult = detectPersistenceWrite(filePath, rules);
       if (persResult.verdict === "QUARANTINE") {
-        emitBlock("SHIELD", persResult.rule_id, persResult.reason, persResult.category);
+        emitBlock("SHIELD", persResult.rule_id, persResult.reason, persResult.category, "QUARANTINED");
         process.exit(2);
       }
       // @rule:KAV-085 behavioral baseline
@@ -139,7 +146,7 @@ export default async function checkShield(_args: string[]): Promise<void> {
       // Injection pattern scan
       const scanResult = detectInjection(command, rules);
       if (scanResult.verdict === "QUARANTINE") {
-        emitBlock("SHIELD", scanResult.rule_id, scanResult.reason, scanResult.category);
+        emitBlock("SHIELD", scanResult.rule_id, scanResult.reason, scanResult.category, "QUARANTINED");
         process.exit(2);
       }
       if (scanResult.verdict === "BLOCK" && enforce) {
@@ -153,7 +160,8 @@ export default async function checkShield(_args: string[]): Promise<void> {
       // Exfil ring buffer check
       const exfilResult = detectExfilSequence(command, rules);
       if (exfilResult.verdict === "BLOCK") {
-        emitBlock("SHIELD", exfilResult.rule_id, exfilResult.reason, exfilResult.category);
+        // Alert mode lets the command run → the audit verdict must say ALLOWED, not BLOCKED.
+        emitBlock("SHIELD", exfilResult.rule_id, exfilResult.reason, exfilResult.category, enforce ? "BLOCKED" : "ALLOWED");
         if (enforce) process.exit(2);
         // Alert mode: warn but allow
         process.stderr.write(`[SHIELD] EXFIL WARNING (${exfilResult.rule_id}): ${exfilResult.reason}\n`);
@@ -188,7 +196,18 @@ export default async function checkShield(_args: string[]): Promise<void> {
   }
 }
 
-function emitBlock(source: string, ruleId: string, reason: string, category: string): void {
+function emitBlock(source: string, ruleId: string, reason: string, category: string, verdict: ReceiptVerdict = "BLOCKED"): void {
+  // @rule:KAV-046 — record the shield decision as a tamper-evident PRAMANA receipt.
+  emitReceipt(
+    "INJECTION_SHIELD",
+    verdict,
+    { session_id: _shieldSession, rule_id: ruleId, reason, context: { source, detector_category: category } },
+    {
+      rule_applied: ruleId,
+      decision_path: `INJECTION_SHIELD -> ${source} -> ${verdict}`,
+      human_in_loop: false,
+    },
+  );
   process.stderr.write([
     ``,
     `╔══════════════════════════════════════════════════════════════╗`,

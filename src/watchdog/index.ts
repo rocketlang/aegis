@@ -20,6 +20,22 @@ import { writeManifest } from "./manifest-writer";
 import { scanBehavioralAnomalies } from "../sandbox/behavioral-baseline";
 import { listActiveSwarms, assertSwarmInvariant } from "../sandbox/swarm";
 import { readValve } from "../kavach/gate-valve";
+import { emitReceipt } from "../kavach/pramana-emit";
+import type { ReceiptVerdict } from "../../ee/kavach/pramana-receipts";
+
+// @rule:KAV-046 — record a watchdog enforcement action as a tamper-evident receipt.
+// Only bounded, transition-driven actions are receipted (they fire once as the
+// agent leaves its prior state). Per-poll advisory soft-stops (velocity throttle
+// > 60/min, behavioral baseline) are intentionally NOT receipted — they re-fire
+// every 30s poll and would bloat the chain without adding a distinct decision.
+function watchdogReceipt(agentId: string, verdict: ReceiptVerdict, kind: string, reason: string, rule: string): void {
+  emitReceipt(
+    "WATCHDOG",
+    verdict,
+    { agent_id: agentId, session_id: agentId, rule_id: rule, reason, context: { kind } },
+    { rule_applied: rule, decision_path: `WATCHDOG -> ${kind} -> ${verdict}`, human_in_loop: false },
+  );
+}
 
 // Per-agent cost rate tracking: { agent_id → { cost_snapshot, timestamp }[] }
 const _costHistory: Map<string, Array<{ cost: number; ts: number }>> = new Map();
@@ -74,6 +90,7 @@ async function checkZombies(agents: AgentRow[]): Promise<void> {
       log(`FORCE_CLOSE zombie: ${z.agent_id}`);
       const manifestPath = await writeManifest(z, "zombie_timeout");
       setAgentState(z.agent_id, "FORCE_CLOSED", { reason: "zombie timeout exceeded", rule: "KAV-013", resume_manifest_path: manifestPath });
+      watchdogReceipt(z.agent_id, "BLOCKED", "zombie_force_close", "zombie timeout exceeded", "KAV-013");
       _zombieSince.delete(z.agent_id);
     }
   }
@@ -109,6 +126,7 @@ function checkOrphans(agents: AgentRow[]): void {
     if (Date.now() - since > ORPHAN_TTL_MS) {
       log(`ORPHAN TTL: requesting stop for ${orphan.agent_id}`);
       requestStop(orphan.agent_id);
+      watchdogReceipt(orphan.agent_id, "BLOCKED", "orphan_ttl_stop", "orphan TTL elapsed — parent terminal, no human action", "INF-KAV-007");
       _orphanSince.delete(orphan.agent_id);
     }
   }
@@ -140,6 +158,7 @@ function checkVelocity(agents: AgentRow[]): void {
         reason: `tool_call velocity ${Math.round(rate)}/min > 120 limit`,
         rule: "INF-KAV-002",
       });
+      watchdogReceipt(agent.agent_id, "QUARANTINED", "velocity_quarantine", `tool_call velocity ${Math.round(rate)}/min > 120 limit`, "INF-KAV-002");
     } else if (rate > 60) {
       log(`THROTTLE velocity: ${agent.agent_id} rate=${Math.round(rate)}/min > 60`);
       requestStop(agent.agent_id); // L1 Soft Stop via stop_requested flag
@@ -182,6 +201,7 @@ function checkCostAnomalies(agents: AgentRow[]): void {
       if (count >= ANOMALY_PERSIST_WINDOWS) {
         log(`SOFT_PAUSE: ${agent.agent_id} — cost rate anomaly persisted ${count} windows — INF-KAV-003`);
         requestStop(agent.agent_id);
+        watchdogReceipt(agent.agent_id, "BLOCKED", "cost_anomaly_pause", `cost rate anomaly persisted ${count} windows`, "INF-KAV-003");
         _anomalyCount.set(agent.agent_id, 0);
       }
     } else {
@@ -208,6 +228,7 @@ function checkSwarmInvariants(): void {
         try {
           const { closeValve } = require("../kavach/gate-valve");
           closeValve(violation.agent_id, `KAV-090: swarm ceiling violation in ${swarm.swarm_id}`);
+          watchdogReceipt(violation.agent_id, "QUARANTINED", "swarm_ceiling_violation", `mask 0x${violation.perm_mask.toString(16)} exceeds swarm ${swarm.swarm_id} ceiling 0x${violation.swarm_mask.toString(16)}`, "KAV-090");
         } catch {}
       }
     }

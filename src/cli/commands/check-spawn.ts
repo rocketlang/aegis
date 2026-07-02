@@ -28,6 +28,7 @@ import { loadAgent, transitionState } from "../../sandbox/quarantine";
 import { getAgentSwarm } from "../../sandbox/swarm";
 import { loadPolicy } from "../../sandbox/policy-loader";
 import { isStopRequested } from "../../core/db";
+import { emitReceipt } from "../../kavach/pramana-emit";
 
 function readStdin(): string {
   try {
@@ -129,6 +130,26 @@ export default async function checkSpawn(_args: string[]): Promise<void> {
         parent_depth: spawns,
         max_depth: config.budget.spawn_limit_per_session,
       });
+
+      // @rule:KAV-046 — receipt every engaged HanumanG decision (a failed axis set).
+      // Passing spawns are not receipted (would flood the chain with clean spawns).
+      if (!hResult.passed) {
+        emitReceipt(
+          "HANUMANG",
+          enforce ? "BLOCKED" : "ALLOWED",
+          {
+            session_id: sessionId,
+            rule_id: "KAV-015",
+            reason: hResult.reason,
+            context: { failed_axes: hResult.failed_axes },
+          },
+          {
+            rule_applied: "KAV-015",
+            decision_path: `HANUMANG -> failed[${hResult.failed_axes.join("|")}] -> ${enforce ? "BLOCKED" : "ALERT_ONLY"}`,
+            human_in_loop: false,
+          },
+        );
+      }
 
       if (!hResult.passed && enforce) {
         process.stderr.write([
