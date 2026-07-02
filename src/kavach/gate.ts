@@ -17,6 +17,8 @@ import {
   markKavachNotified, addAlert, getPendingApprovals,
 } from "../core/db";
 import type { KavachLevel, KavachDecision, KavachApproval } from "../core/types";
+import { emitReceipt } from "./pramana-emit";
+import type { ReceiptVerdict } from "../../ee/kavach/pramana-receipts";
 // [EE] Slack gate notification — no-op when EE not licensed
 type _SendSlackKavachFn = (config: ReturnType<typeof loadConfig>, approval: KavachApproval) => Promise<void>;
 let _sendSlackKavach: _SendSlackKavachFn | null = null;
@@ -107,9 +109,12 @@ export async function runKavachGate(
   toolName: string,
   sessionId: string
 ): Promise<GateResult> {
+  const startedAt = Date.now();
   const config = loadConfig();
   const classification = classifyCommand(command);
 
+  // No dangerous pattern → gate never engaged; nothing to receipt (safe commands
+  // would flood the chain). Receipts are issued only for classified decisions.
   if (!classification) {
     return { decision: "ALLOW", approval_id: "", level: 1, message: "no dangerous patterns found" };
   }
@@ -164,7 +169,41 @@ export async function runKavachGate(
   // @rule:KAV-060 — L4 dual-control: wait for pending_second, then notify second approver
   const decision = await pollForDecision(approvalId, timeoutMs, dualControl, config);
 
+  // @rule:KAV-046 — every engaged DAN-gate decision becomes a tamper-evident receipt.
+  emitReceipt(
+    "DAN_GATE",
+    danVerdict(decision, dualControl),
+    {
+      command: command.slice(0, 2000),
+      tool_name: toolName,
+      session_id: sessionId,
+      dan_level: level,
+      rule_id: "KAV-052",
+      reason: consequence,
+      context: { approval_id: approvalId },
+    },
+    {
+      rule_applied: "KAV-052",
+      decision_path: `DAN_GATE -> L${level} -> ${decision}`,
+      human_in_loop: true,
+    },
+    startedAt,
+  );
+
   return { decision, approval_id: approvalId, level, message: consequence };
+}
+
+// Map a KAVACH gate decision to a PRAMANA receipt verdict.
+// STOP → BLOCKED · TIMEOUT → TIMEOUT_BLOCKED (silence = block, KAV-056)
+// ALLOW → DUAL_APPROVED when L4 dual-control cleared it, else ALLOWED
+// EXPLAIN → ALLOWED (human requested context; action not blocked by the gate)
+function danVerdict(decision: KavachDecision, dualControl: boolean): ReceiptVerdict {
+  switch (decision) {
+    case "STOP": return "BLOCKED";
+    case "TIMEOUT": return "TIMEOUT_BLOCKED";
+    case "ALLOW": return dualControl ? "DUAL_APPROVED" : "ALLOWED";
+    default: return "ALLOWED"; // EXPLAIN and any future non-blocking decision
+  }
 }
 
 // --- Message renderer (@rule:KAV-054) ---

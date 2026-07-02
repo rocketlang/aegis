@@ -8,6 +8,7 @@
 import { loadConfig } from "../core/config";
 import { getBudgetState, addAlert, getDailySpend, getSession, setSessionStatus } from "../core/db";
 import type { UsageRecord, AlertEvent, AegisConfig } from "../core/types";
+import { emitReceipt } from "../kavach/pramana-emit";
 // [EE] Slack alerts — no-op when EE not licensed
 type _SendSlackAlertFn = (config: AegisConfig, alert: AlertEvent) => Promise<void>;
 let _sendSlackAlert: _SendSlackAlertFn | null = null;
@@ -61,6 +62,7 @@ export class BudgetEnforcer {
         timestamp: new Date().toISOString(),
         acknowledged: false,
       });
+      this.receiptBudgetStop("session_limit", `session ${record.session_id.slice(0, 8)} exceeded $${this.config.budget.session_limit_usd}`, record.session_id);
       this.pauseSession(record.session_id);
     }
 
@@ -74,6 +76,7 @@ export class BudgetEnforcer {
         timestamp: new Date().toISOString(),
         acknowledged: false,
       });
+      this.receiptBudgetStop("daily_exhausted", `daily budget exhausted: $${daily.spent_usd.toFixed(2)} / $${daily.limit_usd}`);
       this.pauseAll();
     } else if (daily.percent >= 80) {
       this.triggerAlert({
@@ -95,6 +98,7 @@ export class BudgetEnforcer {
         timestamp: new Date().toISOString(),
         acknowledged: false,
       });
+      this.receiptBudgetStop("weekly_exhausted", `weekly budget exhausted: $${weekly.spent_usd.toFixed(2)} / $${weekly.limit_usd}`);
       this.pauseAll();
     }
 
@@ -110,6 +114,7 @@ export class BudgetEnforcer {
           timestamp: new Date().toISOString(),
           acknowledged: false,
         });
+        this.receiptBudgetStop("spend_burst", `spend burst: $${record.estimated_cost_usd.toFixed(4)} (${(record.estimated_cost_usd/avg).toFixed(1)}x avg)`, record.session_id);
         // Burst is a kill trigger in enforce mode, same as budget breach
         this.pauseAll();
       }
@@ -128,6 +133,23 @@ export class BudgetEnforcer {
         });
       }
     }
+  }
+
+  // @rule:KAV-046 — record a budget/spend stop as a tamper-evident PRAMANA receipt.
+  // Verdict reflects what actually happened: enforce mode kills → BLOCKED; alert
+  // mode lets spend continue → ALLOWED. No-ops when EE is not licensed.
+  private receiptBudgetStop(kind: string, message: string, sessionId?: string): void {
+    const enforced = this.config.enforcement.mode === "enforce";
+    emitReceipt(
+      "BUDGET_STOP",
+      enforced ? "BLOCKED" : "ALLOWED",
+      { session_id: sessionId, rule_id: "KAV-003", reason: message, context: { kind } },
+      {
+        rule_applied: "KAV-003",
+        decision_path: `BUDGET_STOP -> ${kind} -> ${enforced ? "KILLED" : "ALERT_ONLY"}`,
+        human_in_loop: false,
+      },
+    );
   }
 
   private triggerAlert(alert: AlertEvent): void {

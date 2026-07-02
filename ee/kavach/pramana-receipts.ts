@@ -60,7 +60,35 @@ export interface PramanaReceipt {
 }
 
 // In-memory chain state per session — receipt count + last chain hash
-const chainState = new Map<string, { count: number; last_id: string | null; last_chain_hash: string }>();
+type ChainState = { count: number; last_id: string | null; last_chain_hash: string };
+const GENESIS_HASH = "0000000000000000";
+const chainState = new Map<string, ChainState>();
+
+// Rebuild chain state from persisted receipts on first use of a session in this
+// process. Without this, a restart resets the chain to genesis mid-session and
+// getChainIntegrity() would report a false break at the restart boundary.
+function hydrateChain(sessionKey: string): ChainState {
+  const cached = chainState.get(sessionKey);
+  if (cached) return cached;
+
+  let state: ChainState = { count: 0, last_id: null, last_chain_hash: GENESIS_HASH };
+  try {
+    const prior = listReceipts(sessionKey).sort(
+      (a, b) => a.chain.session_receipt_count - b.chain.session_receipt_count
+    );
+    if (prior.length > 0) {
+      const last = prior[prior.length - 1];
+      state = {
+        count: last.chain.session_receipt_count,
+        last_id: last.receipt_id,
+        last_chain_hash: last.chain.chain_hash,
+      };
+    }
+  } catch { /* no prior receipts on disk — start from genesis */ }
+
+  chainState.set(sessionKey, state);
+  return state;
+}
 
 function ulid(): string {
   return `${Date.now().toString(36).toUpperCase()}-${Math.random().toString(36).slice(2, 8).toUpperCase()}`;
@@ -82,8 +110,8 @@ export function issueReceipt(
   const latency_ms = startedAt ? Date.now() - startedAt : 0;
   const sessionKey = evidence.session_id ?? "unknown";
 
-  // Chain
-  const state = chainState.get(sessionKey) ?? { count: 0, last_id: null, last_chain_hash: "0000000000000000" };
+  // Chain — hydrated from disk so it survives process restarts mid-session
+  const state = hydrateChain(sessionKey);
   state.count++;
   const chain_hash = sha256(`${state.last_chain_hash}${receipt_id}${verdict}`);
   const chain: PramanaReceipt["chain"] = {
@@ -152,7 +180,7 @@ export function getChainIntegrity(sessionId: string): { intact: boolean; receipt
   const receipts = listReceipts(sessionId).sort((a, b) => a.chain.session_receipt_count - b.chain.session_receipt_count);
   if (receipts.length === 0) return { intact: true, receipt_count: 0, broken_at: null };
 
-  let runningHash = "0000000000000000";
+  let runningHash = GENESIS_HASH;
   for (const r of receipts) {
     const expected = sha256(`${runningHash}${r.receipt_id}${r.verdict}`);
     if (expected !== r.chain.chain_hash) {
