@@ -11,6 +11,7 @@ import fastifyFormbody from "@fastify/formbody";
 import { join } from "path";
 import { loadConfig, saveConfig } from "../core/config";
 import { issueSessionCookie, clearSessionCookie, verifySession } from "./session";
+import { verifyTrustToken } from "./trust-token";
 import { loginPage } from "./login-page";
 import { getDb, getBudgetState, listActiveSessions, getRecentAlerts, setSessionStatus, addAlert, getWindowBudget, getPendingApprovals, decideKavachApproval, getRecentApprovals, queryKavachAudit, recordAgentUsage, getCostTree, listAgentRows, recordDashboardAccess, getAllBgAgents, acknowledgeAllBgAgents } from "../core/db";
 import { verifyReceiptChain, listCheckpoints } from "../kernel/merkle-ledger";
@@ -139,6 +140,10 @@ if (config.dashboard.auth?.enabled) {
       url.startsWith("/api/v2/machine-law/") ||
       (url === "/api/approvals" && req.method === "GET")
     ) return;
+
+    // Machine access to the Forja faces via a Keeper-signed trust token — safety-gated (replaces the
+    // old open bypass for machine endpoints; an agent without a signed token cannot reach proof).
+    if (url.startsWith("/api/v2/forja/") && verifyTrustToken(req.headers["authorization"] as string | undefined).valid) return;
 
     const { valid } = verifySession(req.headers["cookie"] as string | undefined);
     if (!valid) {
