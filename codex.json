@@ -143,12 +143,14 @@
     "acc.pramana.merkle_rendered"
   ],
   "depends_on": [
-    "ai-proxy:4444",
-    "xshieldai:4250",
-    "ankr-agent-registry:4586",
-    "ankrclaw:4150",
-    "ankr-emailer:4320",
-    "ankr-inbox:4390"
+    "ai-proxy",
+    "xshieldai",
+    "ankr-agent-registry",
+    "ankrclaw",
+    "ankr-emailer",
+    "ankr-inbox:4390",
+    "aegis-guard",
+    "stackdomain"
   ],
   "forja_version": "2.0",
   "forja_state": "/api/v2/forja/state",
@@ -156,7 +158,8 @@
   "forja_sense": "/api/v2/forja/sense/emit",
   "forja_proof": "/api/v2/forja/proof",
   "trust_mask": 255,
-  "trust_mask_schema": "ankr-trust-32bit-v1",
+  "trust_mask_source": "audited",
+  "trust_mask_schema": "ankr-32bit-v1",
   "k_mask": 255,
   "k_mask_schema": "ankr-prajna-8bit-v1",
   "k_mask_note": "All 8 bits legitimately set 2026-05-09. Bits 0-3: all docs exist (brainstorm+project+logics+todo). Bit 4: deep-knowledge session note appended. Bit 5: capability_audit updated. Bit 6: 27 AGS-* rules seeded to SuperDomain (ankr-seed-aegis-rules.ts, imported=27 skipped=0). Bit 7: PROOF 100% (54/54 EXPECTED_RULES covered after KAV-008 annotation added to db.ts). k_mask=255 (0b11111111).",
@@ -171,6 +174,8 @@
   "claude_ankr_mask": 31,
   "claude_ankr_mask_schema": "claude-ankr-5bit-v1",
   "capability_audit": {
+    "status": "audited",
+    "trust_mask_r011_audit": "2026-07-07 R-011 code-read audit: trust_mask=255 (READ|QUERY|WRITE|EXECUTE|APPROVE|AUDIT|ADMIN|SUPER) FULLY JUSTIFIED for the fleet security/enforcement kernel; no mask change. SUPER = inter-service authorization via mask-intersection (src/cli/commands/check-shield.ts:113, reach_mask/KAV-088). ADMIN = rogue-agent quarantine (src/sandbox/quarantine.ts via src/kavach/gate-valve.ts:18) + panic-freeze. APPROVE = DAN-4 dual-control (src/core/db.ts:555, dual_control + require_different_approvers, level 4). AUDIT = sealed PRAMANA/merkle receipts (src/core/ase.ts). WRITE/EXECUTE = seccomp agent launch + block DROP/TRUNCATE/rm-rf (src/kernel/seccomp-profile-generator.ts). No AGI bits (24-31) — no autonomy question. Provenance declared -> audited.",
     "kavachos_kernel_phase1": "✅ built — KavachOS KERNEL Phase 1: seccomp profile generator, Falco rule generator, receipt chain, profile store, runner, CLI (KOS-010 to KOS-017)",
     "kavachos_seccomp_generator": "✅ built — src/kernel/seccomp-profile-generator.ts: deterministic trust_mask → syscall allowlist; K-seal on every profile; domain-specific additions (KOS-010)",
     "kavachos_falco_rules": "✅ built — src/kernel/falco-rule-generator.ts: domain-tuned Falco rules (maritime 7 rules, freight, general); KOS-013 compliant",
@@ -523,5 +528,1535 @@
       "svadhyaya"
     ],
     "note": "structural default (BMOS-YK-002); tighten per-service as owners review"
+  },
+  "mask_provenance": {
+    "schema": "ankr-mask-provenance-v1",
+    "trust_mask": {
+      "value": 255,
+      "class": "unknown",
+      "classified_at": "2026-06-12",
+      "by": "mask-provenance-classify.mjs (WP-017)"
+    }
+  },
+  "tree_completeness": {
+    "schema": "ankr-tree-completeness-v1",
+    "codex_present": true,
+    "declared_leaves": 68,
+    "docs_on_disk": 5,
+    "mask_audited": false,
+    "bit_registry": false,
+    "observed": false,
+    "measured_at": "2026-06-12"
+  },
+  "readiness": {
+    "schema": "ankr-readiness-8bit-v1",
+    "value": 195,
+    "bits": [
+      "DOCUMENTED",
+      "WIRE_ALIVE",
+      "REACHABLE",
+      "PROOF"
+    ],
+    "computed_at": "2026-06-12T06:01:59.448Z",
+    "note": "COMPILED VIEW (FP-014 law 2) — recompute with readiness-compute.mjs; never edit by hand",
+    "evidence": {
+      "docs": "5/5",
+      "wire": "health-200",
+      "forja": "no-state"
+    }
+  },
+  "slug_registry": {
+    "schema": "rest-forge-registry-v1",
+    "service": "aegis",
+    "bit_next": 43,
+    "slugs": {
+      "launch any agent under linux seccomp-bpf kernel governance (kavachos run)": {
+        "alias": [
+          "Launch any agent under Linux seccomp-bpf kernel governance (kavachos run)"
+        ],
+        "kind": "rest-query",
+        "verb": "can_read",
+        "bit": 0,
+        "risk": "normal",
+        "risk_provenance": "read",
+        "reversibility": "reversible",
+        "klass": "unproven",
+        "transport": "rest",
+        "route": null,
+        "method": "GET",
+        "source": "codex.can_do",
+        "compiled_at": "2026-06-12"
+      },
+      "generate deterministic seccomp profile from trust-mask + domain in < 100ms (kos-010)": {
+        "alias": [
+          "Generate deterministic seccomp profile from trust_mask + domain in < 100ms (KOS-010)"
+        ],
+        "kind": "rest-query",
+        "verb": "can_read",
+        "bit": 1,
+        "risk": "normal",
+        "risk_provenance": "read",
+        "reversibility": "reversible",
+        "klass": "unproven",
+        "transport": "rest",
+        "route": null,
+        "method": "GET",
+        "source": "codex.can_do",
+        "compiled_at": "2026-06-12"
+      },
+      "generate domain-tuned falco runtime monitoring rules (maritime, freight, general)": {
+        "alias": [
+          "Generate domain-tuned Falco runtime monitoring rules (maritime, freight, general)"
+        ],
+        "kind": "rest-query",
+        "verb": "can_read",
+        "bit": 2,
+        "risk": "normal",
+        "risk_provenance": "read",
+        "reversibility": "reversible",
+        "klass": "unproven",
+        "transport": "rest",
+        "route": null,
+        "method": "GET",
+        "source": "codex.can_do",
+        "compiled_at": "2026-06-12"
+      },
+      "seal every falco violation event with pramana sha-256 receipt chain (kos-005)": {
+        "alias": [
+          "Seal every Falco violation event with PRAMANA SHA-256 receipt chain (KOS-005)"
+        ],
+        "kind": "rest-query",
+        "verb": "can_read",
+        "bit": 3,
+        "risk": "normal",
+        "risk_provenance": "read",
+        "reversibility": "reversible",
+        "klass": "unproven",
+        "transport": "rest",
+        "route": null,
+        "method": "GET",
+        "source": "codex.can_do",
+        "compiled_at": "2026-06-12"
+      },
+      "audit session profile hash for drift — kernel enforcement evidence for eu ai act art. 14": {
+        "alias": [
+          "Audit session profile hash for drift — kernel enforcement evidence for EU AI Act Art. 14"
+        ],
+        "kind": "rest-query",
+        "verb": "can_read",
+        "bit": 4,
+        "risk": "normal",
+        "risk_provenance": "read",
+        "reversibility": "reversible",
+        "klass": "unproven",
+        "transport": "rest",
+        "route": null,
+        "method": "GET",
+        "source": "codex.can_do",
+        "compiled_at": "2026-06-12"
+      },
+      "intercept every claude code tool call before execution (pre-tool-use hook)": {
+        "alias": [
+          "Intercept every Claude Code tool call before execution (PreToolUse hook)"
+        ],
+        "kind": "rest-query",
+        "verb": "can_read",
+        "bit": 5,
+        "risk": "normal",
+        "risk_provenance": "read",
+        "reversibility": "reversible",
+        "klass": "unproven",
+        "transport": "rest",
+        "route": null,
+        "method": "GET",
+        "source": "codex.can_do",
+        "compiled_at": "2026-06-12"
+      },
+      "enforce per-agent budget caps with cost attribution tree": {
+        "alias": [
+          "Enforce per-agent budget caps with cost attribution tree"
+        ],
+        "kind": "rest-query",
+        "verb": "can_read",
+        "bit": 6,
+        "risk": "normal",
+        "risk_provenance": "read",
+        "reversibility": "reversible",
+        "klass": "unproven",
+        "transport": "rest",
+        "route": null,
+        "method": "GET",
+        "source": "codex.can_do",
+        "compiled_at": "2026-06-12"
+      },
+      "block destructive commands (drop, truncate, rm -rf, prisma migrate reset)": {
+        "alias": [
+          "Block destructive commands (DROP, TRUNCATE, rm -rf, prisma migrate reset)"
+        ],
+        "kind": "rest-query",
+        "verb": "can_read",
+        "bit": 7,
+        "risk": "normal",
+        "risk_provenance": "read",
+        "reversibility": "reversible",
+        "klass": "unproven",
+        "transport": "rest",
+        "route": null,
+        "method": "GET",
+        "source": "codex.can_do",
+        "compiled_at": "2026-06-12"
+      },
+      "show live spend dashboard at port 4850 (v1 frontend — budget + sessions + alerts)": {
+        "alias": [
+          "Show live spend dashboard at port 4850 (v1 frontend — budget + sessions + alerts)"
+        ],
+        "kind": "rest-query",
+        "verb": "can_read",
+        "bit": 8,
+        "risk": "normal",
+        "risk_provenance": "read",
+        "reversibility": "reversible",
+        "klass": "unproven",
+        "transport": "rest",
+        "route": null,
+        "method": "GET",
+        "source": "codex.can_do",
+        "compiled_at": "2026-06-12"
+      },
+      "detect prompt injection and sockpuppet attacks (lakshman-rekha, ca-006)": {
+        "alias": [
+          "Detect prompt injection and sockpuppet attacks (LakshmanRekha, CA-006)"
+        ],
+        "kind": "rest-query",
+        "verb": "can_read",
+        "bit": 9,
+        "risk": "normal",
+        "risk_provenance": "read",
+        "reversibility": "reversible",
+        "klass": "unproven",
+        "transport": "rest",
+        "route": null,
+        "method": "GET",
+        "source": "codex.can_do",
+        "compiled_at": "2026-06-12"
+      },
+      "validate hanuman-g delegation chain at every agent spawn (7 axes)": {
+        "alias": [
+          "Validate HanumanG delegation chain at every Agent spawn (7 axes)"
+        ],
+        "kind": "rest-query",
+        "verb": "can_read",
+        "bit": 10,
+        "risk": "normal",
+        "risk_provenance": "read",
+        "reversibility": "reversible",
+        "klass": "unproven",
+        "transport": "rest",
+        "route": null,
+        "method": "GET",
+        "source": "codex.can_do",
+        "compiled_at": "2026-06-12"
+      },
+      "enforce per-agent sandbox policy (tool allowlist, path scope, db scope, bash allowlist)": {
+        "alias": [
+          "Enforce per-agent sandbox policy (tool allowlist, path scope, db scope, bash allowlist)"
+        ],
+        "kind": "rest-query",
+        "verb": "can_read",
+        "bit": 11,
+        "risk": "normal",
+        "risk_provenance": "read",
+        "reversibility": "reversible",
+        "klass": "unproven",
+        "transport": "rest",
+        "route": null,
+        "method": "GET",
+        "source": "codex.can_do",
+        "compiled_at": "2026-06-12"
+      },
+      "quarantine rogue agents (freeze session, preserve evidence, human-in-loop release)": {
+        "alias": [
+          "Quarantine rogue agents (freeze session, preserve evidence, human-in-loop release)"
+        ],
+        "kind": "rest-mutation",
+        "verb": "can_act",
+        "bit": 12,
+        "risk": "high",
+        "risk_provenance": "default QRF-004 — unclassified REST act; reclassify only via recorded audit act",
+        "reversibility": "unknown",
+        "klass": "unproven",
+        "transport": "rest",
+        "route": null,
+        "method": "POST",
+        "source": "codex.can_do",
+        "compiled_at": "2026-06-12"
+      },
+      "detect and resolve zombie agents (dead process + running state)": {
+        "alias": [
+          "Detect and resolve zombie agents (dead process + RUNNING state)"
+        ],
+        "kind": "rest-query",
+        "verb": "can_read",
+        "bit": 13,
+        "risk": "normal",
+        "risk_provenance": "read",
+        "reversibility": "reversible",
+        "klass": "unproven",
+        "transport": "rest",
+        "route": null,
+        "method": "GET",
+        "source": "codex.can_do",
+        "compiled_at": "2026-06-12"
+      },
+      "write resume manifests for force-closed agents": {
+        "alias": [
+          "Write resume manifests for force-closed agents"
+        ],
+        "kind": "rest-mutation",
+        "verb": "can_act",
+        "bit": 14,
+        "risk": "high",
+        "risk_provenance": "default QRF-004 — unclassified REST act; reclassify only via recorded audit act",
+        "reversibility": "unknown",
+        "klass": "unproven",
+        "transport": "rest",
+        "route": null,
+        "method": "POST",
+        "source": "codex.can_do",
+        "compiled_at": "2026-06-12"
+      },
+      "intercept dangerous actions: plain-english whats-app/email notification before execution": {
+        "alias": [
+          "Intercept dangerous actions: plain-English WhatsApp/email notification before execution"
+        ],
+        "kind": "rest-query",
+        "verb": "can_read",
+        "bit": 15,
+        "risk": "normal",
+        "risk_provenance": "read",
+        "reversibility": "reversible",
+        "klass": "unproven",
+        "transport": "rest",
+        "route": null,
+        "method": "GET",
+        "source": "codex.can_do",
+        "compiled_at": "2026-06-12"
+      },
+      "assess blast radius of dangerous actions (which services would break downstream)": {
+        "alias": [
+          "Assess blast radius of dangerous actions (which services would break downstream)"
+        ],
+        "kind": "rest-query",
+        "verb": "can_read",
+        "bit": 16,
+        "risk": "normal",
+        "risk_provenance": "read",
+        "reversibility": "reversible",
+        "klass": "unproven",
+        "transport": "rest",
+        "route": null,
+        "method": "GET",
+        "source": "codex.can_do",
+        "compiled_at": "2026-06-12"
+      },
+      "require dual-control approval for dan-4 irreversible actions": {
+        "alias": [
+          "Require dual-control approval for DAN-4 irreversible actions"
+        ],
+        "kind": "rest-query",
+        "verb": "can_read",
+        "bit": 17,
+        "risk": "normal",
+        "risk_provenance": "read",
+        "reversibility": "reversible",
+        "klass": "unproven",
+        "transport": "rest",
+        "route": null,
+        "method": "GET",
+        "source": "codex.can_do",
+        "compiled_at": "2026-06-12"
+      },
+      "run automated weekly restore drills to verify backup integrity": {
+        "alias": [
+          "Run automated weekly restore drills to verify backup integrity"
+        ],
+        "kind": "rest-query",
+        "verb": "can_read",
+        "bit": 18,
+        "risk": "normal",
+        "risk_provenance": "read",
+        "reversibility": "reversible",
+        "klass": "unproven",
+        "transport": "rest",
+        "route": null,
+        "method": "GET",
+        "source": "codex.can_do",
+        "compiled_at": "2026-06-12"
+      },
+      "provide one-command panic button to freeze all running agent sessions": {
+        "alias": [
+          "Provide one-command panic button to freeze all running agent sessions"
+        ],
+        "kind": "rest-query",
+        "verb": "can_read",
+        "bit": 19,
+        "risk": "normal",
+        "risk_provenance": "read",
+        "reversibility": "reversible",
+        "klass": "unproven",
+        "transport": "rest",
+        "route": null,
+        "method": "GET",
+        "source": "codex.can_do",
+        "compiled_at": "2026-06-12"
+      },
+      "display real-time traffic-light observability dashboard for non-technical operators": {
+        "alias": [
+          "Display real-time traffic-light observability dashboard for non-technical operators"
+        ],
+        "kind": "rest-query",
+        "verb": "can_read",
+        "bit": 20,
+        "risk": "normal",
+        "risk_provenance": "read",
+        "reversibility": "reversible",
+        "klass": "unproven",
+        "transport": "rest",
+        "route": null,
+        "method": "GET",
+        "source": "codex.can_do",
+        "compiled_at": "2026-06-12"
+      },
+      "authorize inter-service capability calls via bit-mask-os mask intersection in < 10ms (bmos-authorize)": {
+        "alias": [
+          "Authorize inter-service capability calls via BitMaskOS mask intersection in < 10ms (BMOS-Authorize)"
+        ],
+        "kind": "rest-query",
+        "verb": "can_read",
+        "bit": 21,
+        "risk": "normal",
+        "risk_provenance": "read",
+        "reversibility": "reversible",
+        "klass": "unproven",
+        "transport": "rest",
+        "route": null,
+        "method": "GET",
+        "source": "codex.can_do",
+        "compiled_at": "2026-06-12"
+      },
+      "inherit agent capabilities from parent agent via genetic bitmask propagation": {
+        "alias": [
+          "Inherit agent capabilities from parent agent via genetic bitmask propagation"
+        ],
+        "kind": "rest-query",
+        "verb": "can_read",
+        "bit": 22,
+        "risk": "normal",
+        "risk_provenance": "read",
+        "reversibility": "reversible",
+        "klass": "unproven",
+        "transport": "rest",
+        "route": null,
+        "method": "GET",
+        "source": "codex.can_do",
+        "compiled_at": "2026-06-12"
+      },
+      "verify genetic lineage — confirm child agent trust-mask is valid subset of parent": {
+        "alias": [
+          "Verify genetic lineage — confirm child agent trust_mask is valid subset of parent"
+        ],
+        "kind": "rest-query",
+        "verb": "can_read",
+        "bit": 23,
+        "risk": "normal",
+        "risk_provenance": "read",
+        "reversibility": "reversible",
+        "klass": "unproven",
+        "transport": "rest",
+        "route": null,
+        "method": "GET",
+        "source": "codex.can_do",
+        "compiled_at": "2026-06-12"
+      },
+      "capture pre-session service baseline (k-mask, trust-mask, req-mask) at session start (sor-t-101)": {
+        "alias": [
+          "Capture pre-session service baseline (k_mask, trust_mask, req_mask) at session start (SOR-T-101)"
+        ],
+        "kind": "rest-query",
+        "verb": "can_read",
+        "bit": 24,
+        "risk": "normal",
+        "risk_provenance": "read",
+        "reversibility": "reversible",
+        "klass": "unproven",
+        "transport": "rest",
+        "route": null,
+        "method": "GET",
+        "source": "codex.can_do",
+        "compiled_at": "2026-06-12"
+      },
+      "probe service k-mask for overclaims and can-do drift against services.json (sor-t-202, sor-t-203)": {
+        "alias": [
+          "Probe service k_mask for overclaims and can_do drift against services.json (SOR-T-202, SOR-T-203)"
+        ],
+        "kind": "rest-query",
+        "verb": "can_read",
+        "bit": 25,
+        "risk": "normal",
+        "risk_provenance": "read",
+        "reversibility": "reversible",
+        "klass": "unproven",
+        "transport": "rest",
+        "route": null,
+        "method": "GET",
+        "source": "codex.can_do",
+        "compiled_at": "2026-06-12"
+      },
+      "generate and surface 5-8 line health brief per session via latest.brief.md symlink (sor-t-301)": {
+        "alias": [
+          "Generate and surface 5-8 line health brief per session via latest.brief.md symlink (SOR-T-301)"
+        ],
+        "kind": "rest-query",
+        "verb": "can_read",
+        "bit": 26,
+        "risk": "normal",
+        "risk_provenance": "read",
+        "reversibility": "reversible",
+        "klass": "unproven",
+        "transport": "rest",
+        "route": null,
+        "method": "GET",
+        "source": "codex.can_do",
+        "compiled_at": "2026-06-12"
+      },
+      "issue sealed agent session envelope (ase) with sha-256 sealed-hash at agent birth (ase-001)": {
+        "alias": [
+          "Issue sealed Agent Session Envelope (ASE) with SHA-256 sealed_hash at agent birth (ASE-001)"
+        ],
+        "kind": "rest-query",
+        "verb": "can_read",
+        "bit": 27,
+        "risk": "normal",
+        "risk_provenance": "read",
+        "reversibility": "reversible",
+        "klass": "unproven",
+        "transport": "rest",
+        "route": null,
+        "method": "GET",
+        "source": "codex.can_do",
+        "compiled_at": "2026-06-12"
+      },
+      "verify envelope integrity — detect mid-session tamper via sealed-hash recomputation (ase-002)": {
+        "alias": [
+          "Verify envelope integrity — detect mid-session tamper via sealed_hash recomputation (ASE-002)"
+        ],
+        "kind": "rest-query",
+        "verb": "can_read",
+        "bit": 28,
+        "risk": "normal",
+        "risk_provenance": "read",
+        "reversibility": "reversible",
+        "klass": "unproven",
+        "transport": "rest",
+        "route": null,
+        "method": "GET",
+        "source": "codex.can_do",
+        "compiled_at": "2026-06-12"
+      },
+      "enforce declared-caps at gate.ts before capability registry check (ase-014)": {
+        "alias": [
+          "Enforce declared_caps at gate.ts before capability registry check (ASE-014)"
+        ],
+        "kind": "rest-query",
+        "verb": "can_read",
+        "bit": 29,
+        "risk": "normal",
+        "risk_provenance": "read",
+        "reversibility": "reversible",
+        "klass": "unproven",
+        "transport": "rest",
+        "route": null,
+        "method": "GET",
+        "source": "codex.can_do",
+        "compiled_at": "2026-06-12"
+      },
+      "enforce vertical and child perm-mask inheritance at spawn (ase-005, kav-065)": {
+        "alias": [
+          "Enforce vertical AND child perm_mask inheritance at spawn (ASE-005, KAV-065)"
+        ],
+        "kind": "rest-query",
+        "verb": "can_read",
+        "bit": 30,
+        "risk": "normal",
+        "risk_provenance": "read",
+        "reversibility": "reversible",
+        "klass": "unproven",
+        "transport": "rest",
+        "route": null,
+        "method": "GET",
+        "source": "codex.can_do",
+        "compiled_at": "2026-06-12"
+      },
+      "enforce ai proxy budget gate — 429 on budget-remaining=0 (ase-011)": {
+        "alias": [
+          "Enforce AI Proxy budget gate — 429 on budget_remaining=0 (ASE-011)"
+        ],
+        "kind": "rest-query",
+        "verb": "can_read",
+        "bit": 31,
+        "risk": "normal",
+        "risk_provenance": "read",
+        "reversibility": "reversible",
+        "klass": "unproven",
+        "transport": "rest",
+        "route": null,
+        "method": "GET",
+        "source": "codex.can_do",
+        "compiled_at": "2026-06-12"
+      },
+      "emit kavach.budget.threshold-warning with envelope-session-id at 80% budget (ase-yk-007)": {
+        "alias": [
+          "Emit kavach.budget.threshold_warning with envelope_session_id at 80% budget (ASE-YK-007)"
+        ],
+        "kind": "rest-mutation",
+        "verb": "can_act",
+        "bit": 32,
+        "risk": "high",
+        "risk_provenance": "default QRF-004 — unclassified REST act; reclassify only via recorded audit act",
+        "reversibility": "unknown",
+        "klass": "unproven",
+        "transport": "rest",
+        "route": null,
+        "method": "POST",
+        "source": "codex.can_do",
+        "compiled_at": "2026-06-12"
+      },
+      "write full session audit record at close — drift-set, declared vs actual (ase-010)": {
+        "alias": [
+          "Write full session audit record at close — drift_set, declared vs actual (ASE-010)"
+        ],
+        "kind": "rest-query",
+        "verb": "can_read",
+        "bit": 33,
+        "risk": "normal",
+        "risk_provenance": "read",
+        "reversibility": "reversible",
+        "klass": "unproven",
+        "transport": "rest",
+        "route": null,
+        "method": "GET",
+        "source": "codex.can_do",
+        "compiled_at": "2026-06-12"
+      },
+      "issue child envelopes with parent-session-id in sealed-hash — delegation chain (ase-008)": {
+        "alias": [
+          "Issue child envelopes with parent_session_id in sealed_hash — delegation chain (ASE-008)"
+        ],
+        "kind": "rest-query",
+        "verb": "can_read",
+        "bit": 34,
+        "risk": "normal",
+        "risk_provenance": "read",
+        "reversibility": "reversible",
+        "klass": "unproven",
+        "transport": "rest",
+        "route": null,
+        "method": "GET",
+        "source": "codex.can_do",
+        "compiled_at": "2026-06-12"
+      },
+      "render @rocketlang/* package inventory from consumer's node-modules at /suite (acc-012)": {
+        "alias": [
+          "Render @rocketlang/* package inventory from consumer's node_modules at /suite (ACC-012)"
+        ],
+        "kind": "rest-query",
+        "verb": "can_read",
+        "bit": 35,
+        "risk": "normal",
+        "risk_provenance": "read",
+        "reversibility": "reversible",
+        "klass": "unproven",
+        "transport": "rest",
+        "route": null,
+        "method": "GET",
+        "source": "codex.can_do",
+        "compiled_at": "2026-06-12"
+      },
+      "render single-page acc grid with 6 primitive zones at /control-center, all visible simultaneously (acc-001)": {
+        "alias": [
+          "Render single-page ACC grid with 6 primitive zones at /control-center, all visible simultaneously (ACC-001)"
+        ],
+        "kind": "rest-query",
+        "verb": "can_read",
+        "bit": 36,
+        "risk": "normal",
+        "risk_provenance": "read",
+        "reversibility": "reversible",
+        "klass": "unproven",
+        "transport": "rest",
+        "route": null,
+        "method": "GET",
+        "source": "codex.can_do",
+        "compiled_at": "2026-06-12"
+      },
+      "stream live events from in-memory bus to acc page via sse at /api/acc/events (acc-009)": {
+        "alias": [
+          "Stream live events from in-memory bus to ACC page via SSE at /api/acc/events (ACC-009)"
+        ],
+        "kind": "rest-query",
+        "verb": "can_read",
+        "bit": 37,
+        "risk": "normal",
+        "risk_provenance": "read",
+        "reversibility": "reversible",
+        "klass": "unproven",
+        "transport": "rest",
+        "route": null,
+        "method": "GET",
+        "source": "codex.can_do",
+        "compiled_at": "2026-06-12"
+      },
+      "persist primitive events append-only to ~/.aegis/acc-events.db, separate from aegis.db and turn-store.db (acc-005)": {
+        "alias": [
+          "Persist primitive events append-only to ~/.aegis/acc-events.db, separate from aegis.db and turn-store.db (ACC-005)"
+        ],
+        "kind": "rest-query",
+        "verb": "can_read",
+        "bit": 38,
+        "risk": "normal",
+        "risk_provenance": "read",
+        "reversibility": "reversible",
+        "klass": "unproven",
+        "transport": "rest",
+        "route": null,
+        "method": "GET",
+        "source": "codex.can_do",
+        "compiled_at": "2026-06-12"
+      },
+      "render pramana oss panel from already-shipping src/kernel/merkle-ledger.ts (read-only consume, not new infrastructure) (acc-008)": {
+        "alias": [
+          "Render PRAMANA OSS panel from already-shipping src/kernel/merkle-ledger.ts (read-only consume, not new infrastructure) (ACC-008)"
+        ],
+        "kind": "rest-query",
+        "verb": "can_read",
+        "bit": 39,
+        "risk": "normal",
+        "risk_provenance": "read",
+        "reversibility": "reversible",
+        "klass": "unproven",
+        "transport": "rest",
+        "route": null,
+        "method": "GET",
+        "source": "codex.can_do",
+        "compiled_at": "2026-06-12"
+      },
+      "detect kavachos-ee via runtime require.resolve in try-catch and render ee-aware extra panel if present (acc-006)": {
+        "alias": [
+          "Detect kavachos-ee via runtime require.resolve in try-catch and render EE-aware extra panel if present (ACC-006)"
+        ],
+        "kind": "rest-query",
+        "verb": "can_read",
+        "bit": 40,
+        "risk": "normal",
+        "risk_provenance": "read",
+        "reversibility": "reversible",
+        "klass": "unproven",
+        "transport": "rest",
+        "route": null,
+        "method": "GET",
+        "source": "codex.can_do",
+        "compiled_at": "2026-06-12"
+      },
+      "display honest empty state per zone when no events recorded — never synthetic demo data (acc-002)": {
+        "alias": [
+          "Display honest empty state per zone when no events recorded — never synthetic demo data (ACC-002)"
+        ],
+        "kind": "rest-query",
+        "verb": "can_read",
+        "bit": 41,
+        "risk": "normal",
+        "risk_provenance": "read",
+        "reversibility": "reversible",
+        "klass": "unproven",
+        "transport": "rest",
+        "route": null,
+        "method": "GET",
+        "source": "codex.can_do",
+        "compiled_at": "2026-06-12"
+      },
+      "render per-agent timeline at /agent/:id with events ordered by emitted-at across all primitives (acc-010)": {
+        "alias": [
+          "Render per-agent timeline at /agent/:id with events ordered by emitted_at across all primitives (ACC-010)"
+        ],
+        "kind": "rest-query",
+        "verb": "can_read",
+        "bit": 42,
+        "risk": "normal",
+        "risk_provenance": "read",
+        "reversibility": "reversible",
+        "klass": "unproven",
+        "transport": "rest",
+        "route": null,
+        "method": "GET",
+        "source": "codex.can_do",
+        "compiled_at": "2026-06-12"
+      }
+    },
+    "compiled_at": "2026-06-12",
+    "source": "rest-forge: live /api/v2/capabilities → codex.can_do"
+  },
+  "widget_registry": {
+    "schema": "widget-forge-registry-v1",
+    "service": "aegis",
+    "widgets": {
+      "launch any agent under linux seccomp-bpf kernel governance (kavachos run)": {
+        "slug": "launch any agent under linux seccomp-bpf kernel governance (kavachos run)",
+        "bit": 0,
+        "kind": "read",
+        "layout": "auto-table",
+        "wire": {
+          "kind": "rest",
+          "route": null,
+          "method": "GET",
+          "field": "Launch any agent under Linux seccomp-bpf kernel governance (kavachos run)"
+        },
+        "governed": true,
+        "pause": false,
+        "status": "generated",
+        "generated_at": "2026-06-12",
+        "generated_by": "widget-forge W1 (no hand-waving — WDF-003)"
+      },
+      "generate deterministic seccomp profile from trust-mask + domain in < 100ms (kos-010)": {
+        "slug": "generate deterministic seccomp profile from trust-mask + domain in < 100ms (kos-010)",
+        "bit": 1,
+        "kind": "read",
+        "layout": "auto-table",
+        "wire": {
+          "kind": "rest",
+          "route": null,
+          "method": "GET",
+          "field": "Generate deterministic seccomp profile from trust_mask + domain in < 100ms (KOS-010)"
+        },
+        "governed": true,
+        "pause": false,
+        "status": "generated",
+        "generated_at": "2026-06-12",
+        "generated_by": "widget-forge W1 (no hand-waving — WDF-003)"
+      },
+      "generate domain-tuned falco runtime monitoring rules (maritime, freight, general)": {
+        "slug": "generate domain-tuned falco runtime monitoring rules (maritime, freight, general)",
+        "bit": 2,
+        "kind": "read",
+        "layout": "auto-table",
+        "wire": {
+          "kind": "rest",
+          "route": null,
+          "method": "GET",
+          "field": "Generate domain-tuned Falco runtime monitoring rules (maritime, freight, general)"
+        },
+        "governed": true,
+        "pause": false,
+        "status": "generated",
+        "generated_at": "2026-06-12",
+        "generated_by": "widget-forge W1 (no hand-waving — WDF-003)"
+      },
+      "seal every falco violation event with pramana sha-256 receipt chain (kos-005)": {
+        "slug": "seal every falco violation event with pramana sha-256 receipt chain (kos-005)",
+        "bit": 3,
+        "kind": "read",
+        "layout": "auto-table",
+        "wire": {
+          "kind": "rest",
+          "route": null,
+          "method": "GET",
+          "field": "Seal every Falco violation event with PRAMANA SHA-256 receipt chain (KOS-005)"
+        },
+        "governed": true,
+        "pause": false,
+        "status": "generated",
+        "generated_at": "2026-06-12",
+        "generated_by": "widget-forge W1 (no hand-waving — WDF-003)"
+      },
+      "audit session profile hash for drift — kernel enforcement evidence for eu ai act art. 14": {
+        "slug": "audit session profile hash for drift — kernel enforcement evidence for eu ai act art. 14",
+        "bit": 4,
+        "kind": "read",
+        "layout": "auto-table",
+        "wire": {
+          "kind": "rest",
+          "route": null,
+          "method": "GET",
+          "field": "Audit session profile hash for drift — kernel enforcement evidence for EU AI Act Art. 14"
+        },
+        "governed": true,
+        "pause": false,
+        "status": "generated",
+        "generated_at": "2026-06-12",
+        "generated_by": "widget-forge W1 (no hand-waving — WDF-003)"
+      },
+      "intercept every claude code tool call before execution (pre-tool-use hook)": {
+        "slug": "intercept every claude code tool call before execution (pre-tool-use hook)",
+        "bit": 5,
+        "kind": "read",
+        "layout": "auto-table",
+        "wire": {
+          "kind": "rest",
+          "route": null,
+          "method": "GET",
+          "field": "Intercept every Claude Code tool call before execution (PreToolUse hook)"
+        },
+        "governed": true,
+        "pause": false,
+        "status": "generated",
+        "generated_at": "2026-06-12",
+        "generated_by": "widget-forge W1 (no hand-waving — WDF-003)"
+      },
+      "enforce per-agent budget caps with cost attribution tree": {
+        "slug": "enforce per-agent budget caps with cost attribution tree",
+        "bit": 6,
+        "kind": "read",
+        "layout": "auto-table",
+        "wire": {
+          "kind": "rest",
+          "route": null,
+          "method": "GET",
+          "field": "Enforce per-agent budget caps with cost attribution tree"
+        },
+        "governed": true,
+        "pause": false,
+        "status": "generated",
+        "generated_at": "2026-06-12",
+        "generated_by": "widget-forge W1 (no hand-waving — WDF-003)"
+      },
+      "block destructive commands (drop, truncate, rm -rf, prisma migrate reset)": {
+        "slug": "block destructive commands (drop, truncate, rm -rf, prisma migrate reset)",
+        "bit": 7,
+        "kind": "read",
+        "layout": "auto-table",
+        "wire": {
+          "kind": "rest",
+          "route": null,
+          "method": "GET",
+          "field": "Block destructive commands (DROP, TRUNCATE, rm -rf, prisma migrate reset)"
+        },
+        "governed": true,
+        "pause": false,
+        "status": "generated",
+        "generated_at": "2026-06-12",
+        "generated_by": "widget-forge W1 (no hand-waving — WDF-003)"
+      },
+      "show live spend dashboard at port 4850 (v1 frontend — budget + sessions + alerts)": {
+        "slug": "show live spend dashboard at port 4850 (v1 frontend — budget + sessions + alerts)",
+        "bit": 8,
+        "kind": "read",
+        "layout": "auto-table",
+        "wire": {
+          "kind": "rest",
+          "route": null,
+          "method": "GET",
+          "field": "Show live spend dashboard at port 4850 (v1 frontend — budget + sessions + alerts)"
+        },
+        "governed": true,
+        "pause": false,
+        "status": "generated",
+        "generated_at": "2026-06-12",
+        "generated_by": "widget-forge W1 (no hand-waving — WDF-003)"
+      },
+      "detect prompt injection and sockpuppet attacks (lakshman-rekha, ca-006)": {
+        "slug": "detect prompt injection and sockpuppet attacks (lakshman-rekha, ca-006)",
+        "bit": 9,
+        "kind": "read",
+        "layout": "auto-table",
+        "wire": {
+          "kind": "rest",
+          "route": null,
+          "method": "GET",
+          "field": "Detect prompt injection and sockpuppet attacks (LakshmanRekha, CA-006)"
+        },
+        "governed": true,
+        "pause": false,
+        "status": "generated",
+        "generated_at": "2026-06-12",
+        "generated_by": "widget-forge W1 (no hand-waving — WDF-003)"
+      },
+      "validate hanuman-g delegation chain at every agent spawn (7 axes)": {
+        "slug": "validate hanuman-g delegation chain at every agent spawn (7 axes)",
+        "bit": 10,
+        "kind": "read",
+        "layout": "auto-table",
+        "wire": {
+          "kind": "rest",
+          "route": null,
+          "method": "GET",
+          "field": "Validate HanumanG delegation chain at every Agent spawn (7 axes)"
+        },
+        "governed": true,
+        "pause": false,
+        "status": "generated",
+        "generated_at": "2026-06-12",
+        "generated_by": "widget-forge W1 (no hand-waving — WDF-003)"
+      },
+      "enforce per-agent sandbox policy (tool allowlist, path scope, db scope, bash allowlist)": {
+        "slug": "enforce per-agent sandbox policy (tool allowlist, path scope, db scope, bash allowlist)",
+        "bit": 11,
+        "kind": "read",
+        "layout": "auto-table",
+        "wire": {
+          "kind": "rest",
+          "route": null,
+          "method": "GET",
+          "field": "Enforce per-agent sandbox policy (tool allowlist, path scope, db scope, bash allowlist)"
+        },
+        "governed": true,
+        "pause": false,
+        "status": "generated",
+        "generated_at": "2026-06-12",
+        "generated_by": "widget-forge W1 (no hand-waving — WDF-003)"
+      },
+      "quarantine rogue agents (freeze session, preserve evidence, human-in-loop release)": {
+        "slug": "quarantine rogue agents (freeze session, preserve evidence, human-in-loop release)",
+        "bit": 12,
+        "kind": "act",
+        "layout": "action-card",
+        "wire": {
+          "kind": "rest",
+          "route": null,
+          "method": "POST",
+          "field": "Quarantine rogue agents (freeze session, preserve evidence, human-in-loop release)"
+        },
+        "governed": true,
+        "pause": true,
+        "status": "generated-pending-pause-ux",
+        "generated_at": "2026-06-12",
+        "generated_by": "widget-forge W1 (no hand-waving — WDF-003)"
+      },
+      "detect and resolve zombie agents (dead process + running state)": {
+        "slug": "detect and resolve zombie agents (dead process + running state)",
+        "bit": 13,
+        "kind": "read",
+        "layout": "auto-table",
+        "wire": {
+          "kind": "rest",
+          "route": null,
+          "method": "GET",
+          "field": "Detect and resolve zombie agents (dead process + RUNNING state)"
+        },
+        "governed": true,
+        "pause": false,
+        "status": "generated",
+        "generated_at": "2026-06-12",
+        "generated_by": "widget-forge W1 (no hand-waving — WDF-003)"
+      },
+      "write resume manifests for force-closed agents": {
+        "slug": "write resume manifests for force-closed agents",
+        "bit": 14,
+        "kind": "act",
+        "layout": "action-card",
+        "wire": {
+          "kind": "rest",
+          "route": null,
+          "method": "POST",
+          "field": "Write resume manifests for force-closed agents"
+        },
+        "governed": true,
+        "pause": true,
+        "status": "generated-pending-pause-ux",
+        "generated_at": "2026-06-12",
+        "generated_by": "widget-forge W1 (no hand-waving — WDF-003)"
+      },
+      "intercept dangerous actions: plain-english whats-app/email notification before execution": {
+        "slug": "intercept dangerous actions: plain-english whats-app/email notification before execution",
+        "bit": 15,
+        "kind": "read",
+        "layout": "auto-table",
+        "wire": {
+          "kind": "rest",
+          "route": null,
+          "method": "GET",
+          "field": "Intercept dangerous actions: plain-English WhatsApp/email notification before execution"
+        },
+        "governed": true,
+        "pause": false,
+        "status": "generated",
+        "generated_at": "2026-06-12",
+        "generated_by": "widget-forge W1 (no hand-waving — WDF-003)"
+      },
+      "assess blast radius of dangerous actions (which services would break downstream)": {
+        "slug": "assess blast radius of dangerous actions (which services would break downstream)",
+        "bit": 16,
+        "kind": "read",
+        "layout": "auto-table",
+        "wire": {
+          "kind": "rest",
+          "route": null,
+          "method": "GET",
+          "field": "Assess blast radius of dangerous actions (which services would break downstream)"
+        },
+        "governed": true,
+        "pause": false,
+        "status": "generated",
+        "generated_at": "2026-06-12",
+        "generated_by": "widget-forge W1 (no hand-waving — WDF-003)"
+      },
+      "require dual-control approval for dan-4 irreversible actions": {
+        "slug": "require dual-control approval for dan-4 irreversible actions",
+        "bit": 17,
+        "kind": "read",
+        "layout": "auto-table",
+        "wire": {
+          "kind": "rest",
+          "route": null,
+          "method": "GET",
+          "field": "Require dual-control approval for DAN-4 irreversible actions"
+        },
+        "governed": true,
+        "pause": false,
+        "status": "generated",
+        "generated_at": "2026-06-12",
+        "generated_by": "widget-forge W1 (no hand-waving — WDF-003)"
+      },
+      "run automated weekly restore drills to verify backup integrity": {
+        "slug": "run automated weekly restore drills to verify backup integrity",
+        "bit": 18,
+        "kind": "read",
+        "layout": "auto-table",
+        "wire": {
+          "kind": "rest",
+          "route": null,
+          "method": "GET",
+          "field": "Run automated weekly restore drills to verify backup integrity"
+        },
+        "governed": true,
+        "pause": false,
+        "status": "generated",
+        "generated_at": "2026-06-12",
+        "generated_by": "widget-forge W1 (no hand-waving — WDF-003)"
+      },
+      "provide one-command panic button to freeze all running agent sessions": {
+        "slug": "provide one-command panic button to freeze all running agent sessions",
+        "bit": 19,
+        "kind": "read",
+        "layout": "auto-table",
+        "wire": {
+          "kind": "rest",
+          "route": null,
+          "method": "GET",
+          "field": "Provide one-command panic button to freeze all running agent sessions"
+        },
+        "governed": true,
+        "pause": false,
+        "status": "generated",
+        "generated_at": "2026-06-12",
+        "generated_by": "widget-forge W1 (no hand-waving — WDF-003)"
+      },
+      "display real-time traffic-light observability dashboard for non-technical operators": {
+        "slug": "display real-time traffic-light observability dashboard for non-technical operators",
+        "bit": 20,
+        "kind": "read",
+        "layout": "auto-table",
+        "wire": {
+          "kind": "rest",
+          "route": null,
+          "method": "GET",
+          "field": "Display real-time traffic-light observability dashboard for non-technical operators"
+        },
+        "governed": true,
+        "pause": false,
+        "status": "generated",
+        "generated_at": "2026-06-12",
+        "generated_by": "widget-forge W1 (no hand-waving — WDF-003)"
+      },
+      "authorize inter-service capability calls via bit-mask-os mask intersection in < 10ms (bmos-authorize)": {
+        "slug": "authorize inter-service capability calls via bit-mask-os mask intersection in < 10ms (bmos-authorize)",
+        "bit": 21,
+        "kind": "read",
+        "layout": "auto-table",
+        "wire": {
+          "kind": "rest",
+          "route": null,
+          "method": "GET",
+          "field": "Authorize inter-service capability calls via BitMaskOS mask intersection in < 10ms (BMOS-Authorize)"
+        },
+        "governed": true,
+        "pause": false,
+        "status": "generated",
+        "generated_at": "2026-06-12",
+        "generated_by": "widget-forge W1 (no hand-waving — WDF-003)"
+      },
+      "inherit agent capabilities from parent agent via genetic bitmask propagation": {
+        "slug": "inherit agent capabilities from parent agent via genetic bitmask propagation",
+        "bit": 22,
+        "kind": "read",
+        "layout": "auto-table",
+        "wire": {
+          "kind": "rest",
+          "route": null,
+          "method": "GET",
+          "field": "Inherit agent capabilities from parent agent via genetic bitmask propagation"
+        },
+        "governed": true,
+        "pause": false,
+        "status": "generated",
+        "generated_at": "2026-06-12",
+        "generated_by": "widget-forge W1 (no hand-waving — WDF-003)"
+      },
+      "verify genetic lineage — confirm child agent trust-mask is valid subset of parent": {
+        "slug": "verify genetic lineage — confirm child agent trust-mask is valid subset of parent",
+        "bit": 23,
+        "kind": "read",
+        "layout": "auto-table",
+        "wire": {
+          "kind": "rest",
+          "route": null,
+          "method": "GET",
+          "field": "Verify genetic lineage — confirm child agent trust_mask is valid subset of parent"
+        },
+        "governed": true,
+        "pause": false,
+        "status": "generated",
+        "generated_at": "2026-06-12",
+        "generated_by": "widget-forge W1 (no hand-waving — WDF-003)"
+      },
+      "capture pre-session service baseline (k-mask, trust-mask, req-mask) at session start (sor-t-101)": {
+        "slug": "capture pre-session service baseline (k-mask, trust-mask, req-mask) at session start (sor-t-101)",
+        "bit": 24,
+        "kind": "read",
+        "layout": "auto-table",
+        "wire": {
+          "kind": "rest",
+          "route": null,
+          "method": "GET",
+          "field": "Capture pre-session service baseline (k_mask, trust_mask, req_mask) at session start (SOR-T-101)"
+        },
+        "governed": true,
+        "pause": false,
+        "status": "generated",
+        "generated_at": "2026-06-12",
+        "generated_by": "widget-forge W1 (no hand-waving — WDF-003)"
+      },
+      "probe service k-mask for overclaims and can-do drift against services.json (sor-t-202, sor-t-203)": {
+        "slug": "probe service k-mask for overclaims and can-do drift against services.json (sor-t-202, sor-t-203)",
+        "bit": 25,
+        "kind": "read",
+        "layout": "auto-table",
+        "wire": {
+          "kind": "rest",
+          "route": null,
+          "method": "GET",
+          "field": "Probe service k_mask for overclaims and can_do drift against services.json (SOR-T-202, SOR-T-203)"
+        },
+        "governed": true,
+        "pause": false,
+        "status": "generated",
+        "generated_at": "2026-06-12",
+        "generated_by": "widget-forge W1 (no hand-waving — WDF-003)"
+      },
+      "generate and surface 5-8 line health brief per session via latest.brief.md symlink (sor-t-301)": {
+        "slug": "generate and surface 5-8 line health brief per session via latest.brief.md symlink (sor-t-301)",
+        "bit": 26,
+        "kind": "read",
+        "layout": "auto-table",
+        "wire": {
+          "kind": "rest",
+          "route": null,
+          "method": "GET",
+          "field": "Generate and surface 5-8 line health brief per session via latest.brief.md symlink (SOR-T-301)"
+        },
+        "governed": true,
+        "pause": false,
+        "status": "generated",
+        "generated_at": "2026-06-12",
+        "generated_by": "widget-forge W1 (no hand-waving — WDF-003)"
+      },
+      "issue sealed agent session envelope (ase) with sha-256 sealed-hash at agent birth (ase-001)": {
+        "slug": "issue sealed agent session envelope (ase) with sha-256 sealed-hash at agent birth (ase-001)",
+        "bit": 27,
+        "kind": "read",
+        "layout": "auto-table",
+        "wire": {
+          "kind": "rest",
+          "route": null,
+          "method": "GET",
+          "field": "Issue sealed Agent Session Envelope (ASE) with SHA-256 sealed_hash at agent birth (ASE-001)"
+        },
+        "governed": true,
+        "pause": false,
+        "status": "generated",
+        "generated_at": "2026-06-12",
+        "generated_by": "widget-forge W1 (no hand-waving — WDF-003)"
+      },
+      "verify envelope integrity — detect mid-session tamper via sealed-hash recomputation (ase-002)": {
+        "slug": "verify envelope integrity — detect mid-session tamper via sealed-hash recomputation (ase-002)",
+        "bit": 28,
+        "kind": "read",
+        "layout": "auto-table",
+        "wire": {
+          "kind": "rest",
+          "route": null,
+          "method": "GET",
+          "field": "Verify envelope integrity — detect mid-session tamper via sealed_hash recomputation (ASE-002)"
+        },
+        "governed": true,
+        "pause": false,
+        "status": "generated",
+        "generated_at": "2026-06-12",
+        "generated_by": "widget-forge W1 (no hand-waving — WDF-003)"
+      },
+      "enforce declared-caps at gate.ts before capability registry check (ase-014)": {
+        "slug": "enforce declared-caps at gate.ts before capability registry check (ase-014)",
+        "bit": 29,
+        "kind": "read",
+        "layout": "auto-table",
+        "wire": {
+          "kind": "rest",
+          "route": null,
+          "method": "GET",
+          "field": "Enforce declared_caps at gate.ts before capability registry check (ASE-014)"
+        },
+        "governed": true,
+        "pause": false,
+        "status": "generated",
+        "generated_at": "2026-06-12",
+        "generated_by": "widget-forge W1 (no hand-waving — WDF-003)"
+      },
+      "enforce vertical and child perm-mask inheritance at spawn (ase-005, kav-065)": {
+        "slug": "enforce vertical and child perm-mask inheritance at spawn (ase-005, kav-065)",
+        "bit": 30,
+        "kind": "read",
+        "layout": "auto-table",
+        "wire": {
+          "kind": "rest",
+          "route": null,
+          "method": "GET",
+          "field": "Enforce vertical AND child perm_mask inheritance at spawn (ASE-005, KAV-065)"
+        },
+        "governed": true,
+        "pause": false,
+        "status": "generated",
+        "generated_at": "2026-06-12",
+        "generated_by": "widget-forge W1 (no hand-waving — WDF-003)"
+      },
+      "enforce ai proxy budget gate — 429 on budget-remaining=0 (ase-011)": {
+        "slug": "enforce ai proxy budget gate — 429 on budget-remaining=0 (ase-011)",
+        "bit": 31,
+        "kind": "read",
+        "layout": "auto-table",
+        "wire": {
+          "kind": "rest",
+          "route": null,
+          "method": "GET",
+          "field": "Enforce AI Proxy budget gate — 429 on budget_remaining=0 (ASE-011)"
+        },
+        "governed": true,
+        "pause": false,
+        "status": "generated",
+        "generated_at": "2026-06-12",
+        "generated_by": "widget-forge W1 (no hand-waving — WDF-003)"
+      },
+      "emit kavach.budget.threshold-warning with envelope-session-id at 80% budget (ase-yk-007)": {
+        "slug": "emit kavach.budget.threshold-warning with envelope-session-id at 80% budget (ase-yk-007)",
+        "bit": 32,
+        "kind": "act",
+        "layout": "action-card",
+        "wire": {
+          "kind": "rest",
+          "route": null,
+          "method": "POST",
+          "field": "Emit kavach.budget.threshold_warning with envelope_session_id at 80% budget (ASE-YK-007)"
+        },
+        "governed": true,
+        "pause": true,
+        "status": "generated-pending-pause-ux",
+        "generated_at": "2026-06-12",
+        "generated_by": "widget-forge W1 (no hand-waving — WDF-003)"
+      },
+      "write full session audit record at close — drift-set, declared vs actual (ase-010)": {
+        "slug": "write full session audit record at close — drift-set, declared vs actual (ase-010)",
+        "bit": 33,
+        "kind": "read",
+        "layout": "auto-table",
+        "wire": {
+          "kind": "rest",
+          "route": null,
+          "method": "GET",
+          "field": "Write full session audit record at close — drift_set, declared vs actual (ASE-010)"
+        },
+        "governed": true,
+        "pause": false,
+        "status": "generated",
+        "generated_at": "2026-06-12",
+        "generated_by": "widget-forge W1 (no hand-waving — WDF-003)"
+      },
+      "issue child envelopes with parent-session-id in sealed-hash — delegation chain (ase-008)": {
+        "slug": "issue child envelopes with parent-session-id in sealed-hash — delegation chain (ase-008)",
+        "bit": 34,
+        "kind": "read",
+        "layout": "auto-table",
+        "wire": {
+          "kind": "rest",
+          "route": null,
+          "method": "GET",
+          "field": "Issue child envelopes with parent_session_id in sealed_hash — delegation chain (ASE-008)"
+        },
+        "governed": true,
+        "pause": false,
+        "status": "generated",
+        "generated_at": "2026-06-12",
+        "generated_by": "widget-forge W1 (no hand-waving — WDF-003)"
+      },
+      "render @rocketlang/* package inventory from consumer's node-modules at /suite (acc-012)": {
+        "slug": "render @rocketlang/* package inventory from consumer's node-modules at /suite (acc-012)",
+        "bit": 35,
+        "kind": "read",
+        "layout": "auto-table",
+        "wire": {
+          "kind": "rest",
+          "route": null,
+          "method": "GET",
+          "field": "Render @rocketlang/* package inventory from consumer's node_modules at /suite (ACC-012)"
+        },
+        "governed": true,
+        "pause": false,
+        "status": "generated",
+        "generated_at": "2026-06-12",
+        "generated_by": "widget-forge W1 (no hand-waving — WDF-003)"
+      },
+      "render single-page acc grid with 6 primitive zones at /control-center, all visible simultaneously (acc-001)": {
+        "slug": "render single-page acc grid with 6 primitive zones at /control-center, all visible simultaneously (acc-001)",
+        "bit": 36,
+        "kind": "read",
+        "layout": "auto-table",
+        "wire": {
+          "kind": "rest",
+          "route": null,
+          "method": "GET",
+          "field": "Render single-page ACC grid with 6 primitive zones at /control-center, all visible simultaneously (ACC-001)"
+        },
+        "governed": true,
+        "pause": false,
+        "status": "generated",
+        "generated_at": "2026-06-12",
+        "generated_by": "widget-forge W1 (no hand-waving — WDF-003)"
+      },
+      "stream live events from in-memory bus to acc page via sse at /api/acc/events (acc-009)": {
+        "slug": "stream live events from in-memory bus to acc page via sse at /api/acc/events (acc-009)",
+        "bit": 37,
+        "kind": "read",
+        "layout": "auto-table",
+        "wire": {
+          "kind": "rest",
+          "route": null,
+          "method": "GET",
+          "field": "Stream live events from in-memory bus to ACC page via SSE at /api/acc/events (ACC-009)"
+        },
+        "governed": true,
+        "pause": false,
+        "status": "generated",
+        "generated_at": "2026-06-12",
+        "generated_by": "widget-forge W1 (no hand-waving — WDF-003)"
+      },
+      "persist primitive events append-only to ~/.aegis/acc-events.db, separate from aegis.db and turn-store.db (acc-005)": {
+        "slug": "persist primitive events append-only to ~/.aegis/acc-events.db, separate from aegis.db and turn-store.db (acc-005)",
+        "bit": 38,
+        "kind": "read",
+        "layout": "auto-table",
+        "wire": {
+          "kind": "rest",
+          "route": null,
+          "method": "GET",
+          "field": "Persist primitive events append-only to ~/.aegis/acc-events.db, separate from aegis.db and turn-store.db (ACC-005)"
+        },
+        "governed": true,
+        "pause": false,
+        "status": "generated",
+        "generated_at": "2026-06-12",
+        "generated_by": "widget-forge W1 (no hand-waving — WDF-003)"
+      },
+      "render pramana oss panel from already-shipping src/kernel/merkle-ledger.ts (read-only consume, not new infrastructure) (acc-008)": {
+        "slug": "render pramana oss panel from already-shipping src/kernel/merkle-ledger.ts (read-only consume, not new infrastructure) (acc-008)",
+        "bit": 39,
+        "kind": "read",
+        "layout": "auto-table",
+        "wire": {
+          "kind": "rest",
+          "route": null,
+          "method": "GET",
+          "field": "Render PRAMANA OSS panel from already-shipping src/kernel/merkle-ledger.ts (read-only consume, not new infrastructure) (ACC-008)"
+        },
+        "governed": true,
+        "pause": false,
+        "status": "generated",
+        "generated_at": "2026-06-12",
+        "generated_by": "widget-forge W1 (no hand-waving — WDF-003)"
+      },
+      "detect kavachos-ee via runtime require.resolve in try-catch and render ee-aware extra panel if present (acc-006)": {
+        "slug": "detect kavachos-ee via runtime require.resolve in try-catch and render ee-aware extra panel if present (acc-006)",
+        "bit": 40,
+        "kind": "read",
+        "layout": "auto-table",
+        "wire": {
+          "kind": "rest",
+          "route": null,
+          "method": "GET",
+          "field": "Detect kavachos-ee via runtime require.resolve in try-catch and render EE-aware extra panel if present (ACC-006)"
+        },
+        "governed": true,
+        "pause": false,
+        "status": "generated",
+        "generated_at": "2026-06-12",
+        "generated_by": "widget-forge W1 (no hand-waving — WDF-003)"
+      },
+      "display honest empty state per zone when no events recorded — never synthetic demo data (acc-002)": {
+        "slug": "display honest empty state per zone when no events recorded — never synthetic demo data (acc-002)",
+        "bit": 41,
+        "kind": "read",
+        "layout": "auto-table",
+        "wire": {
+          "kind": "rest",
+          "route": null,
+          "method": "GET",
+          "field": "Display honest empty state per zone when no events recorded — never synthetic demo data (ACC-002)"
+        },
+        "governed": true,
+        "pause": false,
+        "status": "generated",
+        "generated_at": "2026-06-12",
+        "generated_by": "widget-forge W1 (no hand-waving — WDF-003)"
+      },
+      "render per-agent timeline at /agent/:id with events ordered by emitted-at across all primitives (acc-010)": {
+        "slug": "render per-agent timeline at /agent/:id with events ordered by emitted-at across all primitives (acc-010)",
+        "bit": 42,
+        "kind": "read",
+        "layout": "auto-table",
+        "wire": {
+          "kind": "rest",
+          "route": null,
+          "method": "GET",
+          "field": "Render per-agent timeline at /agent/:id with events ordered by emitted_at across all primitives (ACC-010)"
+        },
+        "governed": true,
+        "pause": false,
+        "status": "generated",
+        "generated_at": "2026-06-12",
+        "generated_by": "widget-forge W1 (no hand-waving — WDF-003)"
+      }
+    },
+    "generated_at": "2026-06-12T18:02:41.586Z"
+  },
+  "compiled": {
+    "schema": "one-tree-compiled-v1",
+    "writer": "one-tree-converge",
+    "membership": "real",
+    "depth_level": "L4",
+    "rung": "PROVEN",
+    "depth_class": "DEEP",
+    "green": true,
+    "faces": {
+      "declared": 68,
+      "served": true,
+      "proof_via": "htr-cert"
+    },
+    "composed_from": "fleet-maturity",
+    "run": "2026-07-07"
   }
 }
