@@ -2,7 +2,7 @@
 // Copyright (c) 2026 Capt. Anil Sharma (rocketlang). All rights reserved.
 // @rule:KOS-011 kavachos run — only approved agent launch path
 
-import { writeFileSync, mkdirSync, existsSync, unlinkSync } from "fs";
+import { writeFileSync, mkdirSync, existsSync, unlinkSync, readFileSync } from "fs";
 import { join, dirname } from "path";
 import { spawn } from "child_process";
 import { randomBytes } from "crypto";
@@ -43,6 +43,31 @@ export interface RunResult {
 
 const APPLY_SECCOMP_PY = join(dirname(new URL(import.meta.url).pathname), "apply-seccomp.py");
 const KAVACHOS_DIR = join(getAegisDir(), "kernel");
+
+// ── AppArmor path jail ────────────────────────────────────────────────────────
+// seccomp filters syscalls but cannot see file PATHS. The kavachos-agent AppArmor
+// profile (src/kernel/apparmor/) is the path layer: agent + every child (ix) is
+// denied the AEGIS approval-signing key, mudrika secret, and /root/.ankr/secrets
+// (IAM app keys — a token minted from those walks through kika-gate).
+// KAVACHOS_JAIL: prefer (default — attach when loaded, CRITICAL alert when not) |
+//                require (fail CLOSED: no profile → no launch) | off
+// @rule:KGT-002 fail-closed key custody · @rule:KGT-006 violations train the armor
+const APPARMOR_PROFILE = "kavachos-agent";
+
+function apparmorJailMode(): "require" | "prefer" | "off" {
+  const v = (process.env.KAVACHOS_JAIL ?? "prefer").toLowerCase();
+  return v === "require" || v === "off" ? v : "prefer";
+}
+
+function apparmorProfileLoaded(): boolean {
+  try {
+    return readFileSync("/sys/kernel/security/apparmor/profiles", "utf-8")
+      .split("\n")
+      .some((l) => l.startsWith(`${APPARMOR_PROFILE} `));
+  } catch {
+    return false; // AppArmor absent (non-Linux / disabled) — prefer-mode degrades loud
+  }
+}
 
 function ensureKavachosDir(): void {
   if (!existsSync(KAVACHOS_DIR)) mkdirSync(KAVACHOS_DIR, { recursive: true });
@@ -172,7 +197,34 @@ export async function runWithKernel(
     ...proxyEnvOverrides,
   };
 
+  // @rule:KGT-002 — path jail wraps the seccomp applicator; children inherit (ix)
+  const jailMode = apparmorJailMode();
+  const jailActive = jailMode !== "off" && apparmorProfileLoaded();
+  if (jailMode === "require" && !jailActive) {
+    throw new Error(
+      `KAVACHOS_JAIL=require but AppArmor profile '${APPARMOR_PROFILE}' is not loaded — ` +
+      `refusing to launch (fail-closed). Load it: bash src/kernel/apparmor/install.sh`,
+    );
+  }
+  if (jailMode === "prefer" && !jailActive) {
+    process.stderr.write(
+      `[kavachos] WARNING: AppArmor path jail '${APPARMOR_PROFILE}' not loaded — ` +
+      `agent can read signing keys. Load it: bash src/kernel/apparmor/install.sh\n`,
+    );
+    try {
+      addAlert({
+        type: "kernel_jail_unavailable",
+        severity: "critical",
+        message: `Agent ${opts.agentId ?? sessionId} launched WITHOUT the ${APPARMOR_PROFILE} path jail — signing keys readable (KGT-002)`,
+        session_id: sessionId,
+        timestamp: new Date().toISOString(),
+        acknowledged: false,
+      });
+    } catch { /* dashboard db unavailable — CLI mode */ }
+  }
+
   const launchArgs = [
+    ...(jailActive ? ["aa-exec", "-p", APPARMOR_PROFILE, "--"] : []),
     "python3",
     APPLY_SECCOMP_PY,
     profilePath,
