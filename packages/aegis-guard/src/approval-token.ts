@@ -6,6 +6,7 @@ import { createHash } from 'crypto';
 import { IrrNoApprovalError } from './errors.js';
 import { type NonceStore, defaultNonceStore } from './nonce.js';
 import { emitAccReceipt } from './acc-bus.js';
+import { signApprovalJwt, verifyApprovalJwt } from './signing.js';
 
 // Token may arrive up to 60s before local clock (NTP tolerance).
 const CLOCK_SKEW_MS = 60_000;
@@ -28,14 +29,18 @@ export function digestApprovalToken(token: string): string {
   return createHash('sha256').update(token).digest('hex').slice(0, 24);
 }
 
-// @rule:AEG-E-016 — test/dev helper: encode a payload as base64url JSON.
-// Production tokens are minted by the AEGIS PROOF system (port 4850), not by services.
+// @rule:AEG-E-016 @rule:KGT-002 — mint an AEGIS-signed EdDSA JWT (KGT-T1.1).
+// Signing requires the AEGIS private key (~/.aegis/approval-signing.key) — present on
+// the AEGIS box, auto-provisioned by the :4850 dashboard. Throws where the key is absent:
+// a service that cannot sign cannot mint, by design.
 export function mintApprovalToken(payload: ApprovalTokenPayload): string {
-  return Buffer.from(JSON.stringify(payload)).toString('base64url');
+  return signApprovalJwt(payload);
 }
 
 // @rule:AEG-E-016 — token must match service_id + capability + operation exactly.
-// Token format: base64url(JSON). Production replacement: JWT signed by AEGIS key at port 4850.
+// @rule:KGT-002 — signature verified FIRST, fail-closed: unsigned/tampered/alg:none/
+// wrong-key tokens are rejected before any scope check. Legacy base64url(JSON) tokens
+// (pre-KGT-T1.1, forgeable) are rejected outright.
 export function verifyApprovalToken(
   token: string,
   expectedServiceId: string,
@@ -45,13 +50,11 @@ export function verifyApprovalToken(
   // @rule:ACC-003 @rule:ACC-004 — emit ACC receipt on success OR failure
   const scope = `${expectedServiceId}/${expectedCapability}/${expectedOperation}`;
   try {
-    let payload: ApprovalTokenPayload;
-    try {
-      const decoded = Buffer.from(token, 'base64url').toString('utf8');
-      payload = JSON.parse(decoded) as ApprovalTokenPayload;
-    } catch {
-      throw new IrrNoApprovalError(expectedCapability, 'token could not be decoded');
+    const jwt = verifyApprovalJwt(token);
+    if (!jwt.ok) {
+      throw new IrrNoApprovalError(expectedCapability, `KGT-002: ${jwt.reason}`);
     }
+    const payload = jwt.payload as ApprovalTokenPayload;
 
     if (payload.service_id !== expectedServiceId) {
       throw new IrrNoApprovalError(

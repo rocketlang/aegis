@@ -48,6 +48,19 @@ export {
   verifyScopedApprovalToken,
 } from './approval-token.js';
 
+// @rule:KGT-002 — KGT-T1.1 (v0.3.0): approval tokens are AEGIS-signed EdDSA JWTs.
+// ensureSigningKeypair is called by the AEGIS dashboard at boot (minting authority);
+// verifier-only boxes pin the public key via ~/.aegis/approval-signing.pub or
+// AEGIS_APPROVAL_PUBKEY_PEM (served at :4850 /api/v2/enforcement/signing-key).
+export {
+  APPROVAL_JWT_ALG,
+  type JwtVerifyResult,
+  ensureSigningKeypair,
+  getPublicKeyPem,
+  signApprovalJwt,
+  verifyApprovalJwt,
+} from './signing.js';
+
 export {
   type IssueEnvelopeParams,
   type EnvelopeIssueResult,

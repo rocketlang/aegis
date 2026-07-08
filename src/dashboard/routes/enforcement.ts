@@ -40,8 +40,28 @@ import {
   approvalLogPath,
   runRollbackDrill,
 } from "../../enforcement/approval";
+import {
+  ensureSigningKeypair,
+  APPROVAL_JWT_ALG,
+} from "../../../packages/aegis-guard/src/signing";
 
 export function registerEnforcementRoutes(app: FastifyInstance): void {
+  // @rule:KGT-002 — AEGIS is the approval-token minting authority (KGT-T1.1):
+  // provision the Ed25519 signing keypair at boot, not lazily at first mint.
+  ensureSigningKeypair();
+
+  // ── GET /api/v2/enforcement/signing-key ───────────────────────────────────
+  // Public half of the approval-token signing key. Verifier-only consumers pin
+  // this PEM (file ~/.aegis/approval-signing.pub or env AEGIS_APPROVAL_PUBKEY_PEM).
+  app.get("/api/v2/enforcement/signing-key", async (_req, reply) => {
+    const { publicKeyPem } = ensureSigningKeypair();
+    return reply.send({
+      alg: APPROVAL_JWT_ALG,
+      public_key_pem: publicKeyPem,
+      pin_via: ["~/.aegis/approval-signing.pub", "AEGIS_APPROVAL_PUBKEY_PEM"],
+      rule: "KGT-002",
+    });
+  });
   // ── POST /api/v2/enforcement/gate ─────────────────────────────────────────
   // Primary gate endpoint — evaluate a service operation against registry
   app.post("/api/v2/enforcement/gate", async (req, reply) => {

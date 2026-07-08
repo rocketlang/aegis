@@ -2,6 +2,14 @@
 // 63 checks across §1-§9 covering all Five Locks primitives
 
 import { describe, it, expect, beforeEach } from 'bun:test';
+import { mkdtempSync } from 'fs';
+import { tmpdir } from 'os';
+import { join } from 'path';
+
+// KGT-T1.1: minting auto-provisions an Ed25519 keypair under AEGIS_DIR — keep the
+// suite hermetic by pointing it at a temp dir before the first mint.
+process.env.AEGIS_DIR = mkdtempSync(join(tmpdir(), 'aegis-guard-test-'));
+
 import {
   IrrNoApprovalError,
   AegisNonceError,
@@ -21,7 +29,11 @@ import {
   verifyApprovalToken,
   verifyAndConsumeNonce,
   verifyScopedApprovalToken,
+  signApprovalJwt,
+  verifyApprovalJwt,
+  getPublicKeyPem,
 } from '../src/index.js';
+import { __resetSigningCache } from '../src/signing.js';
 
 // ─── §1 errors ───────────────────────────────────────────────────────────────
 
@@ -71,10 +83,13 @@ describe('§2 approval-token', () => {
     nonce: 'nonce-xyz',
   };
 
-  it('B93-007: mintApprovalToken produces a decodable token', () => {
+  it('B93-007: mintApprovalToken produces a signed 3-segment JWT (KGT-T1.1)', () => {
     const token = mintApprovalToken(basePayload);
-    const decoded = Buffer.from(token, 'base64url').toString('utf8');
-    const parsed = JSON.parse(decoded);
+    const parts = token.split('.');
+    expect(parts).toHaveLength(3);
+    const header = JSON.parse(Buffer.from(parts[0], 'base64url').toString('utf8'));
+    expect(header.alg).toBe('EdDSA');
+    const parsed = JSON.parse(Buffer.from(parts[1], 'base64url').toString('utf8'));
     expect(parsed.service_id).toBe('test-service');
   });
 
@@ -137,6 +152,84 @@ describe('§2 approval-token', () => {
 
   it('B93-016: digestApprovalToken is deterministic', () => {
     expect(digestApprovalToken('abc')).toBe(digestApprovalToken('abc'));
+  });
+});
+
+// ─── §2b approval-token signing (KGT-T1.1) ────────────────────────────────────
+
+describe('§2b approval-token signing (KGT-T1.1)', () => {
+  const now = Date.now();
+  const basePayload = {
+    service_id: 'test-service',
+    capability: 'surrender',
+    operation: 'record_surrender',
+    issued_at: now,
+    expires_at: now + 300_000,
+  };
+
+  it('KGT-101: signApprovalJwt → verifyApprovalJwt roundtrip', () => {
+    const token = signApprovalJwt(basePayload);
+    const result = verifyApprovalJwt(token);
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.payload.service_id).toBe('test-service');
+  });
+
+  it('KGT-102: legacy unsigned base64url(JSON) token is rejected', () => {
+    const legacy = Buffer.from(JSON.stringify(basePayload)).toString('base64url');
+    expect(() =>
+      verifyApprovalToken(legacy, 'test-service', 'surrender', 'record_surrender'),
+    ).toThrow(/unsigned legacy token/);
+  });
+
+  it('KGT-103: tampered payload is rejected (signature no longer matches)', () => {
+    const token = mintApprovalToken(basePayload);
+    const [h, , s] = token.split('.');
+    const forgedBody = Buffer.from(
+      JSON.stringify({ ...basePayload, capability: 'escalate' }),
+    ).toString('base64url');
+    expect(() =>
+      verifyApprovalToken(`${h}.${forgedBody}.${s}`, 'test-service', 'escalate', 'record_surrender'),
+    ).toThrow(/signature invalid/);
+  });
+
+  it('KGT-104: alg:none forgery is rejected before signature check', () => {
+    const h = Buffer.from(JSON.stringify({ alg: 'none', typ: 'JWT' })).toString('base64url');
+    const b = Buffer.from(JSON.stringify(basePayload)).toString('base64url');
+    expect(() =>
+      verifyApprovalToken(`${h}.${b}.`, 'test-service', 'surrender', 'record_surrender'),
+    ).toThrow(/alg 'none' rejected/);
+  });
+
+  it('KGT-105: token signed by a DIFFERENT key is rejected', () => {
+    const { generateKeyPairSync, sign } = require('crypto') as typeof import('crypto');
+    const { privateKey } = generateKeyPairSync('ed25519');
+    const h = Buffer.from(JSON.stringify({ alg: 'EdDSA', typ: 'JWT' })).toString('base64url');
+    const b = Buffer.from(JSON.stringify(basePayload)).toString('base64url');
+    const sig = sign(null, Buffer.from(`${h}.${b}`), privateKey).toString('base64url');
+    expect(() =>
+      verifyApprovalToken(`${h}.${b}.${sig}`, 'test-service', 'surrender', 'record_surrender'),
+    ).toThrow(/signature invalid/);
+  });
+
+  it('KGT-106: no public key at all → verification fails CLOSED', () => {
+    const prevDir = process.env.AEGIS_DIR;
+    const token = mintApprovalToken(basePayload); // minted under the provisioned key
+    process.env.AEGIS_DIR = mkdtempSync(join(tmpdir(), 'aegis-guard-nokey-'));
+    __resetSigningCache();
+    try {
+      const result = verifyApprovalJwt(token);
+      expect(result.ok).toBe(false);
+      if (!result.ok) expect(result.reason).toContain('fails closed');
+    } finally {
+      process.env.AEGIS_DIR = prevDir;
+      __resetSigningCache();
+    }
+  });
+
+  it('KGT-107: getPublicKeyPem returns a SPKI PEM after first mint', () => {
+    mintApprovalToken(basePayload);
+    const pem = getPublicKeyPem();
+    expect(pem).toContain('BEGIN PUBLIC KEY');
   });
 });
 
