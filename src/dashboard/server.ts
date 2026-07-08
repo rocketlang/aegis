@@ -138,6 +138,9 @@ if (config.dashboard.auth?.enabled) {
       url.startsWith("/api/bg-agents") ||
       // Machine-law: called from agent frameworks before planning — no browser session
       url.startsWith("/api/v2/machine-law/") ||
+      // @rule:KGT-002 — PUBLIC key for approval-JWT verification (KGT-T1.1); key material
+      // here is the public half only, verifier services fetch it without a browser session
+      url === "/api/v2/enforcement/signing-key" ||
       (url === "/api/approvals" && req.method === "GET")
     ) return;
 
