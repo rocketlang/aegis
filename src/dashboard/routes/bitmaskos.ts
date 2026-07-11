@@ -10,6 +10,8 @@
 // @rule:BMI-002  BMOS-Authorize is the single inter-service authorization path
 // @rule:BMI-003  mask source is services.json (with 60s version-validated cache)
 // @rule:BMI-006  gate valve state is the enforcement oracle for agent queries
+// CANON U-17: authorization sourced from @ankr/mask-authorize (2026-07-11)
+import { authorize as maskAuthorize } from "@ankr/mask-authorize";
 
 import type { FastifyInstance } from "fastify";
 import { readFileSync, existsSync, statSync } from "fs";
@@ -175,11 +177,21 @@ export function registerBitMaskOSRoutes(app: FastifyInstance): void {
       ? getEffectiveMaskForAgent(body.session_id, callerMask)
       : callerMask;
 
-    // @rule:BMOS-006 authorization = one AND operation
+    // @rule:BMOS-006 authorization = one AND operation. This IS canon U-17
+    // `mask-authorize` — the primitive FP-014 calls proof — now sourced from the
+    // canonical brick @ankr/mask-authorize. mode:'any' preserves the historical
+    // role-mask semantics (any required bit grants; a named capability bit is
+    // AND-ed in), making the semantic choice explicit rather than buried.
+    const _authz = maskAuthorize({
+      caller: BigInt(effectiveCallerMask),
+      required: BigInt(targetRequiredMask),
+      capability: capBit !== 0 ? BigInt(capBit) : undefined,
+      mode: 'any',
+      callerLabel: caller,
+      targetLabel: target,
+    });
+    const authorized = _authz.authorized;
     const resultMask = effectiveCallerMask & targetRequiredMask & (capBit || 0xFFFFFFFF);
-    const authorized = capBit !== 0
-      ? (resultMask & capBit) !== 0
-      : (effectiveCallerMask & targetRequiredMask) !== 0;
 
     const latencyUs = Math.round((performance.now() - t0) * 1000);
     recordLatency(latencyUs);
