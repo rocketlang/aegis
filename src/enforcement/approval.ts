@@ -18,7 +18,27 @@
 import { randomBytes } from "crypto";
 import { appendFileSync, mkdirSync, existsSync } from "fs";
 import { join, dirname } from "path";
+// @ts-ignore — untyped canon brick export (engine profile factory)
+import { createApprovalEngine } from "@ankr/approve";
 import type { GateApprovalRecord, AegisEnforcementDecision } from "./types";
+
+// ── CANON U-10 adoption (2026-07-11) ─────────────────────────────────────────
+// The gate-token lifecycle is now DATA over the canonical approval engine
+// (@ankr/approve — itself composed from @ankr/document-issue's signed-turn
+// engine). Aegis keeps its richer profile (consumed/expired/revoked) — a
+// machine profile, never a fork. lawfulNext() is the single source of which
+// transitions may happen; aegis keeps its own error envelopes + rule IDs.
+const GATE_MACHINE = {
+  approve: { from: ["pending"],  to: "approved" },
+  deny:    { from: ["pending"],  to: "denied" },
+  revoke:  { from: ["pending"],  to: "revoked" },
+  expire:  { from: ["pending"],  to: "expired" },
+  consume: { from: ["approved"], to: "consumed" },
+};
+const gateLaw = createApprovalEngine(GATE_MACHINE);
+function lawfulNext(status: string, action: string): string | null {
+  try { return gateLaw.assertLawful(status, action) as string; } catch { return null; }
+}
 
 // @rule:AEG-E-013 — 15 minutes TTL (extended from Batch 18's 10 min)
 const APPROVAL_TTL_MS = 15 * 60 * 1000;
@@ -61,8 +81,9 @@ function isExpired(record: GateApprovalRecord): boolean {
 }
 
 function markExpiredLazily(record: GateApprovalRecord): void {
-  if (record.status === "pending" && isExpired(record)) {
-    record.status = "expired";
+  const expired = lawfulNext(record.status, "expire");
+  if (expired && isExpired(record)) {
+    record.status = expired as GateApprovalRecord["status"];
     logApprovalEvent({
       event: "token_expired",
       token: record.token,
@@ -132,7 +153,8 @@ export function approveToken(
 
   markExpiredLazily(record);
 
-  if (record.status !== "pending") {
+  const nextApproved = lawfulNext(record.status, "approve"); // CANON U-10 law
+  if (!nextApproved) {
     return { ok: false, error: `token already ${record.status} — replay protection (AEG-E-015)` };
   }
 
@@ -150,7 +172,7 @@ export function approveToken(
   }
 
   const now = new Date().toISOString();
-  record.status = "approved";
+  record.status = nextApproved as GateApprovalRecord["status"];
   record.approval_reason = approval_reason.trim();
   record.approved_by = approved_by.trim();
   record.approved_at = now;
@@ -172,8 +194,9 @@ export function approveToken(
 // @rule:AEG-E-015 — consume after use; consumed token cannot be reused
 export function consumeToken(token: string): boolean {
   const record = store.get(token);
-  if (!record || record.status !== "approved") return false;
-  record.status = "consumed";
+  const nextConsumed = record ? lawfulNext(record.status, "consume") : null; // CANON U-10 law
+  if (!record || !nextConsumed) return false;
+  record.status = nextConsumed as GateApprovalRecord["status"];
   logApprovalEvent({
     event: "token_consumed",
     token,
@@ -199,12 +222,13 @@ export function denyToken(
 
   markExpiredLazily(record);
 
-  if (record.status !== "pending") {
+  const nextDenied = lawfulNext(record.status, "deny"); // CANON U-10 law
+  if (!nextDenied) {
     return { ok: false, error: `token already ${record.status} — cannot deny` };
   }
 
   const now = new Date().toISOString();
-  record.status = "denied";
+  record.status = nextDenied as GateApprovalRecord["status"];
   record.denial_reason = denial_reason.trim();
   record.denied_by = denied_by.trim();
   record.denied_at = now;
@@ -239,10 +263,11 @@ export function revokeToken(
 
   const record = store.get(token);
   if (!record) return { ok: false, error: "approval token not found" };
-  if (record.status !== "pending") return { ok: false, error: `token already ${record.status} — cannot revoke` };
+  const nextRevoked = lawfulNext(record.status, "revoke"); // CANON U-10 law
+  if (!nextRevoked) return { ok: false, error: `token already ${record.status} — cannot revoke` };
 
   const now = new Date().toISOString();
-  record.status = "revoked";
+  record.status = nextRevoked as GateApprovalRecord["status"];
   record.revoked_by = revoked_by.trim();
   record.revoke_reason = revoke_reason.trim();
   record.revoked_at = now;

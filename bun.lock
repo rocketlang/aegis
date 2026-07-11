@@ -5,6 +5,7 @@
     "": {
       "name": "aegis-ai",
       "dependencies": {
+        "@ankr/approve": "0.2.0",
         "@fastify/cors": "^9.0.1",
         "@fastify/formbody": "7",
         "@fastify/static": "^7.0.0",
@@ -13,6 +14,10 @@
     },
   },
   "packages": {
+    "@ankr/approve": ["@ankr/approve@0.2.0", "http://localhost:4873/@ankr/approve/-/approve-0.2.0.tgz", { "dependencies": { "@ankr/document-issue": "^0.2.0" }, "peerDependencies": { "@ankr/kika-gate": "*" }, "optionalPeers": ["@ankr/kika-gate"] }, "sha512-UTjOIuihoAowQd4N0WwSUu7WmU2XoYvl4H7EP3urigRjeywWIZ/mtVoPcYA2Lts2wFVmj5JQzqDa2nI/32e9gg=="],
+
+    "@ankr/document-issue": ["@ankr/document-issue@0.2.0", "http://localhost:4873/@ankr/document-issue/-/document-issue-0.2.0.tgz", {}, "sha512-LeYEttnBzvYIeXQSfaoCb+fSE8OEeop2k5Qxcw3YVNAIRX+/i1aBgEWPrGgHDXtw/4QeSV/wF+XV0doQ+zNhsQ=="],
+
     "@fastify/accept-negotiator": ["@fastify/accept-negotiator@1.1.0", "", {}, "sha512-OIHZrb2ImZ7XG85HXOONLcJWGosv7sIvM2ifAPQVhg9Lv7qdmMBNVaai4QTdyuaqbKM5eO6sLSQOYI7wEQeCJQ=="],
 
     "@fastify/ajv-compiler": ["@fastify/ajv-compiler@3.6.0", "", { "dependencies": { "ajv": "^8.11.0", "ajv-formats": "^2.1.1", "fast-uri": "^2.0.0" } }, "sha512-LwdXQJjmMD+GwLOkP7TVC68qa+pSSogeWWmznRJ/coyTcfe9qA05AHFSe1eZFwK6q+xVRpChnvFUkf1iYaSZsQ=="],
