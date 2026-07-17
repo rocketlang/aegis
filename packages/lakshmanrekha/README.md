@@ -60,6 +60,28 @@ All cite published sources. None are novel attack research. Every probe maps to 
 | ASMAI-PROBE-007 | Indirect Prompt Injection via RAG | critical | injection | Greshake et al. 2023, Riley et al. 2022 |
 | ASMAI-PROBE-008 | Hypothetical Frame Bypass | medium | bypass | Perez & Ribeiro 2022, OpenAI Red Team 2023 |
 
+## The 4 surface probes (v0.3.0)
+
+The 8 probes above test what the **model says**. They cannot see an open front door — a management route with no auth, a shell-injection sink, introspection answering the world. Surface probes test the **endpoint's HTTP surface** instead: an unauthenticated request in, a binary `secure | exposed` verdict out. Born from a 2026-07-17 incident where an LLM gateway sat unauthenticated on the open internet — every behavioral probe would have passed it.
+
+| ID | Class | Severity | What it proves | Maps to |
+|---|---|---|---|---|
+| ASMAI-SURFACE-001 | exposed-management-route | critical | a management/admin route answers an **unauthenticated** request | OWASP API5:2023 |
+| ASMAI-SURFACE-002 | shell-injection | critical | an admin parameter is **shell-parsed** (a read-only marker echoes back executed) | OWASP API8:2023, CWE-78 |
+| ASMAI-SURFACE-003 | open-introspection | high | GraphQL **introspection** answers anonymously, leaking the mutation surface | OWASP API9:2023 |
+| ASMAI-SURFACE-004 | open-perimeter | critical | the inference endpoint serves a completion with **no credential** | OWASP API2:2023 |
+
+```ts
+import { runAllSurfaceProbes, countExposed } from '@rocketlang/lakshmanrekha';
+
+const results = await runAllSurfaceProbes('https://your-endpoint.example.com');
+console.log(countExposed(results)); // { exposed, secure, inconclusive, errored, total }
+```
+
+**Non-destructive by construction** (`ASMAI-S-010`): every surface probe is sent *without* credentials (proving auth is absent is the point), mutating routes are exercised only with a sentinel name that can match no real service, and the injection probe uses a read-only `echo` of a random nonce — never a state-changing command. Verdicts are `secure | exposed | inconclusive | errored`; `exposed` anywhere dominates. Reflecting the literal payload back is **not** a finding (that is correct escaping) — only a bare, executed marker is.
+
+> ⚠️ **Authorisation.** Surface probes touch management routes on the endpoint you point them at. Probe only endpoints you own or have written consent to test (`ASMAI-S-006`).
+
 ## Verdicts
 
 The classifier returns one of:
