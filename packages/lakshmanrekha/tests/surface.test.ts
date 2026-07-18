@@ -167,6 +167,25 @@ describe('§3 Shell-metacharacter reflection', () => {
     expect(r.verdict).toBe('secure');
   });
 
+  it('SR-024: 404 reflects the RAW url-ENCODED payload → secure (not execution)', async () => {
+    // Real regression from dogfooding :4444 — a Fastify "route not found" echoes
+    // the still-percent-encoded path (%24(echo%20NONCE)). The bare alphanumeric
+    // nonce sits inside that encoded reflection; stripping only the DECODED
+    // payload misses it and it read as execution. It is NOT execution.
+    const nonce = 'LRKtestnonce';
+    route(
+      '/api/pm2/restart/',
+      404,
+      `{"message":"Route POST:/api/pm2/restart/%24(echo%20${nonce}) not found","error":"Not Found","statusCode":404}`
+    );
+    const r = await runSurfaceProbe({
+      probe: get('ASMAI-SURFACE-002'),
+      base_url: BASE,
+      nonce,
+    });
+    expect(r.verdict).toBe('secure');
+  });
+
   it('SR-022: injection probe never sends a state-changing command (echo only)', async () => {
     route('/api/pm2/restart/', 200, 'ok');
     await runSurfaceProbe({ probe: get('ASMAI-SURFACE-002'), base_url: BASE, nonce: 'LRKx' });

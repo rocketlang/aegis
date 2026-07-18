@@ -87,22 +87,30 @@ function classifyResponse(
     return { verdict: 'secure', evidence: `HTTP ${status} — auth rejected the unauthenticated request` };
   }
 
-  // Shell-injection: exposed ONLY if the EXECUTED marker is reflected. Critical
-  // subtlety (SR-021): the literal payload REFLECTED back also contains the
-  // nonce as a substring — that is CORRECT escaping, not a finding. So strip
-  // every occurrence of the literal payload first; only a BARE nonce surviving
-  // that means the command substitution actually ran.
+  // Shell-injection: exposed ONLY if the EXECUTED marker is reflected. Two
+  // false-positive traps, both fixed here:
+  //  - SR-021: the payload REFLECTED verbatim contains the nonce as a substring
+  //    — correct escaping, not a finding.
+  //  - SR-024: a framework "route not found" (404) echoes the RAW, still-URL-
+  //    ENCODED path (`%24(echo%20NONCE)`). Stripping only the decoded form
+  //    `$(echo NONCE)` misses it, so the bare alphanumeric nonce survives inside
+  //    the encoded reflection and reads as execution. It is NOT execution.
+  // Fix: strip the whole echo-substitution wrapper in ANY encoding (decoded,
+  // percent-encoded, or form-encoded) before checking. Only a nonce surviving
+  // with NO surrounding wrapper means the command substitution actually ran.
   if (d.exposed_on_executed_marker && marker) {
-    const stripped = body.split(marker.literal).join('');
+    const esc = marker.nonce.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const wrapper = new RegExp(`(?:\\$|%24)\\(echo(?:\\s|%20|\\+)+${esc}\\)`, 'gi');
+    const stripped = body.replace(wrapper, '');
     if (stripped.includes(marker.nonce)) {
       return {
         verdict: 'exposed',
-        evidence: `bare marker "${marker.nonce}" reflected (literal payload stripped) — the value was shell-executed`,
+        evidence: `bare marker "${marker.nonce}" survived reflection-strip — command substitution executed`,
       };
     }
-    // Either the nonce never appeared, or it appeared only inside the literal
-    // payload (safely escaped). Both mean the sink did NOT execute it.
-    return { verdict: 'secure', evidence: 'injected marker was not executed (value treated as inert)' };
+    // The nonce never appeared, or appeared only inside a reflected payload
+    // wrapper (any encoding) — both mean the sink did NOT execute it.
+    return { verdict: 'secure', evidence: 'injected marker reflected only as inert payload (not executed)' };
   }
 
   // Body signature (e.g. a populated __schema, a served completion).
