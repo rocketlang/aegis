@@ -26,6 +26,7 @@ import { registerMachineLawRoutes } from "./routes/machine-law";
 import { registerAccRoutes } from "./routes/acc";  // @rule:ACC-001
 import { registerDemoRoutes } from "./routes/demo";  // Tier 3 playground
 import { classifyCommand, runKavachGate } from "../kavach/gate";
+import { isApprover, APPROVERS_FILE_PATH } from "./approvers";
 // [EE] Multi-tenant — graceful degradation when EE not licensed
 import { isEE, eeStatus } from "../../ee/license";
 type _TenantMod = typeof import("../../ee/core/tenant");
@@ -785,8 +786,23 @@ app.post("/api/approvals/webhook", async (req, reply) => {
   if (!valid.includes(decision.toUpperCase())) {
     return reply.send({ ok: false, reason: "not a KAVACH decision" });
   }
+  // This route is in the PUBLIC pass-through list (AnkrClaw calls it with no browser
+  // session), so `from` is the ONLY principal it ever sees — and it was previously
+  // trusted unverified, making this an open ALLOW primitive for anyone who could reach
+  // the port. Verify it against the shared approver list before it can decide anything.
+  // Note the default was `from ?? "webhook"` — a missing sender silently became the
+  // string "webhook" and was accepted as an approver identity.
+  if (!isApprover(from)) {
+    return reply.code(403).send({
+      ok: false,
+      error: "not an approver",
+      detail:
+        `"${from ?? "(none)"}" is not a listed approver, so it cannot decide KAVACH approvals. ` +
+        `Add it under owners in ${APPROVERS_FILE_PATH} (hand-editable, effective immediately).`,
+    });
+  }
   const opts = { dual_control: config.kavach?.dual_control_enabled ?? false, require_different_approvers: config.kavach?.dual_control_require_different_approvers ?? false };
-  const updated = decideKavachApproval(approval_id, decision.toUpperCase() as any, from ?? "webhook", opts);
+  const updated = decideKavachApproval(approval_id, decision.toUpperCase() as any, from as string, opts);
   return { ok: updated, id: approval_id, decision: decision.toUpperCase() };
 });
 
