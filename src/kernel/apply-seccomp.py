@@ -347,6 +347,36 @@ _NR_EXECVE    = 59
 _NR_EXECVEAT  = 322
 
 
+# @rule:KOS-047 — parsed once at launch, before the agent is exec'd. None means either
+# strict_exec is off (no path configured) or the file failed to load, and the two cases are
+# distinguished by allowlist_path, never conflated.
+_EXEC_ALLOWLIST: Optional[dict] = None
+
+
+def load_exec_allowlist(path: str) -> dict:
+    """
+    Parse and validate the exec allowlist. Raises on anything malformed.
+
+    Called once in main() before the fork, so a broken allowlist stops the agent from
+    starting at all, with a message naming the file — rather than being discovered one
+    syscall at a time, or worse, never discovered because the old code allowed on error.
+    Parsing here also takes a JSON read off the execve hot path.
+    """
+    with open(path) as f:
+        allowlist = json.load(f)
+
+    entries = allowlist.get("allow", [])
+    if not isinstance(entries, list):
+        raise ValueError("'allow' must be a list")
+    for e in entries:
+        if not isinstance(e, dict) or not isinstance(e.get("path"), str) or not e["path"]:
+            raise ValueError(f"malformed allow entry: {e!r}")
+
+    allowlist["_paths"] = {e["path"] for e in entries if not e["path"].endswith("*")}
+    allowlist["_prefixes"] = [e["path"][:-1] for e in entries if e["path"].endswith("*")]
+    return allowlist
+
+
 def _auto_decide_exec(
     pid: int,
     syscall_nr: int,
@@ -395,14 +425,18 @@ def _auto_decide_exec(
     if not binary:
         return False, "DENY: could not resolve binary path"
 
-    try:
-        with open(allowlist_path) as f:
-            allowlist = json.load(f)
-        allowed_paths = {e["path"] for e in allowlist.get("allow", [])}
-        prefixes = [e["path"][:-1] for e in allowlist.get("allow", []) if e["path"].endswith("*")]
-    except Exception as e:
-        sys.stderr.write(f"[kavachos:exec] allowlist load error: {e} — allow by default\n")
-        return True, f"allowlist error — allow: {e}"
+    # @rule:KOS-047 — the allowlist is parsed ONCE at launch (load_exec_allowlist) and held
+    # in _EXEC_ALLOWLIST. If it is not here, strict_exec was requested and the instrument is
+    # unreadable, which is unknown state — and unknown state denies. It used to allow, which
+    # meant a typo'd path silently disarmed the one layer that binds a non-cooperating agent.
+    # To run without an allowlist, unset KAVACHOS_EXEC_ALLOWLIST: that is the explicit route,
+    # and it is handled above.
+    allowlist = _EXEC_ALLOWLIST
+    if allowlist is None:
+        return False, "DENY: strict_exec requested but the allowlist is unavailable"
+
+    allowed_paths = allowlist["_paths"]
+    prefixes = allowlist["_prefixes"]
 
     if binary in allowed_paths:
         return True, f"ALLOW: {binary} in exec allowlist"
@@ -660,6 +694,25 @@ def main() -> None:
     domain              = os.environ.get("KAVACHOS_DOMAIN",          "unknown")
     # @rule:KOS-047 exec allowlist path — written by runner.ts when strict_exec=true
     exec_allowlist_path = os.environ.get("KAVACHOS_EXEC_ALLOWLIST")  # None = strict_exec off
+
+    # @rule:KOS-047 — strict_exec was asked for, so the allowlist must be readable before
+    # the agent runs. A gate that cannot read its own rules refuses; it does not wave every
+    # binary past. Unset KAVACHOS_EXEC_ALLOWLIST to run without strict_exec deliberately.
+    if exec_allowlist_path is not None:
+        global _EXEC_ALLOWLIST
+        try:
+            _EXEC_ALLOWLIST = load_exec_allowlist(exec_allowlist_path)
+        except Exception as e:
+            sys.stderr.write(
+                f"[kavachos] FATAL: exec allowlist unreadable: {exec_allowlist_path}: {e}\n"
+                f"[kavachos] strict_exec was requested, so the agent will not be started.\n"
+                f"[kavachos] Fix the file, or unset KAVACHOS_EXEC_ALLOWLIST to run without it.\n"
+            )
+            sys.exit(1)
+        sys.stderr.write(
+            f"[kavachos:exec] strict_exec active — {len(_EXEC_ALLOWLIST['_paths'])} path(s), "
+            f"{len(_EXEC_ALLOWLIST['_prefixes'])} prefix(es)\n"
+        )
 
     if not has_notify:
         # ── Phase 1A path (no NOTIFY syscalls) — load and exec directly ──────

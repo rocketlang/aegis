@@ -34,7 +34,11 @@ if ! command -v bun &>/dev/null; then
   exit 0
 fi
 
-if ! python3 -c "import ctypes; ctypes.CDLL(ctypes.util.find_library('seccomp'))" 2>/dev/null; then
+# `import ctypes` does NOT make ctypes.util available — this check raised AttributeError
+# on every run and skipped the whole suite while libseccomp was installed and working.
+# A precondition that can only fail is a suite that never runs, and it exits 0, so it
+# reads green in CI. Fixed 2026-09-22; `import ctypes.util` is the operative change.
+if ! python3 -c "import ctypes, ctypes.util; ctypes.CDLL(ctypes.util.find_library('seccomp'))" 2>/dev/null; then
   skip "libseccomp not found — install libseccomp2 or libseccomp-dev"
   exit 0
 fi
@@ -46,6 +50,10 @@ KAVACHOS_CLI="${KAVACHOS_CLI:-bun /root/aegis/src/kavachos-cli.ts}"
 log "Case A: /usr/bin/ls runs under strict_exec (on allowlist)"
 
 OUT_A=$(mktemp)
+# `|| EXIT_A=$?` is required: under `set -e` a non-zero exit aborts the script before
+# a bare `EXIT_A=$?` can capture it, so a failing Case A silently took the whole suite
+# — including every case below it — down with it, and the file still exited 0 on a skip.
+EXIT_A=0
 $KAVACHOS_CLI run \
   --trust-mask=255 \
   --domain=general \
@@ -53,8 +61,7 @@ $KAVACHOS_CLI run \
   --session-id="SMOKE-T213-A" \
   --verbose \
   -- /usr/bin/ls /tmp \
-  >"$OUT_A" 2>&1
-EXIT_A=$?
+  >"$OUT_A" 2>&1 || EXIT_A=$?
 
 if [[ $EXIT_A -eq 0 ]]; then
   pass "ls exited 0 — allowlisted binary executed normally"
@@ -88,6 +95,8 @@ if ! command -v nc &>/dev/null && ! command -v nmap &>/dev/null; then
 fi
 
 OUT_B=$(mktemp)
+# Case B EXPECTS a non-zero exit, so under `set -e` it aborted the suite on success.
+EXIT_B=0
 $KAVACHOS_CLI run \
   --trust-mask=255 \
   --domain=general \
@@ -95,8 +104,7 @@ $KAVACHOS_CLI run \
   --session-id="SMOKE-T213-B" \
   --verbose \
   -- "$BLOCKED_BIN" --version \
-  >"$OUT_B" 2>&1
-EXIT_B=$?
+  >"$OUT_B" 2>&1 || EXIT_B=$?
 
 if grep -q "DENY\|EPERM\|kavachos:exec.*DENY\|not in exec allowlist\|Operation not permitted" "$OUT_B"; then
   pass "non-allowlisted binary produced DENY evidence in logs"
@@ -107,7 +115,9 @@ else
   cat "$OUT_B"
 fi
 rm -f "$OUT_B"
-[[ -n "${CLEANUP_BIN:-}" ]] && rm -f "$CLEANUP_BIN"
+# `[[ ... ]] && cmd` as a bare statement returns non-zero when the test is false,
+# which under `set -e` ended the suite here. Every case below never ran.
+if [[ -n "${CLEANUP_BIN:-}" ]]; then rm -f "$CLEANUP_BIN"; fi
 
 # --- Case C: second-hop exec blocked (the hard half of strict_exec) ---
 # Allowed binary (/usr/bin/sh) attempts to execve a blocked binary.
@@ -116,6 +126,7 @@ rm -f "$OUT_B"
 log "Case C: sh tries to exec a blocked binary via shell command (second-hop check)"
 
 OUT_C=$(mktemp)
+EXIT_C=0
 # sh is on the allowlist; nmap/nc/custom script is not
 BLOCKED_CMD="$( command -v nmap 2>/dev/null || command -v nc 2>/dev/null || echo "/nonexistent-binary" )"
 
@@ -126,8 +137,7 @@ $KAVACHOS_CLI run \
   --session-id="SMOKE-T213-C" \
   --verbose \
   -- /usr/bin/sh -c "$BLOCKED_CMD --version 2>&1; echo SH_EXIT:\$?" \
-  >"$OUT_C" 2>&1
-EXIT_C=$?
+  >"$OUT_C" 2>&1 || EXIT_C=$?
 
 OUTPUT_C=$(cat "$OUT_C")
 
@@ -145,6 +155,79 @@ else
   cat "$OUT_C"
 fi
 rm -f "$OUT_C"
+
+# --- Case G/H/I/J: the allowlist itself is unreadable (KOS-047 fail-closed) ---
+#
+# Added 2026-09-22. This path used to ALLOW: `allowlist load error ... allow by default`.
+# A typo'd or missing allowlist silently disarmed the one layer that binds a
+# non-cooperating agent. A gate that cannot read its own rules must refuse.
+# The deliberate way to run without strict_exec is to unset KAVACHOS_EXEC_ALLOWLIST,
+# which Case J confirms still works.
+
+SECCOMP="/root/aegis/src/kernel/apply-seccomp.py"
+# NOT `ls ... | head -1`: under `set -o pipefail` head exits first, ls takes SIGPIPE,
+# the pipeline reports non-zero and `set -e` kills the suite before these cases run.
+PROFILE_SRC=""
+for _p in /root/.aegis/kernel/*.seccomp.json; do
+  [[ -f "$_p" ]] || continue
+  PROFILE_SRC="$_p"
+  break
+done
+
+if [[ -z "${PROFILE_SRC:-}" ]]; then
+  skip "no seccomp profile on disk for the allowlist cases"
+else
+  TMPD=$(mktemp -d)
+  # profile with execve/execveat routed to the NOTIFY tier so the allowlist is consulted
+  python3 - "$PROFILE_SRC" "$TMPD/gated.json" <<'PYEOF'
+import json, sys
+d = json.load(open(sys.argv[1]))
+for e in d.get("syscalls", []):
+    if e.get("action") == "SCMP_ACT_ALLOW":
+        e["names"] = [n for n in e["names"] if n not in ("execve", "execveat")]
+d["syscalls"].append({"action": "SCMP_ACT_NOTIFY", "names": ["execve", "execveat"]})
+json.dump(d, open(sys.argv[2], "w"))
+PYEOF
+
+  log "Case G: missing allowlist refuses to start the agent"
+  OUT_G=$(KAVACHOS_EXEC_ALLOWLIST="$TMPD/does-not-exist.json"     timeout 30 python3 "$SECCOMP" "$TMPD/gated.json" -- /usr/bin/true 2>&1 || true)
+  if grep -q "FATAL: exec allowlist unreadable" <<<"$OUT_G"; then
+    pass "missing allowlist is fatal — no longer allows every binary"
+  else
+    fail "missing allowlist did not refuse: $OUT_G"
+  fi
+
+  log "Case H: corrupt allowlist refuses to start the agent"
+  printf '{"allow": [' > "$TMPD/corrupt.json"
+  OUT_H=$(KAVACHOS_EXEC_ALLOWLIST="$TMPD/corrupt.json" \
+    timeout 30 python3 "$SECCOMP" "$TMPD/gated.json" -- /usr/bin/true 2>&1 || true)
+  if grep -q "FATAL: exec allowlist unreadable" <<<"$OUT_H"; then
+    pass "corrupt allowlist is fatal"
+  else
+    fail "corrupt allowlist did not refuse: $OUT_H"
+  fi
+
+  log "Case I: a VALID allowlist still permits and still denies"
+  printf '{"agent_type":"smoke","allow":[{"path":"/usr/bin/python3"}]}' > "$TMPD/ok.json"
+  OUT_I=$(KAVACHOS_EXEC_ALLOWLIST="$TMPD/ok.json" \
+    timeout 30 python3 "$SECCOMP" "$TMPD/gated.json" \
+    -- python3 -c 'import subprocess;subprocess.run(["/usr/bin/id"])' 2>&1 || true)
+  if grep -q "ALLOW: /usr/bin/python3" <<<"$OUT_I" && grep -q "DENY: '/usr/bin/id'" <<<"$OUT_I"; then
+    pass "valid allowlist unchanged — python3 allowed, /usr/bin/id denied"
+  else
+    fail "valid allowlist regressed: $OUT_I"
+  fi
+
+  log "Case J: unsetting the allowlist is still the way to run without strict_exec"
+  OUT_J=$(timeout 30 python3 "$SECCOMP" "$TMPD/gated.json" -- /usr/bin/true 2>&1 || true)
+  if grep -q "strict_exec not active" <<<"$OUT_J"; then
+    pass "no allowlist configured still runs — the explicit opt-out is intact"
+  else
+    fail "opt-out path broke: $OUT_J"
+  fi
+
+  rm -rf "$TMPD"
+fi
 
 # --- Summary ---
 
