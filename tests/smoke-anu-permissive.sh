@@ -11,7 +11,12 @@ set -uo pipefail
 AEGIS="${AEGIS_ROOT:-/root/aegis}"
 CLI="bun run $AEGIS/src/cli/index.ts"
 TMP="$(mktemp -d)"
-trap 'rm -rf "$TMP"' EXIT
+trap 'rm -rf "$TMP"; rm -f "/root/.aegis/agents/$SID.valve.json"' EXIT
+# A FIXED session id poisons the suite: every run increments this agent's
+# violation/loop counters until the gate valve narrows to CRACKED, clears EXEC_BASH,
+# and the benign-command case starts failing for reasons that have nothing to do with
+# what it tests. Unique per run, and the valve record is removed on exit.
+SID="smoke-$$-$(date +%s)"
 
 PASS=0; FAIL=0
 ok()   { PASS=$((PASS+1)); printf '  ok   %s\n' "$1"; }
@@ -99,7 +104,7 @@ expect "refuses when a service key resolves to two ports" "UNKNOWN STATE" \
 
 echo "── hook face: shadow reports, enforce bites ──────────────────────────"
 PAYLOAD=$(python3 -c "
-import json;print(json.dumps({'tool_name':'Bash','session_id':'smoke','cwd':'/root',
+import json;print(json.dumps({'tool_name':'Bash','session_id':'$SID','cwd':'/root',
 'tool_input':{'command':\"psql -d $PROD_DB -c 'DROP TABLE x'\"}}))")
 
 OUT=$(printf '%s' "$PAYLOAD" | ANUMATI_MODE=shadow $CLI check-anumati 2>&1); RC=$?
@@ -112,10 +117,10 @@ expect "enforce mode says authority is untouched" "Authority is unchanged" "$OUT
 
 echo "── fail-closed repair: check-destructive ─────────────────────────────"
 DESTRUCTIVE=$(python3 -c "
-import json;print(json.dumps({'tool_name':'Bash','session_id':'smoke',
+import json;print(json.dumps({'tool_name':'Bash','session_id':'$SID',
 'tool_input':{'command':'psql -c \"TRUNCATE TABLE users\"'}}))")
 BENIGN=$(python3 -c "
-import json;print(json.dumps({'tool_name':'Bash','session_id':'smoke','tool_input':{'command':'echo hello'}}))")
+import json;print(json.dumps({'tool_name':'Bash','session_id':'$SID','tool_input':{'command':'echo hello'}}))")
 
 printf '%s' "$BENIGN" | $CLI check-destructive >/dev/null 2>&1
 expect_exit "benign command passes with rules present" 0 $?
@@ -130,7 +135,7 @@ expect_exit "unreadable rules now REFUSE instead of allowing everything" 2 "$RC"
 expect "refusal explains itself" "cannot judge the command" "$OUT"
 
 OVERRIDE=$(python3 -c "
-import json;print(json.dumps({'tool_name':'Bash','session_id':'smoke',
+import json;print(json.dumps({'tool_name':'Bash','session_id':'$SID',
 'tool_input':{'command':'echo hello # HUMAN-DESTRUCTIVE-CONFIRMED-ANKR'}}))")
 printf '%s' "$OVERRIDE" | HOME="$EMPTY_HOME" $CLI check-destructive >/dev/null 2>&1
 expect_exit "override token still works when the rules file is gone" 0 $?

@@ -15,7 +15,11 @@
 // A blocked syscall returns an error; it does not freeze or panic the kernel.
 export const BASELINE_SYSCALLS: string[] = [
   "read", "write", "open", "openat", "close",
-  "stat", "fstat", "lstat", "newfstatat",
+  // `statx` is the modern stat and belongs beside its siblings. Allowing stat/fstat/lstat
+  // while denying statx restricts nothing an attacker wants and breaks ordinary binaries —
+  // an anti-coverage gap, not a control. Added 2026-09-22 after /usr/bin/ls exited 2 under
+  // a generated profile while /usr/bin/true exited 0.
+  "stat", "fstat", "lstat", "newfstatat", "statx",
   "mmap", "munmap", "mprotect", "brk",
   // --- NO-FREEZE CRITICAL — never remove these ---
   "exit_group", "exit",
@@ -24,9 +28,12 @@ export const BASELINE_SYSCALLS: string[] = [
   "restart_syscall",
   // -----------------------------------------------
   "nanosleep",
-  "getpid", "gettid", "getcwd", "getdents64",
+  "getpid", "getppid", "gettid", "getcwd", "getdents64",
   "socket", "connect", "sendto", "recvfrom",
-  "execve", "wait4", "clone", "clone3", "fork",
+  // `vfork` is how dash and several shells actually spawn. fork/clone/clone3 were already
+  // allowed, so denying vfork gated nothing an attacker needs and produced `sh: Cannot fork`.
+  // Measured 2026-09-22 by tracing /usr/bin/sh against a generated profile.
+  "execve", "wait4", "clone", "clone3", "fork", "vfork",
   // Required by Bun runtime
   "ioctl", "fcntl", "dup", "dup2", "dup3",
   "pipe", "pipe2", "select", "pselect6",
@@ -57,7 +64,11 @@ export const BASELINE_SYSCALLS: string[] = [
   "sched_yield", "sched_getaffinity", "sched_setaffinity",
   "prctl",
   "arch_prctl",
-  "set_tid_address", "set_robust_list", "get_robust_list",
+  // glibc 2.35+ calls rseq and prlimit64 during thread/process startup, so without them
+  // a binary can die before reaching main(). They sit with their own group: rseq beside
+  // the other thread-init registrations, prlimit64 beside getrusage.
+  "set_tid_address", "set_robust_list", "get_robust_list", "rseq",
+  "prlimit64",
   "seccomp",
   "landlock_create_ruleset", "landlock_add_rule", "landlock_restrict_self",
 ];
@@ -122,15 +133,26 @@ export const DOMAIN_EXTRA_SYSCALLS: Record<string, string[]> = {
 };
 
 // @rule:INF-KOS-001 trust_mask=0 → read-only minimal profile (no exec, no network writes)
+// OPEN QUESTION (raised 2026-09-22, deliberately NOT decided here): this set contains no
+// `execve`, and buildSyscallSet REPLACES rather than merges for depth>=4 and trust_mask=0.
+// apply-seccomp loads the profile in the child and then execs the agent, so such an agent
+// cannot start at all — measured: /usr/bin/true exits 1 under this set. For trust_mask=0
+// that may be intended (a zero mask is a misconfiguration and refusing to start is fail-safe).
+// For depth>=4 it is probably not: "absolute read-only" should still be able to read.
+// Adding execve to a set named read-only is a policy call for the founder, not a fix.
 export const MINIMAL_READONLY_SYSCALLS: string[] = [
   "read", "open", "openat", "close", "stat", "fstat", "lstat", "newfstatat",
   "mmap", "munmap", "mprotect", "brk",
   // NO-FREEZE CRITICAL (must match BASELINE_SYSCALLS — never remove)
   "exit_group", "exit", "futex", "rt_sigreturn", "restart_syscall",
-  "getpid", "gettid", "getcwd", "getdents64",
+  "getpid", "getppid", "gettid", "getcwd", "getdents64",
   "readlink", "readlinkat",
   "access", "faccessat",
   "gettimeofday", "clock_gettime",
+  // Same glibc-startup coverage as BASELINE: statx is a read, rseq and prlimit64 are
+  // process/thread setup. Without them a modern binary dies before main(), which is not
+  // read-only, it is broken.
+  "statx", "rseq", "prlimit64",
   "arch_prctl", "set_tid_address", "set_robust_list",
   "rt_sigaction", "rt_sigprocmask",
   "clone3",  // Bun/Node thread creation — absent = silent hang on worker_threads
