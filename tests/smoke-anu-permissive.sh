@@ -247,8 +247,13 @@ OUT=$($CLI anumati compile --agent "$CAGENT" --domain general --trust-mask 255 2
 
 expect "denies an address carrying no dev-class database" "DENY" "$OUT"
 expect "refuses to claim coverage it does not have" "have NO coarse form" "$OUT"
-expect "names the addresses where dev and non-dev share an endpoint" "[ambiguity]" "$OUT"
-expect "says an unnarrowed loopback wildcard makes local denies advisory" "[conflict]" "$OUT"
+# Before the dev-only door existed these two emitted [ambiguity] (dev and non-dev sharing
+# an endpoint) and [conflict] (an unnarrowed loopback wildcard making local denies
+# decorative). The door resolved both, so the compiler must now report the substitution
+# instead — and must NOT still be claiming an ambiguity it no longer has.
+expect "reports the dev-only door as the substitution that resolved it" "[substitution]" "$OUT"
+expect "no longer claims an ambiguity the door removed" "ambiguity" \
+  "$(printf '%s' "$OUT" | grep -q '\[ambiguity\]' && echo MISSING || echo 'no ambiguity')"
 
 # A compiled artefact's only valid assertion is that re-deriving reproduces it.
 $CLI anumati compile --agent "$CAGENT" --check >/dev/null 2>&1
@@ -323,6 +328,47 @@ PYEOF
 else
   skip_note="ports $ALLOWED/$DENIED not both listening"
   bad "egress end-to-end" "$skip_note — cannot exercise enforcement"
+fi
+
+echo "── the dev-only door: ANU-I-001 finally projects ─────────────────────"
+
+expect "the door's config re-derives from databases.json" "reproduces exactly" \
+  "$($CLI anumati dbproxy --check 2>&1)"
+
+# The door's reachable set IS its [databases] section — pgbouncer cannot route to
+# a name it does not list, so this is the security-relevant property.
+INI=/etc/pgbouncer/anumati-dev.ini
+NONDEV=$(python3 -c "
+import json;d=json.load(open('/root/.ankr/config/databases.json'))['databases']
+print(' '.join(k for k,v in list(d.items()) if isinstance(v,dict) and v.get('class')!='dev')[:400])")
+LEAKED=""
+for n in $NONDEV; do grep -qE "^$n = " "$INI" && LEAKED="$LEAKED $n"; done
+if [ -z "$LEAKED" ]; then ok "no non-dev database is routable through the door"; else bad "door exposes non-dev" "$LEAKED"; fi
+
+DEVCOUNT=$(grep -cE '^[a-z0-9_]+ = host=' "$INI")
+[ "$DEVCOUNT" -gt 0 ] && ok "the door routes to $DEVCOUNT dev-class database(s)" || bad "door empty" "no databases listed"
+
+expect "ANU-I-001 now projects FULLY, not partially" "full    ANU-I-001" \
+  "$($CLI anumati compile --agent door-suite --domain general --trust-mask 255 2>&1)"
+rm -f /root/.aegis/kernel/door-suite.coarse.json
+
+# End to end: a governed agent reaches the door and is refused the shared port.
+if systemctl is-active --quiet pgbouncer-anumati-dev; then
+  cat > "$TMP/door.py" <<'PYEOF'
+import socket
+for port in (4220, 5432):
+    try:
+        s = socket.create_connection(("127.0.0.1", port), timeout=3); s.close()
+        print(f"REACHED {port}")
+    except OSError as e:
+        print(f"BLOCKED {port}")
+PYEOF
+  OUT=$(timeout 150 bun /root/aegis/src/kavachos-cli.ts run --trust-mask=255 --domain=general \
+        --session-id="anu-door-$$" -- python3 "$TMP/door.py" 2>&1)
+  expect "a governed agent reaches the dev door" "REACHED 4220" "$OUT"
+  expect "and is denied the shared database port" "BLOCKED 5432" "$OUT"
+else
+  bad "door service" "pgbouncer-anumati-dev is not active — cannot exercise enforcement"
 fi
 
 echo

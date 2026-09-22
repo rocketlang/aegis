@@ -39,7 +39,7 @@ profile kavachos-agent flags=(attach_disconnected,mediate_deleted) {
   deny /root/.ankr/secrets/ mrwkl,
   deny /root/.ankr/secrets/** mrwkl,
   # >>> anumati: generated from ANU-I-005 — do not hand-edit
-  # 7 path(s) · digest 914aedeadd803d52
+  # 7 path(s) · digest 3d1009a5e27ac150
   deny /root/.aegis/anumati-mode wkl,
   deny /root/.aegis/anumati-mode.seal.json wkl,
   deny /root/.aegis/anumati-taint.json wkl,

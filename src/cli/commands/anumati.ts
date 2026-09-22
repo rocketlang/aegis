@@ -211,6 +211,42 @@ export default async function anumatiCmd(args: string[]): Promise<void> {
     return;
   }
 
+  if (sub === "dbproxy") {
+    const { compileDbProxy, renderDbProxyPlan, DBPROXY_INI } = await import("../../kavach/compile-dbproxy");
+    const r = compileDbProxy();
+    if ("error" in r) {
+      console.error(`cannot compile the dev-only door: ${r.error}`);
+      process.exit(2);
+    }
+    const { plan } = r;
+
+    if (args.includes("--check")) {
+      // @rule:ANU-010 — a generated config's only valid assertion is that it re-derives.
+      if (!existsSync(DBPROXY_INI)) {
+        console.error(`not generated yet: ${DBPROXY_INI}`);
+        process.exit(2);
+      }
+      if (readFileSync(DBPROXY_INI, "utf-8") === plan.ini) {
+        console.log(`dev-only door reproduces exactly (${plan.exposed.length} dev database(s))`);
+        return;
+      }
+      console.error(`DRIFT — ${DBPROXY_INI} is not what databases.json compiles to. Regenerate, do not patch.`);
+      process.exit(2);
+    }
+
+    if (!args.includes("--apply")) {
+      process.stdout.write(renderDbProxyPlan(plan));
+      console.log(`  --apply writes ${DBPROXY_INI}`);
+      return;
+    }
+
+    const { DBPROXY_USERLIST, DBPROXY_USERLIST_BODY } = await import("../../kavach/compile-dbproxy");
+    writeFileSync(DBPROXY_INI, plan.ini);
+    writeFileSync(DBPROXY_USERLIST, DBPROXY_USERLIST_BODY);
+    console.log(`wrote ${DBPROXY_INI} — ${plan.exposed.length} dev database(s), ${plan.withheld.length} withheld`);
+    return;
+  }
+
   if (sub === "try") {
     const tool = args[1];
     const rest = args.slice(2).join(" ");

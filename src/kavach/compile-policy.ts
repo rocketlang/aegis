@@ -25,6 +25,8 @@
 import { createHash } from "crypto";
 import { readDatabaseEndpoints, readDeclaredPort, PROTECTED_SOURCES, type DbEndpoint } from "./plant-state";
 import { buildEgressPolicy, type EgressEntry } from "../kernel/egress-policy";
+import { existsSync, readFileSync } from "fs";
+import { compileDbProxy, DBPROXY_INI } from "./compile-dbproxy";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -143,9 +145,58 @@ export function compilePolicy(opts: CompileOptions): CoarsePolicy {
       emitted: 0,
     });
   } else {
+    // Is the dev-only door in place? If dev-class databases have an address of their own,
+    // every shared database address can be denied outright and ANU-I-001 finally projects.
+    // The door must be BUILT and CURRENT — a stale config would deny the shared ports while
+    // routing dev nowhere, which breaks dev access instead of protecting production.
+    let door: { port: number } | null = null;
+    let doorNote: string | null = null;
+    const dp = compileDbProxy();
+    if (!("error" in dp)) {
+      if (!existsSync(DBPROXY_INI)) {
+        doorNote = `a dev-only door is compilable on port ${dp.plan.listenPort} but has not been generated — run \`aegis anumati dbproxy --apply\` to make ANU-I-001 projectable`;
+      } else if (readFileSync(DBPROXY_INI, "utf-8") !== dp.plan.ini) {
+        doorNote = `the dev-only door at ${DBPROXY_INI} is STALE — it no longer matches databases.json, so the shared database ports stay allowed rather than denying dev its own route`;
+      } else {
+        door = { port: dp.plan.listenPort };
+      }
+    }
+
     const groups = groupByEndpoint(dbs.value);
     const mixed = groups.filter(g => classify(g) === "mixed");
     let emitted = 0;
+
+    if (door) {
+      // Every database address is denied; dev is reached through the door instead.
+      for (const g of groups) {
+        egressDeny.push({
+          host: g.host,
+          port: g.port,
+          invariant: "ANU-I-001",
+          reason: `dev-class databases are reachable through the dev-only door on 127.0.0.1:${door.port}; direct database addresses are denied`,
+        });
+        emitted++;
+      }
+      if (!(opts.loopbackPorts ?? []).includes(door.port)) {
+        (opts.loopbackPorts ??= []).push(door.port);
+      }
+      notes.push({
+        kind: "substitution",
+        detail:
+          `dev-only door on 127.0.0.1:${door.port} carries ${dp.plan.exposed.length} dev-class database(s), ` +
+          `so all ${emitted} database address(es) are denied outright — including the shared ones where dev and ` +
+          `production were previously indistinguishable. Production keeps its address for every non-agent client.`,
+      });
+      coverage.push({
+        invariant: "ANU-I-001",
+        title: "Schema-touching op only where the database class is dev",
+        projection: "projected",
+        detail:
+          `${emitted} address(es) denied; dev reached only through the dev-only door. The invariant now binds an ` +
+          `agent that never called the permissive layer, because permitted and forbidden databases no longer share an address.`,
+        emitted,
+      });
+    } else {
 
     for (const g of groups) {
       const verdict = classify(g);
@@ -171,16 +222,19 @@ export function compilePolicy(opts: CompileOptions): CoarsePolicy {
       }
     }
 
-    coverage.push({
-      invariant: "ANU-I-001",
-      title: "Schema-touching op only where the database class is dev",
-      projection: mixed.length > 0 ? "partial" : "projected",
-      detail:
-        mixed.length > 0
-          ? `${emitted} address(es) denied; ${mixed.length} address(es) carry dev and non-dev databases together and cannot express this invariant at kernel granularity. Separating them needs a distinct port, host or proxy — an infrastructure change, not a code change.`
-          : `${emitted} address(es) denied; every address resolves to a single policy`,
-      emitted,
-    });
+      coverage.push({
+        invariant: "ANU-I-001",
+        title: "Schema-touching op only where the database class is dev",
+        projection: mixed.length > 0 ? "partial" : "projected",
+        detail:
+          (mixed.length > 0
+            ? `${emitted} address(es) denied; ${mixed.length} address(es) carry dev and non-dev databases together and cannot express this invariant at kernel granularity. Separating them needs a distinct port, host or proxy — an infrastructure change, not a code change.`
+            : `${emitted} address(es) denied; every address resolves to a single policy`) +
+          (doorNote ? ` — ${doorNote}` : ""),
+        emitted,
+      });
+      if (doorNote) notes.push({ kind: "conflict", detail: doorNote });
+    }
 
     // A loopback wildcard readmits everything just denied. Say so, and narrow it.
     // EVERY such entry, not the first: the base policy carries both `localhost:0` and
@@ -378,8 +432,15 @@ export const APPARMOR_END = "  # <<< anumati";
 
 /** The deny block, exactly as it should appear inside the profile. */
 export function renderApparmorBlock(p: CoarsePolicy): string {
+  // Digest of THIS block's own inputs, not the whole policy. A generated artefact must
+  // change only when its own inputs change; keying it on the full policy digest made the
+  // path face report drift every time an unrelated declaration moved, which trains people
+  // to regenerate on a signal that meant nothing.
+  const own = createHash("sha256")
+    .update(JSON.stringify(p.write_deny.map(w => w.path).sort()))
+    .digest("hex");
   const lines = [APPARMOR_BEGIN];
-  lines.push(`  # ${p.write_deny.length} path(s) · digest ${p.input_digest.slice(0, 16)}`);
+  lines.push(`  # ${p.write_deny.length} path(s) · digest ${own.slice(0, 16)}`);
   for (const w of p.write_deny.slice().sort((a, b) => a.path.localeCompare(b.path))) {
     // wkl = write, lock, link. Read is deliberately left alone.
     lines.push(`  deny ${w.path} wkl,`);

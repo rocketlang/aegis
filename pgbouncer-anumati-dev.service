@@ -1,0 +1,23 @@
+[Unit]
+# Dev-only database door. Exists so ANU-I-001 has an address it can express:
+# governed agents reach dev-class databases through here and are denied the shared
+# database ports, which is a distinction the enforcement layer can actually make.
+# Config is GENERATED — `aegis anumati dbproxy --apply`, never hand-edited.
+Description=PgBouncer (anumati dev-only door)
+Documentation=file:///root/proposals/aegis-anumati--logics--formal--2026-09-22.md
+After=postgresql.service
+Wants=postgresql.service
+
+[Service]
+Type=forking
+User=postgres
+Group=postgres
+RuntimeDirectory=pgbouncer
+PIDFile=/run/pgbouncer/anumati-dev.pid
+ExecStart=/usr/sbin/pgbouncer -d /etc/pgbouncer/anumati-dev.ini
+ExecReload=/bin/kill -HUP $MAINPID
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
