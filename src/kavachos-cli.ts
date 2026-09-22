@@ -15,6 +15,11 @@
 //   init                         Write .kavachos.json config in project root
 //   version                      Print version
 
+
+// Single source of truth for the version inside the bundle. The build refuses to run
+// if this disagrees with package.json — it silently drifted from 2.0.0 for five months,
+// so `kavachos version` reported a release that was no longer being shipped.
+const KAVACHOS_VERSION = "2.1.0";
 const command = Bun.argv[2] || "help";
 const subCommand = Bun.argv[3];
 const args = Bun.argv.slice(3);
@@ -59,7 +64,7 @@ async function main() {
     case "version":
     case "--version":
     case "-v":
-      console.log("kavachos 2.0.0 (KavachOS KERNEL — xShieldAI Posture Suite)");
+      console.log(`kavachos ${KAVACHOS_VERSION} (KavachOS KERNEL — xShieldAI Posture Suite)`);
       console.log("AGPL-3.0 · DOI 10.5281/zenodo.19908430");
       break;
     case "help":
@@ -600,7 +605,7 @@ async function cmdInit(args: string[]) {
   const agentType = args.find((a) => a.startsWith("--agent-type="))?.split("=")[1] ?? "claude-code";
 
   const config = {
-    kavachos_version: "2.0.0",
+    kavachos_version: KAVACHOS_VERSION,
     schema: "kavachos-config-v1",
     project: {
       name: resolve(process.cwd()).split("/").pop() ?? "unnamed",
@@ -692,7 +697,7 @@ function printHelp() {
   console.log(`
 kavachos — KavachOS kernel enforcement CLI
 Part of the xShieldAI Posture Suite · kavachos.xshieldai.com
-Version 2.0.0 | AGPL-3.0 | DOI 10.5281/zenodo.19908430
+Version ${KAVACHOS_VERSION} | AGPL-3.0 | DOI 10.5281/zenodo.19908430
 
 Usage: kavachos <command> [options]
 

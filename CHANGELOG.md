@@ -4,6 +4,37 @@ All notable changes to AEGIS will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [2.1.0] — 2026-09-22
+
+### Fixed (KAVACH-KERNEL — AGPL-3.0)
+- **Cgroup egress now constrains the agent.** The cgroup is prepared before the launch and the
+  agent joins it before `exec`, so membership is inherited through `exec` and by anything it
+  spawns. The previous ordering attached by pid after launch, which is the wrong handle: a
+  short-lived agent has already exited, and on the notify path the real agent is a fork child
+  created before the attach. `cgroup-egress.py --prepare` supervises by cgroup **membership**
+  rather than by pid. A failed join is loud — an unconstrained run must never look constrained.
+- **Exec allowlist is fail-closed.** The allowlist is parsed once before the fork and validated;
+  if `strict_exec` was requested and it cannot be read, the agent does not start. A gate that
+  cannot read its own rules refuses. Also removes a JSON parse from the `execve` hot path.
+- **Syscall coverage** — `statx`, `rseq`, `prlimit64`, `vfork`, `getppid` added to the baseline.
+  Each had a sibling already allowed, so denying them gated nothing and broke ordinary binaries
+  (`sh: Cannot fork`, coreutils exiting 2).
+- **Build** — `@aws-sdk/client-s3` is a dynamic, optional import and is now marked external
+  rather than resolved; the bundle build had been failing on it.
+
+### Added
+- **`--needs=PORT,PORT`** — loopback ports an agent legitimately needs, so a broad loopback allow
+  can be narrowed. Without it, a deny inside that range is readmitted by the broader rule and is
+  therefore decorative; the compiler now says so rather than letting it look enforced.
+- **Portable state roots** — `ANKR_CONFIG_DIR`, `ANKR_STATE_DIR`, `AEGIS_HOME`. Defaults unchanged.
+  Relocating a root is deliberately **not silent**: these are the files the policy is derived from,
+  so a non-default root is printed with every refusal, recorded in the compiled policy, and folded
+  into its digest.
+
+### Changed
+- Egress goes from never-enforcing to enforcing. This is a real behaviour change for anyone whose
+  agents were unconstrained while appearing governed, which is why this is a minor and not a patch.
+
 ## [2.0.0] — 2026-04-30
 
 ### Added (KAVACH-KERNEL — Phase 1, AGPL-3.0)

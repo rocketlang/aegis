@@ -1,6 +1,6 @@
 {
   "name": "@xshieldai/agent-kernel",
-  "version": "2.0.2",
+  "version": "2.1.0",
   "description": "Agent Kernel (formerly KavachOS) \u2014 seccomp-bpf + Falco kernel enforcement for AI agents. Core kernel-enforcement primitive of the xShieldAI Posture Suite.",
   "license": "AGPL-3.0",
   "type": "module",
@@ -43,7 +43,7 @@
     "bun": ">=1.0.0"
   },
   "scripts": {
-    "build": "bun build ../../src/kavachos-cli.ts --target=bun --external @aws-sdk/client-s3 --outfile=dist/kavachos.js && cp ../../src/kernel/cgroup-egress.py dist/cgroup-egress.py && cp ../../src/kernel/apply-seccomp.py dist/apply-seccomp.py",
+    "build": "node -e \"const p=require('./package.json');const s=require('fs').readFileSync('../../src/kavachos-cli.ts','utf8');const m=s.match(/const KAVACHOS_VERSION = \\\"([^\\\"]+)\\\"/);if(!m) {console.error('KAVACHOS_VERSION constant not found in the CLI');process.exit(1)}if(m[1]!==p.version){console.error('version drift: package.json '+p.version+' vs CLI '+m[1]+' \u2014 update both');process.exit(1)}\" && bun build ../../src/kavachos-cli.ts --target=bun --external @aws-sdk/client-s3 --outfile=dist/kavachos.js && cp ../../src/kernel/cgroup-egress.py dist/cgroup-egress.py && cp ../../src/kernel/apply-seccomp.py dist/apply-seccomp.py",
     "prepublishOnly": "bun run build"
   },
   "publishConfig": {
