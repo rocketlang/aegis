@@ -48,14 +48,34 @@ expect "refuses when the target database cannot be resolved" "UNKNOWN STATE" \
 echo "── ANU-I-002 file heat ───────────────────────────────────────────────"
 touch "$TMP/hot.txt"
 touch -d '2 hours ago' "$TMP/cold.txt"
-expect "refuses a Write to a file an unledgered writer just touched" "INVARIANT VIOLATED" \
+
+# A fresh mtime is deliberately NOT a refusal. It says a write happened; it cannot say
+# another LIVE SESSION holds the file, and it cannot tell another session's write from
+# this session's own shell redirect. Measured before enforcement was switched on: it
+# refused ordinary edits to files this session had just written by script.
+expect "a recently touched file is NOT refused on mtime alone" "PERMIT" \
   "$($CLI anumati try Write "$TMP/hot.txt" 2>&1)"
-expect "permits a Write to a cold file" "PERMIT" \
+expect "and neither is a cold one" "PERMIT" \
   "$($CLI anumati try Write "$TMP/cold.txt" 2>&1)"
-expect "sees a Bash redirect as a write target" "INVARIANT VIOLATED" \
-  "$($CLI anumati try Bash "echo x > $TMP/hot.txt" 2>&1)"
-expect "sees sed -i as a write target" "INVARIANT VIOLATED" \
-  "$($CLI anumati try Bash "sed -i 's/a/b/' $TMP/hot.txt" 2>&1)"
+
+# The write-target extraction is what carries this invariant to Bash, so test it directly
+# rather than through a ledger the suite must not write to.
+TARGETS=$(bun -e '
+import { bashWriteTargets } from "/root/aegis/src/kavach/anumati";
+const t = (c) => bashWriteTargets(c, "/tmp");
+console.log(JSON.stringify({
+  redirect: t("echo x > /tmp/a.txt").includes("/tmp/a.txt"),
+  append:   t("echo x >> /tmp/a.txt").includes("/tmp/a.txt"),
+  sed:      t("sed -i s/a/b/ /tmp/a.txt").includes("/tmp/a.txt"),
+  tee:      t("echo x | tee /tmp/a.txt").includes("/tmp/a.txt"),
+  mv:       t("mv /tmp/b.txt /tmp/a.txt").includes("/tmp/a.txt"),
+  rm:       t("rm -f /tmp/a.txt").includes("/tmp/a.txt"),
+  relative: t("echo x > a.txt").includes("/tmp/a.txt"),
+  readonly: t("cat /tmp/a.txt").length === 0,
+}));' 2>/dev/null | tail -1)
+for shape in redirect append sed tee mv rm relative readonly; do
+  expect "bash write target: $shape" "\"$shape\":true" "$TARGETS"
+done
 
 echo "── ANU-I-003 shared git index ────────────────────────────────────────"
 REPO="$TMP/repo"; mkdir -p "$REPO"

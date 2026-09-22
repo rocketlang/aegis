@@ -284,16 +284,19 @@ const PERMISSIVES: Permissive[] = [
           };
         }
 
-        // Nothing in the ledger — but an unledgered writer leaves a fresh mtime behind.
-        const age = readFileMtimeAgeMs(t);
-        if (!age.known) return { verdict: "UNKNOWN", detail: `${t}: ${age.why}`, source: age.source };
-        if (age.value !== null && age.value < 10 * 60e3) {
-          return {
-            verdict: "REFUSE",
-            detail: `${t} changed on disk ${Math.round(age.value / 1e3)}s ago by an unledgered writer`,
-            source: age.source,
-          };
-        }
+        // Deliberately NOT refusing on a fresh mtime alone.
+        //
+        // An unledgered recent write says a write happened. It cannot say that another
+        // LIVE SESSION HOLDS the file, which is what this invariant asserts — and it
+        // cannot distinguish another session's write from this session's own, since a
+        // shell redirect or heredoc never reaches the ledger either. Measured before
+        // enforcement was switched on: it refused ordinary edits to files this very
+        // session had just written by script. That is the wrong instrument for the
+        // question, not a threshold to tune.
+        //
+        // The ledger is the authoritative evidence and is used above. For the tool path,
+        // edit-heat-guard.mjs keeps its own mtime HOLD, which is one-time and has a
+        // documented release; this layer does not duplicate it without one.
       }
       return { verdict: "PERMIT", detail: `${targets.length} target(s) held by nobody`, source: "edit-heat ledger" };
     },
