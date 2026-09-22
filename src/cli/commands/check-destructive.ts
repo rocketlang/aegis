@@ -26,6 +26,10 @@ import { checkMudrika } from "../../kavach/mudrika-validator";
 const AEGIS_DIR = join(process.env.HOME || "/root", ".aegis");
 const RULES_PATH = join(AEGIS_DIR, "destructive-rules.json");
 
+/** Deliberate duplicate of rules.allowed_override_token — the escape hatch must not depend
+ *  on the file whose absence triggers it. @rule:ANU-004 */
+const FALLBACK_OVERRIDE_TOKEN = "HUMAN-DESTRUCTIVE-CONFIRMED-ANKR";
+
 interface DestructiveRule {
   pattern: string;
   flags: string;
@@ -106,7 +110,22 @@ export default async function checkDestructive(_args: string[]): Promise<void> {
 
     const rules = loadRules();
     if (!rules) {
-      process.exit(0);
+      // @rule:ANU-004 — the rules file IS the state this gate depends on. Unreadable state
+      // refuses; it does not wave every Bash command through. Marine interlocks fail safe.
+      // The override token is duplicated as a constant precisely so the escape hatch does
+      // not itself depend on the file that just failed to load.
+      if (!command) process.exit(0); // nothing to judge is not unknown state
+      if (command.includes(FALLBACK_OVERRIDE_TOKEN)) {
+        process.stderr.write(`[KAVACH] Rules unreadable, override token present — allowing (human confirmed)\n`);
+        process.exit(0);
+      }
+      process.stderr.write(
+        `\n[KAVACH] REFUSED — destructive-rules are unreadable, so this gate cannot judge the command.\n` +
+          `[KAVACH] Expected: ${RULES_PATH}\n` +
+          `[KAVACH] A gate that cannot read its own rules must refuse, not allow (ANU-004).\n` +
+          `[KAVACH] Restore the file, or add ${FALLBACK_OVERRIDE_TOKEN} to the command if the founder has ruled.\n\n`,
+      );
+      process.exit(2);
     }
 
     if (!command) process.exit(0);
@@ -164,8 +183,17 @@ export default async function checkDestructive(_args: string[]): Promise<void> {
     }
 
     process.exit(0);
-  } catch {
-    process.exit(0); // never block on KAVACH internal errors
+  } catch (err: any) {
+    // @rule:ANU-004 — an internal failure means this gate does not know whether the command
+    // is safe. Not knowing refuses. The inner gate-error handler twelve lines above has
+    // always done exactly this ("default safe = BLOCK"); the outer catch used to do the
+    // opposite, which meant any KAVACH bug silently disarmed the whole gate.
+    process.stderr.write(
+      `\n[KAVACH] REFUSED — gate failed internally: ${err?.message ?? "unknown error"}\n` +
+        `[KAVACH] A gate that cannot judge must refuse, not allow (ANU-004).\n` +
+        `[KAVACH] Add ${FALLBACK_OVERRIDE_TOKEN} to the command if the founder has ruled.\n\n`,
+    );
+    process.exit(2);
   }
 }
 

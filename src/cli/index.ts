@@ -34,6 +34,12 @@ async function main() {
       return (await import("./commands/check-shield")).default(args);
     case "check-chitta":
       return (await import("./commands/check-chitta")).default(args);
+    case "check-anumati":
+      return (await import("./commands/check-anumati")).default(args);
+    case "anumati":
+      return (await import("./commands/anumati")).default(args);
+    case "pramana":
+      return (await import("./commands/pramana")).default(args);
     case "register":
       return (await import("./commands/register")).default(args);
     case "close":
@@ -82,6 +88,13 @@ Commands:
   check-spawn         Hook: check spawn limit before Agent tool (exit 0=ok, 2=block)
   check-destructive   Hook: block destructive Bash commands (DROP/DELETE/TRUNCATE/rm-rf)
   check-shield        Hook: LakshmanRekha injection/exfil/credential detection on Bash/Read/Write/Edit
+  check-anumati       Hook: permissive layer — may the PLANT obey, in its current state? (exit 0=ok, 2=refuse)
+  anumati [n]             Show last n refusals the permissive layer made (or would have, in shadow)
+  anumati mode [m]        Show or set mode: shadow (report only) | enforce (refusals bite)
+  anumati try <tool> <x>  Evaluate one action against plant state without running it
+  pramana file <path>     Assurance: confirm a write by re-reading the bytes off disk
+  pramana port <port>     Assurance: confirm a service by opening a fresh socket, not its exit code
+  pramana commit <dir>    Assurance: confirm a commit from a fresh git process, not its stdout
   register        Check In: create policy file, register agent in state machine
   close           Check Out: mark agent COMPLETED, write final manifest
   quarantine list         List all QUARANTINED/ORPHAN agents with violation summary
