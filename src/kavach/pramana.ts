@@ -8,6 +8,7 @@
 // @rule:PRA-002 kernel-receipt.ts seals the DECISION — testimony from the control loop about
 //               itself. Necessary, and not assurance.
 // @rule:PRA-003 unavailable is never upgraded to confirmed
+// @rule:PRA-004 a confirmation declares its independence depth and never rounds it up
 //
 // The sounding pipe. If the agent opens a valve and the agent's own software then says
 // "valve open", that is weak evidence. A limit switch on a separate circuit is evidence.
@@ -16,6 +17,11 @@
 //   - not the tool's success flag        → the bytes on disk
 //   - not ankr-ctl's exit code           → a fresh socket to the port
 //   - not git's stdout                   → a fresh git process reading the log
+//
+// HONEST CEILING (PRA-004): all three are `same-host`. They survive a lying actuator; they
+// do not survive a compromised host, because they share its kernel and its disk. Nothing in
+// this file is a sounding pipe in the full sense — a sounding pipe works when the ship's
+// power is out. An `off-host` confirmer is the next rung and is not built.
 
 import { existsSync, readFileSync, statSync } from "fs";
 import { createHash } from "crypto";
@@ -26,17 +32,42 @@ import { connect } from "net";
 
 export type ConfirmState = "confirmed" | "refuted" | "unavailable";
 
+/**
+ * How far down the confirming path is actually independent of the acting path.
+ *
+ * @rule:PRA-004 A confirmation declares its independence depth, and may never claim more
+ * than its WEAKEST shared layer. Avoiding the actuator's own report is the easy half; a
+ * confirmer that shares the kernel and the disk with the actuator is still, in Andrey
+ * Lazarev's words, "the same system with a second voice". Saying so is the difference
+ * between evidence and a better-dressed claim.
+ */
+export type Independence = "same-process" | "same-host" | "off-host";
+
+const INDEPENDENCE_CEILING: Record<Independence, string> = {
+  "same-process": "same process as the actuator — avoids its return value and nothing else",
+  "same-host": "separate process, shared kernel and disk — survives a lying actuator, not a compromised host",
+  "off-host": "separate machine — shares only the network",
+};
+
 export interface Confirmation {
   id: string;
   state: ConfirmState;
   /** The route reality was reached by — never the route that commanded the action. */
   path: string;
+  /** @rule:PRA-004 — how deep the independence goes. Never rounded up. */
+  independence: Independence;
   detail: string;
   checked_at: string;
 }
 
-function result(id: string, state: ConfirmState, path: string, detail: string): Confirmation {
-  return { id, state, path, detail, checked_at: new Date().toISOString() };
+function result(
+  id: string,
+  state: ConfirmState,
+  path: string,
+  independence: Independence,
+  detail: string,
+): Confirmation {
+  return { id, state, path, independence, detail, checked_at: new Date().toISOString() };
 }
 
 // ── PRA-C-001 — file write ────────────────────────────────────────────────────
@@ -57,9 +88,10 @@ export function confirmFileWrite(
 ): Confirmation {
   const id = "PRA-C-001";
   const path = `disk:${absPath}`;
+  const ind: Independence = "same-host"; // same kernel, same filesystem as the writer
 
   if (!existsSync(absPath)) {
-    return result(id, "refuted", path, `file does not exist on disk after a claimed write`);
+    return result(id, "refuted", path, ind, `file does not exist on disk after a claimed write`);
   }
 
   let bytes: Buffer;
@@ -68,7 +100,7 @@ export function confirmFileWrite(
     bytes = readFileSync(absPath);
     mtimeMs = statSync(absPath).mtimeMs;
   } catch (e: any) {
-    return result(id, "unavailable", path, `cannot read back: ${e?.message}`);
+    return result(id, "unavailable", path, ind, `cannot read back: ${e?.message}`);
   }
 
   const actual = createHash("sha256").update(bytes).digest("hex");
@@ -78,15 +110,15 @@ export function confirmFileWrite(
       ? expected.toLowerCase()
       : createHash("sha256").update(expected).digest("hex");
     return actual === expectedHash
-      ? result(id, "confirmed", path, `sha256 matches on re-read (${bytes.length} bytes)`)
-      : result(id, "refuted", path, `sha256 mismatch — disk has ${actual.slice(0, 16)}…, expected ${expectedHash.slice(0, 16)}…`);
+      ? result(id, "confirmed", path, ind, `sha256 matches on re-read (${bytes.length} bytes)`)
+      : result(id, "refuted", path, ind, `sha256 mismatch — disk has ${actual.slice(0, 16)}…, expected ${expectedHash.slice(0, 16)}…`);
   }
 
   const age = Date.now() - mtimeMs;
   if (age > freshnessMs) {
-    return result(id, "refuted", path, `file exists but was last written ${Math.round(age / 1e3)}s ago — older than this action`);
+    return result(id, "refuted", path, ind, `file exists but was last written ${Math.round(age / 1e3)}s ago — older than this action`);
   }
-  return result(id, "confirmed", path, `file present, written ${Math.round(age / 1e3)}s ago, sha256 ${actual.slice(0, 16)}… (content not supplied — existence+freshness only)`);
+  return result(id, "confirmed", path, ind, `file present, written ${Math.round(age / 1e3)}s ago, sha256 ${actual.slice(0, 16)}… (content not supplied — existence+freshness only)`);
 }
 
 // ── PRA-C-002 — service start ─────────────────────────────────────────────────
@@ -106,6 +138,8 @@ export function confirmServiceListening(
 ): Promise<Confirmation> {
   const id = "PRA-C-002";
   const path = `tcp:${host}:${port}`;
+  // A loopback probe shares the kernel with the service it is probing.
+  const ind: Independence = host === "127.0.0.1" || host === "localhost" ? "same-host" : "off-host";
 
   return new Promise<Confirmation>(res => {
     let settled = false;
@@ -122,13 +156,13 @@ export function confirmServiceListening(
 
     const sock = connect({ port, host });
     sock.setTimeout(timeoutMs);
-    sock.on("connect", () => done(result(id, "confirmed", path, `accepted a fresh TCP connection`)));
-    sock.on("timeout", () => done(result(id, "refuted", path, `no answer within ${timeoutMs}ms`)));
+    sock.on("connect", () => done(result(id, "confirmed", path, ind, `accepted a fresh TCP connection`)));
+    sock.on("timeout", () => done(result(id, "refuted", path, ind, `no answer within ${timeoutMs}ms`)));
     sock.on("error", (e: any) =>
       done(
         e?.code === "ECONNREFUSED"
-          ? result(id, "refuted", path, `connection refused — nothing is listening`)
-          : result(id, "unavailable", path, `probe failed: ${e?.code ?? e?.message}`),
+          ? result(id, "refuted", path, ind, `connection refused — nothing is listening`)
+          : result(id, "unavailable", path, ind, `probe failed: ${e?.code ?? e?.message}`),
       ),
     );
   });
@@ -149,6 +183,7 @@ export function confirmCommit(
 ): Confirmation {
   const id = "PRA-C-003";
   const path = `git:${repoDir} (fresh process)`;
+  const ind: Independence = "same-host"; // separate git process, same working tree
 
   let sha: string;
   let files: string[];
@@ -160,11 +195,11 @@ export function confirmCommit(
     });
     files = out.split("\n").map(s => s.trim()).filter(Boolean);
   } catch (e: any) {
-    return result(id, "unavailable", path, `cannot read git log: ${e?.message}`);
+    return result(id, "unavailable", path, ind, `cannot read git log: ${e?.message}`);
   }
 
   if (!expectedPaths || expectedPaths.length === 0) {
-    return result(id, "confirmed", path, `HEAD is ${sha.slice(0, 9)} with ${files.length} file(s) — no expected set supplied`);
+    return result(id, "confirmed", path, ind, `HEAD is ${sha.slice(0, 9)} with ${files.length} file(s) — no expected set supplied`);
   }
 
   const expected = new Set(expectedPaths);
@@ -175,19 +210,23 @@ export function confirmCommit(
     return result(
       id,
       "refuted",
-      path,
+      path, ind,
       `commit ${sha.slice(0, 9)} swept ${unexpected.length} file(s) that were never intended: ${unexpected.slice(0, 5).join(", ")}`,
     );
   }
   if (missing.length > 0) {
-    return result(id, "refuted", path, `commit ${sha.slice(0, 9)} is missing ${missing.length} intended file(s): ${missing.slice(0, 5).join(", ")}`);
+    return result(id, "refuted", path, ind, `commit ${sha.slice(0, 9)} is missing ${missing.length} intended file(s): ${missing.slice(0, 5).join(", ")}`);
   }
-  return result(id, "confirmed", path, `commit ${sha.slice(0, 9)} contains exactly the ${files.length} intended file(s)`);
+  return result(id, "confirmed", path, ind, `commit ${sha.slice(0, 9)} contains exactly the ${files.length} intended file(s)`);
 }
 
 // ── Reporting ─────────────────────────────────────────────────────────────────
 
-/** @rule:PRA-003 — unavailable is reported as unconfirmed, never quietly upgraded. */
+/**
+ * @rule:PRA-003 — unavailable is reported as unconfirmed, never quietly upgraded.
+ * @rule:PRA-004 — the independence ceiling is printed with every confirmation, so a reader
+ * never has to assume how far down the second path actually went.
+ */
 export function renderConfirmation(c: Confirmation): string {
   const mark = c.state === "confirmed" ? "✓" : c.state === "refuted" ? "✗" : "?";
   const head =
@@ -196,5 +235,8 @@ export function renderConfirmation(c: Confirmation): string {
       : c.state === "refuted"
         ? "[PRAMANA] REFUTED — reality does not match the claim"
         : "[PRAMANA] UNCONFIRMED — no independent path was available";
-  return `${head}\n  ${mark} ${c.id}  read: ${c.path}\n    ${c.detail}\n`;
+  return (
+    `${head}\n  ${mark} ${c.id}  read: ${c.path}\n    ${c.detail}\n` +
+    `    independence: ${c.independence} — ${INDEPENDENCE_CEILING[c.independence]}\n`
+  );
 }
