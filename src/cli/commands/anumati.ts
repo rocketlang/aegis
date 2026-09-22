@@ -15,7 +15,7 @@
 //                  that makes shadow visible, because a PreToolUse hook exiting 0 may have
 //                  its stderr swallowed by the harness.
 
-import { existsSync, readFileSync, writeFileSync, mkdirSync } from "fs";
+import { existsSync, readFileSync, writeFileSync, mkdirSync, renameSync } from "fs";
 import { join } from "path";
 import { createHash } from "crypto";
 import { anumati, anumatiMode, anumatiModeStatus, renderRefusal, type ProposedAction } from "../../kavach/anumati";
@@ -244,6 +244,72 @@ export default async function anumatiCmd(args: string[]): Promise<void> {
     writeFileSync(DBPROXY_INI, plan.ini);
     writeFileSync(DBPROXY_USERLIST, DBPROXY_USERLIST_BODY);
     console.log(`wrote ${DBPROXY_INI} — ${plan.exposed.length} dev database(s), ${plan.withheld.length} withheld`);
+    return;
+  }
+
+  if (sub === "classify") {
+    // The owning tool for databases.json `class`. ANU-I-005 refuses a hand edit of the
+    // registry — correctly — but a field with no sanctioned writer has no route at all,
+    // which is a gap, not a policy. This is the route. It is deliberately narrow: it sets
+    // one field, on one database, with a stated reason, and refuses to overwrite silently.
+    const DBJSON = "/root/.ankr/config/databases.json";
+    const VALID = ["dev", "demo", "e2e", "legacy", "prod"];
+
+    const name = args[1];
+    const klass = args[2];
+    const ri = args.indexOf("--reason");
+    const reason = ri > -1 ? args.slice(ri + 1).filter(a => !a.startsWith("--")).join(" ") : "";
+
+    if (!name || !klass || !reason) {
+      console.error('usage: aegis anumati classify <database> <dev|demo|e2e|legacy|prod> --reason "why"');
+      process.exit(1);
+    }
+    if (!VALID.includes(klass)) {
+      console.error(`class must be one of: ${VALID.join(", ")}`);
+      process.exit(1);
+    }
+
+    let reg: any;
+    try {
+      reg = JSON.parse(readFileSync(DBJSON, "utf-8"));
+    } catch (e: any) {
+      console.error(`cannot read the registry: ${e?.message}`);
+      process.exit(2);
+    }
+    const entry = reg?.databases?.[name];
+    if (!entry) {
+      console.error(`no database "${name}" in the registry`);
+      process.exit(2);
+    }
+    if (entry.class && entry.class !== klass && !args.includes("--force")) {
+      // Re-classifying is consequential: dev is what the dev-only door exposes, so a
+      // careless change can put a production database behind it.
+      console.error(`"${name}" is already class=${entry.class}. Re-classifying decides what the`);
+      console.error(`dev-only door exposes, so it is not done by accident — pass --force if you mean it.`);
+      process.exit(2);
+    }
+    if (entry.class === klass) {
+      console.log(`"${name}" is already class=${klass} — nothing to do`);
+      return;
+    }
+
+    entry.class = klass;
+    entry.class_source = "aegis anumati classify";
+    entry.class_reason = reason;
+    entry.class_set_at = new Date().toISOString();
+
+    const tmp = `${DBJSON}.anumati.tmp`;
+    writeFileSync(tmp, JSON.stringify(reg, null, 2) + "\n");
+    renameSync(tmp, DBJSON);   // atomic — a truncated registry is how this file died once
+
+    console.log(`${name} → class=${klass}`);
+    console.log(`reason: ${reason}`);
+    if (klass === "dev") {
+      console.log(`\nThis database is now EXPOSED through the dev-only door. Regenerate and reload:`);
+    } else {
+      console.log(`\nThis database is now withheld from the dev-only door. Regenerate and reload:`);
+    }
+    console.log(`  aegis anumati dbproxy --apply && systemctl reload pgbouncer-anumati-dev`);
     return;
   }
 
