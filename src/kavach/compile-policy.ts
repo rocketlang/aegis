@@ -1,0 +1,356 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Capt. Anil Sharma (rocketlang). All rights reserved.
+// See LICENSE for details.
+
+// KAVACH — the compiler between the two faces of the permissive layer.
+//
+// @rule:ANU-008 The coarse policy is COMPILED from the fine invariants, never hand-written
+// @rule:ANU-009 A fine invariant that cannot be projected is reported, never silently dropped
+// @rule:ANU-010 Drift between compiled and on-disk coarse policy is a compiler bug
+//
+// The fine face (anumati) reasons in domain vocabulary: "is this a schema operation against
+// a database whose registry class is dev?" It is rich, and it only binds an agent that calls
+// it. The mandatory face reasons in kernel vocabulary: binary paths, hosts, ports. It binds
+// anything, including an agent that never heard of us, and it is necessarily coarser.
+//
+// Writing those two by hand in two vocabularies guarantees they drift and guarantees nobody
+// can say which one is lying. So the coarse one is derived here, mechanically, from the same
+// declarations the fine one reads.
+//
+// The most important output of this file is NOT the policy. It is the coverage report: which
+// fine invariants survive projection into kernel vocabulary and which do not. An invariant
+// that does not survive binds cooperative agents only, and that is a fact an operator needs
+// stated rather than discovered.
+
+import { createHash } from "crypto";
+import { readDatabaseEndpoints, readDeclaredPort, PROTECTED_SOURCES, type DbEndpoint } from "./plant-state";
+import { buildEgressPolicy, type EgressEntry } from "../kernel/egress-policy";
+
+// ── Types ─────────────────────────────────────────────────────────────────────
+
+/** How completely a fine invariant survives translation into kernel vocabulary. */
+export type Projection = "projected" | "partial" | "none";
+
+export interface CoverageEntry {
+  invariant: string;
+  title: string;
+  projection: Projection;
+  detail: string;
+  /** Number of coarse rules this invariant produced. */
+  emitted: number;
+}
+
+export interface DenyEntry {
+  host: string;
+  port: number;
+  invariant: string;
+  reason: string;
+}
+
+export interface CompileNote {
+  kind: "substitution" | "conflict" | "ambiguity";
+  detail: string;
+}
+
+export interface CoarsePolicy {
+  agent_id: string;
+  domain: string;
+  trust_mask: number;
+  generated_at: string;
+  /** Digest of the declarations this was compiled from. @rule:ANU-010 */
+  input_digest: string;
+  egress_allow: EgressEntry[];
+  egress_deny: DenyEntry[];
+  write_deny: Array<{ path: string; invariant: string }>;
+  coverage: CoverageEntry[];
+  /** Invariants that bind cooperative agents only. The honest headline. */
+  unbound_by_coarse: string[];
+  notes: CompileNote[];
+}
+
+export interface CompileOptions {
+  agentId: string;
+  domain: string;
+  trustMask: number;
+  /** Loopback ports an agent legitimately needs, used when narrowing the wildcard. */
+  loopbackPorts?: number[];
+}
+
+// ── Endpoint grouping ─────────────────────────────────────────────────────────
+
+interface EndpointGroup {
+  host: string;
+  port: number;
+  members: DbEndpoint[];
+  classes: Set<string | null>;
+}
+
+function groupByEndpoint(dbs: DbEndpoint[]): EndpointGroup[] {
+  const map = new Map<string, EndpointGroup>();
+  for (const db of dbs) {
+    const key = `${db.host}:${db.port}`;
+    let g = map.get(key);
+    if (!g) {
+      g = { host: db.host, port: db.port, members: [], classes: new Set() };
+      map.set(key, g);
+    }
+    g.members.push(db);
+    g.classes.add(db.klass);
+  }
+  return [...map.values()].sort((a, b) => a.host.localeCompare(b.host) || a.port - b.port);
+}
+
+/**
+ * Whether an endpoint can carry ANU-I-001 at all.
+ *
+ * The fine invariant permits schema operations only against dev-class databases. Projected to
+ * an address, that is answerable only when every database at the address agrees:
+ *   all dev            → the address may be reached
+ *   none dev           → the address may be denied
+ *   mixed, or unknown  → the address cannot express the invariant at any granularity the
+ *                        kernel has, because the permitted and forbidden databases share it
+ */
+function classify(g: EndpointGroup): "all-dev" | "none-dev" | "mixed" {
+  const hasDev = g.members.some(m => m.klass === "dev");
+  const hasNonDev = g.members.some(m => m.klass !== "dev"); // null counts as non-dev (ANU-004)
+  if (hasDev && hasNonDev) return "mixed";
+  return hasDev ? "all-dev" : "none-dev";
+}
+
+// ── The compiler ──────────────────────────────────────────────────────────────
+
+const LOOPBACK_HOSTS = new Set(["127.0.0.1", "::1", "localhost"]);
+
+export function compilePolicy(opts: CompileOptions): CoarsePolicy {
+  const { agentId, domain, trustMask } = opts;
+  const coverage: CoverageEntry[] = [];
+  const notes: CompileNote[] = [];
+  const egressDeny: DenyEntry[] = [];
+  const writeDeny: Array<{ path: string; invariant: string }> = [];
+
+  // Base coarse policy — the kernel's own generator, not a reimplementation of it.
+  const base = buildEgressPolicy(trustMask, domain);
+  let egressAllow: EgressEntry[] = [...base.allow];
+
+  // ── ANU-I-001 → egress ──────────────────────────────────────────────────────
+  const dbs = readDatabaseEndpoints();
+  if (!dbs.known) {
+    coverage.push({
+      invariant: "ANU-I-001",
+      title: "Schema-touching op only where the database class is dev",
+      projection: "none",
+      detail: `database registry unreadable (${dbs.why}) — nothing can be projected, and under ANU-004 that is a refusal to claim coverage, not a claim of none needed`,
+      emitted: 0,
+    });
+  } else {
+    const groups = groupByEndpoint(dbs.value);
+    const mixed = groups.filter(g => classify(g) === "mixed");
+    let emitted = 0;
+
+    for (const g of groups) {
+      const verdict = classify(g);
+      if (verdict === "none-dev") {
+        egressDeny.push({
+          host: g.host,
+          port: g.port,
+          invariant: "ANU-I-001",
+          reason: `no dev-class database at this address (${g.members.length}: ${g.members.map(m => `${m.name}=${m.klass ?? "unclassed"}`).slice(0, 4).join(", ")})`,
+        });
+        emitted++;
+      } else if (verdict === "mixed") {
+        const devs = g.members.filter(m => m.klass === "dev").map(m => m.name);
+        const others = g.members.filter(m => m.klass !== "dev");
+        notes.push({
+          kind: "ambiguity",
+          detail:
+            `${g.host}:${g.port} carries both dev and non-dev databases ` +
+            `(${devs.length} dev, ${others.length} non-dev incl. ${[...new Set(others.map(m => m.klass ?? "unclassed"))].join("/")}) — ` +
+            `ANU-I-001 cannot be expressed at this address because the permitted and forbidden ` +
+            `databases are the same endpoint`,
+        });
+      }
+    }
+
+    coverage.push({
+      invariant: "ANU-I-001",
+      title: "Schema-touching op only where the database class is dev",
+      projection: mixed.length > 0 ? "partial" : "projected",
+      detail:
+        mixed.length > 0
+          ? `${emitted} address(es) denied; ${mixed.length} address(es) carry dev and non-dev databases together and cannot express this invariant at kernel granularity. Separating them needs a distinct port, host or proxy — an infrastructure change, not a code change.`
+          : `${emitted} address(es) denied; every address resolves to a single policy`,
+      emitted,
+    });
+
+    // A loopback wildcard readmits everything just denied. Say so, and narrow it.
+    const wildcardIdx = egressAllow.findIndex(e => LOOPBACK_HOSTS.has(e.host) && e.port === 0);
+    const loopbackDenies = egressDeny.filter(d => LOOPBACK_HOSTS.has(d.host));
+    if (wildcardIdx !== -1 && loopbackDenies.length > 0) {
+      const needed = new Set(opts.loopbackPorts ?? []);
+      for (const d of loopbackDenies) needed.delete(d.port);
+
+      if (needed.size > 0) {
+        const wildcard = egressAllow[wildcardIdx];
+        egressAllow = egressAllow.filter((_, i) => i !== wildcardIdx);
+        for (const p of [...needed].sort((a, b) => a - b)) {
+          egressAllow.push({ host: wildcard.host, port: p, note: `loopback ${p} (narrowed from wildcard)` });
+        }
+        notes.push({
+          kind: "substitution",
+          detail:
+            `replaced the ${wildcard.host} any-port allow with ${needed.size} explicit port(s): the wildcard ` +
+            `admitted every locally denied endpoint, which would have made ${loopbackDenies.length} deny rule(s) decorative`,
+        });
+      } else {
+        notes.push({
+          kind: "conflict",
+          detail:
+            `${egressAllow[wildcardIdx].host} is allowed on any port and no explicit loopback port list was supplied, ` +
+            `so ${loopbackDenies.length} deny rule(s) are advisory only — the wildcard readmits them`,
+        });
+      }
+    }
+  }
+
+  // ── ANU-I-005 → path write-deny ─────────────────────────────────────────────
+  for (const p of PROTECTED_SOURCES) writeDeny.push({ path: p, invariant: "ANU-I-005" });
+  coverage.push({
+    invariant: "ANU-I-005",
+    title: "The permissive layer's own state sources are not hand-written by the agent",
+    projection: "partial",
+    detail:
+      `${writeDeny.length} path(s) emitted as a write-deny set. This projects into a path-enforcement ` +
+      `face (AppArmor or Landlock), not into egress or exec, so it binds a stranger only once that ` +
+      `face carries these paths. Emitting them is not the same as enforcing them.`,
+    emitted: writeDeny.length,
+  });
+
+  // ── Invariants with no coarse projection ────────────────────────────────────
+  coverage.push({
+    invariant: "ANU-I-002",
+    title: "Target file is held by no other live session",
+    projection: "none",
+    detail:
+      "depends on which sessions are alive and what they touched in the last thirty minutes. The kernel " +
+      "sees a write to a path; it cannot see that another agent is mid-edit. No coarse form exists.",
+    emitted: 0,
+  });
+  coverage.push({
+    invariant: "ANU-I-003",
+    title: "Shared git index holds nothing this session did not stage",
+    projection: "none",
+    detail:
+      "depends on the contents of a git index at the moment of the commit. Nothing at the syscall " +
+      "boundary distinguishes a scoped commit from a sweeping one.",
+    emitted: 0,
+  });
+  coverage.push({
+    invariant: "ANU-I-004",
+    title: "Declared port is free, or already held by this same service",
+    projection: "none",
+    detail:
+      "concerns binding a port, not reaching one, and depends on who currently holds it. Egress rules " +
+      "govern outbound reach and cannot express it.",
+    emitted: 0,
+  });
+
+  const unbound = coverage.filter(c => c.projection === "none").map(c => c.invariant);
+
+  // @rule:ANU-010 — the digest covers what was compiled FROM, so a changed declaration
+  // shows up as a changed policy rather than as a silent divergence.
+  const input_digest = createHash("sha256")
+    .update(
+      JSON.stringify({
+        domain,
+        trustMask,
+        loopbackPorts: (opts.loopbackPorts ?? []).slice().sort((a, b) => a - b),
+        dbs: dbs.known
+          ? dbs.value.map(d => [d.name, d.host, d.port, d.klass]).sort()
+          : { unreadable: dbs.why },
+        protected: [...PROTECTED_SOURCES].sort(),
+        base: base.allow.map(e => [e.host, e.port]).sort(),
+      }),
+    )
+    .digest("hex");
+
+  return {
+    agent_id: agentId,
+    domain,
+    trust_mask: trustMask,
+    generated_at: new Date().toISOString(),
+    input_digest,
+    egress_allow: egressAllow,
+    egress_deny: egressDeny,
+    write_deny: writeDeny,
+    coverage,
+    unbound_by_coarse: unbound,
+    notes,
+  };
+}
+
+// ── Drift check ───────────────────────────────────────────────────────────────
+
+export interface DriftResult {
+  matches: boolean;
+  differences: string[];
+}
+
+/**
+ * @rule:ANU-010 — a compiled artefact's only valid assertion is that re-deriving reproduces it.
+ * `generated_at` is excluded because a timestamp is not a policy.
+ */
+export function checkDrift(onDisk: CoarsePolicy, fresh: CoarsePolicy): DriftResult {
+  const differences: string[] = [];
+
+  if (onDisk.input_digest !== fresh.input_digest) {
+    differences.push(
+      `input_digest ${onDisk.input_digest.slice(0, 12)}… → ${fresh.input_digest.slice(0, 12)}… — the declarations this was compiled from have changed`,
+    );
+  }
+
+  const norm = (p: CoarsePolicy) =>
+    JSON.stringify({
+      egress_allow: p.egress_allow.map(e => [e.host, e.port]).sort(),
+      egress_deny: p.egress_deny.map(e => [e.host, e.port, e.invariant]).sort(),
+      write_deny: p.write_deny.map(e => e.path).sort(),
+      coverage: p.coverage.map(c => [c.invariant, c.projection, c.emitted]).sort(),
+      unbound: [...p.unbound_by_coarse].sort(),
+    });
+
+  if (norm(onDisk) !== norm(fresh)) differences.push("compiled rules differ from the on-disk policy");
+
+  return { matches: differences.length === 0, differences };
+}
+
+// ── Reporting ─────────────────────────────────────────────────────────────────
+
+export function renderPolicy(p: CoarsePolicy): string {
+  const L: string[] = [];
+  L.push(`\ncoarse policy for ${p.agent_id}  (domain=${p.domain}, trust_mask=0x${p.trust_mask.toString(16)})`);
+  L.push(`compiled from declarations digest ${p.input_digest.slice(0, 16)}…\n`);
+
+  L.push(`  egress allow   ${p.egress_allow.length}`);
+  L.push(`  egress deny    ${p.egress_deny.length}`);
+  for (const d of p.egress_deny) L.push(`    DENY ${d.host}:${d.port}  [${d.invariant}] ${d.reason}`);
+  L.push(`  write deny     ${p.write_deny.length} path(s)  [ANU-I-005]`);
+
+  L.push(`\n  coverage — which fine invariants survive projection:`);
+  for (const c of p.coverage) {
+    const mark = c.projection === "projected" ? "full   " : c.projection === "partial" ? "partial" : "NONE   ";
+    L.push(`    ${mark} ${c.invariant}  ${c.title}`);
+    L.push(`            ${c.detail}`);
+  }
+
+  if (p.notes.length) {
+    L.push(`\n  compiler notes:`);
+    for (const n of p.notes) L.push(`    [${n.kind}] ${n.detail}`);
+  }
+
+  if (p.unbound_by_coarse.length) {
+    L.push(
+      `\n  ${p.unbound_by_coarse.length} invariant(s) have NO coarse form: ${p.unbound_by_coarse.join(", ")}`,
+    );
+    L.push(`  These bind an agent that calls the permissive layer. They do not bind a stranger.`);
+  }
+  return L.join("\n") + "\n";
+}

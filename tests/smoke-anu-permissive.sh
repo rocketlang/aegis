@@ -220,6 +220,36 @@ rm -f "$MODE" "$SEAL"
 [ -f "$TMP/mode.bak" ] && cp "$TMP/mode.bak" "$MODE"
 [ -f "$TMP/seal.bak" ] && cp "$TMP/seal.bak" "$SEAL"
 
+echo "── ANU-008/009/010 the compiler ──────────────────────────────────────"
+CAGENT="cc-$$"
+COUT="/root/.aegis/kernel/$CAGENT.coarse.json"
+OUT=$($CLI anumati compile --agent "$CAGENT" --domain general --trust-mask 255 2>&1)
+
+expect "denies an address carrying no dev-class database" "DENY" "$OUT"
+expect "refuses to claim coverage it does not have" "have NO coarse form" "$OUT"
+expect "names the addresses where dev and non-dev share an endpoint" "[ambiguity]" "$OUT"
+expect "says an unnarrowed loopback wildcard makes local denies advisory" "[conflict]" "$OUT"
+
+# A compiled artefact's only valid assertion is that re-deriving reproduces it.
+$CLI anumati compile --agent "$CAGENT" --check >/dev/null 2>&1
+expect_exit "re-deriving reproduces the compiled policy" 0 $?
+
+python3 - "$COUT" <<'PYEOF'
+import json, sys
+d = json.load(open(sys.argv[1]))
+d["egress_deny"] = d["egress_deny"][1:]   # a hand edit, exactly as a person would make it
+json.dump(d, open(sys.argv[1], "w"), indent=2)
+PYEOF
+OUT=$($CLI anumati compile --agent "$CAGENT" --check 2>&1); RC=$?
+expect_exit "a hand-edited coarse policy is caught as drift" 2 "$RC"
+expect "and is named as a compiler bug, not patched" "Recompile, do not patch" "$OUT"
+
+# --needs lets the compiler narrow the wildcard instead of leaving denies decorative
+OUT=$($CLI anumati compile --agent "$CAGENT-n" --needs ai-proxy 2>&1)
+expect "narrows the loopback wildcard when given the ports an agent needs" "[substitution]" "$OUT"
+
+rm -f "$COUT" "/root/.aegis/kernel/$CAGENT-n.coarse.json"
+
 echo
 echo "─────────────────────────────────────────────────────────────────────"
 printf 'passed %d · failed %d\n' "$PASS" "$FAIL"

@@ -8,12 +8,15 @@
 // aegis anumati try <tool> <command|path>  — evaluate one action without running it
 // aegis anumati taint     — integrity of the layer's own state sources (ANU-007)
 // aegis anumati clear <path> --reason "..."  — human release of a tainted source
+// aegis anumati compile [--check] [--agent id] [--domain d] [--trust-mask n]
+//     — compile the fine invariants into coarse kernel policy (ANU-008/009/010)
 //
 // @rule:ANU-YK-001 A silent shadow is a guard that has already decayed. This is the surface
 //                  that makes shadow visible, because a PreToolUse hook exiting 0 may have
 //                  its stderr swallowed by the harness.
 
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from "fs";
+import { join } from "path";
 import { createHash } from "crypto";
 import { anumati, anumatiMode, anumatiModeStatus, renderRefusal, type ProposedAction } from "../../kavach/anumati";
 import {
@@ -25,6 +28,7 @@ import {
 } from "../../kavach/plant-state";
 
 const LEDGER = "/root/.aegis/anumati.jsonl";
+const OUT_DIR = "/root/.aegis/kernel";
 
 export default async function anumatiCmd(args: string[]): Promise<void> {
   const sub = args[0];
@@ -96,6 +100,62 @@ export default async function anumatiCmd(args: string[]): Promise<void> {
     }
     console.log(`cleared: ${path}`);
     console.log(`reason:  ${reason}`);
+    return;
+  }
+
+  if (sub === "compile") {
+    const { compilePolicy, checkDrift, renderPolicy } = await import("../../kavach/compile-policy");
+    const { readDeclaredPort } = await import("../../kavach/plant-state");
+
+    const flag = (name: string, fallback: string) => {
+      const i = args.indexOf(`--${name}`);
+      return i > -1 && args[i + 1] ? args[i + 1] : fallback;
+    };
+    const agentId = flag("agent", "default");
+    const domain = flag("domain", "general");
+    const trustMask = parseInt(flag("trust-mask", "255"), 10);
+
+    // Loopback ports this agent legitimately needs, so the compiler can narrow the
+    // any-port loopback allow instead of leaving every local deny decorative.
+    const loopbackPorts: number[] = [];
+    for (const svc of (flag("needs", "") || "").split(",").map(s => s.trim()).filter(Boolean)) {
+      const p = readDeclaredPort(svc);
+      if (p.known) loopbackPorts.push(p.value);
+      else console.error(`  [warn] --needs ${svc}: ${p.why}`);
+    }
+
+    const fresh = compilePolicy({ agentId, domain, trustMask, loopbackPorts });
+    const outPath = join(OUT_DIR, `${agentId}.coarse.json`);
+
+    if (args.includes("--check")) {
+      // @rule:ANU-010 — the only assertion worth making about a compiled file is that
+      // re-deriving reproduces it. Anything else is drift, and drift is a compiler bug.
+      if (!existsSync(outPath)) {
+        console.error(`no compiled policy at ${outPath} — run \`aegis anumati compile\` first`);
+        process.exit(2);
+      }
+      let onDisk;
+      try {
+        onDisk = JSON.parse(readFileSync(outPath, "utf-8"));
+      } catch (e: any) {
+        console.error(`compiled policy unreadable: ${e?.message}`);
+        process.exit(2);
+      }
+      const d = checkDrift(onDisk, fresh);
+      if (d.matches) {
+        console.log(`compiled policy reproduces exactly (${outPath})`);
+        return;
+      }
+      console.error(`DRIFT — the on-disk coarse policy is not what the invariants compile to:`);
+      for (const diff of d.differences) console.error(`  ${diff}`);
+      console.error(`\nThis is a compiler bug or a hand edit. Recompile, do not patch the output.`);
+      process.exit(2);
+    }
+
+    mkdirSync(OUT_DIR, { recursive: true });
+    writeFileSync(outPath, JSON.stringify(fresh, null, 2));
+    process.stdout.write(renderPolicy(fresh));
+    console.log(`  written: ${outPath}`);
     return;
   }
 

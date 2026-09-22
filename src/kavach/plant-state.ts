@@ -426,3 +426,46 @@ export function clearTaint(path: string, reason: string): boolean {
   writeTaintFile(all);
   return true;
 }
+
+// ── Database endpoints (for coarse projection) ───────────────────────────────
+
+export interface DbEndpoint {
+  name: string;
+  host: string;
+  port: number;
+  /** null when the entry carries no class — UNKNOWN, and unknown never means dev. */
+  klass: string | null;
+}
+
+/**
+ * Every database as a network endpoint plus its declared class.
+ *
+ * The permissive layer reasons in names ("is academy_prod dev-class?"). The kernel reasons
+ * in addresses. This reader is the bridge, and it exists so the compiler can discover where
+ * the two vocabularies genuinely line up and where they do not.
+ */
+export function readDatabaseEndpoints(): Reading<DbEndpoint[]> {
+  const file = readJson<{
+    databases?: Record<string, Record<string, unknown>>;
+    servers?: Record<string, { port?: number; host?: string }>;
+  }>(DATABASES_JSON, "databases.json");
+  if (!file.known) return unknown(file.why, file.source);
+
+  const servers = file.value.servers ?? {};
+  const out: DbEndpoint[] = [];
+
+  for (const [name, entry] of Object.entries(file.value.databases ?? {})) {
+    if (!entry || typeof entry !== "object") continue;
+    const host = String(entry.host ?? entry.server ?? "localhost");
+    const declaredPort = entry.port;
+    const serverPort = servers[host]?.port;
+    const port = typeof declaredPort === "number" ? declaredPort
+      : typeof serverPort === "number" ? serverPort
+      : 5432; // postgres default — the only guess here, and it is the registry's own default
+    const klass = typeof entry.class === "string" && entry.class ? entry.class : null;
+    out.push({ name, host, port, klass });
+  }
+
+  if (out.length === 0) return unknown("databases.json has no usable entries", DATABASES_JSON);
+  return known(out, DATABASES_JSON);
+}
