@@ -183,30 +183,36 @@ export function compilePolicy(opts: CompileOptions): CoarsePolicy {
     });
 
     // A loopback wildcard readmits everything just denied. Say so, and narrow it.
-    const wildcardIdx = egressAllow.findIndex(e => LOOPBACK_HOSTS.has(e.host) && e.port === 0);
+    // EVERY such entry, not the first: the base policy carries both `localhost:0` and
+    // `127.0.0.1:0`, and leaving either one behind re-permits the whole of loopback —
+    // which is precisely the decorative-deny failure this compiler exists to catch.
+    const wildcards = egressAllow.filter(e => LOOPBACK_HOSTS.has(e.host) && e.port === 0);
     const loopbackDenies = egressDeny.filter(d => LOOPBACK_HOSTS.has(d.host));
-    if (wildcardIdx !== -1 && loopbackDenies.length > 0) {
+    if (wildcards.length > 0 && loopbackDenies.length > 0) {
       const needed = new Set(opts.loopbackPorts ?? []);
       for (const d of loopbackDenies) needed.delete(d.port);
 
       if (needed.size > 0) {
-        const wildcard = egressAllow[wildcardIdx];
-        egressAllow = egressAllow.filter((_, i) => i !== wildcardIdx);
-        for (const p of [...needed].sort((a, b) => a - b)) {
-          egressAllow.push({ host: wildcard.host, port: p, note: `loopback ${p} (narrowed from wildcard)` });
+        const hosts = [...new Set(wildcards.map(w => w.host))];
+        egressAllow = egressAllow.filter(e => !(LOOPBACK_HOSTS.has(e.host) && e.port === 0));
+        for (const host of hosts) {
+          for (const p of [...needed].sort((a, b) => a - b)) {
+            egressAllow.push({ host, port: p, note: `loopback ${p} (narrowed from wildcard)` });
+          }
         }
         notes.push({
           kind: "substitution",
           detail:
-            `replaced the ${wildcard.host} any-port allow with ${needed.size} explicit port(s): the wildcard ` +
-            `admitted every locally denied endpoint, which would have made ${loopbackDenies.length} deny rule(s) decorative`,
+            `replaced ${wildcards.length} any-port loopback allow(s) (${hosts.join(", ")}) with ` +
+            `${needed.size} explicit port(s) each: the wildcards admitted every locally denied endpoint, ` +
+            `which would have made ${loopbackDenies.length} deny rule(s) decorative`,
         });
       } else {
         notes.push({
           kind: "conflict",
           detail:
-            `${egressAllow[wildcardIdx].host} is allowed on any port and no explicit loopback port list was supplied, ` +
-            `so ${loopbackDenies.length} deny rule(s) are advisory only — the wildcard readmits them`,
+            `${wildcards.length} loopback host(s) allowed on any port and no explicit loopback port list was ` +
+            `supplied, so ${loopbackDenies.length} deny rule(s) are advisory only — the wildcards readmit them`,
         });
       }
     }

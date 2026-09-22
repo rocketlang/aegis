@@ -269,6 +269,42 @@ cp "$TMP/profile.bak" "$PROFILE"
 $CLI anumati enforce-paths --check >/dev/null 2>&1
 expect_exit "and restoring it clears the drift" 0 $?
 
+echo "── ANU-008 egress face enforces ──────────────────────────────────────"
+
+# Regression: the base policy carries BOTH localhost:0 and 127.0.0.1:0. Removing
+# only the first leaves the whole of loopback permitted and every local deny
+# decorative — the exact failure this compiler exists to catch.
+LOOPBACK=$(bun -e '
+import { compilePolicy } from "/root/aegis/src/kavach/compile-policy";
+const p = compilePolicy({agentId:"t",domain:"general",trustMask:255,loopbackPorts:[4444]});
+const w = p.egress_allow.filter(e=>["127.0.0.1","::1","localhost"].includes(e.host));
+console.log(JSON.stringify({wild: w.filter(e=>e.port===0).length, explicit: w.filter(e=>e.port===4444).length}));
+' 2>/dev/null | tail -1)
+expect "narrowing removes EVERY loopback wildcard, not just the first" '"wild":0' "$LOOPBACK"
+expect "and replaces them with the explicit port on each host" '"explicit":2' "$LOOPBACK"
+
+# End-to-end: an agent inside the jail, one allowed port and one denied address.
+ALLOWED=4444
+DENIED=5437
+if ss -lntH "sport = :$ALLOWED" 2>/dev/null | grep -q . && ss -lntH "sport = :$DENIED" 2>/dev/null | grep -q .; then
+  cat > "$TMP/both.py" <<'PYEOF'
+import socket, sys
+for port in (int(sys.argv[1]), int(sys.argv[2])):
+    try:
+        s = socket.create_connection(("127.0.0.1", port), timeout=3); s.close()
+        print(f"REACHED {port}")
+    except OSError as e:
+        print(f"BLOCKED {port} {e}")
+PYEOF
+  OUT=$(timeout 150 bun /root/aegis/src/kavachos-cli.ts run --trust-mask=255 --domain=general \
+        --session-id="anu-egress-$$" --needs=$ALLOWED -- python3 "$TMP/both.py" $ALLOWED $DENIED 2>&1)
+  expect "an allowed endpoint is still reachable from inside the jail" "REACHED $ALLOWED" "$OUT"
+  expect "a denied endpoint is refused at the cgroup boundary" "BLOCKED $DENIED" "$OUT"
+else
+  skip_note="ports $ALLOWED/$DENIED not both listening"
+  bad "egress end-to-end" "$skip_note — cannot exercise enforcement"
+fi
+
 echo
 echo "─────────────────────────────────────────────────────────────────────"
 printf 'passed %d · failed %d\n' "$PASS" "$FAIL"

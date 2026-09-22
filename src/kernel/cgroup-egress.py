@@ -286,7 +286,14 @@ class EgressSession:
         self.prog_id_v6  = -1
         self._tmp        = []  # temp files to clean up
 
-    def setup(self, policy: dict, agent_pid: int) -> bool:
+    def setup(self, policy: dict, agent_pid: Optional[int]) -> bool:
+        """
+        agent_pid=None is PREPARE mode: create the cgroup and attach the BPF program,
+        but do not move anyone in. The launcher joins before exec instead, so the agent
+        inherits membership. Moving a pid after the fact never worked here — a short
+        agent was gone before the move, and a long one had already forked the real
+        agent outside the cgroup, so the supervisor was moved and the agent was not.
+        """
         os.makedirs(CGROUP_ROOT, exist_ok=True)
         os.makedirs(BPF_PIN_ROOT, exist_ok=True)
         os.makedirs(self.pin_dir, exist_ok=True)
@@ -320,19 +327,29 @@ class EgressSession:
         # Populate allowlist maps
         self._populate(policy)
 
-        # Move agent into cgroup
-        try:
-            _move_pid(self.cgroup_path, agent_pid)
-        except Exception as e:
-            sys.stderr.write(f"[kavachos:egress] move_pid failed: {e}\n")
-            return False
+        # Move agent into cgroup — legacy path only.
+        if agent_pid is not None:
+            try:
+                _move_pid(self.cgroup_path, agent_pid)
+            except Exception as e:
+                sys.stderr.write(f"[kavachos:egress] move_pid failed: {e}\n")
+                return False
 
         allow_len = len(policy.get("allow", []))
+        who = f"pid={agent_pid}" if agent_pid is not None else "awaiting join"
         sys.stderr.write(
             f"[kavachos:egress] Phase 1E active: session={self.session_id} "
-            f"pid={agent_pid} hosts={allow_len}\n"
+            f"{who} hosts={allow_len}\n"
         )
         return True
+
+    def procs(self) -> list:
+        """Pids currently inside the cgroup."""
+        try:
+            with open(os.path.join(self.cgroup_path, "cgroup.procs")) as f:
+                return [int(x) for x in f.read().split() if x.strip()]
+        except Exception:
+            return []
 
     def _populate(self, policy: dict) -> None:
         """Fill BPF maps with allowlist entries. @rule:KOS-043"""
@@ -391,16 +408,31 @@ class EgressSession:
 
 # ── Entry point ────────────────────────────────────────────────────────────────
 
+# How long to wait for the launcher to join the cgroup before concluding it never will.
+JOIN_TIMEOUT_S = 30.0
+
+
 def main() -> None:
     if len(sys.argv) < 4:
-        sys.stderr.write("Usage: cgroup-egress.py <session_id> <policy.json> <agent_pid>\n")
+        sys.stderr.write(
+            "Usage: cgroup-egress.py <session_id> <policy.json> <agent_pid|--prepare> [ready_file]\n"
+        )
         sys.exit(1)
 
     session_id = sys.argv[1]
     policy_path = sys.argv[2]
-    agent_pid = int(sys.argv[3])
+    prepare = sys.argv[3] == "--prepare"
+    agent_pid = None if prepare else int(sys.argv[3])
+    ready_file = sys.argv[4] if len(sys.argv) > 4 else None
 
     if not _is_available():
+        # Tell the launcher not to wait for a cgroup that will never exist.
+        if ready_file:
+            try:
+                with open(ready_file, "w") as f:
+                    f.write("UNAVAILABLE\n")
+            except Exception:
+                pass
         sys.exit(0)  # graceful degradation — log already written above
 
     with open(policy_path) as f:
@@ -409,8 +441,35 @@ def main() -> None:
     sess = EgressSession(session_id)
     ok = sess.setup(policy, agent_pid)
     if not ok:
+        if ready_file:
+            try:
+                with open(ready_file, "w") as f:
+                    f.write("FAILED\n")
+            except Exception:
+                pass
         sess.cleanup()
         sys.exit(0)  # graceful degradation
+
+    if prepare:
+        # Publish the cgroup path, then supervise by membership rather than by pid:
+        # wait for someone to join, then wait for the cgroup to drain.
+        if ready_file:
+            with open(ready_file, "w") as f:
+                f.write(sess.cgroup_path + "\n")
+
+        deadline = time.time() + JOIN_TIMEOUT_S
+        while not sess.procs() and time.time() < deadline:
+            time.sleep(0.05)
+        if not sess.procs():
+            sys.stderr.write(
+                f"[kavachos:egress] nobody joined {session_id} within {JOIN_TIMEOUT_S:.0f}s — tearing down\n"
+            )
+            sess.cleanup()
+            sys.exit(0)
+        while sess.procs():
+            time.sleep(0.2)
+        sess.cleanup()
+        return
 
     # Wait for agent to exit.
     # The agent is typically NOT our direct child (runner.ts spawned it) so

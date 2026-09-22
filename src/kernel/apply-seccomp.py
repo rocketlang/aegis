@@ -663,6 +663,30 @@ def load_ctx_and_get_notify_fd(ctx) -> int:
 
 # ── Main ───────────────────────────────────────────────────────────────────────
 
+def _join_egress_cgroup() -> None:
+    """
+    Put THIS process into the egress cgroup before exec, so the agent inherits it.
+
+    @rule:KOS-040 — cgroup membership is inherited across fork and exec, so joining here
+    covers the agent and anything it spawns. The previous design moved a pid in from
+    outside after launch, which never actually constrained an agent: a short-lived one
+    had already exited, and in the Phase 1D path the real agent is a fork child created
+    before the move, so the supervisor was moved and the agent was not.
+
+    Called in the child on the fork path, and before exec on the no-notify path.
+    """
+    cg = os.environ.get("KAVACHOS_EGRESS_CGROUP")
+    if not cg:
+        return
+    try:
+        with open(os.path.join(cg, "cgroup.procs"), "w") as f:
+            f.write(str(os.getpid()))
+    except Exception as e:
+        # Egress is defence in depth; failing to join must not stop the agent, but it
+        # must never pass silently either, or an unconstrained run looks constrained.
+        sys.stderr.write(f"[kavachos:egress] JOIN FAILED ({cg}): {e} — this agent is NOT egress-constrained\n")
+
+
 def main() -> None:
     args = sys.argv[1:]
 
@@ -722,6 +746,7 @@ def main() -> None:
             sys.stderr.write(f"[kavachos] FATAL: seccomp_load failed: errno={-ret}\n")
             sys.exit(1)
         sys.stderr.write(f"[kavachos] seccomp active (no notify tier)\n")
+        _join_egress_cgroup()
         try:
             os.execvp(exec_args[0], exec_args)
         except FileNotFoundError:
@@ -739,7 +764,10 @@ def main() -> None:
     pid = os.fork()
 
     if pid == 0:
-        # ── CHILD: load seccomp, send notify_fd to parent, exec agent ────────
+        # ── CHILD: join egress cgroup, load seccomp, send notify_fd, exec agent ──
+        # Joining BEFORE seccomp_load: the write needs open/write, and this is the
+        # process that becomes the agent, so membership follows it through exec.
+        _join_egress_cgroup()
         sock_recv.close()
 
         notify_fd = load_ctx_and_get_notify_fd(ctx)

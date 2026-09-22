@@ -199,10 +199,51 @@ export async function runWithKernel(
     return { sessionId, profileHash, syscallCount: syscall_count, profilePath, falcoRulesPath, egressPolicyPath };
   }
 
+  // 4D. Prepare the egress cgroup BEFORE launching (Phase 1E — KOS-040, ANU-008)
+  // The sidecar used to be started after the agent and handed its pid, which never
+  // constrained anything: a short agent was already gone, and on the notify path the
+  // real agent is a fork child created before the move. Now the cgroup exists first and
+  // the launcher joins it before exec, so the agent inherits membership.
+  let egressCgroup: string | null = null;
+  let egressSidecar: ReturnType<typeof spawn> | null = null;
+  if (egressPolicyPath) {
+    const CGROUP_EGRESS_PY = join(dirname(new URL(import.meta.url).pathname), "cgroup-egress.py");
+    const readyFile = join(KAVACHOS_DIR, `${sessionId}.cgroup`);
+    try { unlinkSync(readyFile); } catch { /* not there */ }
+
+    egressSidecar = spawn("python3", [CGROUP_EGRESS_PY, sessionId, egressPolicyPath, "--prepare", readyFile], {
+      stdio: ["ignore", "ignore", "pipe"],
+    });
+    egressSidecar.stderr?.on("data", (d: Buffer) => {
+      const line = d.toString().trim();
+      if (line) process.stderr.write(line + "\n");
+    });
+    egressSidecar.on("error", (err) => {
+      process.stderr.write(`[kavachos:egress] sidecar error: ${err.message}\n`);
+    });
+
+    // Bounded wait for the cgroup to exist. Egress is defence in depth: if it cannot be
+    // prepared the agent still runs, but it runs UNCONSTRAINED and must say so.
+    const deadline = Date.now() + 15_000;
+    while (Date.now() < deadline) {
+      if (existsSync(readyFile)) {
+        const v = readFileSync(readyFile, "utf-8").trim();
+        if (v.startsWith("/")) egressCgroup = v;
+        break;
+      }
+      // portable synchronous pause — no shell, no busy spin
+      Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 50);
+    }
+    if (!egressCgroup && opts.verbose) {
+      console.error(`[kavachos:egress] cgroup not prepared — this agent is NOT egress-constrained`);
+    }
+  }
+
   // 5. Launch agent via Python seccomp applicator (KOS-011, KOS-006)
   // @rule:KOS-051 zero agent code change: redirect all LLM API calls through kavachos-proxy
   // If KAVACHOS_PROXY_URL is set (proxy is running), inject base URL overrides so the agent
   // uses the proxy without any code changes. Falls back to direct API if proxy not set.
+  const egressEnv: NodeJS.ProcessEnv = egressCgroup ? { KAVACHOS_EGRESS_CGROUP: egressCgroup } : {};
   const proxyUrl = process.env.KAVACHOS_PROXY_URL ?? null;
   const proxyEnvOverrides: NodeJS.ProcessEnv = proxyUrl ? {
     ANTHROPIC_BASE_URL:    proxyUrl,
@@ -224,6 +265,7 @@ export async function runWithKernel(
     KAVACHOS_DOMAIN: opts.domain,
     KAVACHOS_DELEGATION_DEPTH: delegationDepth.toString(),  // @rule:KOS-092
     ...(execAllowlistPath ? { KAVACHOS_EXEC_ALLOWLIST: execAllowlistPath } : {}),
+    ...egressEnv,
     ...proxyEnvOverrides,
   };
 
@@ -281,22 +323,6 @@ export async function runWithKernel(
       egressPolicyPath,
       pid: child.pid,
     };
-
-    // Phase 1E: launch cgroup-egress.py sidecar once agent PID is known
-    // @rule:KOS-040 — the sidecar creates the cgroup and attaches the BPF program
-    if (egressPolicyPath && child.pid) {
-      const CGROUP_EGRESS_PY = join(dirname(new URL(import.meta.url).pathname), "cgroup-egress.py");
-      const egressSidecar = spawn("python3", [CGROUP_EGRESS_PY, sessionId, egressPolicyPath, String(child.pid)], {
-        stdio: ["ignore", "ignore", "pipe"],
-      });
-      egressSidecar.stderr?.on("data", (d: Buffer) => {
-        const line = d.toString().trim();
-        if (line) process.stderr.write(line + "\n");
-      });
-      egressSidecar.on("error", (err) => {
-        process.stderr.write(`[kavachos:egress] sidecar error: ${err.message}\n`);
-      });
-    }
 
     const recentReceipts: ReturnType<typeof sealKernelViolation>[] = [];
 
