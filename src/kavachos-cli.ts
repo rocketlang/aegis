@@ -652,6 +652,15 @@ function parseRunOpts(args: string[]) {
     verbose: args.includes("--verbose") || args.includes("-v"),
     falcoEnabled: args.includes("--falco"),
     strictExec: args.includes("--strict-exec"),
+    // @rule:ANU-008 — loopback ports this agent legitimately needs. Without them the
+    // any-port loopback allow readmits every locally denied endpoint and the denies
+    // are advisory; the compiler says so rather than letting them look enforced.
+    // Single-token form only, as every other option here is: a separated value would be
+    // left in argv and handed to the agent as a command argument.
+    loopbackPorts: (args.find(a => a.startsWith("--needs="))?.split("=")[1] ?? "")
+      .split(",")
+      .map(x => parseInt(x.trim(), 10))
+      .filter(n => Number.isFinite(n) && n > 0),
   };
 }
 
@@ -711,6 +720,8 @@ Options for run / generate:
   --agent-id=<id>            Agent ID for receipt chain linkage
   --falco                    Write Falco rules file alongside seccomp profile
   --strict-exec              Gate execve/execveat — auto-ALLOW/DENY from exec allowlist (KOS-046)
+  --needs=4444,4130          Loopback ports the agent needs; lets the compiler narrow the
+                             any-port loopback allow so local denies actually bite (ANU-008)
   --dry-run                  Generate profile only, do not exec
   --verbose / -v             Verbose kernel messages on stderr
   --json                     Output JSON (generate/rules/audit/profile)

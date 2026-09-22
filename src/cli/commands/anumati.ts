@@ -159,6 +159,58 @@ export default async function anumatiCmd(args: string[]): Promise<void> {
     return;
   }
 
+  if (sub === "enforce-paths") {
+    // Project ANU-I-005 into the path face that is ALREADY attached at every launch.
+    // Emitting a write-deny list is not enforcement; this is the step that makes it one.
+    const { compilePolicy, renderApparmorBlock, spliceApparmorProfile, apparmorBlockMatches } =
+      await import("../../kavach/compile-policy");
+
+    const PROFILE = "/root/aegis/src/kernel/apparmor/kavachos-agent.profile";
+    const policy = compilePolicy({ agentId: "path-face", domain: "general", trustMask: 255 });
+    const block = renderApparmorBlock(policy);
+
+    if (!existsSync(PROFILE)) {
+      console.error(`profile not found: ${PROFILE}`);
+      process.exit(2);
+    }
+    const current = readFileSync(PROFILE, "utf-8");
+
+    if (args.includes("--check")) {
+      // @rule:ANU-010 — a generated block's only valid assertion is that it re-derives.
+      if (apparmorBlockMatches(current, block)) {
+        console.log(`path face matches what ANU-I-005 compiles to (${policy.write_deny.length} path(s))`);
+        return;
+      }
+      console.error(`DRIFT — the profile's generated block is not what the invariants compile to.`);
+      console.error(`Run \`aegis anumati enforce-paths --apply\` to regenerate it.`);
+      process.exit(2);
+    }
+
+    if (!args.includes("--apply")) {
+      console.log(block);
+      console.log(`\n# ${policy.write_deny.length} path(s). Write is denied; read is not — the layer`);
+      console.log(`# must still read these, and so must legitimate agents. What must not happen`);
+      console.log(`# is the governed process editing the instrument that governs it.`);
+      console.log(`#\n# --apply to splice into ${PROFILE}, then reload with apparmor_parser -r`);
+      return;
+    }
+
+    const next = spliceApparmorProfile(current, block);
+    if (next === null) {
+      console.error(`could not splice: the profile has no closing brace or an unterminated block`);
+      process.exit(2);
+    }
+    if (next === current) {
+      console.log(`path face already current (${policy.write_deny.length} path(s))`);
+      return;
+    }
+    writeFileSync(PROFILE, next);
+    console.log(`spliced ${policy.write_deny.length} deny rule(s) into ${PROFILE}`);
+    console.log(`reload with:  apparmor_parser -r ${PROFILE}`);
+    console.log(`(apparmor_parser validates before replacing, so a bad profile leaves the old one loaded)`);
+    return;
+  }
+
   if (sub === "try") {
     const tool = args[1];
     const rest = args.slice(2).join(" ");

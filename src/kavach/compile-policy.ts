@@ -354,3 +354,56 @@ export function renderPolicy(p: CoarsePolicy): string {
   }
   return L.join("\n") + "\n";
 }
+
+// ── Projection into the path face (AppArmor) ─────────────────────────────────
+//
+// The write-deny set is not enforcement until something carries it. The
+// kavachos-agent profile is already attached at every launch via `aa-exec`, and
+// AppArmor resolves deny over allow, so a generated deny block inside it turns
+// ANU-I-005 from an emitted list into a rule that binds a process which never
+// asked to be bound.
+//
+// WRITE is denied; READ is not. The permissive layer has to read these files to
+// do its job, and so do plenty of legitimate agents. What must not happen is the
+// governed process editing the instrument that governs it.
+
+export const APPARMOR_BEGIN = "  # >>> anumati: generated from ANU-I-005 — do not hand-edit";
+export const APPARMOR_END = "  # <<< anumati";
+
+/** The deny block, exactly as it should appear inside the profile. */
+export function renderApparmorBlock(p: CoarsePolicy): string {
+  const lines = [APPARMOR_BEGIN];
+  lines.push(`  # ${p.write_deny.length} path(s) · digest ${p.input_digest.slice(0, 16)}`);
+  for (const w of p.write_deny.slice().sort((a, b) => a.path.localeCompare(b.path))) {
+    // wkl = write, lock, link. Read is deliberately left alone.
+    lines.push(`  deny ${w.path} wkl,`);
+  }
+  lines.push(APPARMOR_END);
+  return lines.join("\n");
+}
+
+/**
+ * Splice the generated block into a profile, replacing any previous one.
+ * Returns null when the profile has no closing brace to insert before.
+ */
+export function spliceApparmorProfile(profile: string, block: string): string | null {
+  const begin = profile.indexOf(APPARMOR_BEGIN);
+  if (begin !== -1) {
+    const end = profile.indexOf(APPARMOR_END, begin);
+    if (end === -1) return null;
+    return profile.slice(0, begin) + block + profile.slice(end + APPARMOR_END.length);
+  }
+  // First insertion — immediately before the profile's closing brace.
+  const close = profile.lastIndexOf("}");
+  if (close === -1) return null;
+  return profile.slice(0, close) + block + "\n" + profile.slice(close);
+}
+
+/** @rule:ANU-010 — the profile's generated block must be what the invariants compile to. */
+export function apparmorBlockMatches(profile: string, block: string): boolean {
+  const begin = profile.indexOf(APPARMOR_BEGIN);
+  if (begin === -1) return false;
+  const end = profile.indexOf(APPARMOR_END, begin);
+  if (end === -1) return false;
+  return profile.slice(begin, end + APPARMOR_END.length) === block;
+}

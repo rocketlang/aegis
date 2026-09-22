@@ -10,7 +10,8 @@ import { generateSeccompProfile, profileSummary } from "./seccomp-profile-genera
 import { generateFalcoRules } from "./falco-rule-generator";
 import { storeProfile, checkProfileDrift } from "./profile-store";
 import { sealKernelViolation, parseFalcoEvent, checkViolationRate } from "./kernel-receipt";
-import { buildEgressPolicy, serialiseEgressPolicy } from "./egress-policy";
+import { serialiseEgressPolicy } from "./egress-policy";
+import { compilePolicy } from "../kavach/compile-policy";
 import { buildExecAllowlist, serialiseExecAllowlist } from "./exec-allowlist";
 import { getAegisDir } from "../core/config";
 import { addAlert } from "../core/db";
@@ -28,6 +29,9 @@ export interface RunOptions {
   falcoEnabled?: boolean;   // emit Falco rules file (requires Falco installed)
   egressEnabled?: boolean;  // @rule:KOS-040 cgroup BPF egress firewall (Phase 1E)
   strictExec?: boolean;     // @rule:KOS-046 exec allowlist — execve/execveat gated
+  /** @rule:ANU-008 loopback ports this agent legitimately needs. Supplying them lets the
+   *  compiler narrow the any-port loopback allow; without them, local denies stay advisory. */
+  loopbackPorts?: number[];
 }
 
 export interface RunResult {
@@ -148,11 +152,37 @@ export async function runWithKernel(
   // @rule:KOS-043 written at launch, never updated after agent starts
   let egressPolicyPath: string | null = null;
   if (opts.egressEnabled !== false) {  // enabled by default
-    const egressPolicy = buildEgressPolicy(opts.trustMask, opts.domain);
+    // @rule:ANU-008 — the enforced allowlist is COMPILED from the fine invariants rather
+    // than taken raw from the generator. The enforcer is default-deny over this map, so
+    // withholding an endpoint IS the denial; the compiler decides what may be withheld.
+    const compiled = compilePolicy({
+      agentId: sessionId,
+      domain: opts.domain,
+      trustMask: opts.trustMask,
+      loopbackPorts: opts.loopbackPorts ?? [],
+    });
+    const egressPolicy = { domain: opts.domain, trust_mask: opts.trustMask, allow: compiled.egress_allow };
     egressPolicyPath = join(KAVACHOS_DIR, `${sessionId}.egress.json`);
     writeFileSync(egressPolicyPath, serialiseEgressPolicy(egressPolicy));
+
+    // The coarse policy is kept beside it, so what was enforced can be re-derived later.
+    writeFileSync(join(KAVACHOS_DIR, `${sessionId}.coarse.json`), JSON.stringify(compiled, null, 2));
+
     if (opts.verbose) {
       console.error(`[kavachos] Egress policy written: ${egressPolicyPath} (${egressPolicy.allow.length} hosts)`);
+      const advisory = compiled.notes.filter(n => n.kind === "conflict").length;
+      const narrowed = compiled.notes.filter(n => n.kind === "substitution").length;
+      console.error(
+        `[kavachos:anumati] compiled — ${compiled.egress_deny.length} address(es) denied` +
+          (narrowed ? `, loopback narrowed` : "") +
+          (advisory ? `, ${advisory} advisory (wildcard readmits them — pass --needs)` : ""),
+      );
+      if (compiled.unbound_by_coarse.length) {
+        console.error(
+          `[kavachos:anumati] ${compiled.unbound_by_coarse.length} invariant(s) have no coarse form ` +
+            `(${compiled.unbound_by_coarse.join(", ")}) — cooperative agents only`,
+        );
+      }
     }
   }
 

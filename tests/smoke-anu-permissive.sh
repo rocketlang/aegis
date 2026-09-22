@@ -250,6 +250,25 @@ expect "narrows the loopback wildcard when given the ports an agent needs" "[sub
 
 rm -f "$COUT" "/root/.aegis/kernel/$CAGENT-n.coarse.json"
 
+echo "── ANU-I-005 enforced in the path face ───────────────────────────────"
+PROFILE=/root/aegis/src/kernel/apparmor/kavachos-agent.profile
+
+expect "the generated block is present in the profile" ">>> anumati" "$(cat $PROFILE)"
+expect "it denies write on a protected source" "deny /root/.ankr/config/databases.json wkl," "$(cat $PROFILE)"
+expect "it does NOT deny read (the layer must still read them)" "wkl," "$(grep 'deny /root/.aegis/anumati-mode ' $PROFILE)"
+
+$CLI anumati enforce-paths --check >/dev/null 2>&1
+expect_exit "the profile reproduces what ANU-I-005 compiles to" 0 $?
+
+cp "$PROFILE" "$TMP/profile.bak"
+sed -i 's|deny /root/.ankr/config/ports.json wkl,||' "$PROFILE"
+$CLI anumati enforce-paths --check >/dev/null 2>&1
+expect_exit "a hand-edited path face is caught as drift" 2 $?
+cp "$TMP/profile.bak" "$PROFILE"
+
+$CLI anumati enforce-paths --check >/dev/null 2>&1
+expect_exit "and restoring it clears the drift" 0 $?
+
 echo
 echo "─────────────────────────────────────────────────────────────────────"
 printf 'passed %d · failed %d\n' "$PASS" "$FAIL"
