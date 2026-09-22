@@ -14,7 +14,7 @@
 // "I could not read this, and here is why". The permissive layer turns that into a refusal.
 // A reader that returns a safe-looking default is how a gate silently stops gating.
 
-import { existsSync, readFileSync, statSync, readlinkSync } from "fs";
+import { existsSync, readFileSync, statSync, readlinkSync, writeFileSync, mkdirSync } from "fs";
 import { execFileSync } from "child_process";
 
 // ── Reading ───────────────────────────────────────────────────────────────────
@@ -279,4 +279,150 @@ export function readPortOccupant(port: number): Reading<PortOccupant | null> {
   } catch (e: any) {
     return unknown(`cannot probe port ${port}: ${e?.message}`, `ss :${port}`);
   }
+}
+
+// ── Source integrity (ANU-007) ───────────────────────────────────────────────
+//
+// Andrey Lazarev, 2026-09-22: "none of the three should be allowed to quietly
+// collapse into the same system."
+//
+// The permissive layer decides whether an action may proceed by reading files the
+// acting agent can write. That is the same defect as a confirming sensor reporting
+// through the controller that moved the valve: the instrument and the actor share a
+// substrate. `anumati` therefore refuses to trust a state source that shows signs of
+// agent authorship, exactly as ANU-004 refuses a source it cannot read at all.
+//
+// HONEST CEILING: this catches writes that went through an agent tool and makes any
+// other tampering leave a record a human must clear. It does not stop a determined
+// root process. It raises the rung from "no independence" to "tampering leaves a
+// trace", which is a real improvement and is not the same as solving it.
+
+const AEGIS_DIR = "/root/.aegis";
+export const ANUMATI_MODE_FILE = `${AEGIS_DIR}/anumati-mode`;
+export const ANUMATI_SEAL_FILE = `${AEGIS_DIR}/anumati-mode.seal.json`;
+export const ANUMATI_TAINT_FILE = `${AEGIS_DIR}/anumati-taint.json`;
+
+/** The files the permissive layer's own verdicts depend on — including its own controls.
+ *  A layer whose mode switch is writable by the thing it governs has no mode switch. */
+export const PROTECTED_SOURCES: readonly string[] = [
+  DATABASES_JSON,
+  PORTS_JSON,
+  SESSIONS_JSON,
+  EDIT_HEAT_LEDGER,
+  ANUMATI_MODE_FILE,
+  ANUMATI_SEAL_FILE,
+  ANUMATI_TAINT_FILE,
+];
+
+export function isProtectedSource(path: string): boolean {
+  return PROTECTED_SOURCES.includes(path);
+}
+
+export interface TaintRecord {
+  path: string;
+  detected_at: string;
+  detail: string;
+}
+
+function readTaintFile(): Record<string, TaintRecord> {
+  try {
+    if (!existsSync(ANUMATI_TAINT_FILE)) return {};
+    return JSON.parse(readFileSync(ANUMATI_TAINT_FILE, "utf-8")) as Record<string, TaintRecord>;
+  } catch {
+    // An unreadable taint file is itself untrustworthy state. Callers treat the empty
+    // result plus the ledger scan below as the live signal; the file is a cache of
+    // findings, never the only detector.
+    return {};
+  }
+}
+
+function writeTaintFile(all: Record<string, TaintRecord>): void {
+  try {
+    mkdirSync(AEGIS_DIR, { recursive: true });
+    writeFileSync(ANUMATI_TAINT_FILE, JSON.stringify(all, null, 2));
+  } catch {
+    /* recording a taint must never itself throw into the gate */
+  }
+}
+
+/**
+ * Protected sources that an agent tool has written, per the shared edit-heat ledger.
+ *
+ * The ledger records tool-route Edit/Write calls. Machine writers — ankr-ctl, oracle-sync,
+ * the self-registry — do not go through Claude tools and so never appear here, which is
+ * why this signal distinguishes an agent hand-edit from a legitimate machine write without
+ * needing a allowlist of writer binaries.
+ *
+ * Findings are STICKY: once detected they persist to disk and only a human clears them,
+ * the same discipline as KAV-066's LOCKED state.
+ */
+export function readTaintedSources(): Reading<TaintRecord[]> {
+  const persisted = readTaintFile();
+
+  if (existsSync(EDIT_HEAT_LEDGER)) {
+    let lines: string[];
+    try {
+      lines = readFileSync(EDIT_HEAT_LEDGER, "utf-8").trim().split("\n").filter(Boolean);
+    } catch (e: any) {
+      return unknown(`edit-heat ledger unreadable: ${e?.message}`, EDIT_HEAT_LEDGER);
+    }
+    let found = false;
+    for (const rec of detectTaintInLedger(lines)) {
+      if (persisted[rec.path]) continue;
+      persisted[rec.path] = rec;
+      found = true;
+    }
+    if (found) writeTaintFile(persisted);
+  }
+
+  return known(Object.values(persisted), ANUMATI_TAINT_FILE);
+}
+
+/**
+ * The detector, as a pure function of ledger lines.
+ *
+ * Split out from the file read deliberately: it lets the test suite exercise detection
+ * against synthetic ledger lines instead of writing to the SHARED edit-heat ledger, which
+ * would taint the real configuration for every session on the box. A test environment
+ * override would have been the other way to get coverage here, and an override that
+ * relocates the protected paths is exactly the bypass ANU-007 exists to close.
+ */
+export function detectTaintInLedger(lines: string[]): TaintRecord[] {
+  const out: TaintRecord[] = [];
+  const seen = new Set<string>();
+  for (const line of lines) {
+    let e: { ts?: number; sid?: string; fp?: string };
+    try {
+      e = JSON.parse(line);
+    } catch {
+      continue;
+    }
+    if (!e.fp || !e.sid || e.sid === "RELEASED") continue;
+    if (!isProtectedSource(e.fp)) continue;
+    if (seen.has(e.fp)) continue;
+    seen.add(e.fp);
+    out.push({
+      path: e.fp,
+      detected_at: new Date(e.ts ?? Date.now()).toISOString(),
+      detail: `written through an agent tool by session ${e.sid.slice(0, 8)}`,
+    });
+  }
+  return out;
+}
+
+/** Record a taint found by something other than the ledger scan. */
+export function recordTaint(path: string, detail: string): void {
+  const all = readTaintFile();
+  if (all[path]) return;
+  all[path] = { path, detected_at: new Date().toISOString(), detail };
+  writeTaintFile(all);
+}
+
+/** Human release. Mirrors `quarantine release` — a reason is mandatory. */
+export function clearTaint(path: string, reason: string): boolean {
+  const all = readTaintFile();
+  if (!all[path]) return false;
+  delete all[path];
+  writeTaintFile(all);
+  return true;
 }

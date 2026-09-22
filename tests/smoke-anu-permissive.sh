@@ -157,6 +157,64 @@ expect "confirms a commit that contains exactly the intended files" "confirmed b
 expect "refutes a commit that swept an unintended file" "REFUTED" \
   "$($CLI pramana commit "$REPO" a.txt 2>&1)"
 
+echo "── ANU-007 source integrity ──────────────────────────────────────────"
+DB=/root/.ankr/config/databases.json
+
+# Detector, against synthetic ledger lines — never the shared ledger.
+DET=$(bun -e '
+import { detectTaintInLedger } from "/root/aegis/src/kavach/plant-state";
+const hit = detectTaintInLedger([JSON.stringify({ts:Date.now(),sid:"abcd1234",fp:"/root/.ankr/config/databases.json"})]);
+const miss = detectTaintInLedger([JSON.stringify({ts:Date.now(),sid:"abcd1234",fp:"/root/some/ordinary/file.ts"})]);
+const rel  = detectTaintInLedger([JSON.stringify({ts:Date.now(),sid:"RELEASED",fp:"/root/.ankr/config/databases.json"})]);
+console.log(JSON.stringify({hit:hit.length,miss:miss.length,rel:rel.length}));
+' 2>&1 | tail -1)
+expect "detects an agent write to a protected source" '"hit":1' "$DET"
+expect "ignores an agent write to an ordinary file" '"miss":0' "$DET"
+expect "ignores a founder RELEASE marker" '"rel":0' "$DET"
+
+# Downgrade + human clear, driven through the real persisted-taint path.
+PROD_SCHEMA="psql -d $PROD_DB -c 'DROP TABLE x'"
+expect "clean source still gives a plain invariant refusal" "INVARIANT VIOLATED" \
+  "$($CLI anumati try Bash "$PROD_SCHEMA" 2>&1)"
+
+bun -e 'import { recordTaint } from "/root/aegis/src/kavach/plant-state"; recordTaint("/root/.ankr/config/databases.json","smoke test");' >/dev/null 2>&1
+expect "a tainted source downgrades the verdict to UNKNOWN" "UNKNOWN STATE" \
+  "$($CLI anumati try Bash "$PROD_SCHEMA" 2>&1)"
+expect "taint report names the tainted source" "TAINTED" "$($CLI anumati taint 2>&1)"
+
+$CLI anumati clear "$DB" >/dev/null 2>&1
+expect_exit "clear without a reason is refused" 1 $?
+
+$CLI anumati clear "$DB" --reason "smoke test cleanup" >/dev/null 2>&1
+expect_exit "clear with a reason succeeds" 0 $?
+expect "verdict returns to a plain refusal once cleared" "INVARIANT VIOLATED" \
+  "$($CLI anumati try Bash "$PROD_SCHEMA" 2>&1)"
+
+# The instrument may not be hand-written.
+expect "refuses a Write to a protected source" "ANU-I-005" \
+  "$($CLI anumati try Write "$DB" 2>&1)"
+expect "refuses a shell redirect into a protected source" "ANU-I-005" \
+  "$($CLI anumati try Bash "echo x >> /root/.ankr/config/ports.json" 2>&1)"
+expect "leaves the sanctioned machine route alone" "PERMIT" \
+  "$($CLI anumati try Bash "ankr-ctl restart ai-proxy" 2>&1)"
+
+echo "── ANU-007 mode seal ─────────────────────────────────────────────────"
+MODE=/root/.aegis/anumati-mode; SEAL=/root/.aegis/anumati-mode.seal.json
+[ -f "$MODE" ] && cp "$MODE" "$TMP/mode.bak"
+[ -f "$SEAL" ] && cp "$SEAL" "$TMP/seal.bak"
+
+$CLI anumati mode enforce >/dev/null 2>&1
+expect "a mode set through the CLI is sealed" "sealed" "$($CLI anumati mode 2>&1)"
+
+printf 'shadow\n' > "$MODE"          # a raw downgrade, as an agent would do it
+OUT=$($CLI anumati mode 2>&1)
+expect "an unsealed downgrade is detected" "SEAL MISMATCH" "$OUT"
+expect "and resolves to the stricter mode" "anumati mode: enforce" "$OUT"
+
+rm -f "$MODE" "$SEAL"
+[ -f "$TMP/mode.bak" ] && cp "$TMP/mode.bak" "$MODE"
+[ -f "$TMP/seal.bak" ] && cp "$TMP/seal.bak" "$SEAL"
+
 echo
 echo "─────────────────────────────────────────────────────────────────────"
 printf 'passed %d · failed %d\n' "$PASS" "$FAIL"

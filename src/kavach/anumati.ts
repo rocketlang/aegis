@@ -10,6 +10,7 @@
 // @rule:ANU-004 UNKNOWN state refuses — silence = BLOCK, applied to state
 // @rule:ANU-005 A refusal never narrows declared_perm_mask and never touches the gate valve
 // @rule:ANU-006 Every permissive cites the house law it compiles
+// @rule:ANU-007 A permissive may not trust a state source the acting agent can have written
 //
 // Authority answers "may this agent ask?". This file answers the second question the plant
 // asks on a ship and ANKR never asked: "is the asset in a state where the answer can be yes?"
@@ -17,6 +18,7 @@
 // Nothing here consults the agent's reasoning and no LLM is in the path. FP-018 COMPUTE.
 
 import { existsSync, readFileSync, appendFileSync, mkdirSync } from "fs";
+import { createHash } from "crypto";
 import { join, isAbsolute, resolve } from "path";
 import {
   readDbClass,
@@ -26,6 +28,12 @@ import {
   readStagedPaths,
   readDeclaredPort,
   readPortOccupant,
+  readTaintedSources,
+  isProtectedSource,
+  PROTECTED_SOURCES,
+  ANUMATI_MODE_FILE,
+  ANUMATI_SEAL_FILE,
+  type TaintRecord,
 } from "./plant-state";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -70,24 +78,87 @@ interface Permissive {
 
 export type AnumatiMode = "shadow" | "enforce";
 
-const MODE_FILE = "/root/.aegis/anumati-mode";
+export interface ModeStatus {
+  mode: AnumatiMode;
+  /** false when the mode file and its seal disagree, or no seal exists yet. */
+  sealed: boolean;
+  note: string | null;
+}
+
+/** enforce is stricter than shadow. Used when the mode file and its seal disagree. */
+function stricter(a: AnumatiMode, b: AnumatiMode): AnumatiMode {
+  return a === "enforce" || b === "enforce" ? "enforce" : "shadow";
+}
+
+/**
+ * The mode, and whether it can be trusted.
+ *
+ * @rule:ANU-007 — the mode switch is itself a protected state source. A layer whose
+ * off-switch is writable by the thing it governs has no off-switch, so the value is
+ * sealed: `aegis anumati mode` writes both the file and a hash of it. If they disagree,
+ * the STRICTER of the two wins. That cannot brick anything, because the sealed value was
+ * set by a human, and it means downgrading enforcement takes two coordinated writes
+ * instead of one and leaves a mismatch behind either way.
+ */
+export function anumatiModeStatus(): ModeStatus {
+  const env = process.env.ANUMATI_MODE;
+  if (env === "enforce" || env === "shadow") {
+    return { mode: env, sealed: false, note: "set by ANUMATI_MODE in this process environment" };
+  }
+
+  let fileMode: AnumatiMode | null = null;
+  let fileHash: string | null = null;
+  try {
+    if (existsSync(ANUMATI_MODE_FILE)) {
+      const raw = readFileSync(ANUMATI_MODE_FILE, "utf-8");
+      const v = raw.trim();
+      if (v === "enforce" || v === "shadow") {
+        fileMode = v;
+        fileHash = createHash("sha256").update(raw).digest("hex");
+      }
+    }
+  } catch {
+    /* treated as absent below */
+  }
+
+  let seal: { mode?: string; sha256?: string } | null = null;
+  try {
+    if (existsSync(ANUMATI_SEAL_FILE)) seal = JSON.parse(readFileSync(ANUMATI_SEAL_FILE, "utf-8"));
+  } catch {
+    seal = null;
+  }
+
+  if (fileMode === null) {
+    // No usable mode file. If a seal survives, honour what the human last set.
+    if (seal?.mode === "enforce" || seal?.mode === "shadow") {
+      return { mode: seal.mode, sealed: false, note: "mode file missing or unreadable — using the last sealed value" };
+    }
+    return { mode: "shadow", sealed: false, note: "no mode set — defaulting to shadow" };
+  }
+
+  if (!seal?.sha256) {
+    return { mode: fileMode, sealed: false, note: "mode file is unsealed — set it via `aegis anumati mode` to seal it" };
+  }
+
+  if (seal.sha256 === fileHash) {
+    return { mode: fileMode, sealed: true, note: null };
+  }
+
+  const sealMode: AnumatiMode = seal.mode === "enforce" ? "enforce" : "shadow";
+  const effective = stricter(fileMode, sealMode);
+  return {
+    mode: effective,
+    sealed: false,
+    note: `SEAL MISMATCH — mode file says ${fileMode}, seal says ${sealMode}; using the stricter (${effective})`,
+  };
+}
 
 /**
  * shadow: report, never block. enforce: refusals bite.
  * Shadow is LOUD by design — a silent shadow is a guard that has already decayed.
  */
 export function anumatiMode(): AnumatiMode {
-  const env = process.env.ANUMATI_MODE;
-  if (env === "enforce" || env === "shadow") return env;
-  try {
-    if (existsSync(MODE_FILE)) {
-      const v = readFileSync(MODE_FILE, "utf-8").trim();
-      if (v === "enforce" || v === "shadow") return v;
-    }
-  } catch {
-    /* fall through to default */
-  }
-  return "shadow";
+  return anumatiModeStatus().mode;
 }
 
 // ── Action-shape helpers ──────────────────────────────────────────────────────
@@ -305,7 +376,32 @@ const PERMISSIVES: Permissive[] = [
       };
     },
   },
+
+  {
+    id: "ANU-I-005",
+    title: "The permissive layer's own state sources are not hand-written by the agent",
+    law: "config is machine-owned — route via ankr-ctl / oracle-sync, never a hand edit",
+    applies: a => writeTargetsOf(a).some(isProtectedSource),
+    check: a => {
+      const hit = writeTargetsOf(a).filter(isProtectedSource);
+      return {
+        verdict: "REFUSE",
+        detail:
+          `this action writes ${hit.length} file(s) the permissive layer reads its own verdicts from ` +
+          `(${hit.join(", ")}) — an instrument the actor can edit is not an instrument. ` +
+          `Route the change through its owning tool.`,
+        source: "protected source list",
+      };
+    },
+  },
 ];
+
+/** Files this action would write: the Write/Edit target, or whatever a Bash command redirects into. */
+function writeTargetsOf(a: ProposedAction): string[] {
+  if (a.file_path) return [abs(a.file_path, a.cwd)];
+  if (a.tool === "Bash" && a.command) return bashWriteTargets(a.command, a.cwd);
+  return [];
+}
 
 // ── The layer ─────────────────────────────────────────────────────────────────
 
@@ -315,6 +411,14 @@ const PERMISSIVES: Permissive[] = [
  */
 export function anumati(action: ProposedAction): AnumatiDecision {
   const results: PermissiveResult[] = [];
+
+  // @rule:ANU-007 — computed ONCE per evaluation and applied at this single choke point,
+  // so a permissive added later cannot forget to ask whether its instrument was tampered
+  // with. A verdict read from a tainted source is downgraded to UNKNOWN, which refuses.
+  const taintReading = readTaintedSources();
+  const tainted = new Map<string, TaintRecord>(
+    taintReading.known ? taintReading.value.map(t => [t.path, t]) : [],
+  );
 
   for (const p of PERMISSIVES) {
     let applies = false;
@@ -346,6 +450,30 @@ export function anumati(action: ProposedAction): AnumatiDecision {
       });
     }
   }
+
+  // Downgrade any verdict that rests on a compromised instrument.
+  const guarded = results.map(r => {
+    if (!r.source) return r;
+    const t = tainted.get(r.source);
+    if (!t) return r;
+    return {
+      ...r,
+      verdict: "UNKNOWN" as Verdict,
+      detail: `state source ${r.source} is tainted — ${t.detail} (${t.detected_at}). Cleared only by a human: aegis anumati clear <path> --reason "..."`,
+    };
+  });
+  if (!taintReading.known) {
+    guarded.push({
+      id: "ANU-007",
+      title: "State-source integrity could not be established",
+      law: "ANU-007 — a permissive may not trust a source the actor can have written",
+      verdict: "UNKNOWN",
+      detail: taintReading.why,
+      source: taintReading.source,
+    });
+  }
+  results.length = 0;
+  results.push(...guarded);
 
   const refusals = results.filter(r => r.verdict !== "PERMIT");
   return {
@@ -398,7 +526,7 @@ export function renderRefusal(decision: AnumatiDecision, mode: AnumatiMode): str
   const tail =
     mode === "enforce"
       ? "\n[ANUMATI] Authority is unchanged (ANU-005). Resolve the plant state, then ask again.\n"
-      : "\n[ANUMATI] shadow mode — not blocking. Promote with: echo enforce > /root/.aegis/anumati-mode\n";
+      : "\n[ANUMATI] shadow mode — not blocking. Promote with: aegis anumati mode enforce\n";
 
   return `\n${head}\n${lines.join("\n")}\n${tail}`;
 }
