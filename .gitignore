@@ -6,3 +6,5 @@ aegis.db
 .DS_Store
 dist/
 bun.lockb
+__pycache__/
+*.pyc
