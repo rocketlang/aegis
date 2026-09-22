@@ -371,6 +371,33 @@ else
   bad "door service" "pgbouncer-anumati-dev is not active — cannot exercise enforcement"
 fi
 
+echo "── ANU-007 state roots are overridable AND self-declaring ────────────"
+ELSE="$TMP/elsewhere"; mkdir -p "$ELSE/config" "$ELSE/state" "$ELSE/aegis"
+cat > "$ELSE/config/databases.json" <<'PYEOF'
+{ "servers": {"db": {"port": 5432}},
+  "databases": {
+    "shop_dev":  {"host":"db","port":5432,"class":"dev"},
+    "shop_live": {"host":"db","port":6000,"class":"prod"} } }
+PYEOF
+echo '{"app":{"web":8080}}' > "$ELSE/config/ports.json"
+ENVP="ANKR_CONFIG_DIR=$ELSE/config ANKR_STATE_DIR=$ELSE/state AEGIS_HOME=$ELSE/aegis"
+
+OUT=$(env $ENVP $CLI anumati try Bash "psql -d shop_live -c 'DROP TABLE x'" 2>&1)
+expect "reads a foreign registry, so the package is not box-specific" "shop_live is class=prod" "$OUT"
+# The override cannot be silent: relocating the instrument is the bypass ANU-007 closes,
+# so a verdict resting on a moved root must say so.
+expect "and announces that the roots were relocated" "non-default state roots" "$OUT"
+
+OUT=$(env $ENVP $CLI anumati try Bash "psql -d shop_dev -c 'DROP TABLE x'" 2>&1)
+expect "still permits dev-class in the foreign registry" "PERMIT" "$OUT"
+
+expect "no such note when nothing was moved" "no note" \
+  "$($CLI anumati try Bash "psql -d $PROD_DB -c 'DROP TABLE x'" 2>&1 | grep -q 'non-default state roots' && echo NOISE || echo 'no note')"
+
+expect "the compiled policy records the relocation too" "non-default state roots" \
+  "$(env $ENVP $CLI anumati compile --agent roots-suite --domain general --trust-mask 255 2>&1)"
+rm -f "$ELSE/aegis/kernel/roots-suite.coarse.json"
+
 echo
 echo "─────────────────────────────────────────────────────────────────────"
 printf 'passed %d · failed %d\n' "$PASS" "$FAIL"

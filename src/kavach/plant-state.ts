@@ -33,12 +33,50 @@ function unknown<T>(why: string, source: string): Reading<T> {
 
 // ── Paths (ground truth lives in .ankr, not in aegis) ────────────────────────
 
-const ANKR_STATE = "/root/.ankr/state";
-const ANKR_CONFIG = "/root/.ankr/config";
+// Roots are env-overridable so this is not a package that only works on one machine.
+//
+// The override CANNOT be silent, and that is the whole design. These paths are the
+// protected sources: relocating them is precisely the bypass ANU-007 exists to close,
+// because an actor who chooses where the instrument lives has chosen what it reads. So
+// every refusal and every compile report states when a root is not the default, and the
+// resolved paths travel with the verdict. An override that must announce itself is a
+// portability feature; a silent one would be a hole.
+//
+// Defaults are ANKR's own layout. Anyone else sets ANKR_CONFIG_DIR / ANKR_STATE_DIR /
+// AEGIS_HOME.
+
+function envRoot(name: string, fallback: string): { path: string; overridden: boolean } {
+  const v = process.env[name]?.trim();
+  return v ? { path: v.replace(/\/+$/, ""), overridden: true } : { path: fallback, overridden: false };
+}
+
+const ANKR_CONFIG_ROOT = envRoot("ANKR_CONFIG_DIR", "/root/.ankr/config");
+const ANKR_STATE_ROOT = envRoot("ANKR_STATE_DIR", "/root/.ankr/state");
+const AEGIS_ROOT = envRoot("AEGIS_HOME", "/root/.aegis");
+
+const ANKR_STATE = ANKR_STATE_ROOT.path;
+const ANKR_CONFIG = ANKR_CONFIG_ROOT.path;
 const DATABASES_JSON = `${ANKR_CONFIG}/databases.json`;
 const PORTS_JSON = `${ANKR_CONFIG}/ports.json`;
 const SESSIONS_JSON = `${ANKR_STATE}/claude-sessions.json`;
 const EDIT_HEAT_LEDGER = `${ANKR_STATE}/edit-heat.jsonl`;
+
+export const ANKR_CONFIG_DIR = ANKR_CONFIG;
+export const ANKR_STATE_DIR = ANKR_STATE;
+export const AEGIS_DIR_PATH = AEGIS_ROOT.path;
+export { DATABASES_JSON, PORTS_JSON };
+
+/**
+ * Which roots are not the default, so no verdict can rest on a relocated instrument
+ * without saying so. @rule:ANU-007
+ */
+export function overriddenRoots(): string[] {
+  const out: string[] = [];
+  if (ANKR_CONFIG_ROOT.overridden) out.push(`ANKR_CONFIG_DIR=${ANKR_CONFIG_ROOT.path}`);
+  if (ANKR_STATE_ROOT.overridden) out.push(`ANKR_STATE_DIR=${ANKR_STATE_ROOT.path}`);
+  if (AEGIS_ROOT.overridden) out.push(`AEGIS_HOME=${AEGIS_ROOT.path}`);
+  return out;
+}
 
 /** Same hot window as edit-heat-guard.mjs — this reader shares its ground truth, never forks it. */
 export const EDIT_HEAT_TTL_MS = 30 * 60e3;
@@ -297,7 +335,7 @@ export function readPortOccupant(port: number): Reading<PortOccupant | null> {
 // root process. It raises the rung from "no independence" to "tampering leaves a
 // trace", which is a real improvement and is not the same as solving it.
 
-const AEGIS_DIR = "/root/.aegis";
+const AEGIS_DIR = AEGIS_ROOT.path;
 export const ANUMATI_MODE_FILE = `${AEGIS_DIR}/anumati-mode`;
 export const ANUMATI_SEAL_FILE = `${AEGIS_DIR}/anumati-mode.seal.json`;
 export const ANUMATI_TAINT_FILE = `${AEGIS_DIR}/anumati-taint.json`;

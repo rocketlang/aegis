@@ -1,7 +1,7 @@
 {
   "name": "@xshieldai/agent-kernel",
   "version": "2.0.2",
-  "description": "Agent Kernel (formerly KavachOS) — seccomp-bpf + Falco kernel enforcement for AI agents. Core kernel-enforcement primitive of the xShieldAI Posture Suite.",
+  "description": "Agent Kernel (formerly KavachOS) \u2014 seccomp-bpf + Falco kernel enforcement for AI agents. Core kernel-enforcement primitive of the xShieldAI Posture Suite.",
   "license": "AGPL-3.0",
   "type": "module",
   "author": "Capt. Anil Sharma <capt.anil.sharma@powerpbox.org>",
@@ -43,7 +43,7 @@
     "bun": ">=1.0.0"
   },
   "scripts": {
-    "build": "bun build ../../src/kavachos-cli.ts --target=bun --outfile=dist/kavachos.js && cp ../../src/kernel/cgroup-egress.py dist/cgroup-egress.py && cp ../../src/kernel/apply-seccomp.py dist/apply-seccomp.py",
+    "build": "bun build ../../src/kavachos-cli.ts --target=bun --external @aws-sdk/client-s3 --outfile=dist/kavachos.js && cp ../../src/kernel/cgroup-egress.py dist/cgroup-egress.py && cp ../../src/kernel/apply-seccomp.py dist/apply-seccomp.py",
     "prepublishOnly": "bun run build"
   },
   "publishConfig": {

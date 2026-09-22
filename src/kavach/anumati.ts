@@ -33,6 +33,8 @@ import {
   PROTECTED_SOURCES,
   ANUMATI_MODE_FILE,
   ANUMATI_SEAL_FILE,
+  AEGIS_DIR_PATH,
+  overriddenRoots,
   type TaintRecord,
 } from "./plant-state";
 
@@ -489,7 +491,7 @@ export function anumati(action: ProposedAction): AnumatiDecision {
 
 // ── Ledger ────────────────────────────────────────────────────────────────────
 
-const LEDGER_DIR = "/root/.aegis";
+const LEDGER_DIR = AEGIS_DIR_PATH;
 const LEDGER = join(LEDGER_DIR, "anumati.jsonl");
 
 /** Every evaluation that refused is recorded, in shadow exactly as in enforce. */
@@ -531,5 +533,12 @@ export function renderRefusal(decision: AnumatiDecision, mode: AnumatiMode): str
       ? "\n[ANUMATI] Authority is unchanged (ANU-005). Resolve the plant state, then ask again.\n"
       : "\n[ANUMATI] shadow mode — not blocking. Promote with: aegis anumati mode enforce\n";
 
-  return `\n${head}\n${lines.join("\n")}\n${tail}`;
+  // @rule:ANU-007 — a verdict resting on a relocated instrument says so. Whoever chose
+  // where the instrument lives chose what it reads, and that must never be invisible.
+  const roots = overriddenRoots();
+  const rootLine = roots.length
+    ? `[ANUMATI] NOTE — non-default state roots in use: ${roots.join(", ")}\n`
+    : "";
+
+  return `\n${head}\n${lines.join("\n")}\n${tail}${rootLine}`;
 }

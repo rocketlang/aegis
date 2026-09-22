@@ -23,7 +23,7 @@
 // stated rather than discovered.
 
 import { createHash } from "crypto";
-import { readDatabaseEndpoints, readDeclaredPort, PROTECTED_SOURCES, type DbEndpoint } from "./plant-state";
+import { readDatabaseEndpoints, readDeclaredPort, PROTECTED_SOURCES, overriddenRoots, type DbEndpoint } from "./plant-state";
 import { buildEgressPolicy, type EgressEntry } from "../kernel/egress-policy";
 import { existsSync, readFileSync } from "fs";
 import { compileDbProxy, DBPROXY_INI } from "./compile-dbproxy";
@@ -68,6 +68,8 @@ export interface CoarsePolicy {
   /** Invariants that bind cooperative agents only. The honest headline. */
   unbound_by_coarse: string[];
   notes: CompileNote[];
+  /** Non-default state roots this was compiled against. @rule:ANU-007 */
+  state_roots_overridden: string[];
 }
 
 export interface CompileOptions {
@@ -328,6 +330,7 @@ export function compilePolicy(opts: CompileOptions): CoarsePolicy {
           ? dbs.value.map(d => [d.name, d.host, d.port, d.klass]).sort()
           : { unreadable: dbs.why },
         protected: [...PROTECTED_SOURCES].sort(),
+        roots: overriddenRoots().slice().sort(),
         base: base.allow.map(e => [e.host, e.port]).sort(),
       }),
     )
@@ -345,6 +348,7 @@ export function compilePolicy(opts: CompileOptions): CoarsePolicy {
     coverage,
     unbound_by_coarse: unbound,
     notes,
+    state_roots_overridden: overriddenRoots(),
   };
 }
 
@@ -399,6 +403,11 @@ export function renderPolicy(p: CoarsePolicy): string {
     const mark = c.projection === "projected" ? "full   " : c.projection === "partial" ? "partial" : "NONE   ";
     L.push(`    ${mark} ${c.invariant}  ${c.title}`);
     L.push(`            ${c.detail}`);
+  }
+
+  if (p.state_roots_overridden.length) {
+    L.push(`\n  NOTE — compiled against non-default state roots: ${p.state_roots_overridden.join(", ")}`);
+    L.push(`  Whoever chose where the instrument lives chose what it reads (ANU-007).`);
   }
 
   if (p.notes.length) {

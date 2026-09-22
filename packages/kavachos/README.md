@@ -1,4 +1,4 @@
-# @rocketlang/kavachos
+# @xshieldai/agent-kernel
 
 > **🔍 Verification status (2026-05-17 IST)**
 > - **Tests:** ⚠️ none in OSS dist. The full internal `kavachos-ee` service has its own test suite covering seccomp-bpf profile generation, BPF egress firewall, and Falco rule synthesis — those tests are not currently distributed with this package.
@@ -35,6 +35,23 @@ exit_group + futex + rt_sigreturn always allowed  ← no-freeze guarantee
 
 ---
 
+## State roots
+
+The kernel reads its declarations from three roots. They default to ANKR's own layout;
+set these to run anywhere else:
+
+| variable | default | holds |
+|---|---|---|
+| `ANKR_CONFIG_DIR` | `/root/.ankr/config` | `databases.json`, `ports.json` |
+| `ANKR_STATE_DIR` | `/root/.ankr/state` | session and edit ledgers |
+| `AEGIS_HOME` | `/root/.aegis` | mode, seal, taint, compiled policy |
+
+Relocating a root is deliberately **not silent**. These files are the instruments the
+permissive layer reads its verdicts from, so whoever chooses where they live has chosen
+what the layer reads. Every refusal and every compiled policy states when a root is not
+the default, and the override is part of the policy digest.
+
+
 ## The AEGIS / KavachOS / PRAMANA stack
 
 Three layers. One coherent governance stack for agentic AI.
@@ -42,7 +59,7 @@ Three layers. One coherent governance stack for agentic AI.
 | Layer | Package | What it governs |
 |-------|---------|-----------------|
 | **AEGIS** | [`@rocketlang/aegis`](https://www.npmjs.com/package/@rocketlang/aegis) | Agent **spend** — budget caps, spawn governance, cross-surface usage visibility, kill-switches |
-| **KavachOS** | `@rocketlang/kavachos` (this package) | Agent **behavior** — syscall mediation, exec allowlist, egress firewall, sandboxed runtime |
+| **KavachOS** | `@xshieldai/agent-kernel` (this package) | Agent **behavior** — syscall mediation, exec allowlist, egress firewall, sandboxed runtime |
 | **PRAMANA** | DOI [10.5281/zenodo.19273330](https://doi.org/10.5281/zenodo.19273330) | Cryptographic **attestation** — tamper-evident chain of every decision either layer made |
 
 AEGIS governs what the agent spends. KavachOS governs what the agent does. PRAMANA proves what happened.
@@ -54,9 +71,9 @@ For EU AI Act Article 14 (human oversight): PRAMANA alone is just logging — it
 ## Install
 
 ```bash
-npm install -g @rocketlang/kavachos
+npm install -g @xshieldai/agent-kernel
 # or
-bun add -g @rocketlang/kavachos
+bun add -g @xshieldai/agent-kernel
 ```
 
 Requires: **Bun ≥ 1.0**, **Linux x86_64**, kernel ≥ 3.5 (seccomp-bpf), kernel ≥ 5.8 for Falco modern-bpf.

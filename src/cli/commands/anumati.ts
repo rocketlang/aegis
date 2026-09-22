@@ -25,10 +25,12 @@ import {
   PROTECTED_SOURCES,
   ANUMATI_MODE_FILE,
   ANUMATI_SEAL_FILE,
+  AEGIS_DIR_PATH,
+  DATABASES_JSON,
 } from "../../kavach/plant-state";
 
-const LEDGER = "/root/.aegis/anumati.jsonl";
-const OUT_DIR = "/root/.aegis/kernel";
+const LEDGER = `${AEGIS_DIR_PATH}/anumati.jsonl`;
+const OUT_DIR = `${AEGIS_DIR_PATH}/kernel`;
 
 export default async function anumatiCmd(args: string[]): Promise<void> {
   const sub = args[0];
@@ -47,7 +49,7 @@ export default async function anumatiCmd(args: string[]): Promise<void> {
     }
     // @rule:ANU-007 — write the value AND a seal over it. One write can no longer
     // silently downgrade enforcement; a mismatch resolves to the stricter mode.
-    mkdirSync("/root/.aegis", { recursive: true });
+    mkdirSync(AEGIS_DIR_PATH, { recursive: true });
     const body = `${want}\n`;
     writeFileSync(ANUMATI_MODE_FILE, body);
     writeFileSync(
@@ -252,7 +254,7 @@ export default async function anumatiCmd(args: string[]): Promise<void> {
     // registry — correctly — but a field with no sanctioned writer has no route at all,
     // which is a gap, not a policy. This is the route. It is deliberately narrow: it sets
     // one field, on one database, with a stated reason, and refuses to overwrite silently.
-    const DBJSON = "/root/.ankr/config/databases.json";
+    const DBJSON = DATABASES_JSON;
     const VALID = ["dev", "demo", "e2e", "legacy", "prod"];
 
     const name = args[1];

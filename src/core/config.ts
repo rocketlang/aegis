@@ -6,7 +6,9 @@ import { existsSync, mkdirSync, writeFileSync, readFileSync } from "fs";
 import { join } from "path";
 import type { AegisConfig } from "./types";
 
-const PORTS_FILE = "/root/.ankr/config/ports.json";
+// Same root knob as the permissive layer's readers, so one env var moves the whole
+// config surface rather than half of it. Default is ANKR's own layout.
+const PORTS_FILE = `${process.env.ANKR_CONFIG_DIR?.trim().replace(/\/+$/, "") || "/root/.ankr/config"}/ports.json`;
 
 function readPortsJson(): Record<string, unknown> {
   try { return JSON.parse(readFileSync(PORTS_FILE, "utf-8")); } catch { return {}; }
