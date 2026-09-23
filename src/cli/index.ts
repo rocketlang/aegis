@@ -60,6 +60,8 @@ async function main() {
       return (await import("./commands/bg")).default(args);
     case "redteam":
       return (await import("./commands/redteam")).default(args);
+    case "anumati-review":
+      return (await import("./commands/anumati-review")).default(args);
     case "help":
     case "--help":
     case "-h":
