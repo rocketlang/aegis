@@ -1,0 +1,98 @@
+# Publish @xshieldai/agent-kernel with npm provenance.
+#
+# WHY THIS EXISTS
+#
+# A consumer installing the package today cannot tell which commit built it, or that
+# we built it at all. Provenance closes that: npm records a sigstore attestation
+# binding the tarball to this repository, this workflow file, and the exact commit,
+# and npm verifies it on install. It is the same mechanism that lets a third party
+# check a signed release without asking us anything.
+#
+# It CANNOT be produced by publishing from a laptop. Provenance requires an OIDC
+# identity that only CI has, which is the point — the attestation is worth something
+# precisely because no human could have minted it by hand.
+#
+# AUTH — trusted publishing preferred, token as fallback:
+#   Preferred: configure a Trusted Publisher on npmjs.com for @xshieldai/agent-kernel
+#             (GitHub Actions · rocketlang/aegis · release-agent-kernel.yml). No secret
+#             is stored anywhere, and there is no long-lived credential to leak.
+#   Fallback:  set an NPM_TOKEN repository secret (automation token).
+#
+# Tag prefix is deliberate. `release.yml` already fires on `v*` and publishes the ROOT
+# package, so a bare `v2.1.0` tag would trigger both and publish the wrong thing.
+#
+#   git tag agent-kernel-v2.1.0 && git push origin agent-kernel-v2.1.0
+
+name: Release @xshieldai/agent-kernel
+
+on:
+  push:
+    tags:
+      - 'agent-kernel-v*'
+  workflow_dispatch:
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write        # required for provenance — without it npm publishes unattested
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          registry-url: 'https://registry.npmjs.org'
+
+      # Provenance needs npm >= 9.5; trusted publishing needs newer still. The runner's
+      # bundled npm drifts, so pin it forward rather than inherit whatever ships.
+      - name: Upgrade npm
+        run: npm install -g npm@latest && npm --version
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install
+
+      # The build runs the version-drift guard first: it refuses if the CLI's
+      # KAVACHOS_VERSION disagrees with package.json. That mismatch shipped a CLI
+      # reporting 2.0.0 for five months, so the check is part of the build, not a habit.
+      - name: Build
+        working-directory: packages/kavachos
+        run: bun run build
+
+      - name: Refuse to publish a tag that disagrees with package.json
+        working-directory: packages/kavachos
+        run: |
+          PKG=$(node -p "require('./package.json').version")
+          TAG="${GITHUB_REF_NAME#agent-kernel-v}"
+          if [ "$GITHUB_REF_TYPE" = "tag" ] && [ "$PKG" != "$TAG" ]; then
+            echo "tag $TAG does not match package.json $PKG — refusing"; exit 1
+          fi
+          echo "version $PKG"
+
+      - name: Show what would ship
+        working-directory: packages/kavachos
+        run: npm pack --dry-run
+
+      - name: Publish with provenance
+        working-directory: packages/kavachos
+        run: npm publish --provenance --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Confirm the attestation is actually on the registry
+        working-directory: packages/kavachos
+        run: |
+          # Publishing without error is not proof the attestation landed. Ask the
+          # registry, the way a consumer would.
+          PKG=$(node -p "require('./package.json').version")
+          sleep 15
+          if npm view "@xshieldai/agent-kernel@$PKG" dist.attestations --json | grep -q provenance; then
+            echo "provenance attestation present for $PKG"
+          else
+            echo "PUBLISHED WITHOUT PROVENANCE — investigate before announcing"; exit 1
+          fi
