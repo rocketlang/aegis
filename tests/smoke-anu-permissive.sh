@@ -482,9 +482,12 @@ if [ -n "$HTREC" ]; then
 import json,sys;d=json.load(open('$HTREC'));print(json.dumps(d.get('host_trust',{})))" 2>/dev/null)"
   expect "the refusal is announced without --verbose" "HOST TRUST REFUSED" "$(cat "$HTDIR/out" 2>/dev/null)"
   # host_trust qualifies a measurement; it must not decide whether an agent runs. The
-  # control is SYNTHESISED rather than assumed: a launch here exits non-zero for reasons
-  # of its own (seccomp needs a capability this environment withholds), so hardcoding 0
-  # would test the sandbox, not the rule. Compare against the same launch with no claim.
+  # control is SYNTHESISED rather than assumed: under --strict-exec this launch exits 1
+  # because /usr/bin/true is not on the exec allowlist (21 entries: bun, node, python3,
+  # the agent runtimes), so execve returns EPERM and the gate is working. Nothing to do
+  # with seccomp failing or a missing capability — without --strict-exec the same launch
+  # exits 0. Hardcoding an expected code would test the stub binary, not the rule, so
+  # compare against the same launch with no claim on disk.
   CTLDIR=$(mktemp -d)
   AEGIS_HOME="$CTLDIR" timeout 150 bun /root/aegis/src/kavachos-cli.ts run --trust-mask=255 \
     --domain=general --session-id="ht-ctl-$$" --strict-exec -- /usr/bin/true >/dev/null 2>&1
