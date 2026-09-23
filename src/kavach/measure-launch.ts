@@ -42,6 +42,7 @@ import { existsSync, readFileSync } from "fs";
 import { generateSeccompProfile, canonicalJson } from "../kernel/seccomp-profile-generator";
 import { buildExecAllowlist } from "../kernel/exec-allowlist";
 import { compilePolicy } from "./compile-policy";
+import { readHostTrust, type HostTrust } from "./host-trust";
 
 export const LAUNCH_MEASUREMENT_FORMAT = "aegis-launch-measurement/1";
 
@@ -58,6 +59,20 @@ export interface LaunchMeasurement {
   measurement: string;
   /** Roots this was computed against, if not the defaults (ANU-007). */
   state_roots_overridden: string[];
+  /**
+   * On what basis the host asserting this measurement is believed honest. @rule:PRA-007
+   *
+   * DELIBERATELY NOT CHAINED, and the reason matters. The reference must be derivable
+   * from the declarations alone (PRA-005) so that one published file serves every host.
+   * Host trust is a property of a MACHINE, not of the declarations — fold it into the
+   * chain and the same declarations would measure differently on two hosts, which would
+   * destroy the only property that makes an off-host comparison possible.
+   *
+   * So it sits beside the value and qualifies it: the measurement says WHAT governs the
+   * agent, this says how much the host's word on that is worth. Present on an observed
+   * measurement; absent from a reference, which has no host.
+   */
+  host_trust?: { level: HostTrust; why: string; claim_refused?: string };
 }
 
 const ZERO = Buffer.alloc(32);
@@ -181,7 +196,12 @@ export function compareLaunch(reference: LaunchMeasurement, observed: LaunchMeas
 
   let note: string;
   if (agrees) {
-    note = "the launch measures what the published reference says it should";
+    // Agreement is worth exactly as much as the host asserting it. Naming the rung here
+    // stops a green result from being read as more than it is. @rule:PRA-007
+    const ht = observed.host_trust;
+    note = ht
+      ? `the launch measures what the published reference says it should, on the word of a host at host_trust=${ht.level}`
+      : "the launch measures what the published reference says it should";
   } else if (differing.length === 0) {
     // Components all agree but the chained value does not — that is not drift in the
     // configuration, it is a defect in the chaining or a format mismatch.
@@ -202,9 +222,17 @@ export function renderLaunch(m: LaunchMeasurement): string {
   if (m.state_roots_overridden.length) {
     L.push(`  NOTE — non-default state roots: ${m.state_roots_overridden.join(", ")}`);
   }
-  L.push(`\n  The host computed this about itself. It is not a TPM quote and does not`);
-  L.push(`  survive a host that lies. What it gives a second machine is a published`);
-  L.push(`  value to compare against, which is what makes the check possible off-host.`);
+  if (m.host_trust) {
+    L.push(`  host_trust      ${m.host_trust.level}  (not chained — qualifies the value, is not part of it)`);
+    L.push(`                  ${m.host_trust.why}`);
+    if (m.host_trust.claim_refused) {
+      L.push(`                  REFUSED — ${m.host_trust.claim_refused}`);
+    }
+  }
+  L.push(`\n  The host computed this about itself. At host_trust=assumed it is not a TPM`);
+  L.push(`  quote and does not survive a host that lies. What it gives a second machine`);
+  L.push(`  is a published value to compare against, which is what makes the check`);
+  L.push(`  possible off-host.`);
   return L.join("\n") + "\n";
 }
 
@@ -270,11 +298,20 @@ export function measureLaunchFromArtefacts(
     coarse: String(c.input_digest ?? ""),
   };
 
+  // The observed side has a host; the reference does not. Read the rung here and nowhere
+  // else, so a published reference stays byte-identical no matter who built it.
+  const ht = readHostTrust();
+
   return {
     format: LAUNCH_MEASUREMENT_FORMAT,
     declarations: decl,
     components,
     measurement: chain(components),
     state_roots_overridden: (c.state_roots_overridden ?? []) as string[],
+    host_trust: {
+      level: ht.level,
+      why: ht.why,
+      ...(ht.claim_refused ? { claim_refused: ht.claim_refused } : {}),
+    },
   };
 }

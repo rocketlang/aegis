@@ -442,6 +442,42 @@ else
 fi
 
 echo
+echo "── PRA-007/008 host trust ────────────────────────────────────────────"
+
+# The floor, on this host and almost every host: no TPM, nothing claimed.
+HT=$($CLI attest host --json 2>/dev/null); RC=$?
+expect_exit "a host with nothing to show exits clean" 0 "$RC"
+expect "and reports the honest floor" '"level": "assumed"' "$HT"
+
+# A reference must serve EVERY host, so it carries no host trust at all.
+HREF=$($CLI attest reference --trust-mask=255 --domain=general --json 2>/dev/null)
+if printf '%s' "$HREF" | grep -qF '"host_trust"'; then
+  bad "the reference stays host-independent" "a published reference must not carry host_trust"
+else
+  ok "the reference stays host-independent"
+fi
+
+# Both outcomes forced: a host that claims a rung it cannot evidence must be refused,
+# in prose AND in --json, and must not read as success to a script checking only $?.
+HTDIR=$(mktemp -d)
+printf '%s' '{"claim":"tpm-quote"}' > "$HTDIR/host-trust.json"
+OUT=$(AEGIS_HOME="$HTDIR" $CLI attest host 2>&1); RC=$?
+expect_exit "an unevidenced claim is refused" 2 "$RC"
+expect "and the refusal names the claim" "claimed tpm-quote" "$OUT"
+expect "and the rung stays at the floor" "host_trust      assumed" "$OUT"
+OUTJ=$(AEGIS_HOME="$HTDIR" $CLI attest host --json 2>/dev/null); RCJ=$?
+expect_exit "--json refuses with the same exit code" 2 "$RCJ"
+expect "and carries the refusal as a field" '"claim_refused"' "$OUTJ"
+
+# A claim on disk must not be able to move a published reference.
+R1=$(AEGIS_HOME="$HTDIR" $CLI attest reference --trust-mask=255 --domain=general --json 2>/dev/null | sha256sum)
+rm -f "$HTDIR/host-trust.json"
+R2=$(AEGIS_HOME="$HTDIR" $CLI attest reference --trust-mask=255 --domain=general --json 2>/dev/null | sha256sum)
+if [ "$R1" = "$R2" ]; then ok "a host's own claim cannot move the reference"
+else bad "a host's own claim cannot move the reference" "the reference changed when the claim was removed"; fi
+rm -rf "$HTDIR"
+
+echo
 echo "─────────────────────────────────────────────────────────────────────"
 printf 'passed %d · failed %d\n' "$PASS" "$FAIL"
 [ "$FAIL" -eq 0 ] || exit 1

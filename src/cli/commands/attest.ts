@@ -5,6 +5,9 @@
 // aegis attest reference [--trust-mask N] [--domain D] [--strict-exec] [--needs=P,P]
 //     what a launch with these declarations SHOULD measure. Publish it with a release.
 //
+// aegis attest host [--json]
+//     on what basis THIS host is believed honest, and what was actually checked
+//
 // aegis attest verify --launch <session-id> [same declaration flags]
 //     compare a launch against the reference. A difference is drift, named by component.
 //
@@ -20,6 +23,7 @@ import {
   type LaunchMeasurement,
 } from "../../kavach/measure-launch";
 import { AEGIS_DIR_PATH, readDeclaredPort } from "../../kavach/plant-state";
+import { readHostTrust, renderHostTrust } from "../../kavach/host-trust";
 
 const KERNEL_DIR = `${AEGIS_DIR_PATH}/kernel`;
 
@@ -48,6 +52,32 @@ function declFlags(args: string[]) {
 
 export default async function attestCmd(args: string[]): Promise<void> {
   const sub = args[0];
+
+  // aegis attest host — on what basis is THIS host believed honest, and what was checked
+  if (sub === "host") {
+    const r = readHostTrust();
+    if (args.includes("--json")) {
+      console.log(JSON.stringify(r, null, 2));
+      // A refused claim is a non-zero exit even in --json: a host that overstated itself
+      // must not read as success to a script that only checks the status code.
+      if (r.claim_refused) process.exit(2);
+      return;
+    }
+    console.log("");
+    console.log(renderHostTrust(r));
+    if (r.claim_refused) {
+      console.error(`\n  This host claimed more than its evidence supports. Nothing downstream`);
+      console.error(`  should treat its measurements as more than host_trust=${r.level}.`);
+      process.exit(2);
+    }
+    if (r.level === "assumed") {
+      console.log(`\n  This is the floor and it is not a failure: it is the honest value on a`);
+      console.log(`  host with no measured boot to observe. To raise it, place a declaration`);
+      console.log(`  at ${AEGIS_DIR_PATH}/host-trust.json pointing at a published`);
+      console.log(`  boot reference — the rung then reads up only if the PCRs actually agree.`);
+    }
+    return;
+  }
 
   if (sub === "reference") {
     const ref = launchReference(declFlags(args));
@@ -109,8 +139,15 @@ export default async function attestCmd(args: string[]): Promise<void> {
       if (observed.state_roots_overridden.length) {
         console.log(`  NOTE — measured against non-default roots: ${observed.state_roots_overridden.join(", ")}`);
       }
-      console.log(`\n  The host computed the observed value about itself — this is not a TPM`);
-      console.log(`  quote and does not survive a host that lies.`);
+      const ht = observed.host_trust;
+      if (ht) {
+        console.log(`\n  host_trust  ${ht.level} — ${ht.why}`);
+        if (ht.claim_refused) console.error(`  REFUSED — ${ht.claim_refused}`);
+      }
+      if (!ht || ht.level === "assumed") {
+        console.log(`\n  The host computed the observed value about itself — at this rung it is`);
+        console.log(`  not a TPM quote and does not survive a host that lies.`);
+      }
       return;
     }
     for (const d of cmp.differing) {
@@ -122,6 +159,6 @@ export default async function attestCmd(args: string[]): Promise<void> {
     process.exit(2);
   }
 
-  console.error("usage: aegis attest <reference|verify> ...");
+  console.error("usage: aegis attest <reference|verify|host> ...");
   process.exit(1);
 }

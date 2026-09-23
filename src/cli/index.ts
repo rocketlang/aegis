@@ -99,6 +99,7 @@ Commands:
   pramana commit <dir>    Assurance: confirm a commit from a fresh git process, not its stdout
   attest reference        What a launch with these declarations SHOULD measure (publish with a release)
   attest verify --launch <id>  Compare a launch against the reference; drift is named by component
+  attest host             On what basis THIS host is believed honest (assumed|measured-boot|tpm-quote)
   register        Check In: create policy file, register agent in state machine
   close           Check Out: mark agent COMPLETED, write final manifest
   quarantine list         List all QUARANTINED/ORPHAN agents with violation summary
