@@ -62,12 +62,43 @@ struct {
     __type(value, __u8);
 } egress_allow_v4 SEC(".maps");
 
+// @rule:KOS-046 the port of this session's resolving proxy, or 0 when there is none.
+// A single-entry array so the loader can set it after the program is attached.
+struct {
+    __uint(type, BPF_MAP_TYPE_ARRAY);
+    __uint(max_entries, 1);
+    __type(key, __u32);
+    __type(value, __u32);
+} dns_proxy_port SEC(".maps");
+
 SEC("cgroup/connect4")
 int connect4(struct bpf_sock_addr *ctx) {
     // user_ip4 is NBO; bpf_ntohl converts to host order matching Python's key
     __u32 dst_ip   = bpf_ntohl(ctx->user_ip4);
     // user_port stores the BE16 port in the *lower* 16 bits (not upper)
     __u16 dst_port = bpf_ntohs((__u16)ctx->user_port);
+
+    // @rule:KOS-046 — DNS is STEERED, not merely permitted. Any connect() to port 53
+    // is rewritten to this session's resolving proxy on loopback, which answers only
+    // for names the egress policy already permits connecting to. Without this the
+    // resolver is an open exfiltration channel: an agent that can reach nothing
+    // interesting can still carry data out one query name at a time, and to this
+    // program that is a permitted packet to a permitted resolver on a permitted port.
+    //
+    // Verified by strace that glibc connect()s its UDP socket rather than using
+    // sendto(), which is why a connect4 hook alone is enough to catch every query.
+    if (dst_port == 53) {
+        __u32 zero = 0;
+        __u32 *pport = bpf_map_lookup_elem(&dns_proxy_port, &zero);
+        if (pport && *pport) {
+            ctx->user_ip4  = bpf_htonl(0x7F000001);          // 127.0.0.1
+            ctx->user_port = bpf_htons((__u16)*pport);
+            return 1;
+        }
+        // No proxy for this session means DNS is DENIED, never quietly allowed.
+        // @rule:INF-KOS-009 — a missing instrument refuses.
+        return 0;
+    }
 
     // Exact match: ip + port
     __u64 key = ((__u64)dst_ip << 32) | dst_port;
@@ -229,6 +260,67 @@ def _map_update(map_id: int, key_u64: int, value: int) -> None:
     if r.returncode != 0:
         sys.stderr.write(f"[kavachos:egress] map update failed for key {key_u64:#018x}: {r.stderr[:100]}\n")
 
+def _start_resolving_proxy(sess, policy: dict, session_id: str) -> None:
+    """
+    Bring up this session's resolving proxy and point the BPF redirect at it. KOS-046.
+
+    Runs HERE rather than in the launcher because this process already owns the session
+    lifetime, already holds the policy, and lives outside the cgroup — so its own upstream
+    query is ungoverned, which is exactly what a proxy for a governed agent needs.
+
+    Every failure leaves dns_proxy_port at 0, and the BPF program denies port 53 when it
+    is 0. So a proxy that will not start costs the agent name resolution; it never leaves
+    the channel open. @rule:INF-KOS-009
+    """
+    try:
+        import importlib.util
+        here = os.path.dirname(os.path.abspath(__file__))
+        spec = importlib.util.spec_from_file_location(
+            "kavachos_dns_proxy", os.path.join(here, "dns-proxy.py"))
+        dp = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(dp)
+
+        upstream = dp.first_upstream()
+        if upstream is None:
+            sys.stderr.write("[kavachos:dns] no IPv4 upstream in resolv.conf — DNS stays denied\n")
+            return
+
+        names = dp.allowed_names(policy)
+        # Every verdict is recorded. A refused name is the only direct evidence that
+        # something tried to use the resolver as a channel, so it must survive the session.
+        ledger = os.environ.get("KAVACHOS_DNS_LEDGER", "/root/.aegis/kernel/dns-queries.jsonl")
+        proxy = dp.ResolvingProxy(names, upstream, bind_port=0,
+                                  ledger_path=ledger, session_id=session_id)
+        port = proxy.start()
+        if not sess.set_dns_proxy_port(port):
+            proxy.stop()
+            return
+        sess.dns_proxy = proxy
+        sys.stderr.write(
+            f"[kavachos:dns] resolving proxy up on 127.0.0.1:{port} — "
+            f"{len(names)} name(s) permitted, upstream {upstream[0]}\n")
+    except Exception as e:
+        sys.stderr.write(f"[kavachos:dns] proxy not started ({e}) — DNS stays denied\n")
+
+
+def _map_update_u32(map_id: int, key: int, value: int) -> bool:
+    """
+    Update a BPF ARRAY map: u32 key → u32 value, both little-endian on x86.
+
+    Separate from _map_update because that one writes a u64 key and a u8 value for the
+    allow hash. Reusing it here would silently write the wrong widths — the map would
+    accept four bytes of a port as one byte of a verdict and the redirect would look
+    configured while pointing nowhere.
+    """
+    kb = " ".join(f"{(key >> (i*8)) & 0xff:02x}" for i in range(4))
+    vb = " ".join(f"{(value >> (i*8)) & 0xff:02x}" for i in range(4))
+    r = _bpftool("map", "update", "id", str(map_id), "key", "hex", *kb.split(),
+                 "value", "hex", *vb.split(), check=False)
+    if r.returncode != 0:
+        sys.stderr.write(f"[kavachos:egress] dns proxy port update failed: {r.stderr[:160]}\n")
+        return False
+    return True
+
 def _cgroup_attach(cgroup_path: str, prog_id: int, attach_type: str) -> bool:
     r = _bpftool("cgroup", "attach", cgroup_path, attach_type, "id", str(prog_id), check=False)
     if r.returncode != 0:
@@ -285,6 +377,7 @@ class EgressSession:
         self.prog_id_v4  = -1
         self.prog_id_v6  = -1
         self._tmp        = []  # temp files to clean up
+        self.dns_proxy   = None  # @rule:KOS-046 — owned here so cleanup() always stops it
 
     def setup(self, policy: dict, agent_pid: Optional[int]) -> bool:
         """
@@ -310,7 +403,11 @@ class EgressSession:
 
         # Load + pin
         v4_pin = os.path.join(self.pin_dir, "connect4")
-        self.prog_id_v4 = _prog_load(v4_obj, v4_pin)
+        # _prog_load returns None on failure while this field is an int sentinel. Left
+        # unnormalised, a failed load made cleanup() compare None > 0 and raise, so a
+        # session that failed to arm ALSO failed to tear itself down — leaving the pinned
+        # objects that make the NEXT run fail to load. One failure became permanent.
+        self.prog_id_v4 = _prog_load(v4_obj, v4_pin) or -1
         if self.prog_id_v4 is None:
             return False
 
@@ -378,15 +475,46 @@ class EgressSession:
                     key = (last32 << 32) | port
                     _map_update(map_v6, key, 1)
 
+    def set_dns_proxy_port(self, port: int) -> bool:
+        """
+        Point this session's connect4 DNS redirect at the resolving proxy. @rule:KOS-046
+
+        Until this is set the map holds 0, and the BPF program DENIES port 53 outright
+        rather than letting it through — so a proxy that failed to start costs the agent
+        name resolution, never the other way round.
+        """
+        map_id = _map_id_for_prog(self.pin_dir, "dns_proxy_port")
+        if map_id is None:
+            sys.stderr.write("[kavachos:egress] dns_proxy_port map not found — DNS stays denied\n")
+            return False
+        if not _map_update_u32(map_id, 0, int(port)):
+            return False
+        sys.stderr.write(f"[kavachos:egress] DNS steered to the resolving proxy on 127.0.0.1:{port}\n")
+        return True
+
     def cleanup(self) -> None:
         """Detach BPF, remove cgroup. @rule:KOS-045"""
-        if self.prog_id_v4 > 0:
+        # Stop the resolver FIRST. Every exit path reaches cleanup(), which is why the
+        # proxy is owned by the session rather than by main() — a proxy outliving its
+        # session would keep answering for a policy that no longer governs anything.
+        if self.dns_proxy is not None:
+            try:
+                self.dns_proxy.stop()
+                sys.stderr.write(
+                    f"[kavachos:dns] served={self.dns_proxy.served_count} "
+                    f"refused={self.dns_proxy.refused_count}\n")
+            except Exception:
+                pass
+            self.dns_proxy = None
+        # Guarded rather than trusted: cleanup runs on every exit path INCLUDING the one
+        # where setup failed, so it must survive fields that never got a real value.
+        if (self.prog_id_v4 or -1) > 0:
             _cgroup_detach(self.cgroup_path, self.prog_id_v4, "connect4")
-        if self.prog_id_v6 > 0:
+        if (self.prog_id_v6 or -1) > 0:
             _cgroup_detach(self.cgroup_path, self.prog_id_v6, "connect6")
         _destroy_cgroup(self.session_id)
         # Remove pinned programs from bpffs
-        for name in ["connect4", "connect6", "egress_allow_v4", "egress_allow_v6"]:
+        for name in ["connect4", "connect6", "egress_allow_v4", "egress_allow_v6", "dns_proxy_port"]:
             p = os.path.join(self.pin_dir, name)
             if os.path.exists(p):
                 try:
@@ -440,6 +568,8 @@ def main() -> None:
 
     sess = EgressSession(session_id)
     ok = sess.setup(policy, agent_pid)
+    if ok:
+        _start_resolving_proxy(sess, policy, session_id)
     if not ok:
         if ready_file:
             try:

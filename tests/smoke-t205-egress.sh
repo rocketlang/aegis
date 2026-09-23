@@ -31,6 +31,12 @@ fi
 
 KAVACHOS_CLI="${KAVACHOS_CLI:-bun /root/aegis/src/kavachos-cli.ts}"
 
+# Session ids are UNIQUE per run. A fixed id leaves pinned BPF objects at
+# /sys/fs/bpf/kavachos/<sid>/, and the next run fails to load with "already exists" —
+# at which point the session degrades to UNCONSTRAINED and these tests measure nothing.
+# Observed 2026-09-23: a DENY case reported PASS while curl actually reached the host.
+RUN_TAG="$$-$(date +%s)"
+
 # --- Test 1: dry-run profile generation includes egress policy ---
 
 log "Test 1: dry-run profile includes egress policy"
@@ -57,7 +63,7 @@ SESSION_OUT=$(mktemp)
 if $KAVACHOS_CLI run \
   --trust-mask=1 \
   --domain=general \
-  --session-id="SMOKE-T205-DENY" \
+  --session-id="SMOKE-T205-DENY-$RUN_TAG" \
   --verbose \
   -- curl --max-time 3 -s -o /dev/null -w "%{http_code}" https://example.com \
   >"$SESSION_OUT" 2>&1; then
@@ -85,7 +91,7 @@ SESSION_OUT=$(mktemp)
 if $KAVACHOS_CLI run \
   --trust-mask=255 \
   --domain=general \
-  --session-id="SMOKE-T205-ALLOW" \
+  --session-id="SMOKE-T205-ALLOW-$RUN_TAG" \
   --verbose \
   -- curl --max-time 5 -s -o /dev/null -w "%{http_code}" https://github.com \
   >"$SESSION_OUT" 2>&1; then
@@ -118,6 +124,41 @@ else
 fi
 cat "$SESSION_OUT"
 rm -f "$SESSION_OUT"
+
+# --- Test 4: the resolving proxy (KOS-046) ---
+#
+# The unit-level decision is covered by tests/dns-proxy.test.py. This asks the only
+# question that file cannot: does a GOVERNED agent actually get steered to the proxy,
+# and does the refusal survive the whole chain — connect4 rewrite, loopback, upstream?
+log "Test 4: a governed agent resolves policy names and is refused everything else"
+PROXY_SID="SMOKE-T205-DNS-$RUN_TAG"
+PROXY_OUT=$(mktemp)
+$KAVACHOS_CLI run --trust-mask=255 --domain=general --session-id="$PROXY_SID" -- \
+  /bin/sh -c 'getent hosts github.com >/dev/null 2>&1 && echo ALLOWED_OK || echo ALLOWED_BROKEN; \
+              getent hosts exfil.attacker.example >/dev/null 2>&1 && echo TUNNEL_OPEN || echo TUNNEL_SHUT' \
+  >"$PROXY_OUT" 2>&1 || true
+
+if grep -q "ALLOWED_OK" "$PROXY_OUT"; then
+  pass "a policy name still resolves through the proxy"
+else
+  fail "a policy name no longer resolves — the proxy broke what it was meant to protect"
+  head -30 "$PROXY_OUT"
+fi
+
+if grep -q "TUNNEL_SHUT" "$PROXY_OUT"; then
+  pass "a name outside the policy is REFUSED — the tunnel is shut"
+else
+  fail "a name outside the policy resolved — the DNS exfiltration channel is OPEN"
+  head -30 "$PROXY_OUT"
+fi
+
+if grep -q "kavachos:dns.*REFUSED" "$PROXY_OUT"; then
+  pass "the refusal was announced, not silent"
+else
+  fail "nothing announced the refusal — a channel closed without evidence is not auditable"
+fi
+rm -f "$PROXY_OUT" /root/.aegis/kernel/"$PROXY_SID".*.json 2>/dev/null
+rm -rf /sys/fs/bpf/kavachos/"$PROXY_SID" 2>/dev/null
 
 # --- Summary ---
 

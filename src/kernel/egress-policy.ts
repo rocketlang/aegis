@@ -90,11 +90,18 @@ const TRUST_MASK_EGRESS: Record<number, EgressEntry[]> = {
  * Never a wildcard, because `anything:53` is an open DNS tunnel — a channel that carries
  * data out in query names regardless of what the rest of this allowlist says.
  *
- * THE RESIDUAL RISK, STATED RATHER THAN HIDDEN. Even one resolver is an exfiltration
- * channel: an agent can encode data into names it asks that resolver to look up, and the
- * resolver forwards them. This narrows the channel to one hop and one port; it does not
- * close it. Closing it needs a resolving proxy that answers only for hosts in this
- * policy, which is not built.
+ * THE CHANNEL THIS LEAVES, AND WHAT NOW CLOSES IT. A resolver is an exfiltration channel:
+ * an agent can encode data into the names it asks that resolver to look up, and the
+ * resolver forwards them. Allowing :53 here narrows nothing on its own — to the BPF
+ * program a tunnelled query is a permitted packet to a permitted resolver on a permitted
+ * port.
+ *
+ * That channel is now closed by the KOS-046 resolving proxy (src/kernel/dns-proxy.py):
+ * connect4 steers every :53 connect() to it, and it answers ONLY for names this policy
+ * already permits connecting to, refusing and recording the rest. The entries below are
+ * therefore superseded at runtime and kept because the policy should still state that DNS
+ * is permitted at all. If the proxy fails to start, dns_proxy_port stays 0 and the BPF
+ * program denies :53 outright — the agent loses resolution rather than gaining a channel.
  *
  * @rule:INF-KOS-009 — an unreadable or empty resolv.conf returns NOTHING. It must never
  * fall back to permitting 53 broadly: a policy that cannot read its own inputs refuses,
@@ -113,7 +120,7 @@ export function systemResolvers(resolvConf = "/etc/resolv.conf"): EgressEntry[] 
     if (!m) continue;
     const ip = m[1];
     if (out.some(e => e.host === ip)) continue;
-    out.push({ host: ip, port: 53, note: "system DNS resolver (resolv.conf)" });
+    out.push({ host: ip, port: 53, note: "system DNS resolver (resolv.conf) — SUPERSEDED at runtime by the KOS-046 resolving proxy, which connect4 steers :53 to; kept so the policy still states that DNS is permitted at all" });
   }
   return out;
 }

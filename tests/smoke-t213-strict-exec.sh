@@ -53,12 +53,13 @@ OUT_A=$(mktemp)
 # `|| EXIT_A=$?` is required: under `set -e` a non-zero exit aborts the script before
 # a bare `EXIT_A=$?` can capture it, so a failing Case A silently took the whole suite
 # — including every case below it — down with it, and the file still exited 0 on a skip.
+RUN_TAG="$$-$(date +%s)"
 EXIT_A=0
 $KAVACHOS_CLI run \
   --trust-mask=255 \
   --domain=general \
   --strict-exec \
-  --session-id="SMOKE-T213-A" \
+  --session-id="SMOKE-T213-A-$RUN_TAG" \
   --verbose \
   -- /usr/bin/ls /tmp \
   >"$OUT_A" 2>&1 || EXIT_A=$?
@@ -87,7 +88,7 @@ log "Case A2: an allowlisted binary's exit status propagates (exit 7)"
 # A UNIQUE session id per run, never a fixed one. A fixed id leaves a pinned BPF
 # object at /sys/fs/bpf/kavachos/<sid>/connect4, and the NEXT run fails to pin with
 # "already exists" — the suite poisoning itself, which has bitten this file before.
-A2_SID="SMOKE-T213-A2-$$-$(date +%s)"
+A2_SID="SMOKE-T213-A2-$RUN_TAG"
 OUT_A2=$(mktemp)
 EXIT_A2=0
 $KAVACHOS_CLI run \
@@ -132,7 +133,7 @@ $KAVACHOS_CLI run \
   --trust-mask=255 \
   --domain=general \
   --strict-exec \
-  --session-id="SMOKE-T213-B" \
+  --session-id="SMOKE-T213-B-$RUN_TAG" \
   --verbose \
   -- "$BLOCKED_BIN" --version \
   >"$OUT_B" 2>&1 || EXIT_B=$?
@@ -165,7 +166,7 @@ $KAVACHOS_CLI run \
   --trust-mask=255 \
   --domain=general \
   --strict-exec \
-  --session-id="SMOKE-T213-C" \
+  --session-id="SMOKE-T213-C-$RUN_TAG" \
   --verbose \
   -- /usr/bin/sh -c "$BLOCKED_CMD --version 2>&1; echo SH_EXIT:\$?" \
   >"$OUT_C" 2>&1 || EXIT_C=$?
