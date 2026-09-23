@@ -272,7 +272,19 @@ export async function runWithKernel(
   if (egressPolicyPath) {
     const CGROUP_EGRESS_PY = join(dirname(new URL(import.meta.url).pathname), "cgroup-egress.py");
     const readyFile = join(KAVACHOS_DIR, `${sessionId}.cgroup`);
-    try { unlinkSync(readyFile); } catch { /* not there */ }
+
+    // @rule:KOS-047 — the ready file is the THIRD thing keyed by session id alone, after
+    // the cgroup and the BPF pins. Measured 2026-09-23: a second session on a live id read
+    // the INCUMBENT's cgroup path out of this file and launched believing itself governed,
+    // while its supervisor was simultaneously failing and deleting the incumbent's pins.
+    // Its presence before we spawn means someone else holds this id.
+    if (existsSync(readyFile)) {
+      console.error(`[kavachos:egress] REFUSING TO LAUNCH — session id ${sessionId} is already in use`);
+      console.error(`[kavachos:egress] another session holds ${readyFile}; pick a different --session-id`);
+      return { sessionId, profileHash, syscallCount: syscall_count, profilePath, falcoRulesPath,
+               egressPolicyPath, egressEnforced: false, refused: "egress:SESSION_ID_IN_USE" };
+    }
+    try { unlinkSync(readyFile); } catch { /* not there — expected */ }
 
     egressSidecar = spawn("python3", [CGROUP_EGRESS_PY, sessionId, egressPolicyPath, "--prepare", readyFile], {
       stdio: ["ignore", "ignore", "pipe"],

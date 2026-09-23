@@ -378,6 +378,11 @@ class EgressSession:
         self.prog_id_v6  = -1
         self._tmp        = []  # temp files to clean up
         self.dns_proxy   = None  # @rule:KOS-046 — owned here so cleanup() always stops it
+        # @rule:KOS-047 — this session may only tear down what IT created. The session id
+        # is a global namespace with no ownership: the cgroup, the BPF pins and the ready
+        # file are all keyed by it alone, so two sessions on one id share all three.
+        self._owns       = False
+        self.collided    = False
 
     def setup(self, policy: dict, agent_pid: Optional[int]) -> bool:
         """
@@ -387,6 +392,24 @@ class EgressSession:
         agent was gone before the move, and a long one had already forked the real
         agent outside the cgroup, so the supervisor was moved and the agent was not.
         """
+        # @rule:KOS-047 GUARD 1 — an id already in use is refused BEFORE anything is
+        # created, and nothing belonging to the incumbent is touched. It must run BEFORE the
+# makedirs and _create_cgroup below: placed after them it saw the cgroup it had itself
+# just created and refused every launch, including the first.
+        #
+        # This collision used to be discovered by failing to pin, after which cleanup()
+        # ran and deleted the INCUMBENT's pins — measured 2026-09-23: a live session's
+        # connect4 pin went from present to GONE because a second session on its id failed
+        # to start. The victim kept running and believed itself governed. Refusing without
+        # collateral is the whole point of refusing.
+        existing_pin = os.path.join(self.pin_dir, "connect4")
+        if os.path.exists(existing_pin) or os.path.isdir(self.cgroup_path):
+            self.collided = True
+            sys.stderr.write(
+                f"[kavachos:egress] REFUSING session {self.session_id}: that id is already in "
+                f"use. Not touching it — another session may be running under it.\n")
+            return False
+
         os.makedirs(CGROUP_ROOT, exist_ok=True)
         os.makedirs(BPF_PIN_ROOT, exist_ok=True)
         os.makedirs(self.pin_dir, exist_ok=True)
@@ -422,6 +445,7 @@ class EgressSession:
             self.prog_id_v4 = -1
             return False
         self.prog_id_v4 = loaded_v4
+        self._owns = True      # @rule:KOS-047 — from here, and only from here, teardown is ours
 
         if os.path.exists(v6_obj):
             v6_pin = os.path.join(self.pin_dir, "connect6")
@@ -524,6 +548,15 @@ class EgressSession:
             _cgroup_detach(self.cgroup_path, self.prog_id_v4, "connect4")
         if (self.prog_id_v6 or -1) > 0:
             _cgroup_detach(self.cgroup_path, self.prog_id_v6, "connect6")
+        # @rule:KOS-047 GUARD 2 — containment. Guard 1 stops the collision we know about;
+        # this stops every other route to the same damage. Previously these two steps were
+        # guarded by os.path.exists — existence, never ownership — so any session that
+        # reached cleanup() destroyed whatever happened to be sitting under that id.
+        if not self._owns:
+            sys.stderr.write(
+                f"[kavachos:egress] cleanup: session {self.session_id} created nothing — "
+                f"leaving the cgroup and pins alone\n")
+            return
         _destroy_cgroup(self.session_id)
         # Remove pinned programs from bpffs
         for name in ["connect4", "connect6", "egress_allow_v4", "egress_allow_v6", "dns_proxy_port"]:
