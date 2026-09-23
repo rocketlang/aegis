@@ -222,11 +222,19 @@ export function isSchemaTouching(command: string): boolean {
  * resolved — and under ANU-004 "cannot resolve" refuses a schema op rather than waving it past.
  */
 export function resolveTargetDb(command: string): string | null {
+  // Explicit target wins, in psql's own precedence: -d/--dbname, then a connection URL.
   const dbFlag = /(?:^|\s)(?:-d|--dbname[= ])\s*(['"]?)([A-Za-z0-9_]+)\1/.exec(command);
   if (dbFlag) return dbFlag[2];
 
   const url = /postgres(?:ql)?:\/\/[^\s'"]*\/([A-Za-z0-9_]+)/.exec(command);
   if (url) return url[1];
+
+  // AF-T-106 — an inline `PGDATABASE=<name>` assignment IS the connection target when no -d
+  // is given. Only a literal alnum/underscore name resolves; `PGDATABASE=$VAR` does not match
+  // and stays null → UNKNOWN → refuse/observe (INF-AFW-004). This can only NAME a target more
+  // often, never mis-route: PGDATABASE is exactly what psql connects to. @rule:AFW-YK-002
+  const pgEnv = /(?:^|\s)PGDATABASE=(['"]?)([A-Za-z0-9_]+)\1/.exec(command);
+  if (pgEnv) return pgEnv[2];
 
   const names = readKnownDbNames();
   if (names.known) {

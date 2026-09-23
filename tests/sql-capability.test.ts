@@ -46,4 +46,13 @@ describe("isProvablyReadOnly", () => {
     expect(inlineStatement('psql -c "$SQL"')).toBe("$SQL");
     expect(inlineStatement("psql -f x.sql")).toBeNull();
   });
+
+  it("AF-T-107: COPY … TO STDOUT is a read; FROM, TO PROGRAM, and a trailing write are not", () => {
+    expect(isProvablyReadOnly("psql -c 'COPY ledger TO STDOUT'")).toBe(true);
+    // a subquery COPY has FROM in it → conservatively NOT proven (safe: over-caution can't under-block)
+    expect(isProvablyReadOnly("psql -c 'COPY (SELECT * FROM ledger) TO STDOUT'")).toBe(false);
+    expect(isProvablyReadOnly("psql -c 'COPY ledger FROM STDIN'")).toBe(false);              // import
+    expect(isProvablyReadOnly("psql -c 'COPY ledger TO PROGRAM rm'")).toBe(false);           // runs a shell
+    expect(isProvablyReadOnly("psql -c 'COPY ledger TO STDOUT; DROP TABLE ledger'")).toBe(false); // hidden write
+  });
 });

@@ -54,7 +54,19 @@ export function isProvablyReadOnly(command: string): boolean {
   if (stmt === null) return false; // $VAR, -f file, heredoc, interactive → cannot prove
   const s = stmt.trim();
   if (READ_META.test(s)) return true;
-  if (WRITE_VERB.test(s)) return false;
+  if (WRITE_VERB.test(s)) {
+    // AF-T-107 — the one write-verb exception: `COPY … TO STDOUT` exports rows, it does not
+    // mutate the database. Allowed ONLY when COPY is the sole write verb (so `COPY x TO STDOUT;
+    // DROP TABLE y` is still a write) and there is no FROM (an import) and no TO PROGRAM (runs a
+    // shell). Cannot under-block a mutation: a pure export changes no data. @rule:AFW-YK-001
+    const isCopyToStdout =
+      /^\s*COPY\b[\s\S]*\bTO\s+STDOUT\b/i.test(s) &&
+      !/\bFROM\b/i.test(s) &&
+      !/\bTO\s+PROGRAM\b/i.test(s);
+    const otherWriteVerb = WRITE_VERB.test(s.replace(/\bCOPY\b/gi, " "));
+    if (isCopyToStdout && !otherWriteVerb) return true;
+    return false;
+  }
   if (READ_START.test(s)) return true;
   return false; // unrecognised statement shape → not provable → treat as write
 }

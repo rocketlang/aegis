@@ -2,7 +2,7 @@
 // The observe stage: a staged invariant (ANU-I-006) reports without ever flipping the verdict,
 // while enforced invariants still bite. Both outcomes forced. @rule:AF-T-103
 import { describe, it, expect } from "bun:test";
-import { anumati, type ProposedAction } from "../src/kavach/anumati";
+import { anumati, resolveTargetDb, type ProposedAction } from "../src/kavach/anumati";
 
 const act = (command: string): ProposedAction => ({ tool: "Bash", command, cwd: "/root", session_id: "test-staging" });
 
@@ -24,6 +24,18 @@ describe("ANU-I-006 runs in observe stage", () => {
 
   it("every decision carries a defined observations array", () => {
     expect(Array.isArray(anumati(act("ls -la")).observations)).toBe(true);
+  });
+});
+
+describe("AF-T-106: resolveTargetDb names implicit PGDATABASE targets", () => {
+  it("resolves an inline PGDATABASE=<name> assignment", () => {
+    expect(resolveTargetDb("PGDATABASE=payments_prod psql -c 'SELECT 1'")).toBe("payments_prod");
+  });
+  it("an explicit -d still wins over PGDATABASE (psql precedence)", () => {
+    expect(resolveTargetDb("PGDATABASE=x psql -d billing_dev -c 'SELECT 1'")).toBe("billing_dev");
+  });
+  it("PGDATABASE=$VAR does not resolve — stays null → UNKNOWN → refuse/observe", () => {
+    expect(resolveTargetDb('PGDATABASE=$TARGET psql -c "$SQL"')).toBeNull();
   });
 });
 
