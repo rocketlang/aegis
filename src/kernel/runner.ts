@@ -271,20 +271,23 @@ export async function runWithKernel(
   let egressSidecar: ReturnType<typeof spawn> | null = null;
   if (egressPolicyPath) {
     const CGROUP_EGRESS_PY = join(dirname(new URL(import.meta.url).pathname), "cgroup-egress.py");
-    const readyFile = join(KAVACHOS_DIR, `${sessionId}.cgroup`);
-
-    // @rule:KOS-047 — the ready file is the THIRD thing keyed by session id alone, after
-    // the cgroup and the BPF pins. Measured 2026-09-23: a second session on a live id read
-    // the INCUMBENT's cgroup path out of this file and launched believing itself governed,
-    // while its supervisor was simultaneously failing and deleting the incumbent's pins.
-    // Its presence before we spawn means someone else holds this id.
-    if (existsSync(readyFile)) {
-      console.error(`[kavachos:egress] REFUSING TO LAUNCH — session id ${sessionId} is already in use`);
-      console.error(`[kavachos:egress] another session holds ${readyFile}; pick a different --session-id`);
-      return { sessionId, profileHash, syscallCount: syscall_count, profilePath, falcoRulesPath,
-               egressPolicyPath, egressEnforced: false, refused: "egress:SESSION_ID_IN_USE" };
-    }
-    try { unlinkSync(readyFile); } catch { /* not there — expected */ }
+    // @rule:KOS-047 — the verdict channel is PRIVATE to this launch, not keyed by session
+    // id. It used to be `<sessionId>.cgroup`, shared by every runner using that id, and the
+    // race that produced was measured on 2026-09-23:
+    //
+    //   1. the incumbent's BPF pin appears, so an observer thinks it is up
+    //   2. a second runner checks the shared file — the incumbent has NOT written it yet
+    //   3. the second runner spawns its own supervisor
+    //   4. the INCUMBENT's supervisor now writes its cgroup path into that shared file
+    //   5. the second runner polls, reads the incumbent's path, and believes it armed
+    //   6. its own supervisor refuses and writes FAILED — after the read already happened
+    //
+    // The second agent then launched completely ungoverned while reporting success. No
+    // amount of checking the file's CONTENT fixes that; the defect is that two runners
+    // shared one channel. A private name per launch removes the class: a runner can only
+    // ever read what the supervisor it spawned wrote.
+    const readyFile = join(KAVACHOS_DIR, `${sessionId}.${process.pid}-${Date.now()}.cgroup`);
+    try { unlinkSync(readyFile); } catch { /* cannot exist — the name is unique per launch */ }
 
     egressSidecar = spawn("python3", [CGROUP_EGRESS_PY, sessionId, egressPolicyPath, "--prepare", readyFile], {
       stdio: ["ignore", "ignore", "pipe"],
@@ -313,6 +316,7 @@ export async function runWithKernel(
       if (existsSync(readyFile)) {
         verdict = readFileSync(readyFile, "utf-8").trim();
         if (verdict.startsWith("/")) egressCgroup = verdict;
+        try { unlinkSync(readyFile); } catch { /* best effort — it is ours alone */ }
         break;
       }
       // portable synchronous pause — no shell, no busy spin
