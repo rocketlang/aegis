@@ -22,6 +22,7 @@ import { requiredBitsForTool } from "../../kavach/perm-mask";
 import { classifyResource, extractResourceFromToolInput } from "../../kavach/class-mask";
 import { checkValve, incrementLoopCount } from "../../kavach/gate-valve";
 import { checkMudrika } from "../../kavach/mudrika-validator";
+import { destructiveVerdict, type DestructiveRule, type DestructiveRules } from "../../kavach/destructive-verdict";
 
 const AEGIS_DIR = join(process.env.HOME || "/root", ".aegis");
 const RULES_PATH = join(AEGIS_DIR, "destructive-rules.json");
@@ -29,18 +30,6 @@ const RULES_PATH = join(AEGIS_DIR, "destructive-rules.json");
 /** Deliberate duplicate of rules.allowed_override_token — the escape hatch must not depend
  *  on the file whose absence triggers it. @rule:ANU-004 */
 const FALLBACK_OVERRIDE_TOKEN = "HUMAN-DESTRUCTIVE-CONFIRMED-ANKR";
-
-interface DestructiveRule {
-  pattern: string;
-  flags: string;
-  reason: string;
-  severity: "CRITICAL" | "HIGH" | "MEDIUM";
-}
-
-interface DestructiveRules {
-  bash_block_patterns: DestructiveRule[];
-  allowed_override_token: string;
-}
 
 function loadRules(): DestructiveRules | null {
   try {
@@ -130,16 +119,18 @@ export default async function checkDestructive(_args: string[]): Promise<void> {
 
     if (!command) process.exit(0);
 
+    // The decision is pure and shared with the red-team harness (destructive-verdict.ts);
+    // everything below is the side effect of that decision.
+    const verdict = destructiveVerdict(command, rules);
+
     // Override token: human has already confirmed via explicit comment
-    if (command.includes(rules.allowed_override_token)) {
+    if (verdict.kind === "override") {
       process.stderr.write(`[KAVACH] Override token present — allowing (human confirmed)\n`);
       process.exit(0);
     }
 
-    // Check each rule
-    for (const rule of rules.bash_block_patterns) {
-      const regex = new RegExp(rule.pattern, rule.flags);
-      if (!regex.test(command)) continue;
+    if (verdict.kind === "match") {
+      const rule = verdict.rule;
 
       if (rule.severity === "CRITICAL") {
         // @rule:KAV-052 — CRITICAL → KAVACH Gate (human approval via WhatsApp + dashboard)
