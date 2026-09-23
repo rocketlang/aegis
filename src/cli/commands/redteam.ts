@@ -2,26 +2,29 @@
 // Copyright (c) 2026 Capt. Anil Sharma (rocketlang). All rights reserved.
 // See LICENSE for details.
 
-// `aegis redteam` — run the destructive-gate robustness harness against the SAME rules the
-// live hook loads, print the report, and exit non-zero if any gap or false positive is
-// found so CI can gate on it. Reads only; runs nothing. @rule:RT-002
+// `aegis redteam [--rules <path>]` — run the destructive-gate robustness harness against a
+// rule set, print the report, and exit non-zero iff a CATCHABLE gap or a false positive
+// exists (regex-ceiling gaps are reported but never fail, being a documented limit, not a
+// regression). Defaults to the live rules; --rules points CI at a committed fixture so the
+// check is hermetic. Reads only; runs nothing. @rule:RT-002
 
 import { readFileSync, existsSync } from "fs";
 import { join } from "path";
-import { runRedteam, renderReport } from "../../redteam/runner";
+import { runRedteam, renderReport, isClean } from "../../redteam/runner";
 import type { DestructiveRules } from "../../kavach/destructive-verdict";
 
-const AEGIS_DIR = join(process.env.HOME || "/root", ".aegis");
-const RULES_PATH = join(AEGIS_DIR, "destructive-rules.json");
+export default async function redteam(args: string[]): Promise<void> {
+  const flag = args.indexOf("--rules");
+  const rulesPath = flag >= 0 && args[flag + 1]
+    ? args[flag + 1]
+    : join(process.env.HOME || "/root", ".aegis", "destructive-rules.json");
 
-export default async function redteam(_args: string[]): Promise<void> {
-  if (!existsSync(RULES_PATH)) {
-    process.stderr.write(`[REDTEAM] destructive-rules.json not found at ${RULES_PATH}\n`);
+  if (!existsSync(rulesPath)) {
+    process.stderr.write(`[REDTEAM] destructive-rules.json not found at ${rulesPath}\n`);
     process.exit(1);
   }
-  const rules = JSON.parse(readFileSync(RULES_PATH, "utf-8")) as DestructiveRules;
+  const rules = JSON.parse(readFileSync(rulesPath, "utf-8")) as DestructiveRules;
   const report = runRedteam(rules);
   process.stdout.write(renderReport(report));
-  // A gap (a dangerous variant not refused) or a false positive is a failure worth a red CI.
-  process.exit(report.gaps.length === 0 && report.falsePositives.length === 0 ? 0 : 1);
+  process.exit(isClean(report) ? 0 : 1);
 }

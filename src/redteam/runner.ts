@@ -2,18 +2,21 @@
 // Copyright (c) 2026 Capt. Anil Sharma (rocketlang). All rights reserved.
 // See LICENSE for details.
 
-// The red-team runner. It evaluates every (exemplar × variant) and every control through
-// the SAME pure decision function the live hook uses (destructiveVerdict), and reports:
+// The red-team runner. It evaluates every applicable (exemplar × variant) and every control
+// through the SAME pure decision function the live hook uses (destructiveVerdict), and sorts
+// the misses into two piles that mean different things:
 //
-//   gaps  — a dangerous variant the gate did NOT refuse. Ground truth is the human-authored
-//           label on the exemplar (RT-001); the gate's own opinion is never the oracle.
-//   false positives — a benign control the gate refused. Over-blocking is a real failure.
+//   catchableGaps — a dangerous variant a regex denylist COULD catch, but this gate did not.
+//                   A regression to fix by widening a rule (or by the shared normalizer).
+//   ceilingGaps   — a dangerous variant no regex denylist can catch, because the dangerous
+//                   text is split across shell tokens or supplied at runtime and is simply
+//                   not in the command string. Not a bug in the rules; the ceiling of
+//                   denylisting, and the reason the semantic gate (Anumati, which resolves
+//                   the real target database) is the control that actually closes them.
+//   falsePositives — a benign control the gate refused. Over-blocking is a real failure too.
 //
-// The "attack success rate" (ASR) is gaps ÷ dangerous-variants: the fraction of
-// meaning-preserving rewrites of a known-dangerous command that slipped past. ASR=0 with a
-// clean control sheet is the goal; any gap names a rule whose regex should be widened.
-//
-// This module never executes a command. @rule:RT-002
+// Ground truth is the human label on the exemplar, never the gate (RT-001). Nothing is ever
+// executed (RT-002). CI gates on catchableGaps and falsePositives; ceilingGaps are reported.
 
 import { destructiveVerdict, type DestructiveRules } from "../kavach/destructive-verdict";
 import { EXEMPLARS, CONTROLS, VARIANTS } from "./corpus";
@@ -21,8 +24,10 @@ import { EXEMPLARS, CONTROLS, VARIANTS } from "./corpus";
 export interface Gap {
   ruleId: string;
   harm: string;
+  family: string;
   variant: string;
   preserves: string;
+  regexCeiling: boolean;
   command: string;
 }
 
@@ -33,33 +38,40 @@ export interface FalsePositive {
 
 export interface RedteamReport {
   dangerousTried: number;
-  gaps: Gap[];
+  catchableGaps: Gap[];
+  ceilingGaps: Gap[];
   controlsTried: number;
   falsePositives: FalsePositive[];
-  /** gaps ÷ dangerousTried, 0..1 */
-  asr: number;
-  /** falsePositives ÷ controlsTried, 0..1 */
+  /** catchable misses ÷ catchable variants tried, 0..1 — the number CI gates on */
+  catchableAsr: number;
+  /** false positives ÷ controls tried, 0..1 */
   fpr: number;
 }
 
-/**
- * A dangerous command is "refused" iff the gate matched a rule against it. The override
- * token is NOT a refusal — but the corpus never contains the token, so it cannot mask a gap.
- */
+/** A dangerous command is "refused" iff the gate would block it (a match). Inert display and
+ *  clear both mean "allowed". The corpus never contains the override token, so it can't mask a gap. */
 function refuses(command: string, rules: DestructiveRules): boolean {
   return destructiveVerdict(command, rules).kind === "match";
 }
 
 export function runRedteam(rules: DestructiveRules): RedteamReport {
-  const gaps: Gap[] = [];
+  const catchableGaps: Gap[] = [];
+  const ceilingGaps: Gap[] = [];
   let dangerousTried = 0;
+  let catchableTried = 0;
 
   for (const ex of EXEMPLARS) {
     for (const v of VARIANTS) {
+      if (!v.appliesTo.includes(ex.kind)) continue;
       const command = v.apply(ex.plain);
       dangerousTried++;
+      if (!v.regexCeiling) catchableTried++;
       if (!refuses(command, rules)) {
-        gaps.push({ ruleId: ex.ruleId, harm: ex.harm, variant: v.name, preserves: v.preserves, command });
+        const gap: Gap = {
+          ruleId: ex.ruleId, harm: ex.harm, family: v.family, variant: v.name,
+          preserves: v.preserves, regexCeiling: v.regexCeiling, command,
+        };
+        (v.regexCeiling ? ceilingGaps : catchableGaps).push(gap);
       }
     }
   }
@@ -67,39 +79,51 @@ export function runRedteam(rules: DestructiveRules): RedteamReport {
   const falsePositives: FalsePositive[] = [];
   for (const control of CONTROLS) {
     const verdict = destructiveVerdict(control, rules);
-    if (verdict.kind === "match") {
-      falsePositives.push({ control, matchedRulePattern: verdict.rule.pattern });
-    }
+    if (verdict.kind === "match") falsePositives.push({ control, matchedRulePattern: verdict.rule.pattern });
   }
 
   return {
     dangerousTried,
-    gaps,
+    catchableGaps,
+    ceilingGaps,
     controlsTried: CONTROLS.length,
     falsePositives,
-    asr: dangerousTried === 0 ? 0 : gaps.length / dangerousTried,
+    catchableAsr: catchableTried === 0 ? 0 : catchableGaps.length / catchableTried,
     fpr: CONTROLS.length === 0 ? 0 : falsePositives.length / CONTROLS.length,
   };
+}
+
+/** CI is red iff a catchable gap or a false positive exists. Ceiling gaps never fail CI. */
+export function isClean(r: RedteamReport): boolean {
+  return r.catchableGaps.length === 0 && r.falsePositives.length === 0;
 }
 
 export function renderReport(r: RedteamReport): string {
   const pct = (x: number) => `${(x * 100).toFixed(1)}%`;
   let out = "# AEGIS red-team — destructive-gate robustness\n\n";
-  out += `Dangerous variants tried: ${r.dangerousTried} · gaps: ${r.gaps.length} · **ASR ${pct(r.asr)}**\n`;
-  out += `Benign controls tried: ${r.controlsTried} · false positives: ${r.falsePositives.length} · **FPR ${pct(r.fpr)}**\n\n`;
+  out += `Dangerous variants tried: ${r.dangerousTried} · **catchable-ASR ${pct(r.catchableAsr)}** `;
+  out += `(${r.catchableGaps.length} catchable gap(s)) · ${r.ceilingGaps.length} regex-ceiling gap(s)\n`;
+  out += `Benign controls tried: ${r.controlsTried} · **FPR ${pct(r.fpr)}** (${r.falsePositives.length} false positive(s))\n\n`;
 
-  if (r.gaps.length === 0) out += "✓ No meaning-preserving rewrite of any exemplar slipped past the gate.\n";
+  if (r.catchableGaps.length === 0) out += "✓ No catchable evasion slipped past the gate.\n";
   else {
-    out += "## Gaps — a dangerous variant the gate did NOT refuse (widen the rule's regex)\n\n";
-    out += "| rule | harm | variant | command |\n|---|---|---|---|\n";
-    for (const g of r.gaps) out += `| ${g.ruleId} | ${g.harm} | ${g.variant} | \`${g.command}\` |\n`;
+    out += "## Catchable gaps — WIDEN the rule (a regex could catch these)\n\n| rule | family | variant | command |\n|---|---|---|---|\n";
+    for (const g of r.catchableGaps) out += `| ${g.ruleId} | ${g.family} | ${g.variant} | \`${g.command}\` |\n`;
   }
   out += "\n";
   if (r.falsePositives.length === 0) out += "✓ No benign control was refused.\n";
   else {
-    out += "## False positives — a benign command the gate refused (rule is over-broad)\n\n";
-    out += "| control | matched pattern |\n|---|---|\n";
+    out += "## False positives — the rule is over-broad\n\n| control | matched pattern |\n|---|---|\n";
     for (const fp of r.falsePositives) out += `| \`${fp.control}\` | \`${fp.matchedRulePattern}\` |\n`;
+  }
+  out += "\n";
+  if (r.ceilingGaps.length > 0) {
+    out += "## Regex-ceiling gaps — a denylist cannot catch these (route to the semantic gate)\n\n";
+    out += "The dangerous text is split across shell tokens or supplied at runtime, so it is not\n";
+    out += "in the command string at all. No regex closes these; the control that does is the\n";
+    out += "semantic layer that resolves the real target database and refuses the unknown.\n\n";
+    out += "| rule | variant | why it is meaning-preserving | command |\n|---|---|---|---|\n";
+    for (const g of r.ceilingGaps) out += `| ${g.ruleId} | ${g.variant} | ${g.preserves} | \`${g.command}\` |\n`;
   }
   return out;
 }

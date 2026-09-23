@@ -1,22 +1,25 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-// The harness must (a) find a real gap in a deliberately weak rule set, and (b) report a
-// clean sheet against a rule set that covers the exemplars — both outcomes forced, so a
-// harness that always says "clean" cannot pass. @rule:guards-assert-both-outcomes
+// The harness and the two hardening measures, with EVERY outcome forced: a catchable miss
+// under weak rules, a clean sheet under good rules, the SQL-comment evasion closed by the
+// normalizer, the regex-ceiling variants reported (never as regressions), the echo false
+// positive suppressed as inert, and — the safety boundary — an execution path re-arming the
+// block. A harness stuck on "clean" cannot pass this suite. @rule:guards-assert-both-outcomes
 
 import { describe, it, expect } from "bun:test";
-import { runRedteam } from "../src/redteam/runner";
+import { runRedteam, isClean } from "../src/redteam/runner";
 import { EXEMPLARS, CONTROLS, VARIANTS } from "../src/redteam/corpus";
-import type { DestructiveRules } from "../src/kavach/destructive-verdict";
+import {
+  destructiveVerdict, isInertDisplay, normalizeForMatch, type DestructiveRules,
+} from "../src/kavach/destructive-verdict";
 
-// A rule set strong enough to catch every exemplar under every variant: case-insensitive,
-// whitespace-tolerant patterns for each keyword pair the exemplars use.
-const STRONG: DestructiveRules = {
+// Whitespace/case-tolerant, comment-aware-by-normalizer rules covering every exemplar.
+const GOOD: DestructiveRules = {
   allowed_override_token: "HUMAN-DESTRUCTIVE-CONFIRMED-ANKR",
   bash_block_patterns: [
     { pattern: "DROP\\s+DATABASE", flags: "i", reason: "", severity: "CRITICAL" },
     { pattern: "DROP\\s+TABLE", flags: "i", reason: "", severity: "CRITICAL" },
     { pattern: "DROP\\s+SCHEMA", flags: "i", reason: "", severity: "CRITICAL" },
-    { pattern: "TRUNCATE\\s", flags: "i", reason: "", severity: "CRITICAL" },
+    { pattern: "TRUNCATE\\s+TABLE", flags: "i", reason: "", severity: "CRITICAL" },
     { pattern: "DELETE\\s+FROM\\s", flags: "i", reason: "", severity: "HIGH" },
     { pattern: "ALTER\\s+TABLE\\s+.*\\s+DROP\\s+COLUMN", flags: "i", reason: "", severity: "HIGH" },
     { pattern: "prisma\\s+migrate\\s+reset", flags: "i", reason: "", severity: "HIGH" },
@@ -24,15 +27,14 @@ const STRONG: DestructiveRules = {
   ],
 };
 
-// A weak rule set: space-literal (no \s), case-sensitive. It catches the tidy form but must
-// miss the tab and mixed-case variants — that miss is exactly what the harness exists to find.
+// Space-literal, case-sensitive: catches the tidy form, misses the tab and mixed-case rewrites.
 const WEAK: DestructiveRules = {
   allowed_override_token: "HUMAN-DESTRUCTIVE-CONFIRMED-ANKR",
   bash_block_patterns: [
     { pattern: "DROP DATABASE", flags: "", reason: "", severity: "CRITICAL" },
     { pattern: "DROP TABLE", flags: "", reason: "", severity: "CRITICAL" },
     { pattern: "DROP SCHEMA", flags: "", reason: "", severity: "CRITICAL" },
-    { pattern: "TRUNCATE ", flags: "", reason: "", severity: "CRITICAL" },
+    { pattern: "TRUNCATE TABLE", flags: "", reason: "", severity: "CRITICAL" },
     { pattern: "DELETE FROM ", flags: "", reason: "", severity: "HIGH" },
     { pattern: "ALTER TABLE .* DROP COLUMN", flags: "", reason: "", severity: "HIGH" },
     { pattern: "prisma migrate reset", flags: "", reason: "", severity: "HIGH" },
@@ -40,42 +42,73 @@ const WEAK: DestructiveRules = {
   ],
 };
 
-describe("redteam robustness harness", () => {
-  it("tries every exemplar under every variant", () => {
-    const r = runRedteam(STRONG);
-    expect(r.dangerousTried).toBe(EXEMPLARS.length * VARIANTS.length);
-    expect(r.controlsTried).toBe(CONTROLS.length);
+describe("redteam harness — coverage and both outcomes", () => {
+  it("only tries meaning-preserving variants (skips case on shell exemplars)", () => {
+    const applicable = EXEMPLARS.reduce(
+      (n, ex) => n + VARIANTS.filter((v) => v.appliesTo.includes(ex.kind)).length, 0);
+    expect(runRedteam(GOOD).dangerousTried).toBe(applicable);
+    expect(runRedteam(GOOD).controlsTried).toBe(CONTROLS.length);
   });
 
-  it("ASR is 0 against a whitespace/case-tolerant rule set — no variant slips past", () => {
-    const r = runRedteam(STRONG);
-    expect(r.gaps).toEqual([]);
-    expect(r.asr).toBe(0);
+  it("is clean (catchable-ASR 0, no false positives) against good rules", () => {
+    const r = runRedteam(GOOD);
+    expect(r.catchableGaps).toEqual([]);
+    expect(r.catchableAsr).toBe(0);
+    expect(r.falsePositives).toEqual([]);
+    expect(isClean(r)).toBe(true);
   });
 
-  it("FINDS gaps in a weak rule set — the tab and mixed-case variants slip past", () => {
+  it("FINDS catchable gaps under weak rules — tab and mixed-case slip past", () => {
     const r = runRedteam(WEAK);
-    expect(r.gaps.length).toBeGreaterThan(0);
-    expect(r.asr).toBeGreaterThan(0);
-    // the identity variant is the tidy form; it must still be caught even by the weak rules
-    expect(r.gaps.some((g) => g.variant === "identity")).toBe(false);
-    // the misses must be the meaning-preserving rewrites, and each carries its justification
-    expect(r.gaps.every((g) => g.preserves.length > 0)).toBe(true);
+    expect(r.catchableGaps.length).toBeGreaterThan(0);
+    expect(r.catchableAsr).toBeGreaterThan(0);
+    expect(r.catchableGaps.some((g) => g.variant === "identity")).toBe(false); // tidy form still caught
+    expect(isClean(r)).toBe(false);
   });
 
-  it("FINDS a false positive — a substring rule over-blocks a benign echo that names a keyword", () => {
-    // A naive substring/regex gate cannot tell `echo 'DROP TABLE ...'` from a real statement.
-    // The harness surfaces that as over-blocking; both a miss (above) and an over-block are
-    // forced outcomes, so a harness stuck on "clean" cannot pass this suite.
-    const r = runRedteam(STRONG);
-    expect(r.falsePositives.length).toBeGreaterThan(0);
-    expect(r.fpr).toBeGreaterThan(0);
-    expect(r.falsePositives.some((fp) => fp.control.startsWith("echo "))).toBe(true);
+  it("always reports the regex-ceiling variants as ceiling, never as catchable gaps", () => {
+    for (const rules of [GOOD, WEAK]) {
+      const r = runRedteam(rules);
+      expect(r.ceilingGaps.length).toBeGreaterThan(0);
+      expect(r.ceilingGaps.every((g) => g.regexCeiling)).toBe(true);
+      expect(r.catchableGaps.every((g) => !g.regexCeiling)).toBe(true);
+    }
+  });
+});
+
+describe("normalizer closes the SQL-comment evasion (union, never a bypass)", () => {
+  it("matches DROP/**/TABLE via the normalized view", () => {
+    const v = destructiveVerdict("psql -c 'DROP/**/TABLE widgets'", GOOD);
+    expect(v.kind).toBe("match");
+    if (v.kind === "match") expect(v.via).toBe("normalized");
+  });
+  it("normalization only strips comments/whitespace — it cannot remove a raw block", () => {
+    // `git push --force` style: the -- is a flag, not a SQL comment; raw still governs.
+    expect(normalizeForMatch("psql -c 'DROP  TABLE  t'")).toBe("psql -c 'DROP TABLE t'");
+  });
+});
+
+describe("inert-display FPR fix — narrow and safe", () => {
+  it("suppresses a bare echo/printf that only names a keyword", () => {
+    expect(destructiveVerdict("echo 'DROP TABLE t'", GOOD).kind).toBe("inert");
+    expect(isInertDisplay("printf 'TRUNCATE TABLE t\\n'")).toBe(true);
+    expect(runRedteam(GOOD).falsePositives).toEqual([]); // the echo/printf controls no longer flag
   });
 
-  it("does not flag a keyword-free benign control", () => {
-    // `systemctl status postgresql` names no destructive keyword and must never be refused.
-    const r = runRedteam(STRONG);
-    expect(r.falsePositives.some((fp) => fp.control.includes("systemctl status"))).toBe(false);
+  it("re-arms the block the moment an execution path appears (pipe/redirect/chain/subst)", () => {
+    for (const cmd of [
+      "echo 'DROP TABLE t' | psql",
+      "echo 'DROP TABLE t' > migration.sql",
+      "echo 'DROP TABLE t'; psql -f -",
+      "echo \"$(psql -c 'DROP TABLE t')\"",
+    ]) {
+      expect(isInertDisplay(cmd)).toBe(false);
+      expect(destructiveVerdict(cmd, GOOD).kind).toBe("match");
+    }
+  });
+
+  it("a real destructive command is never inert", () => {
+    expect(destructiveVerdict("psql -c 'DROP TABLE widgets'", GOOD).kind).toBe("match");
+    expect(isInertDisplay("psql -c 'DROP TABLE widgets'")).toBe(false);
   });
 });

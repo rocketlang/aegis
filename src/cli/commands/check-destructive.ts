@@ -129,6 +129,15 @@ export default async function checkDestructive(_args: string[]): Promise<void> {
       process.exit(0);
     }
 
+    // A destructive keyword that is only DISPLAYED (bare echo/printf/comment, no execution
+    // path) reaches no interpreter — allow it, but say so, so a suppressed match is visible.
+    if (verdict.kind === "inert") {
+      process.stderr.write(
+        `[KAVACH] '${verdict.wouldMatch.pattern}' appears only as displayed text (no execution path) — allowing\n`,
+      );
+      process.exit(0);
+    }
+
     if (verdict.kind === "match") {
       const rule = verdict.rule;
 
