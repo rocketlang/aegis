@@ -173,3 +173,37 @@ function isLlmApiHost(host: string): boolean {
 export function serialiseEgressPolicy(policy: EgressPolicy): string {
   return JSON.stringify(policy, null, 2);
 }
+
+
+/**
+ * What a launch must do when the egress supervisor reports back. @rule:INF-KOS-009
+ *
+ * Extracted as a pure function because the rule is worth testing and a live collision is
+ * not worth racing. Reproducing a real failed arm means holding BPF pins with one session
+ * while a second starts on the same id — which is how the defect was found, and which
+ * proved impossible to schedule reliably inside a smoke test. Three attempts produced
+ * three different wrong diagnoses. The integration path is verified by hand; the RULE is
+ * verified here, deterministically, in every combination.
+ *
+ * The verdict is whatever the supervisor wrote to the ready file: a cgroup path when it
+ * armed, or one of the words below. Anything unrecognised is treated as a failure, never
+ * as permission.
+ */
+export type EgressVerdict = string;
+export type EgressAction = { proceed: boolean; reason: string };
+
+export function egressLaunchDecision(verdict: EgressVerdict, allowUnconstrained: boolean): EgressAction {
+  if (verdict.startsWith("/")) {
+    return { proceed: true, reason: "egress armed" };
+  }
+  if (verdict === "UNAVAILABLE") {
+    return allowUnconstrained
+      ? { proceed: true, reason: "host cannot enforce egress; accepted by --allow-unconstrained-egress" }
+      : { proceed: false, reason: "this host cannot enforce cgroup BPF egress. Pass --allow-unconstrained-egress to accept that deliberately." };
+  }
+  if (verdict === "FAILED") {
+    // The flag accepts a host that CANNOT enforce. It never excuses one that could and did not.
+    return { proceed: false, reason: "the egress session failed to arm on a host that supports it. That is a fault, not an environment." };
+  }
+  return { proceed: false, reason: `the egress supervisor reported '${verdict}'. Unknown is not permission.` };
+}

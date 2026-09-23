@@ -94,6 +94,13 @@ async function cmdRun(args: string[]) {
   try {
     const result = await runWithKernel(agentArgs, opts);
     if (opts.dryRun) return;
+    // A REFUSED launch must not read as success. `exitCode` is the agent's status and is
+    // undefined when no agent ever ran, so without this a caller checking $? sees 0 and
+    // concludes the agent ran fine — the same defect the --json refusal path had.
+    if (result.refused) {
+      console.error(`[kavachos] launch refused: ${result.refused}`);
+      process.exit(3);
+    }
     if (result.exitCode !== 0) process.exit(result.exitCode);
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);
@@ -657,6 +664,9 @@ function parseRunOpts(args: string[]) {
     verbose: args.includes("--verbose") || args.includes("-v"),
     falcoEnabled: args.includes("--falco"),
     strictExec: args.includes("--strict-exec"),
+    // @rule:INF-KOS-009 — accepts ONLY a host that cannot enforce egress at all. It never
+    // excuses a session that failed to arm, or a supervisor that did not answer.
+    allowUnconstrainedEgress: args.includes("--allow-unconstrained-egress"),
     // @rule:ANU-008 — loopback ports this agent legitimately needs. Without them the
     // any-port loopback allow readmits every locally denied endpoint and the denies
     // are advisory; the compiler says so rather than letting them look enforced.
@@ -725,6 +735,8 @@ Options for run / generate:
   --agent-id=<id>            Agent ID for receipt chain linkage
   --falco                    Write Falco rules file alongside seccomp profile
   --strict-exec              Gate execve/execveat — auto-ALLOW/DENY from exec allowlist (KOS-046)
+  --allow-unconstrained-egress  Launch on a host with no cgroup BPF egress. Refuses to cover
+                             a FAILED arm or a supervisor timeout — those abort regardless.
   --needs=4444,4130          Loopback ports the agent needs; lets the compiler narrow the
                              any-port loopback allow so local denies actually bite (ANU-008)
   --dry-run                  Generate profile only, do not exec

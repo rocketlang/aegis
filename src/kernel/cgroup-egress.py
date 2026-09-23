@@ -403,17 +403,29 @@ class EgressSession:
 
         # Load + pin
         v4_pin = os.path.join(self.pin_dir, "connect4")
-        # _prog_load returns None on failure while this field is an int sentinel. Left
-        # unnormalised, a failed load made cleanup() compare None > 0 and raise, so a
-        # session that failed to arm ALSO failed to tear itself down — leaving the pinned
-        # objects that make the NEXT run fail to load. One failure became permanent.
-        self.prog_id_v4 = _prog_load(v4_obj, v4_pin) or -1
-        if self.prog_id_v4 is None:
+        # _prog_load returns None on failure while this field is an int sentinel. Two
+        # things have to hold at once, and an earlier fix got one by breaking the other:
+        #
+        #   cleanup() must never see None      — it compared None > 0 and raised, so a
+        #                                        session that failed to arm also failed to
+        #                                        tear itself down, and one failure became
+        #                                        permanent.
+        #   setup() must ABORT on a failed load — `= _prog_load(...) or -1` satisfied the
+        #                                        first and silently made the `is None`
+        #                                        check below it dead code, so setup walked
+        #                                        on and attached prog id -1. A session that
+        #                                        could not load then reported itself ready.
+        #
+        # So test the load result BEFORE normalising, and normalise on both paths.
+        loaded_v4 = _prog_load(v4_obj, v4_pin)
+        if loaded_v4 is None:
+            self.prog_id_v4 = -1
             return False
+        self.prog_id_v4 = loaded_v4
 
         if os.path.exists(v6_obj):
             v6_pin = os.path.join(self.pin_dir, "connect6")
-            self.prog_id_v6 = _prog_load(v6_obj, v6_pin) or -1
+            self.prog_id_v6 = _prog_load(v6_obj, v6_pin) or -1   # v6 failure is non-fatal
 
         # Attach to cgroup
         if not _cgroup_attach(self.cgroup_path, self.prog_id_v4, "connect4"):

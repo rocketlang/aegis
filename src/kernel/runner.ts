@@ -10,7 +10,7 @@ import { generateSeccompProfile, profileSummary } from "./seccomp-profile-genera
 import { generateFalcoRules } from "./falco-rule-generator";
 import { storeProfile, checkProfileDrift } from "./profile-store";
 import { sealKernelViolation, parseFalcoEvent, checkViolationRate } from "./kernel-receipt";
-import { serialiseEgressPolicy } from "./egress-policy";
+import { serialiseEgressPolicy, egressLaunchDecision } from "./egress-policy";
 import { compilePolicy } from "../kavach/compile-policy";
 import { buildExecAllowlist, serialiseExecAllowlist } from "./exec-allowlist";
 import { getAegisDir } from "../core/config";
@@ -28,6 +28,14 @@ export interface RunOptions {
   verbose?: boolean;
   falcoEnabled?: boolean;   // emit Falco rules file (requires Falco installed)
   egressEnabled?: boolean;  // @rule:KOS-040 cgroup BPF egress firewall (Phase 1E)
+  /**
+   * Proceed even though this host cannot enforce egress. @rule:INF-KOS-009
+   *
+   * Accepts ONLY the UNAVAILABLE case — a host without cgroup BPF, which an operator can
+   * know in advance. It never excuses FAILED or a timeout: those say something went wrong
+   * on a host that can enforce, and a fault is not a configuration.
+   */
+  allowUnconstrainedEgress?: boolean;
   strictExec?: boolean;     // @rule:KOS-046 exec allowlist — execve/execveat gated
   /** @rule:ANU-008 loopback ports this agent legitimately needs. Supplying them lets the
    *  compiler narrow the any-port loopback allow; without them, local denies stay advisory. */
@@ -43,6 +51,12 @@ export interface RunResult {
   egressPolicyPath: string | null;
   pid?: number;
   exitCode?: number;
+  /** Set when the launch was REFUSED rather than attempted. @rule:INF-KOS-009 */
+  refused?: string;
+  /** Whether cgroup BPF egress actually armed for this session — not whether a policy
+   *  was written. A launch record used to be able to show a perfect egress policy for an
+   *  agent that ran with no egress control at all. */
+  egressEnforced?: boolean;
 }
 
 const APPLY_SECCOMP_PY = join(dirname(new URL(import.meta.url).pathname), "apply-seccomp.py");
@@ -271,21 +285,64 @@ export async function runWithKernel(
       process.stderr.write(`[kavachos:egress] sidecar error: ${err.message}\n`);
     });
 
-    // Bounded wait for the cgroup to exist. Egress is defence in depth: if it cannot be
-    // prepared the agent still runs, but it runs UNCONSTRAINED and must say so.
+    // Bounded wait for the cgroup. @rule:INF-KOS-009 — the three ways this can go wrong
+    // are NOT equivalent, and treating them as one was the defect. The supervisor already
+    // writes a distinct word for each; this used to read none of them, asking only
+    // `startsWith("/")`, so a hard failure, an unsupported host and a timeout all fell
+    // through to the same silent unconstrained launch — behind `--verbose` at that.
+    //
+    //   FAILED       BPF was available and this session could not arm. A fault. ABORT.
+    //   <timeout>    we do not know what happened. Unknown refuses. ABORT.
+    //   UNAVAILABLE  the host genuinely cannot enforce. The only defensible exception,
+    //                and only when the caller declared it up front.
     const deadline = Date.now() + 15_000;
+    let verdict = "TIMEOUT";
     while (Date.now() < deadline) {
       if (existsSync(readyFile)) {
-        const v = readFileSync(readyFile, "utf-8").trim();
-        if (v.startsWith("/")) egressCgroup = v;
+        verdict = readFileSync(readyFile, "utf-8").trim();
+        if (verdict.startsWith("/")) egressCgroup = verdict;
         break;
       }
       // portable synchronous pause — no shell, no busy spin
       Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 50);
     }
-    if (!egressCgroup && opts.verbose) {
-      console.error(`[kavachos:egress] cgroup not prepared — this agent is NOT egress-constrained`);
+
+    if (!egressCgroup) {
+      const allowed = opts.allowUnconstrainedEgress === true;
+
+      // Never behind --verbose. An agent running without its egress gate is not a
+      // debugging detail, and the one person who needs to know is the one who did not
+      // pass --verbose.
+      console.error(`[kavachos:egress] NOT egress-constrained — supervisor said ${verdict}`);
+
+      const decision = egressLaunchDecision(verdict, allowed);
+      if (!decision.proceed) {
+        console.error(`[kavachos:egress] REFUSING TO LAUNCH — ${decision.reason}`);
+        try { egressSidecar?.kill(); } catch { /* already gone */ }
+        return { sessionId, profileHash, syscallCount: syscall_count, profilePath, falcoRulesPath,
+                 egressPolicyPath, egressEnforced: false, refused: `egress:${verdict}` };
+      }
+
+      console.error(`[kavachos:egress] proceeding unconstrained — ${decision.reason}`);
     }
+  }
+
+  // Complete the launch record now that enforcement is known. The measurement is taken
+  // at 4E, before the cgroup exists, because dry-run returns before this point and must
+  // still measure — so the enforcement fact is written back rather than moving the whole
+  // block. Without it the record attests the POLICY and never whether it took effect.
+  try {
+    const recPath = join(KAVACHOS_DIR, `${sessionId}.launch.json`);
+    if (existsSync(recPath)) {
+      const rec = JSON.parse(readFileSync(recPath, "utf-8"));
+      rec.egress_enforced = egressPolicyPath ? egressCgroup !== null : false;
+      writeFileSync(recPath, JSON.stringify(rec, null, 2));
+      if (!rec.egress_enforced) {
+        console.error(`[kavachos:measure] egress_enforced=false recorded — this launch is not egress-governed`);
+      }
+    }
+  } catch (e: any) {
+    console.error(`[kavachos:measure] could not record egress_enforced: ${e?.message}`);
   }
 
   // 5. Launch agent via Python seccomp applicator (KOS-011, KOS-006)

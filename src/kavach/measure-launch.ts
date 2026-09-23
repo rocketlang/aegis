@@ -73,6 +73,18 @@ export interface LaunchMeasurement {
    * measurement; absent from a reference, which has no host.
    */
   host_trust?: { level: HostTrust; why: string; claim_refused?: string };
+  /**
+   * Whether cgroup BPF egress actually ARMED for this session. @rule:INF-KOS-009
+   *
+   * Not chained, for the same reason as host_trust: the reference is derived from
+   * declarations alone and a declaration cannot know what a particular host managed to
+   * load. This sits beside the value and qualifies it.
+   *
+   * It exists because the record could previously show a perfect egress policy for an
+   * agent that ran with NO egress control whatsoever — the measurement attested the
+   * policy and never its enforcement. Absent on a reference, which has no session.
+   */
+  egress_enforced?: boolean;
 }
 
 const ZERO = Buffer.alloc(32);

@@ -160,6 +160,40 @@ fi
 rm -f "$PROXY_OUT" /root/.aegis/kernel/"$PROXY_SID".*.json 2>/dev/null
 rm -rf /sys/fs/bpf/kavachos/"$PROXY_SID" 2>/dev/null
 
+# --- Test 5: the fail-closed rule (INF-KOS-009) ---
+#
+# NOT tested by racing two real sessions. Reproducing a genuine failed arm means holding
+# BPF pins with one session while a second starts on the same id, and scheduling that
+# inside a smoke test defeated three attempts and produced three wrong diagnoses — the
+# test kept measuring its own timing rather than the rule.
+#
+# The RULE is exhaustively covered in tests/egress-decision.test.ts, every combination of
+# (verdict, flag). The integration path was verified by hand against a real collision:
+# "supervisor said FAILED" -> "REFUSING TO LAUNCH" -> exit 3, agent never ran.
+log "Test 5: the fail-closed decision rule"
+if bun test /root/aegis/tests/egress-decision.test.ts >/dev/null 2>&1; then
+  pass "every (verdict, flag) combination refuses or proceeds as ruled"
+else
+  fail "the egress fail-closed rule is broken — see tests/egress-decision.test.ts"
+fi
+
+# --- Test 6: the record says whether egress actually armed ---
+log "Test 6: a governed launch records egress_enforced"
+ENF_SID="SMOKE-T205-ENF-$RUN_TAG"
+$KAVACHOS_CLI run --trust-mask=255 --domain=general --session-id="$ENF_SID" \
+  -- /bin/sh -c 'exit 0' >/dev/null 2>&1 || true
+ENF=$(python3 -c "
+import json,sys
+try: print(json.load(open('/root/.aegis/kernel/$ENF_SID.launch.json')).get('egress_enforced'))
+except Exception: print('MISSING')" 2>/dev/null)
+if [[ "$ENF" == "True" ]]; then
+  pass "the launch record carries egress_enforced=true"
+else
+  fail "egress_enforced was '$ENF' — the record attests the policy but not its enforcement"
+fi
+rm -f /root/.aegis/kernel/"$ENF_SID".*.json 2>/dev/null
+rm -rf /sys/fs/bpf/kavachos/"$ENF_SID" 2>/dev/null
+
 # --- Summary ---
 
 echo ""
