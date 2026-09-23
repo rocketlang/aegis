@@ -11,9 +11,9 @@
 //
 // WHERE THIS COMES FROM
 //
-// Andrey Lazarev's answer to the question this codebase had been stuck on: off-host
+// A peer's answer to the question this codebase had been stuck on: off-host
 // confirmation seemed expensive because we pictured a second machine that WATCHES.
-// His boot chain showed a second machine that COMPARES — against values published once
+// Their boot chain showed a second machine that COMPARES — against values published once
 // and checkable with nothing but those values and a public key. That is a different
 // cost, and a much lower one.
 //
@@ -23,7 +23,7 @@
 // them into a single value, in a fixed order, makes "what is governing this agent?"
 // a question a second machine can answer.
 //
-// The extend is deliberately his: E(p, d) = sha256(p || d) from 32 zero bytes, closed
+// The extend is deliberately theirs: E(p, d) = sha256(p || d) from 32 zero bytes, closed
 // with a separator. Not because the arithmetic is special, but because a reader who
 // knows one can read the other, and because the two can be reasoned about together.
 //

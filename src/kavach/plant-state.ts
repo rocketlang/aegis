@@ -321,7 +321,7 @@ export function readPortOccupant(port: number): Reading<PortOccupant | null> {
 
 // ── Source integrity (ANU-007) ───────────────────────────────────────────────
 //
-// Andrey Lazarev, 2026-09-22: "none of the three should be allowed to quietly
+// From a peer, 2026-09-22: "none of the three should be allowed to quietly
 // collapse into the same system."
 //
 // The permissive layer decides whether an action may proceed by reading files the

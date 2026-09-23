@@ -37,8 +37,8 @@ export type ConfirmState = "confirmed" | "refuted" | "unavailable";
  *
  * @rule:PRA-004 A confirmation declares its independence depth, and may never claim more
  * than its WEAKEST shared layer. Avoiding the actuator's own report is the easy half; a
- * confirmer that shares the kernel and the disk with the actuator is still, in Andrey
- * Lazarev's words, "the same system with a second voice". Saying so is the difference
+ * confirmer that shares the kernel and the disk with the actuator is still, in a
+ * peer's words, "the same system with a second voice". Saying so is the difference
  * between evidence and a better-dressed claim.
  */
 export type Independence = "same-process" | "same-host" | "off-host";
