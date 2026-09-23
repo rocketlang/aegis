@@ -584,6 +584,26 @@ class EgressSession:
 # How long to wait for the launcher to join the cgroup before concluding it never will.
 JOIN_TIMEOUT_S = 30.0
 
+def _err(msg: str) -> None:
+    """
+    Write to stderr, and never let that failure become the process's last act.
+
+    The supervisor outlives the runner that spawned it — the runner exits when the agent
+    does, closing the stderr pipe it handed us. A plain sys.stderr.write after that raises
+    BrokenPipeError, and on the teardown path that exception landed BEFORE cleanup(), so a
+    session that timed out waiting for a join died holding its BPF pins and its cgroup.
+    Measured 2026-09-23: supervisor gone at t+30s, connect4/connect6/dns_proxy_port/
+    egress_allow_v4/egress_allow_v6 all still pinned.
+
+    Logging is never worth a leak. @rule:KOS-045
+    """
+    try:
+        sys.stderr.write(msg)
+        sys.stderr.flush()
+    except Exception:
+        pass
+
+
 
 def main() -> None:
     if len(sys.argv) < 4:
@@ -636,10 +656,13 @@ def main() -> None:
         while not sess.procs() and time.time() < deadline:
             time.sleep(0.05)
         if not sess.procs():
-            sys.stderr.write(
-                f"[kavachos:egress] nobody joined {session_id} within {JOIN_TIMEOUT_S:.0f}s — tearing down\n"
-            )
-            sess.cleanup()
+            # cleanup() comes FIRST and the log second. The other order let a broken pipe
+            # skip the teardown entirely.
+            try:
+                sess.cleanup()
+            finally:
+                _err(f"[kavachos:egress] nobody joined {session_id} within "
+                     f"{JOIN_TIMEOUT_S:.0f}s — torn down\n")
             sys.exit(0)
         while sess.procs():
             time.sleep(0.2)

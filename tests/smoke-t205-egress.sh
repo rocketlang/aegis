@@ -93,14 +93,21 @@ if $KAVACHOS_CLI run \
   --domain=general \
   --session-id="SMOKE-T205-ALLOW-$RUN_TAG" \
   --verbose \
-  -- curl --max-time 5 -s -o /dev/null -w "%{http_code}" https://github.com \
+  -- curl --max-time 5 -s -o /dev/null -w "KAVACHOS_HTTP=%{http_code}\n" https://github.com \
   >"$SESSION_OUT" 2>&1; then
   EXIT=$?
 else
   EXIT=$?
 fi
 
-HTTP_CODE=$(grep -oP '\d{3}' "$SESSION_OUT" | tail -1 || echo "0")
+# Read the status from a MARKER curl writes, not "the last three-digit number in the
+# output". That pattern reported 424, 434, 444, 457, 470 and 600 across runs for the
+# same request — it was matching digits out of the fetched page, the session id, a pid,
+# whatever happened to come last. The case still passed, on its exit-0 branch, so the
+# number it printed was decorative and wrong. A measurement that can report 600 as an
+# HTTP status is not measuring HTTP.
+HTTP_CODE=$(sed -n 's/.*KAVACHOS_HTTP=\([0-9]\{3\}\).*/\1/p' "$SESSION_OUT" | tail -1)
+HTTP_CODE=${HTTP_CODE:-0}
 if [[ "$HTTP_CODE" =~ ^(200|301|302)$ ]]; then
   pass "curl to github.com succeeded (HTTP $HTTP_CODE) — allowlisted host permitted"
 elif [[ $EXIT -eq 0 ]]; then
