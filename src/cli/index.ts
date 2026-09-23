@@ -58,6 +58,8 @@ async function main() {
       return (await import("./commands/statusline")).default(args);
     case "bg":
       return (await import("./commands/bg")).default(args);
+    case "redteam":
+      return (await import("./commands/redteam")).default(args);
     case "help":
     case "--help":
     case "-h":
