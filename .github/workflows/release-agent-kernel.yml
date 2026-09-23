@@ -54,8 +54,12 @@ jobs:
         with:
           bun-version: latest
 
-      - name: Install dependencies
-        run: bun install
+      # Deliberately NO `bun install`. The repo's root dependencies include private
+      # @ankr/* packages that a public runner cannot reach, and this package does not
+      # need them: the CLI's import graph contains no @ankr code and the bundle carries
+      # zero references to it. Verified by building from a clean clone with no
+      # node_modules at all — 30 modules, same output. Installing here would fail the
+      # release on dependencies the artifact never uses.
 
       # The build runs the version-drift guard first: it refuses if the CLI's
       # KAVACHOS_VERSION disagrees with package.json. That mismatch shipped a CLI
