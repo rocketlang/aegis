@@ -209,8 +209,22 @@ export async function runWithKernel(
       console.error(`[kavachos:measure] not measured — ${m.error}`);
     } else {
       writeFileSync(join(KAVACHOS_DIR, `${sessionId}.launch.json`), JSON.stringify(m, null, 2));
+
+      // A host that claimed a rung its evidence does not support is announced on EVERY
+      // launch, never only a verbose one. @rule:PRA-008 — refusing an overclaim buys
+      // nothing if the refusal is filed somewhere nobody reads, and the record is read
+      // by almost no one. It does NOT stop the launch: host_trust qualifies what a
+      // measurement is worth, it does not decide whether an agent may run.
+      if (m.host_trust?.claim_refused) {
+        console.error(`[kavachos:measure] HOST TRUST REFUSED — ${m.host_trust.claim_refused}`);
+        console.error(`[kavachos:measure] treat this launch as host_trust=${m.host_trust.level}, whatever the host claims`);
+      }
+
       if (opts.verbose) {
         console.error(`[kavachos:measure] launch ${m.measurement.slice(0, 32)}…`);
+        if (m.host_trust) {
+          console.error(`[kavachos:measure] host_trust=${m.host_trust.level} — ${m.host_trust.why}`);
+        }
         console.error(`[kavachos:measure] compare: aegis attest verify --trust-mask=${opts.trustMask} --domain=${opts.domain}` +
                       `${opts.strictExec ? " --strict-exec" : ""} --launch ${sessionId}`);
       }

@@ -469,6 +469,33 @@ OUTJ=$(AEGIS_HOME="$HTDIR" $CLI attest host --json 2>/dev/null); RCJ=$?
 expect_exit "--json refuses with the same exit code" 2 "$RCJ"
 expect "and carries the refusal as a field" '"claim_refused"' "$OUTJ"
 
+# The runner must carry the rung into every launch record, and must ANNOUNCE a
+# refused claim without --verbose: a refusal filed where nobody reads it buys nothing.
+HTSID="ht-smoke-$$"
+AEGIS_HOME="$HTDIR" timeout 150 bun /root/aegis/src/kavachos-cli.ts run --trust-mask=255 \
+  --domain=general --session-id="$HTSID" --strict-exec -- /usr/bin/true > "$HTDIR/out" 2>&1
+RUNRC=$?
+HTREC=$(ls "$HTDIR"/kernel/"$HTSID".launch.json /root/.aegis/kernel/"$HTSID".launch.json 2>/dev/null | head -1)
+if [ -n "$HTREC" ]; then
+  ok "a real launch writes a record"
+  expect "and the record carries host_trust" '"level"' "$(python3 -c "
+import json,sys;d=json.load(open('$HTREC'));print(json.dumps(d.get('host_trust',{})))" 2>/dev/null)"
+  expect "the refusal is announced without --verbose" "HOST TRUST REFUSED" "$(cat "$HTDIR/out" 2>/dev/null)"
+  # host_trust qualifies a measurement; it must not decide whether an agent runs. The
+  # control is SYNTHESISED rather than assumed: a launch here exits non-zero for reasons
+  # of its own (seccomp needs a capability this environment withholds), so hardcoding 0
+  # would test the sandbox, not the rule. Compare against the same launch with no claim.
+  CTLDIR=$(mktemp -d)
+  AEGIS_HOME="$CTLDIR" timeout 150 bun /root/aegis/src/kavachos-cli.ts run --trust-mask=255 \
+    --domain=general --session-id="ht-ctl-$$" --strict-exec -- /usr/bin/true >/dev/null 2>&1
+  CTLRC=$?
+  expect_exit "an overclaiming host does not change the launch outcome" "$CTLRC" "$RUNRC"
+  rm -f /root/.aegis/kernel/"ht-ctl-$$".*.json; rm -rf "$CTLDIR"
+  rm -f "$HTREC" /root/.aegis/kernel/"$HTSID".*.json
+else
+  bad "a real launch writes a record" "no launch record for $HTSID"
+fi
+
 # A claim on disk must not be able to move a published reference.
 R1=$(AEGIS_HOME="$HTDIR" $CLI attest reference --trust-mask=255 --domain=general --json 2>/dev/null | sha256sum)
 rm -f "$HTDIR/host-trust.json"
