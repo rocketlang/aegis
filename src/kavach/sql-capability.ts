@@ -82,6 +82,56 @@ function isReadOnlyStatement(stmt: string): boolean {
   return false; // unrecognised statement shape → not provable → treat as write
 }
 
+/** A class reading, shaped like plant-state's readDbClass result. Injected so this module
+ *  stays pure and hermetically testable. */
+export interface ClassReading {
+  known: boolean;
+  value?: string;
+  why?: string;
+  source?: string;
+}
+export interface SqlTargetVerdict {
+  verdict: "REFUSE" | "PERMIT" | "UNKNOWN";
+  detail: string;
+  source?: string;
+  /** "observe" downgrades this one verdict to report-only. Set on the low-confidence
+   *  branches (UNKNOWN) so they gather shadow data while the high-confidence REFUSE enforces. */
+  stage?: "enforce" | "observe";
+}
+
+/**
+ * The semantic gate's decision, given the command and injected resolvers. GRADED promotion
+ * (AF-R-005): a target we RESOLVE to a non-dev class is a positive prod identification — that
+ * REFUSE enforces. A target we CANNOT resolve, or whose class is unknown, is the branch where
+ * false positives live (legit dev writes via env vars), so it stays "observe" until the shadow
+ * ledger justifies enforcing it too. @rule:AFW-YK-002
+ */
+export function sqlTargetVerdict(
+  command: string,
+  resolveDb: (c: string) => string | null,
+  classOf: (db: string) => ClassReading,
+): SqlTargetVerdict {
+  const db = resolveDb(command);
+  if (!db) {
+    return {
+      verdict: "UNKNOWN",
+      detail: "an arbitrary-SQL invocation whose target database cannot be resolved — cannot prove it is a dev DB",
+      source: "command text + databases.json",
+      stage: "observe",
+    };
+  }
+  const cls = classOf(db);
+  if (!cls.known) return { verdict: "UNKNOWN", detail: `${db}: ${cls.why}`, source: cls.source, stage: "observe" };
+  if (cls.value !== "dev") {
+    return {
+      verdict: "REFUSE",
+      detail: `${db} is class=${cls.value} — an arbitrary-SQL invocation is permitted only against a dev-class database`,
+      source: cls.source,
+    };
+  }
+  return { verdict: "PERMIT", detail: `${db} is class=dev`, source: cls.source };
+}
+
 /**
  * Can we PROVE this invocation only reads? Yes only when EVERY statement it carries is present
  * in the command string AND is unambiguously a read (or it is a --version/--list that runs no

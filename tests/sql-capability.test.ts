@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // The semantic gate's predicates, both outcomes forced. @rule:guards-assert-both-outcomes
 import { describe, it, expect } from "bun:test";
-import { isSqlCapableInvocation, isProvablyReadOnly, inlineStatement, inlineStatements } from "../src/kavach/sql-capability";
+import { isSqlCapableInvocation, isProvablyReadOnly, inlineStatement, inlineStatements, sqlTargetVerdict } from "../src/kavach/sql-capability";
 
 describe("isSqlCapableInvocation", () => {
   it("recognises DB-client invocations, incl. quote-split and env-indirection", () => {
@@ -77,5 +77,27 @@ describe("isProvablyReadOnly", () => {
     expect(isProvablyReadOnly("psql -c 'COPY ledger FROM STDIN'")).toBe(false);              // import
     expect(isProvablyReadOnly("psql -c 'COPY ledger TO PROGRAM rm'")).toBe(false);           // runs a shell
     expect(isProvablyReadOnly("psql -c 'COPY ledger TO STDOUT; DROP TABLE ledger'")).toBe(false); // hidden write
+  });
+});
+
+describe("sqlTargetVerdict — graded promotion (AF-R-005)", () => {
+  it("RESOLVED non-dev target → REFUSE and ENFORCES (no observe stage)", () => {
+    const v = sqlTargetVerdict("psql -d payments_prod -c 'INSERT...'", () => "payments_prod", () => ({ known: true, value: "prod" }));
+    expect(v.verdict).toBe("REFUSE");
+    expect(v.stage).toBeUndefined(); // enforce
+  });
+  it("RESOLVED dev target → PERMIT", () => {
+    const v = sqlTargetVerdict("psql -d x_dev -c 'INSERT...'", () => "x_dev", () => ({ known: true, value: "dev" }));
+    expect(v.verdict).toBe("PERMIT");
+  });
+  it("UNRESOLVABLE target → UNKNOWN and stays OBSERVE (where the false positives live)", () => {
+    const v = sqlTargetVerdict('psql -c "$SQL"', () => null, () => ({ known: true, value: "dev" }));
+    expect(v.verdict).toBe("UNKNOWN");
+    expect(v.stage).toBe("observe");
+  });
+  it("UNKNOWN class → UNKNOWN and OBSERVE", () => {
+    const v = sqlTargetVerdict("psql -d mystery -c 'INSERT...'", () => "mystery", () => ({ known: false, why: "no entry" }));
+    expect(v.verdict).toBe("UNKNOWN");
+    expect(v.stage).toBe("observe");
   });
 });

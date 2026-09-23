@@ -37,7 +37,7 @@ import {
   overriddenRoots,
   type TaintRecord,
 } from "./plant-state";
-import { isSqlCapableInvocation, isProvablyReadOnly } from "./sql-capability";
+import { isSqlCapableInvocation, isProvablyReadOnly, sqlTargetVerdict } from "./sql-capability";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -79,10 +79,12 @@ interface Permissive {
   id: string;
   title: string;
   law: string;
-  /** default "enforce". "observe" stages a new invariant: it reports/ledgers, never blocks. */
+  /** default "enforce". "observe" stages the WHOLE invariant: it reports/ledgers, never blocks.
+   *  A check() may instead return a per-verdict stage, which wins — so one invariant can enforce
+   *  its high-confidence branch and observe its low-confidence one (AF-R-005 graded promotion). */
   stage?: "enforce" | "observe";
   applies(a: ProposedAction): boolean;
-  check(a: ProposedAction): { verdict: Verdict; detail: string; source?: string };
+  check(a: ProposedAction): { verdict: Verdict; detail: string; source?: string; stage?: "enforce" | "observe" };
 }
 
 // ── Mode (ANU-YK-001) ─────────────────────────────────────────────────────────
@@ -421,36 +423,20 @@ const PERMISSIVES: Permissive[] = [
     // AF-T-103 — the semantic gate that closes the red-team's regex-ceiling gaps. It does not
     // read the SQL text (a quote-split keyword or a $VAR statement defeats that); it asks
     // whether an arbitrary-SQL invocation is aimed at a non-dev database and cannot be proven
-    // read-only. STAGED observe: it reports and ledgers, never blocks, until the founder
-    // promotes it after reading the shadow ledger. Complements the lexical check-destructive
-    // gate — two gates, two jobs. @rule:FP-018
+    // read-only. Complements the lexical check-destructive gate — two gates, two jobs.
+    //
+    // GRADED PROMOTION (AF-R-005, 2026-09-24): the shadow ledger held no real evidence, only
+    // synthetic test entries. So the branch we can be SURE of — a target RESOLVED to a non-dev
+    // class — now ENFORCES (we positively identified prod). The branch where false positives
+    // live — an UNRESOLVABLE target (a legit dev write via $PGDATABASE would land here) — stays
+    // OBSERVE via a per-verdict stage until the ledger justifies enforcing it. @rule:FP-018
     id: "ANU-I-006",
     title: "Arbitrary-SQL invocation against a non-dev target (statement not provably read-only)",
     law: "FP-018 semantic gate — gate on the resolved target's capability, not the command text",
-    stage: "observe",
     applies: a =>
       a.tool === "Bash" && !!a.command &&
       isSqlCapableInvocation(a.command) && !isProvablyReadOnly(a.command),
-    check: a => {
-      const db = resolveTargetDb(a.command!);
-      if (!db) {
-        return {
-          verdict: "UNKNOWN",
-          detail: "an arbitrary-SQL invocation whose target database cannot be resolved — cannot prove it is a dev DB",
-          source: "command text + databases.json",
-        };
-      }
-      const cls = readDbClass(db);
-      if (!cls.known) return { verdict: "UNKNOWN", detail: `${db}: ${cls.why}`, source: cls.source };
-      if (cls.value !== "dev") {
-        return {
-          verdict: "REFUSE",
-          detail: `${db} is class=${cls.value} — an arbitrary-SQL invocation is permitted only against a dev-class database`,
-          source: cls.source,
-        };
-      }
-      return { verdict: "PERMIT", detail: `${db} is class=dev`, source: cls.source };
-    },
+    check: a => sqlTargetVerdict(a.command!, resolveTargetDb, readDbClass),
   },
 ];
 
@@ -499,7 +485,8 @@ export function anumati(action: ProposedAction): AnumatiDecision {
     const stage = p.stage ?? "enforce";
     try {
       const r = p.check(action);
-      results.push({ id: p.id, title: p.title, law: p.law, stage, ...r });
+      // A per-verdict stage from check() wins over the permissive default (graded promotion).
+      results.push({ id: p.id, title: p.title, law: p.law, ...r, stage: r.stage ?? stage });
     } catch (e: any) {
       results.push({
         id: p.id,
