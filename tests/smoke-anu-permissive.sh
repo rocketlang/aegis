@@ -398,6 +398,49 @@ expect "the compiled policy records the relocation too" "non-default state roots
   "$(env $ENVP $CLI anumati compile --agent roots-suite --domain general --trust-mask 255 2>&1)"
 rm -f "$ELSE/aegis/kernel/roots-suite.coarse.json"
 
+echo "── PRA-005/006 the measured launch ───────────────────────────────────"
+
+REF=$($CLI attest reference --trust-mask=255 --domain=general --strict-exec --json 2>/dev/null)
+expect "a reference is derivable from declarations alone" '"format": "aegis-launch-measurement/1"' "$REF"
+
+# Determinism: the same declarations must give the same value, or nothing can be compared.
+A=$($CLI attest reference --trust-mask=255 --domain=general --strict-exec --json 2>/dev/null | python3 -c 'import json,sys;print(json.load(sys.stdin)["measurement"])' 2>/dev/null)
+B=$($CLI attest reference --trust-mask=255 --domain=general --strict-exec --json 2>/dev/null | python3 -c 'import json,sys;print(json.load(sys.stdin)["measurement"])' 2>/dev/null)
+[ -n "$A" ] && [ "$A" = "$B" ] && ok "the reference is deterministic" || bad "reference determinism" "got '$A' then '$B'"
+
+C=$($CLI attest reference --trust-mask=255 --domain=maritime --strict-exec --json 2>/dev/null | python3 -c 'import json,sys;print(json.load(sys.stdin)["measurement"])' 2>/dev/null)
+[ -n "$C" ] && [ "$A" != "$C" ] && ok "a different declaration moves the value" || bad "declaration sensitivity" "domain change did not move it"
+
+MSID="meas-$$"
+timeout 150 bun /root/aegis/src/kavachos-cli.ts run --trust-mask=255 --domain=general \
+  --session-id="$MSID" --strict-exec -- /usr/bin/true >/dev/null 2>&1
+LAUNCH="/root/.aegis/kernel/$MSID.launch.json"
+if [ -f "$LAUNCH" ]; then
+  ok "a real launch emits a measurement of its own artefacts"
+  $CLI attest verify --launch "$MSID" --strict-exec >/dev/null 2>&1
+  expect_exit "the launch agrees with the reference" 0 $?
+
+  # Drift must be caught AND named. The tamper below recomputes the chain so the record
+  # stays internally consistent — self-consistency must not save it, because the
+  # reference is derived from declarations rather than from the record.
+  python3 - "$LAUNCH" <<'PYEOF'
+import json, hashlib, sys
+p = sys.argv[1]; d = json.load(open(p))
+d["components"]["egress"] = hashlib.sha256(b"tampered").hexdigest()
+v = bytes(32)
+for c in ["seccomp", "exec_allowlist", "egress", "path_deny", "coarse"]:
+    v = hashlib.sha256(v + bytes.fromhex(d["components"][c])).digest()
+d["measurement"] = hashlib.sha256(v + hashlib.sha256(bytes.fromhex("ffffffff")).digest()).hexdigest()
+json.dump(d, open(p, "w"), indent=2)
+PYEOF
+  OUT=$($CLI attest verify --launch "$MSID" --strict-exec 2>&1); RC=$?
+  expect_exit "a self-consistent tamper is still caught" 2 "$RC"
+  expect "and the differing component is named" "egress" "$OUT"
+  rm -f "$LAUNCH"
+else
+  bad "measured launch" "no launch measurement was written"
+fi
+
 echo
 echo "─────────────────────────────────────────────────────────────────────"
 printf 'passed %d · failed %d\n' "$PASS" "$FAIL"

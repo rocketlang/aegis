@@ -40,6 +40,8 @@ async function main() {
       return (await import("./commands/anumati")).default(args);
     case "pramana":
       return (await import("./commands/pramana")).default(args);
+    case "attest":
+      return (await import("./commands/attest")).default(args);
     case "register":
       return (await import("./commands/register")).default(args);
     case "close":
@@ -95,6 +97,8 @@ Commands:
   pramana file <path>     Assurance: confirm a write by re-reading the bytes off disk
   pramana port <port>     Assurance: confirm a service by opening a fresh socket, not its exit code
   pramana commit <dir>    Assurance: confirm a commit from a fresh git process, not its stdout
+  attest reference        What a launch with these declarations SHOULD measure (publish with a release)
+  attest verify --launch <id>  Compare a launch against the reference; drift is named by component
   register        Check In: create policy file, register agent in state machine
   close           Check Out: mark agent COMPLETED, write final manifest
   quarantine list         List all QUARANTINED/ORPHAN agents with violation summary

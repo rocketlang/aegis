@@ -186,6 +186,41 @@ export async function runWithKernel(
     }
   }
 
+  // 4E. Measure what will govern this agent, from the artefacts just written, and
+  // record it beside them. @rule:PRA-005 — the value is comparable against a reference
+  // published with the release, which is what makes the check possible from off-host.
+  try {
+    const { measureLaunchFromArtefacts, renderLaunch } = await import("../kavach/measure-launch");
+    const m = measureLaunchFromArtefacts(
+      {
+        profilePath,
+        execAllowlistPath: execAllowlistPath ?? null,
+        coarsePath: join(KAVACHOS_DIR, `${sessionId}.coarse.json`),
+      },
+      {
+        trust_mask: opts.trustMask,
+        domain: opts.domain,
+        agent_type: opts.agentType ?? "claude-code",
+        strict_exec: opts.strictExec ?? false,
+        delegation_depth: delegationDepth,
+      },
+    );
+    if ("error" in m) {
+      console.error(`[kavachos:measure] not measured — ${m.error}`);
+    } else {
+      writeFileSync(join(KAVACHOS_DIR, `${sessionId}.launch.json`), JSON.stringify(m, null, 2));
+      if (opts.verbose) {
+        console.error(`[kavachos:measure] launch ${m.measurement.slice(0, 32)}…`);
+        console.error(`[kavachos:measure] compare: aegis attest verify --trust-mask=${opts.trustMask} --domain=${opts.domain}` +
+                      `${opts.strictExec ? " --strict-exec" : ""} --launch ${sessionId}`);
+      }
+    }
+  } catch (e: any) {
+    // Measuring must never stop a launch. An unmeasured run is a worse outcome than
+    // an unmeasured run that also failed to start.
+    console.error(`[kavachos:measure] skipped: ${e?.message}`);
+  }
+
   if (opts.dryRun) {
     console.log(JSON.stringify({
       sessionId,
