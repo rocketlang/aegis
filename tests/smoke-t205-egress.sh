@@ -34,7 +34,12 @@ KAVACHOS_CLI="${KAVACHOS_CLI:-bun /root/aegis/src/kavachos-cli.ts}"
 # --- Test 1: dry-run profile generation includes egress policy ---
 
 log "Test 1: dry-run profile includes egress policy"
-OUTPUT=$($KAVACHOS_CLI run --trust-mask=255 --domain=general --dry-run --verbose 2>&1 | head -20 || true)
+# `run` requires an agent binary even for --dry-run; without one the CLI only ever
+# returned its usage string, so this case had been failing on a bad invocation rather
+# than on anything about egress. A binary that exits immediately is enough — dry-run
+# writes the policy and stops before exec.
+OUTPUT=$($KAVACHOS_CLI run --trust-mask=255 --domain=general --dry-run --verbose \
+  -- /bin/sh -c 'exit 0' 2>&1 | head -20 || true)
 if echo "$OUTPUT" | grep -q "egress.json\|Egress policy"; then
   pass "dry-run emits egress policy path"
 else

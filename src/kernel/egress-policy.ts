@@ -75,8 +75,56 @@ const TRUST_MASK_EGRESS: Record<number, EgressEntry[]> = {
 };
 
 // @rule:KOS-042 deterministic: same (domain, trust_mask) → same policy
+/**
+ * The resolvers this host is actually configured to use, read from /etc/resolv.conf.
+ *
+ * WHY THIS EXISTS. Every entry in this policy is a HOSTNAME. The supervisor resolves
+ * them outside the cgroup when it fills the BPF map, so the map holds IPs — but the
+ * agent inside the cgroup still has to resolve names for itself, and `connect()` on a
+ * UDP socket to port 53 was never in the map. So every allowlisted host was reachable
+ * by address and unreachable by name: curl returned exit 6, CURLE_COULDNT_RESOLVE_HOST,
+ * against a host the policy explicitly permits. Found 2026-09-23, after the egress smoke
+ * test stopped skipping on failure and reported it.
+ *
+ * NARROW BY CONSTRUCTION. Only the resolvers this box is configured with, only port 53.
+ * Never a wildcard, because `anything:53` is an open DNS tunnel — a channel that carries
+ * data out in query names regardless of what the rest of this allowlist says.
+ *
+ * THE RESIDUAL RISK, STATED RATHER THAN HIDDEN. Even one resolver is an exfiltration
+ * channel: an agent can encode data into names it asks that resolver to look up, and the
+ * resolver forwards them. This narrows the channel to one hop and one port; it does not
+ * close it. Closing it needs a resolving proxy that answers only for hosts in this
+ * policy, which is not built.
+ *
+ * @rule:INF-KOS-009 — an unreadable or empty resolv.conf returns NOTHING. It must never
+ * fall back to permitting 53 broadly: a policy that cannot read its own inputs refuses,
+ * and name resolution failing loudly is the correct outcome.
+ */
+export function systemResolvers(resolvConf = "/etc/resolv.conf"): EgressEntry[] {
+  let text: string;
+  try {
+    text = require("fs").readFileSync(resolvConf, "utf-8");
+  } catch {
+    return [];
+  }
+  const out: EgressEntry[] = [];
+  for (const line of text.split("\n")) {
+    const m = line.trim().match(/^nameserver\s+(\S+)$/);
+    if (!m) continue;
+    const ip = m[1];
+    if (out.some(e => e.host === ip)) continue;
+    out.push({ host: ip, port: 53, note: "system DNS resolver (resolv.conf)" });
+  }
+  return out;
+}
+
 export function buildEgressPolicy(trustMask: number, domain: string): EgressPolicy {
   const allow: EgressEntry[] = [...BASE_ALLOW];
+
+  // DNS to the configured resolvers, without which every hostname above is unreachable
+  // by name. Declared here rather than injected when the BPF map is filled, so the
+  // permission is visible in the policy a reader audits.
+  allow.push(...systemResolvers());
 
   // Domain extras
   const extras = DOMAIN_EXTRA[domain] ?? DOMAIN_EXTRA.general;
