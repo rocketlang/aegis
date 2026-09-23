@@ -66,15 +66,46 @@ $KAVACHOS_CLI run \
 if [[ $EXIT_A -eq 0 ]]; then
   pass "ls exited 0 — allowlisted binary executed normally"
 else
-  # Check if it's a seccomp-setup failure vs actual exec block
-  if grep -q "FATAL\|seccomp_init\|libseccomp" "$OUT_A"; then
-    skip "seccomp setup failed (libseccomp issue) — not an exec policy failure"
-  else
-    fail "ls exited $EXIT_A — unexpected failure for allowlisted binary"
-    cat "$OUT_A"
-  fi
+  # NO SKIP BRANCH, deliberately. This used to downgrade ANY fatal — seccomp_init,
+  # libseccomp, or a genuine policy regression — into a skip, and the suite still
+  # exited 0. Proven 2026-09-23 by pointing this case at a binary that does not
+  # exist: it reported "SKIP: seccomp setup failed" with PASS=6 FAIL=0 SKIP=1 and
+  # exit 0. A real break was indistinguishable from an environment quirk.
+  # A check that cannot run FAILS. It never skips.
+  fail "ls exited $EXIT_A — an allowlisted binary must execute normally"
+  cat "$OUT_A"
 fi
 rm -f "$OUT_A"
+
+# --- Case A2: the agent really ran, and its exit status came back ---
+#
+# Case A asserting exit 0 is weak: a launch that quietly did nothing also exits 0.
+# A distinctive status can only be produced by the agent itself actually running and
+# the runner propagating what it returned, so this is the case that proves an exec
+# happened rather than inferring it from the absence of an error.
+log "Case A2: an allowlisted binary's exit status propagates (exit 7)"
+# A UNIQUE session id per run, never a fixed one. A fixed id leaves a pinned BPF
+# object at /sys/fs/bpf/kavachos/<sid>/connect4, and the NEXT run fails to pin with
+# "already exists" — the suite poisoning itself, which has bitten this file before.
+A2_SID="SMOKE-T213-A2-$$-$(date +%s)"
+OUT_A2=$(mktemp)
+EXIT_A2=0
+$KAVACHOS_CLI run \
+  --trust-mask=255 \
+  --domain=general \
+  --strict-exec \
+  --session-id="$A2_SID" \
+  -- /bin/sh -c 'exit 7' \
+  >"$OUT_A2" 2>&1 || EXIT_A2=$?
+
+if [[ $EXIT_A2 -eq 7 ]]; then
+  pass "exit 7 propagated — the agent ran and its status came back intact"
+else
+  fail "expected exit 7 from the agent, got $EXIT_A2"
+  cat "$OUT_A2"
+fi
+rm -f "$OUT_A2" /root/.aegis/kernel/"$A2_SID".*.json 2>/dev/null
+rm -rf /sys/fs/bpf/kavachos/"$A2_SID" 2>/dev/null || true
 
 # --- Case B: non-allowlisted binary blocked at first hop ---
 
