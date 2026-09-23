@@ -24,7 +24,7 @@ jobs:
         run: bun test src/ tests/
 
       - name: Red-team the destructive gate (robustness — fails on a catchable gap or false positive)
-        run: bun run src/cli/index.ts redteam --rules tests/fixtures/destructive-rules.sample.json
+        run: bun run src/cli/index.ts redteam --rules rules/destructive-rules.json
 
       - name: Run agent governance scenarios (AEGIS on AEGIS)
         run: bun src/test-agents/runner.ts

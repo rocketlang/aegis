@@ -1,27 +1,108 @@
 {
-  "version": "1.0",
-  "description": "AEGIS destructive-command rule set. Patterns that require human confirmation before executing. Extend in ~/.aegis/rules/destructive-rules.json",
-  "rules": [
-    { "id": "DES-001", "pattern": "^\\s*(DROP|drop)\\s+(TABLE|DATABASE|SCHEMA|INDEX|VIEW)", "flags": "i", "consequence": "Drops a database table or schema — data loss", "level": 3 },
-    { "id": "DES-002", "pattern": "^\\s*TRUNCATE\\s+TABLE", "flags": "i", "consequence": "Removes all rows from a table — data loss", "level": 2 },
-    { "id": "DES-003", "pattern": "^\\s*DELETE\\s+FROM\\s+\\S+\\s*;?\\s*$", "flags": "i", "consequence": "Deletes all rows from a table — data loss", "level": 3 },
-    { "id": "DES-004", "pattern": "\\brm\\s+(-rf|-fr|--recursive|--force)\\b", "flags": "i", "consequence": "Recursive file delete — filesystem data loss", "level": 3 },
-    { "id": "DES-005", "pattern": "\\bgit\\s+reset\\s+--hard\\b", "flags": "i", "consequence": "Discards all uncommitted changes — irreversible", "level": 2 },
-    { "id": "DES-006", "pattern": "\\bgit\\s+clean\\s+(-f|-fd|--force)\\b", "flags": "i", "consequence": "Removes untracked files from working tree", "level": 2 },
-    { "id": "DES-007", "pattern": "\\bgit\\s+push\\s+.*--force\\b|\\bgit\\s+push\\s+-f\\b", "flags": "i", "consequence": "Force-pushes to remote — overwrites shared history", "level": 4 },
-    { "id": "DES-008", "pattern": "\\bprisma\\s+db\\s+push\\b|\\bprisma\\s+migrate\\s+reset\\b", "flags": "i", "consequence": "Schema push may drop tables with data", "level": 3 },
-    { "id": "DES-009", "pattern": "\\bdropdb\\b|\\bdropdatabase\\b", "flags": "i", "consequence": "Drops entire database — full data loss", "level": 4 },
-    { "id": "DES-010", "pattern": ">\\s*/dev/null|:\\s*>\\s*\\S+|truncate\\s+-s\\s+0", "flags": "i", "consequence": "Truncates file to zero bytes — data loss", "level": 2 },
-    { "id": "DES-011", "pattern": "\\bkill\\s+-9\\b|\\bkillall\\b", "flags": "i", "consequence": "Force-kills processes — possible service interruption", "level": 1 },
-    { "id": "DES-012", "pattern": "\\bchmod\\s+-R\\s+777\\b|\\bchmod\\s+777\\b", "flags": "i", "consequence": "World-writable permissions — security risk", "level": 2 },
-    { "id": "DES-013", "pattern": "\\bchown\\s+-R\\s+.*:\\/", "flags": "i", "consequence": "Recursive ownership change on / — possible system damage", "level": 3 },
-    { "id": "DES-014", "pattern": "\\bsudo\\s+rm\\s+-rf\\s+\\/\\b|rm\\s+-rf\\s+\\/\\s", "flags": "i", "consequence": "rm -rf / — catastrophic filesystem wipe", "level": 4 }
+  "_comment": "AEGIS Destructive Command Rules — append-only. Never remove entries. Add new ones as threats discovered.",
+  "_version": "1.1.0",
+  "_updated": "2026-08-01",
+  "_reason": "5 database wipes in production. This file defines what agents can NEVER do without human override. 2026-08-01: +2 Prisma shadow-database patterns — the wiper that wears the safety tool's name (see those entries' reason fields).",
+
+  "bash_block_patterns": [
+    {
+      "pattern": "DROP\\s+DATABASE",
+      "flags": "i",
+      "reason": "Drops entire database — data loss is permanent",
+      "severity": "CRITICAL"
+    },
+    {
+      "pattern": "DROP\\s+TABLE",
+      "flags": "i",
+      "reason": "Drops table — schema and data loss",
+      "severity": "CRITICAL"
+    },
+    {
+      "pattern": "DROP\\s+SCHEMA",
+      "flags": "i",
+      "reason": "Drops schema — all tables in schema lost",
+      "severity": "CRITICAL"
+    },
+    {
+      "pattern": "TRUNCATE\\s+",
+      "flags": "i",
+      "reason": "Truncates table — deletes all rows instantly, no WAL",
+      "severity": "CRITICAL"
+    },
+    {
+      "pattern": "dropdb\\s+",
+      "flags": "i",
+      "reason": "dropdb CLI — drops entire PostgreSQL database",
+      "severity": "CRITICAL"
+    },
+    {
+      "pattern": "prisma\\s+(migrate\\s+reset|db\\s+push(?!.*--accept-data-loss\\s+false))",
+      "flags": "i",
+      "reason": "prisma migrate reset drops all tables; prisma db push can silently drop columns",
+      "severity": "HIGH"
+    },
+    {
+      "pattern": "docker\\s+compose\\s+.*\\s+-v\\b",
+      "flags": "i",
+      "reason": "docker compose down -v removes named volumes — wipes database data",
+      "severity": "CRITICAL"
+    },
+    {
+      "pattern": "docker\\s+volume\\s+(rm|prune)",
+      "flags": "i",
+      "reason": "Removes Docker volumes — permanent data loss",
+      "severity": "CRITICAL"
+    },
+    {
+      "pattern": "rm\\s+-rf?\\s+.*(pg-clusters|postgresql|pg_wal|ankr-data|mnt/storage|var/lib/postgresql)",
+      "flags": "i",
+      "reason": "Deletes PostgreSQL data directories — unrecoverable",
+      "severity": "CRITICAL"
+    },
+    {
+      "pattern": "pg_ctlcluster\\s+\\d+\\s+\\w+\\s+stop",
+      "flags": "i",
+      "reason": "Stops PostgreSQL cluster — interrupts all services",
+      "severity": "HIGH"
+    },
+    {
+      "pattern": "systemctl\\s+(stop|disable)\\s+postgresql",
+      "flags": "i",
+      "reason": "Stops/disables PostgreSQL service — all 5 clusters offline",
+      "severity": "CRITICAL"
+    },
+    {
+      "pattern": "DELETE\\s+FROM\\s+",
+      "flags": "i",
+      "reason": "SQL DELETE — removes rows. Use soft-delete (deleted_at) pattern instead.",
+      "severity": "HIGH"
+    },
+    {
+      "pattern": "ALTER\\s+TABLE\\s+.*\\s+DROP\\s+COLUMN",
+      "flags": "i",
+      "reason": "Drops column — schema change with data loss",
+      "severity": "HIGH"
+    },
+    {
+      "pattern": "pg_dump.*--clean|pg_restore.*--clean",
+      "flags": "i",
+      "reason": "pg_restore --clean drops objects before recreating — wipe risk",
+      "severity": "HIGH"
+    },
+    {
+      "pattern": "--shadow-database-url|shadowDatabaseUrl",
+      "flags": "i",
+      "reason": "Prisma RESETS the shadow database before replaying migrations onto it — aim it at a live DB and the reset IS the wipe, executed inside Prisma, never appearing as a DROP in the command. This is the 2026-07-30 public incident: `prisma migrate diff --from-migrations ... --shadow-database-url <PROD>` emptied all 22 tables of a live Supabase DB. ANKR needs no shadow DB anywhere: R-010 uses --from-schema-datasource and ankr-db-guard.sh uses --from-url, both read-only introspection. Zero occurrences in the tree as of 2026-08-01, so this blocks nothing that exists.",
+      "severity": "HIGH"
+    },
+    {
+      "pattern": "prisma\\s+migrate\\s+diff[^|;&]*--(from|to)-migrations",
+      "flags": "i",
+      "reason": "The ONLY forms of `prisma migrate diff` that are not read-only. --from-migrations/--to-migrations must replay a migrations folder onto a real database, so Prisma requires a shadow DB and resets it first. Every other diff form (--from-url, --from-schema-datasource, --from-empty) touches nothing. Use those.",
+      "severity": "HIGH"
+    }
   ],
-  "default_level": 2,
-  "level_descriptions": {
-    "1": "WARN — low risk, logged only",
-    "2": "BLOCK in enforce mode, WARN in alert mode",
-    "3": "BLOCK always — confirm via KAVACH gate",
-    "4": "QUARANTINE — requires dual human approval"
-  }
+
+  "allowed_override_token": "HUMAN-DESTRUCTIVE-CONFIRMED-ANKR",
+  "override_instructions": "To intentionally run a destructive command, include the token above in a comment within the command. Example: # HUMAN-DESTRUCTIVE-CONFIRMED-ANKR\ndropdb mydb_dev"
 }

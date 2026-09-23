@@ -162,8 +162,14 @@ exit $?
 
   const defaultShieldRules = join(import.meta.dir, "../../../../rules/shield-rules.json");
   const defaultDestructiveRules = join(import.meta.dir, "../../../../rules/destructive-rules.json");
-  const targetShield = join(rulesDir, "shield-rules.json");
-  const targetDestructive = join(rulesDir, "destructive-rules.json");
+  // The loaders read these at the AEGIS-dir ROOT, not the rules/ subdir: check-destructive
+  // reads <aegisDir>/destructive-rules.json and injection-detector reads
+  // <aegisDir>/shield-rules.json. Seeding them into rules/ (as this did until 2026-09-24)
+  // left the seeds where nothing reads them and the gates running on whatever was at the
+  // root — the divergence reconciled in ankr-todos/agent-firewall--todo--formal--2026-09-24.md. The
+  // rules/ subdir stays for user OVERRIDE files, but the default seed lands where it is read.
+  const targetShield = join(aegisDir, "shield-rules.json");
+  const targetDestructive = join(aegisDir, "destructive-rules.json");
 
   if (!existsSync(targetShield) && existsSync(defaultShieldRules)) {
     require("fs").copyFileSync(defaultShieldRules, targetShield);
