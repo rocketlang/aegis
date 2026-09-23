@@ -52,7 +52,10 @@ jobs:
 
       - uses: oven-sh/setup-bun@v2
         with:
-          bun-version: latest
+          # PINNED. The bundler is part of the build inputs, so  makes the
+          # output depend on the day it ran — reproducibility would be a coincidence.
+          # Bump this deliberately, and expect the artefact hash to move when you do.
+          bun-version: 1.3.9
 
       # Deliberately NO `bun install`. The repo's root dependencies include private
       # @ankr/* packages that a public runner cannot reach, and this package does not

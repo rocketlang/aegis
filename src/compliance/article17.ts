@@ -49,11 +49,18 @@ export interface CapabilityManifest {
 // @rule:KOS-072
 export function collectArticle17Evidence(): Article17Evidence {
   // codex.json is the single source of truth for capability and proof state
+  // Resolved at RUNTIME and never at build time. `__dirname` was inlined into the
+  // bundle by the bundler, so a published artefact carried the BUILD machine's path —
+  // which made the output non-reproducible across directories and, worse, made an
+  // installed copy look for the codex where the builder's repo happened to sit.
+  // Nothing here may be a literal absolute path or a build-time constant.
   const codexPaths = [
+    process.env.AEGIS_CODEX,                      // explicit wins
     join(process.cwd(), "codex.json"),
-    join(__dirname, "../../..", "codex.json"),   // /root/aegis/codex.json
-    "/root/aegis/codex.json",
-  ];
+    // walk up from the working directory — finds the repo root when run from a
+    // subdirectory, without knowing where that root is at build time
+    ...[1, 2, 3].map(n => join(process.cwd(), ...Array(n).fill(".."), "codex.json")),
+  ].filter((p): p is string => typeof p === "string" && p.length > 0);
 
   let codex: Record<string, unknown> = {};
   for (const p of codexPaths) {
