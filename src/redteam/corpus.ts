@@ -127,4 +127,11 @@ export const VARIANTS: Variant[] = [
     preserves: "the destructive statement is supplied at runtime via the environment; the command string the gate sees contains none of it",
     apply: () => `psql -c "$LEGACY_MIGRATION_SQL"`,
   },
+  {
+    name: "multi-c-tail", family: "regex-ceiling", appliesTo: ["sql-in-psql"], regexCeiling: true,
+    preserves: "psql runs every -c in order; a benign leading `-c 'SELECT 1'` does not stop the later -c from dropping the table, and that later keyword is quote-split so the denylist misses it — a first read must never vouch for a later write (AF-T-109)",
+    apply: (c) =>
+      c.replace(/^(\s*(?:PGDATABASE=\S+\s+)?(?:psql|mysql|mariadb|mongosh))\b/i, "$1 -c 'SELECT 1'")
+        .replace(/\b(DROP|TRUNCATE|DELETE|ALTER)\b/i, (kw) => `${kw.slice(0, 3)}''${kw.slice(3)}`),
+  },
 ];

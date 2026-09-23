@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // The semantic gate's predicates, both outcomes forced. @rule:guards-assert-both-outcomes
 import { describe, it, expect } from "bun:test";
-import { isSqlCapableInvocation, isProvablyReadOnly, inlineStatement } from "../src/kavach/sql-capability";
+import { isSqlCapableInvocation, isProvablyReadOnly, inlineStatement, inlineStatements } from "../src/kavach/sql-capability";
 
 describe("isSqlCapableInvocation", () => {
   it("recognises DB-client invocations, incl. quote-split and env-indirection", () => {
@@ -45,6 +45,29 @@ describe("isProvablyReadOnly", () => {
     expect(inlineStatement("psql -c 'SELECT 1'")).toBe("SELECT 1");
     expect(inlineStatement('psql -c "$SQL"')).toBe("$SQL");
     expect(inlineStatement("psql -f x.sql")).toBeNull();
+  });
+
+  it("AF-T-109: a read-only FIRST -c cannot vouch for a later write (multi-c gap closed)", () => {
+    expect(inlineStatements("psql -c 'SELECT 1' -c 'DROP TABLE x'")).toEqual(["SELECT 1", "DROP TABLE x"]);
+    // first is a read, second is a write → the WHOLE thing is not provably read-only
+    expect(isProvablyReadOnly("psql -c 'SELECT 1' -c 'DROP TABLE x'")).toBe(false);
+    // and the quote-split tail (denylist misses it) is still not provably read-only → semantic gate catches it
+    expect(isProvablyReadOnly("psql -c 'SELECT 1' -c 'DRO''P TABLE x'")).toBe(false);
+    // all statements read → provable
+    expect(isProvablyReadOnly("psql -c 'SELECT 1' -c 'SELECT 2'")).toBe(true);
+  });
+
+  it("AF-T-109: an unreadable statement source (-f / heredoc / stdin pipe) is never provable", () => {
+    expect(isProvablyReadOnly("psql -f migration.sql")).toBe(false);
+    expect(isProvablyReadOnly("psql <<SQL\nSELECT 1\nSQL")).toBe(false);
+    expect(isProvablyReadOnly("echo 'SELECT 1' | psql")).toBe(false);
+    // but a plain multi-read with no hidden source is fine
+    expect(isProvablyReadOnly("psql -c 'SELECT 1' -c 'EXPLAIN SELECT 2'")).toBe(true);
+  });
+
+  it("widened client set is recognised (AF-R-003)", () => {
+    for (const c of ["pgcli -c 'DROP TABLE x'", "sqlite3 db 'DROP TABLE x'", "docker exec pg psql -c 'DROP TABLE x'"])
+      expect(isSqlCapableInvocation(c)).toBe(true);
   });
 
   it("AF-T-107: COPY … TO STDOUT is a read; FROM, TO PROGRAM, and a trailing write are not", () => {
