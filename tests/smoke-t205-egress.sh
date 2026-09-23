@@ -95,8 +95,21 @@ if [[ "$HTTP_CODE" =~ ^(200|301|302)$ ]]; then
 elif [[ $EXIT -eq 0 ]]; then
   pass "curl to github.com exited 0 — allowlisted host permitted (HTTP $HTTP_CODE)"
 else
-  # Might fail due to DNS not available in test env — skip rather than fail
-  skip "curl to github.com failed (exit=$EXIT HTTP=$HTTP_CODE) — may be network-isolated env"
+  # This is the case that proves ALLOW works. Skipping it on failure was the whole
+  # problem: an egress policy that had started blocking EVERYTHING would look exactly
+  # like a network-isolated environment, and the suite would go green either way.
+  #
+  # So SYNTHESISE the control instead of guessing. Run the identical curl outside
+  # kavachos. If the bare one also fails, the box genuinely has no route to github and
+  # this case cannot be asked — a precondition, reported as a skip. If the bare one
+  # SUCCEEDS while the governed one did not, egress is blocking an allowlisted host,
+  # which is the regression this case exists to catch.
+  BARE_CODE=$(curl --max-time 5 -s -o /dev/null -w "%{http_code}" https://github.com 2>/dev/null || echo "0")
+  if [[ "$BARE_CODE" =~ ^(200|301|302)$ ]]; then
+    fail "allowlisted host BLOCKED: bare curl got HTTP $BARE_CODE, the governed one got exit=$EXIT HTTP=$HTTP_CODE"
+  else
+    skip "no route to github.com from this box either (bare curl HTTP $BARE_CODE) — the case cannot be asked"
+  fi
 fi
 cat "$SESSION_OUT"
 rm -f "$SESSION_OUT"

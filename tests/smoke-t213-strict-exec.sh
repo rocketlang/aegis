@@ -182,7 +182,13 @@ elif echo "$OUTPUT_C" | grep -q "I should not run\|SH_EXIT:0" && [[ "$BLOCKED_CM
   log "  strict_exec prevents direct execve; sh can still run arbitrary code."
   cat "$OUT_C"
 else
-  skip "Case C ambiguous (blocked_cmd=$BLOCKED_CMD exit=$EXIT_C) — review manually"
+  # An unrecognised shape FAILS. This branch used to skip and say "review manually",
+  # which meant nobody did: the suite exited 0 and the second-hop question went
+  # unanswered. Case C asks whether sh can exec a binary the allowlist denies — the
+  # answer is either "it was blocked" or "the threat model has a gap", and an output
+  # matching none of the known shapes means the case did not answer its own question.
+  # That is a failure of the test, and a test that cannot answer must say so.
+  fail "Case C answered nothing (blocked_cmd=$BLOCKED_CMD exit=$EXIT_C) — output matched no known shape"
   cat "$OUT_C"
 fi
 rm -f "$OUT_C"
@@ -206,7 +212,27 @@ for _p in /root/.aegis/kernel/*.seccomp.json; do
 done
 
 if [[ -z "${PROFILE_SRC:-}" ]]; then
-  skip "no seccomp profile on disk for the allowlist cases"
+  # Do not skip four cases because an input was missing — SYNTHESISE the input. Every
+  # launch above writes a profile, so an empty directory here means either the suite is
+  # being run in a fresh environment or the earlier cases did not do what they claim.
+  # One throwaway launch settles which, and only a still-empty directory is fatal.
+  log "  no profile on disk — synthesising one with a throwaway launch"
+  SYN_SID="SMOKE-T213-SYN-$$-$(date +%s)"
+  $KAVACHOS_CLI run --trust-mask=255 --domain=general --session-id="$SYN_SID" \
+    -- /bin/sh -c 'exit 0' >/dev/null 2>&1 || true
+  for _p in /root/.aegis/kernel/*.seccomp.json; do
+    [[ -f "$_p" ]] || continue
+    PROFILE_SRC="$_p"
+    break
+  done
+  rm -f /root/.aegis/kernel/"$SYN_SID".*.json 2>/dev/null || true
+  rm -rf /sys/fs/bpf/kavachos/"$SYN_SID" 2>/dev/null || true
+fi
+
+if [[ -z "${PROFILE_SRC:-}" ]]; then
+  # Still nothing after a launch that should have written one. The allowlist cases
+  # cannot run, and four unrun cases must never read as a green suite.
+  fail "no seccomp profile on disk even after a launch — cases G/H/I/J could not run"
 else
   TMPD=$(mktemp -d)
   # profile with execve/execveat routed to the NOTIFY tier so the allowlist is consulted
