@@ -19,6 +19,7 @@
 // executed (RT-002). CI gates on catchableGaps and falsePositives; ceilingGaps are reported.
 
 import { destructiveVerdict, type DestructiveRules } from "../kavach/destructive-verdict";
+import { isSqlCapableInvocation, isProvablyReadOnly } from "../kavach/sql-capability";
 import { EXEMPLARS, CONTROLS, VARIANTS } from "./corpus";
 
 export interface Gap {
@@ -29,6 +30,9 @@ export interface Gap {
   preserves: string;
   regexCeiling: boolean;
   command: string;
+  /** for a ceiling gap: does the SEMANTIC layer's trigger reach it (arbitrary-SQL invocation,
+   *  not provably read-only)? If so, ANU-I-006 catches it on a non-dev/unresolved target. */
+  semanticTrigger?: boolean;
 }
 
 export interface FalsePositive {
@@ -71,7 +75,12 @@ export function runRedteam(rules: DestructiveRules): RedteamReport {
           ruleId: ex.ruleId, harm: ex.harm, family: v.family, variant: v.name,
           preserves: v.preserves, regexCeiling: v.regexCeiling, command,
         };
-        (v.regexCeiling ? ceilingGaps : catchableGaps).push(gap);
+        if (v.regexCeiling) {
+          gap.semanticTrigger = isSqlCapableInvocation(command) && !isProvablyReadOnly(command);
+          ceilingGaps.push(gap);
+        } else {
+          catchableGaps.push(gap);
+        }
       }
     }
   }
@@ -118,12 +127,16 @@ export function renderReport(r: RedteamReport): string {
   }
   out += "\n";
   if (r.ceilingGaps.length > 0) {
-    out += "## Regex-ceiling gaps — a denylist cannot catch these (route to the semantic gate)\n\n";
+    const covered = r.ceilingGaps.filter(g => g.semanticTrigger).length;
+    out += "## Regex-ceiling gaps — a denylist cannot catch these (the semantic gate does)\n\n";
     out += "The dangerous text is split across shell tokens or supplied at runtime, so it is not\n";
-    out += "in the command string at all. No regex closes these; the control that does is the\n";
-    out += "semantic layer that resolves the real target database and refuses the unknown.\n\n";
-    out += "| rule | variant | why it is meaning-preserving | command |\n|---|---|---|---|\n";
-    for (const g of r.ceilingGaps) out += `| ${g.ruleId} | ${g.variant} | ${g.preserves} | \`${g.command}\` |\n`;
+    out += "in the command string at all. No regex closes these. The control that does is the\n";
+    out += "semantic layer (ANU-I-006): it triggers on an arbitrary-SQL invocation that is not\n";
+    out += "provably read-only, then refuses on a non-dev or unresolved target — without reading\n";
+    out += "the SQL at all.\n\n";
+    out += `**Within the semantic layer's reach: ${covered}/${r.ceilingGaps.length}** (its trigger fires).\n\n`;
+    out += "| rule | variant | semantic trigger | command |\n|---|---|---|---|\n";
+    for (const g of r.ceilingGaps) out += `| ${g.ruleId} | ${g.variant} | ${g.semanticTrigger ? "✓ caught" : "—"} | \`${g.command}\` |\n`;
   }
   return out;
 }

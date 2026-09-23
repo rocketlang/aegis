@@ -74,6 +74,12 @@ describe("redteam harness — coverage and both outcomes", () => {
       expect(r.catchableGaps.every((g) => !g.regexCeiling)).toBe(true);
     }
   });
+
+  it("every regex-ceiling gap is within the semantic layer's reach (AF-T-104)", () => {
+    // The whole point of ANU-I-006: what the denylist cannot catch, the semantic trigger can.
+    const r = runRedteam(GOOD);
+    expect(r.ceilingGaps.every((g) => g.semanticTrigger === true)).toBe(true);
+  });
 });
 
 describe("normalizer closes the SQL-comment evasion (union, never a bypass)", () => {

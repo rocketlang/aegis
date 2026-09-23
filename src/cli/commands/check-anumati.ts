@@ -69,9 +69,22 @@ export default async function checkAnumati(_args: string[]): Promise<void> {
     process.exit(mode === "enforce" ? 2 : 0);
   }
 
-  if (decision.verdict === "PERMIT") process.exit(0);
-
+  // Ledger first, so an observe-stage would-refuse is recorded even when the action is
+  // permitted — the shadow evidence a staged invariant is promoted (or dropped) on.
   ledgerAnumati(action, decision, mode);
+
+  if (decision.verdict === "PERMIT") {
+    // A staged (observe) invariant may have flagged this without blocking it. Say so — loudly,
+    // per ANU-YK-001 — but never block. This is how ANU-I-006 runs in shadow while the
+    // enforced invariants keep biting.
+    for (const o of decision.observations) {
+      process.stderr.write(
+        `[ANUMATI] observe (${o.id}, shadow): WOULD ${o.verdict === "UNKNOWN" ? "REFUSE (unknown)" : "REFUSE"} — ${o.detail}\n`,
+      );
+    }
+    process.exit(0);
+  }
+
   process.stderr.write(renderRefusal(decision, mode));
   process.exit(mode === "enforce" ? 2 : 0);
 }

@@ -37,6 +37,7 @@ import {
   overriddenRoots,
   type TaintRecord,
 } from "./plant-state";
+import { isSqlCapableInvocation, isProvablyReadOnly } from "./sql-capability";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -58,13 +59,19 @@ export interface PermissiveResult {
   detail: string;
   /** Where the state came from — an assertion with no source is an opinion. */
   source?: string;
+  /** "observe" = this result is REPORTED and LEDGERED but never flips the decision to REFUSE.
+   *  How a new invariant is introduced without disarming the enforced ones (AF-T-103). */
+  stage?: "enforce" | "observe";
 }
 
 export interface AnumatiDecision {
   verdict: "PERMIT" | "REFUSE";
   /** Permissives that applied to this action. Non-applicable ones are not evaluated. */
   results: PermissiveResult[];
+  /** Enforcing (non-observe) results that were not PERMIT — these set the verdict. */
   refusals: PermissiveResult[];
+  /** Observe-stage results that were not PERMIT — reported and ledgered, never blocking. */
+  observations: PermissiveResult[];
   evaluated_at: string;
 }
 
@@ -72,6 +79,8 @@ interface Permissive {
   id: string;
   title: string;
   law: string;
+  /** default "enforce". "observe" stages a new invariant: it reports/ledgers, never blocks. */
+  stage?: "enforce" | "observe";
   applies(a: ProposedAction): boolean;
   check(a: ProposedAction): { verdict: Verdict; detail: string; source?: string };
 }
@@ -399,6 +408,42 @@ const PERMISSIVES: Permissive[] = [
       };
     },
   },
+
+  {
+    // AF-T-103 — the semantic gate that closes the red-team's regex-ceiling gaps. It does not
+    // read the SQL text (a quote-split keyword or a $VAR statement defeats that); it asks
+    // whether an arbitrary-SQL invocation is aimed at a non-dev database and cannot be proven
+    // read-only. STAGED observe: it reports and ledgers, never blocks, until the founder
+    // promotes it after reading the shadow ledger. Complements the lexical check-destructive
+    // gate — two gates, two jobs. @rule:FP-018
+    id: "ANU-I-006",
+    title: "Arbitrary-SQL invocation against a non-dev target (statement not provably read-only)",
+    law: "FP-018 semantic gate — gate on the resolved target's capability, not the command text",
+    stage: "observe",
+    applies: a =>
+      a.tool === "Bash" && !!a.command &&
+      isSqlCapableInvocation(a.command) && !isProvablyReadOnly(a.command),
+    check: a => {
+      const db = resolveTargetDb(a.command!);
+      if (!db) {
+        return {
+          verdict: "UNKNOWN",
+          detail: "an arbitrary-SQL invocation whose target database cannot be resolved — cannot prove it is a dev DB",
+          source: "command text + databases.json",
+        };
+      }
+      const cls = readDbClass(db);
+      if (!cls.known) return { verdict: "UNKNOWN", detail: `${db}: ${cls.why}`, source: cls.source };
+      if (cls.value !== "dev") {
+        return {
+          verdict: "REFUSE",
+          detail: `${db} is class=${cls.value} — an arbitrary-SQL invocation is permitted only against a dev-class database`,
+          source: cls.source,
+        };
+      }
+      return { verdict: "PERMIT", detail: `${db} is class=dev`, source: cls.source };
+    },
+  },
 ];
 
 /** Files this action would write: the Write/Edit target, or whatever a Bash command redirects into. */
@@ -435,6 +480,7 @@ export function anumati(action: ProposedAction): AnumatiDecision {
         id: p.id,
         title: p.title,
         law: p.law,
+        stage: p.stage ?? "enforce",
         verdict: "UNKNOWN",
         detail: "applicability could not be determined",
       });
@@ -442,14 +488,16 @@ export function anumati(action: ProposedAction): AnumatiDecision {
     }
     if (!applies) continue;
 
+    const stage = p.stage ?? "enforce";
     try {
       const r = p.check(action);
-      results.push({ id: p.id, title: p.title, law: p.law, ...r });
+      results.push({ id: p.id, title: p.title, law: p.law, stage, ...r });
     } catch (e: any) {
       results.push({
         id: p.id,
         title: p.title,
         law: p.law,
+        stage,
         verdict: "UNKNOWN",
         detail: `permissive threw: ${e?.message ?? "unknown error"}`,
       });
@@ -472,6 +520,7 @@ export function anumati(action: ProposedAction): AnumatiDecision {
       id: "ANU-007",
       title: "State-source integrity could not be established",
       law: "ANU-007 — a permissive may not trust a source the actor can have written",
+      stage: "enforce",
       verdict: "UNKNOWN",
       detail: taintReading.why,
       source: taintReading.source,
@@ -480,11 +529,17 @@ export function anumati(action: ProposedAction): AnumatiDecision {
   results.length = 0;
   results.push(...guarded);
 
-  const refusals = results.filter(r => r.verdict !== "PERMIT");
+  // Only ENFORCE-stage non-PERMIT results set the verdict. Observe-stage results are staged
+  // in: reported and ledgered, never blocking — the safe way to introduce a new invariant
+  // while the enforced ones keep biting. @rule:AF-T-103
+  const notPermitted = results.filter(r => r.verdict !== "PERMIT");
+  const refusals = notPermitted.filter(r => (r.stage ?? "enforce") !== "observe");
+  const observations = notPermitted.filter(r => (r.stage ?? "enforce") === "observe");
   return {
     verdict: refusals.length === 0 ? "PERMIT" : "REFUSE",
     results,
     refusals,
+    observations,
     evaluated_at: new Date().toISOString(),
   };
 }
@@ -494,9 +549,11 @@ export function anumati(action: ProposedAction): AnumatiDecision {
 const LEDGER_DIR = AEGIS_DIR_PATH;
 const LEDGER = join(LEDGER_DIR, "anumati.jsonl");
 
-/** Every evaluation that refused is recorded, in shadow exactly as in enforce. */
+/** Every refusal is recorded, in shadow exactly as in enforce — and so is every observe-stage
+ *  would-refuse, even when the overall verdict is PERMIT, so a staged invariant collects its
+ *  shadow evidence for the promotion decision. A clean PERMIT with nothing observed is not logged. */
 export function ledgerAnumati(action: ProposedAction, decision: AnumatiDecision, mode: AnumatiMode): void {
-  if (decision.verdict === "PERMIT") return;
+  if (decision.refusals.length === 0 && decision.observations.length === 0) return;
   try {
     mkdirSync(LEDGER_DIR, { recursive: true });
     appendFileSync(
@@ -504,11 +561,12 @@ export function ledgerAnumati(action: ProposedAction, decision: AnumatiDecision,
       JSON.stringify({
         ts: decision.evaluated_at,
         mode,
-        enforced: mode === "enforce",
+        enforced: mode === "enforce" && decision.refusals.length > 0,
         session: action.session_id,
         tool: action.tool,
         target: action.file_path ?? action.command?.slice(0, 300) ?? null,
         refusals: decision.refusals.map(r => ({ id: r.id, verdict: r.verdict, detail: r.detail })),
+        observations: decision.observations.map(r => ({ id: r.id, verdict: r.verdict, detail: r.detail })),
       }) + "\n",
     );
   } catch {
