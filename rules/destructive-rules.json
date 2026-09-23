@@ -100,6 +100,24 @@
       "flags": "i",
       "reason": "The ONLY forms of `prisma migrate diff` that are not read-only. --from-migrations/--to-migrations must replay a migrations folder onto a real database, so Prisma requires a shadow DB and resets it first. Every other diff form (--from-url, --from-schema-datasource, --from-empty) touches nothing. Use those.",
       "severity": "HIGH"
+    },
+    {
+      "pattern": "rm\\s+-[rf]{1,2}\\s+/(\\s|$|\\*)",
+      "flags": "i",
+      "reason": "rm -rf of / (root) — catastrophic filesystem wipe. Anchored to root only: `rm -rf /tmp/x` or `rm -rf ./node_modules` do NOT match (2026-09-24, AF-R-001, from retired format-A DES-014).",
+      "severity": "CRITICAL"
+    },
+    {
+      "pattern": "chmod\\s+(-R\\s+)?0?777\\b",
+      "flags": "i",
+      "reason": "chmod 777 — world-writable permissions, a security risk (2026-09-24, AF-R-001, from retired format-A DES-012).",
+      "severity": "HIGH"
+    },
+    {
+      "pattern": "chown\\s+-R\\s+\\S+\\s+/(\\s|$)",
+      "flags": "i",
+      "reason": "chown -R on / — recursive ownership change of the root filesystem, possible system damage (2026-09-24, AF-R-001, from retired format-A DES-013). NOT added (AF-R-001): `> /dev/null` (mass false positives), `kill/killall` (ankr-ctl friction), `truncate -s 0` (the shell `truncate` command is already caught, over-broadly but safely, by the SQL `TRUNCATE\\s+` rule above).",
+      "severity": "HIGH"
     }
   ],
 

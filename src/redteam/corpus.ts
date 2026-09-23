@@ -69,6 +69,9 @@ export const CONTROLS: string[] = [
   "grep -r 'DELETE FROM' ./migrations",                  // searches source for the phrase
   "prisma migrate status",                               // reports, does not reset
   "systemctl status postgresql",                         // reads service state
+  "rm -rf ./node_modules .cache",                        // a scoped delete, not / (AF-R-001 boundary)
+  "chmod 755 deploy.sh",                                 // not 777 (AF-R-001 boundary)
+  "chown -R www-data:www-data ./public",                 // not / (AF-R-001 boundary)
 ];
 
 // Only SQL keywords are case-folded — they are case-insensitive by grammar. Shell command
