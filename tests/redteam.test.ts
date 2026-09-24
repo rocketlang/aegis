@@ -118,3 +118,44 @@ describe("inert-display FPR fix — narrow and safe", () => {
     expect(isInertDisplay("psql -c 'DROP TABLE widgets'")).toBe(false);
   });
 });
+
+import { scorePosture } from "../src/redteam/runner";
+import { discoverRuleset } from "../src/cli/commands/redteam";
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from "fs";
+import { tmpdir } from "os";
+import { join } from "path";
+
+describe("posture score (AF-T-202) — scores the ruleset, reports ceiling separately", () => {
+  it("a whitespace/case-tolerant ruleset scores high (A) with 0 catchable gaps", () => {
+    const p = scorePosture(runRedteam(GOOD));
+    expect(p.score).toBeGreaterThanOrEqual(90);
+    expect(p.grade).toBe("A");
+    expect(p.evasionResistance).toBe(1); // no catchable evasion slipped past
+  });
+  it("a weak ruleset scores lower — catchable evasions drag evasion resistance down", () => {
+    const weak = scorePosture(runRedteam(WEAK));
+    const good = scorePosture(runRedteam(GOOD));
+    expect(weak.score).toBeLessThan(good.score);
+    expect(weak.evasionResistance).toBeLessThan(1);
+  });
+  it("ceiling exposure is reported, never folded into the score", () => {
+    const p = scorePosture(runRedteam(GOOD));
+    expect(p.ceilingExposure).toBeGreaterThan(0);                 // there ARE ceiling variants
+    expect(p.ceilingCoveredBySemantic).toBe(p.ceilingExposure);   // ANKR's layer reaches them all
+    expect(p.score).toBe(100);                                    // yet the ruleset still scores 100 — ceiling not penalised
+  });
+});
+
+describe("target discovery (AF-T-201)", () => {
+  it("finds a ruleset at each conventional location and null when absent", () => {
+    const base = mkdtempSync(join(tmpdir(), "rt-target-"));
+    try {
+      expect(discoverRuleset(base)).toBeNull();
+      mkdirSync(join(base, ".aegis"), { recursive: true });
+      writeFileSync(join(base, ".aegis", "destructive-rules.json"), "{}");
+      expect(discoverRuleset(base)).toBe(join(base, ".aegis", "destructive-rules.json"));
+    } finally {
+      rmSync(base, { recursive: true, force: true });
+    }
+  });
+});

@@ -52,6 +52,48 @@ export interface RedteamReport {
   fpr: number;
 }
 
+export interface PostureScore {
+  /** 0–100, a defensible blend — NOT a vanity number. Each component cites what it measured. */
+  score: number;
+  grade: "A" | "B" | "C" | "D" | "F";
+  /** 1 − catchable-ASR: fraction of catchable lexical evasions the ruleset refused. */
+  evasionResistance: number;
+  /** 1 − FPR: fraction of benign controls the ruleset correctly permitted. */
+  precision: number;
+  /** ceiling variants a denylist CANNOT catch — reported as architectural exposure, NOT folded
+   *  into the ruleset score (they are not the ruleset's fault; they need a semantic layer). */
+  ceilingExposure: number;
+  /** of that exposure, how many ANKR's semantic layer (ANU-I-006) would reach. */
+  ceilingCoveredBySemantic: number;
+}
+
+// Weights: a MISS (evasion slips past) is worse for a security gate than an over-block, so
+// evasion resistance dominates precision. Documented and fixed, so the score is reproducible.
+const W_EVASION = 0.7;
+const W_PRECISION = 0.3;
+
+/**
+ * Score a ruleset's posture from a red-team report. The score measures the RULESET
+ * (evasion resistance + precision). Ceiling exposure is reported alongside, never blended in:
+ * a pure denylist cannot close a quote-split or env-hidden write, so penalising the ruleset for
+ * it would be measuring the wrong thing — the honest read is "this many holes need a semantic
+ * layer". @rule:AFW-YK-005
+ */
+export function scorePosture(r: RedteamReport): PostureScore {
+  const evasionResistance = 1 - r.catchableAsr;
+  const precision = 1 - r.fpr;
+  const score = Math.round(100 * (W_EVASION * evasionResistance + W_PRECISION * precision));
+  const grade = score >= 90 ? "A" : score >= 80 ? "B" : score >= 70 ? "C" : score >= 60 ? "D" : "F";
+  return {
+    score,
+    grade,
+    evasionResistance,
+    precision,
+    ceilingExposure: r.ceilingGaps.length,
+    ceilingCoveredBySemantic: r.ceilingGaps.filter((g) => g.semanticTrigger).length,
+  };
+}
+
 /** A dangerous command is "refused" iff the gate would block it (a match). Inert display and
  *  clear both mean "allowed". The corpus never contains the override token, so it can't mask a gap. */
 function refuses(command: string, rules: DestructiveRules): boolean {
@@ -109,7 +151,12 @@ export function isClean(r: RedteamReport): boolean {
 
 export function renderReport(r: RedteamReport): string {
   const pct = (x: number) => `${(x * 100).toFixed(1)}%`;
+  const p = scorePosture(r);
   let out = "# AEGIS red-team — destructive-gate robustness\n\n";
+  out += `## Posture: **${p.score}/100 (grade ${p.grade})**\n`;
+  out += `- evasion resistance ${pct(p.evasionResistance)} (weight ${W_EVASION}) · precision ${pct(p.precision)} (weight ${W_PRECISION})\n`;
+  out += `- ceiling exposure: **${p.ceilingExposure}** variant(s) no denylist can catch — a semantic layer is required; ANKR's reaches ${p.ceilingCoveredBySemantic}/${p.ceilingExposure}\n`;
+  out += `- formula: round(100 × (${W_EVASION}·evasionResistance + ${W_PRECISION}·precision)); ceiling exposure reported separately, never folded in\n\n`;
   out += `Dangerous variants tried: ${r.dangerousTried} · **catchable-ASR ${pct(r.catchableAsr)}** `;
   out += `(${r.catchableGaps.length} catchable gap(s)) · ${r.ceilingGaps.length} regex-ceiling gap(s)\n`;
   out += `Benign controls tried: ${r.controlsTried} · **FPR ${pct(r.fpr)}** (${r.falsePositives.length} false positive(s))\n\n`;
