@@ -12,7 +12,8 @@
 // hard-blocking hook to the shared config is a founder ruling, not an engineering
 // convenience. See §5 of aegis-anumati--logics--formal--2026-09-22.md.
 
-import { readFileSync } from "fs";
+import { readFileSync, existsSync, appendFileSync } from "fs";
+import { join } from "path";
 import {
   anumati,
   anumatiMode,
@@ -47,6 +48,24 @@ export default async function checkAnumati(_args: string[]): Promise<void> {
   } catch {
     process.exit(0);
   }
+
+  // AF-T-602 diagnostic (TEMPORARY, off unless ~/.aegis/mudrika-diag.on exists): capture what
+  // the REAL PreToolUse payload carries — session_id? transcript_path? — the stable session key
+  // the Mudrika-issuance fix needs. check-anumati runs on EVERY tool call (matcher ''). Never
+  // affects the gate. Remove after the payload contract is known.
+  try {
+    if (existsSync(join(process.env.HOME || "/root", ".aegis", "mudrika-diag.on"))) {
+      const p = payload as Record<string, unknown>;
+      const tp = typeof p.transcript_path === "string" ? (p.transcript_path as string) : null;
+      appendFileSync(join(process.env.HOME || "/root", ".aegis", "mudrika-issuance-diag.jsonl"), JSON.stringify({
+        ts: new Date().toISOString(), hook: "PreToolUse:check-anumati", keys: Object.keys(p),
+        tool_name: p.tool_name ?? null, session_id: p.session_id ?? null,
+        transcript_path: tp, hook_event_name: p.hook_event_name ?? null,
+        derivedSessionId: tp ? tp.split("/").pop()!.replace(/\.jsonl$/, "") : null,
+        env_CLAUDE_SESSION_ID: process.env.CLAUDE_SESSION_ID ?? null,
+      }) + "\n");
+    }
+  } catch { /* diagnostic must never affect the gate */ }
 
   const action: ProposedAction = {
     tool: payload.tool_name ?? "",
