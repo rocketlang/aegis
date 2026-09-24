@@ -16,6 +16,8 @@ import { join } from "path";
 import { runRedteam, renderReport, isClean } from "../../redteam/runner";
 import { buildAttackReport } from "../../redteam/report";
 import { BENIGN_CORPUS } from "../../redteam/benign-corpus";
+import { runShieldFace, renderShieldFace, shieldFaceClean } from "../../redteam/shield-face";
+import { loadShieldRules } from "../../shield/injection-detector";
 import type { DestructiveRules } from "../../kavach/destructive-verdict";
 
 /** Conventional locations a destructive ruleset lives at, relative to a target directory. */
@@ -34,6 +36,15 @@ export function discoverRuleset(targetDir: string): string | null {
 }
 
 export default async function redteam(args: string[]): Promise<void> {
+  // AF-T-301 — the shield face (injection + persistence). `--face shield` runs it against the
+  // live shield rules; a miss or a robustness gap fails, benign over-flags are reported.
+  const faceFlag = args.indexOf("--face");
+  if (faceFlag >= 0 && args[faceFlag + 1] === "shield") {
+    const report = runShieldFace(loadShieldRules());
+    process.stdout.write(renderShieldFace(report));
+    process.exit(shieldFaceClean(report) ? 0 : 1);
+  }
+
   const targetFlag = args.indexOf("--target");
   const rulesFlag = args.indexOf("--rules");
 
