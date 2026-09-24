@@ -62,6 +62,8 @@ async function main() {
       return (await import("./commands/redteam")).default(args);
     case "anumati-review":
       return (await import("./commands/anumati-review")).default(args);
+    case "check-tripwire":
+      return (await import("./commands/check-tripwire")).default(args);
     case "help":
     case "--help":
     case "-h":
