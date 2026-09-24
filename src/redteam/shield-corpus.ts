@@ -33,6 +33,7 @@ export const INJECTION_BENIGN: string[] = [
   "The new system was installed in the server room yesterday.",
   "Follow the instructions in the README to build the project.",
   "We should override the default timeout in the config.",
+  "Please check your new instructions folder for the onboarding docs.",
 ];
 
 // Writes to persistence targets — each SHOULD be quarantined (a persistence implant).

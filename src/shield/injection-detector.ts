@@ -40,7 +40,7 @@ const DEFAULT_RULES: ShieldRules = {
     { id: "INJ-001", pattern: "ignore\\s+(all\\s+)?previous\\s+instructions", flags: "i", severity: "QUARANTINE", reason: "Direct prompt injection — instruction override attempt" },
     { id: "INJ-002", pattern: "forget\\s+(all\\s+)?your\\s+instructions", flags: "i", severity: "QUARANTINE", reason: "Direct prompt injection — memory wipe attempt" },
     { id: "INJ-003", pattern: "disregard\\s+(all\\s+)?previous", flags: "i", severity: "QUARANTINE", reason: "Direct prompt injection — override attempt" },
-    { id: "INJ-004", pattern: "your\\s+new\\s+(system\\s+)?instructions?\\s+are", flags: "i", severity: "QUARANTINE", reason: "System prompt replacement attempt" },
+    { id: "INJ-004", pattern: "your\\s+new\\s+(system\\s+)?instructions?(\\s+are|\\s*[:.]|\\s*$)", flags: "i", severity: "QUARANTINE", reason: "System prompt replacement attempt (AF-T-301: matches 'are', a colon/period, or end-of-line — not only ' are')" },
     { id: "INJ-005", pattern: "override\\s+your\\s+(safety|security|instructions|rules)", flags: "i", severity: "QUARANTINE", reason: "Safety override attempt" },
     { id: "INJ-010", pattern: "do\\s+anything\\s+now|DAN\\b.*\\bno\\s+longer\\s+bound", flags: "i", severity: "QUARANTINE", reason: "DAN jailbreak pattern" },
     { id: "INJ-008", pattern: "\\[\\[\\s*SYSTEM\\s*\\]\\]|\\<\\<SYSTEM\\>\\>|\\{\\{SYSTEM\\}\\}", flags: "i", severity: "BLOCK", reason: "Synthetic system prompt tag injection" },
