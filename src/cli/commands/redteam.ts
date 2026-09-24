@@ -11,9 +11,10 @@
 //   --target <dir>   AF-T-201: score a BUYER's setup — discover their destructive ruleset
 //                    inside <dir> at the conventional locations. This is the buyer-facing form.
 
-import { readFileSync, existsSync } from "fs";
+import { readFileSync, writeFileSync, existsSync } from "fs";
 import { join } from "path";
 import { runRedteam, renderReport, isClean } from "../../redteam/runner";
+import { buildAttackReport } from "../../redteam/report";
 import type { DestructiveRules } from "../../kavach/destructive-verdict";
 
 /** Conventional locations a destructive ruleset lives at, relative to a target directory. */
@@ -56,8 +57,19 @@ export default async function redteam(args: string[]): Promise<void> {
     process.stderr.write(`[REDTEAM] destructive-rules.json not found at ${rulesPath}\n`);
     process.exit(1);
   }
-  const rules = JSON.parse(readFileSync(rulesPath, "utf-8")) as DestructiveRules;
+  const rulesetContent = readFileSync(rulesPath, "utf-8");
+  const rules = JSON.parse(rulesetContent) as DestructiveRules;
   const report = runRedteam(rules);
   process.stdout.write(renderReport(report));
+
+  // AF-T-203 — write the content-addressed report artifact when asked.
+  const reportFlag = args.indexOf("--report");
+  if (reportFlag >= 0 && args[reportFlag + 1]) {
+    const target = targetFlag >= 0 && args[targetFlag + 1] ? args[targetFlag + 1] : rulesPath;
+    const artifact = buildAttackReport(report, { target, rulesetContent });
+    writeFileSync(args[reportFlag + 1], JSON.stringify(artifact, null, 2));
+    process.stderr.write(`[REDTEAM] report written → ${args[reportFlag + 1]} (digest ${artifact.digest.slice(0, 16)}…)\n`);
+  }
+
   process.exit(isClean(report) ? 0 : 1);
 }
