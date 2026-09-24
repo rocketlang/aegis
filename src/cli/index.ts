@@ -68,6 +68,8 @@ async function main() {
       return (await import("./commands/tripwire-canary")).default(args);
     case "tripwire-reconcile":
       return (await import("./commands/tripwire-reconcile")).default(args);
+    case "tripwire-stage":
+      return (await import("./commands/tripwire-stage")).default(args);
     case "help":
     case "--help":
     case "-h":
