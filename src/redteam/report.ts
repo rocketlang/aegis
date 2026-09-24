@@ -11,7 +11,7 @@
 // overclaim. Pure; the caller supplies the ruleset text and the report.
 
 import { createHash } from "crypto";
-import type { RedteamReport, Gap, FalsePositive, PostureScore } from "./runner";
+import type { RedteamReport, Gap, FalsePositive, PostureScore, PrecisionResult } from "./runner";
 import { scorePosture } from "./runner";
 
 export const ATTACK_REPORT_SCHEMA = "ankr-agent-firewall-attack-report-v1";
@@ -34,6 +34,8 @@ export interface AttackReport {
   catchableGaps: Gap[];
   ceilingGaps: Gap[];
   falsePositives: FalsePositive[];
+  /** AF-T-204 — precision against the benign corpus (representative or observed). */
+  precision?: PrecisionResult;
   /** sha256 over the canonical form of every field above — recompute to detect any edit. */
   digest: string;
 }
@@ -72,6 +74,7 @@ export function buildAttackReport(
     catchableGaps: report.catchableGaps,
     ceilingGaps: report.ceilingGaps,
     falsePositives: report.falsePositives,
+    precision: report.precision,
   };
   return { ...body, digest: sha256(stable(body)) };
 }

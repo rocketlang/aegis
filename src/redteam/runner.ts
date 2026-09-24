@@ -50,6 +50,8 @@ export interface RedteamReport {
   catchableAsr: number;
   /** false positives ÷ controls tried, 0..1 */
   fpr: number;
+  /** AF-T-204 — precision against the broader benign corpus, when one was supplied. */
+  precision?: PrecisionResult;
 }
 
 export interface PostureScore {
@@ -94,13 +96,56 @@ export function scorePosture(r: RedteamReport): PostureScore {
   };
 }
 
+export interface PrecisionFinding { cmd: string; category: string; matchedPattern: string }
+export interface PrecisionResult {
+  tried: number;
+  falsePositives: PrecisionFinding[];
+  fpr: number;
+  byCategory: Record<string, { tried: number; falsePositives: number }>;
+  /** "representative" (the built-in corpus) or "observed" (a buyer's real command log). */
+  source: "representative" | "observed";
+}
+
+/**
+ * Measure precision against a benign corpus: every command MUST be permitted, so any the gate
+ * refuses is a false positive (an over-block). Broader than the in-code controls, so the FPR
+ * reflects a realistic population. @rule:AFW-YK-005 @rule:one-sample-is-not-a-survey
+ */
+export function measurePrecision(
+  rules: DestructiveRules,
+  corpus: { cmd: string; category: string }[],
+  source: "representative" | "observed" = "representative",
+): PrecisionResult {
+  const falsePositives: PrecisionFinding[] = [];
+  const byCategory: Record<string, { tried: number; falsePositives: number }> = {};
+  for (const { cmd, category } of corpus) {
+    byCategory[category] ??= { tried: 0, falsePositives: 0 };
+    byCategory[category].tried++;
+    const v = destructiveVerdict(cmd, rules);
+    if (v.kind === "match") {
+      falsePositives.push({ cmd, category, matchedPattern: v.rule.pattern });
+      byCategory[category].falsePositives++;
+    }
+  }
+  return {
+    tried: corpus.length,
+    falsePositives,
+    fpr: corpus.length === 0 ? 0 : falsePositives.length / corpus.length,
+    byCategory,
+    source,
+  };
+}
+
 /** A dangerous command is "refused" iff the gate would block it (a match). Inert display and
  *  clear both mean "allowed". The corpus never contains the override token, so it can't mask a gap. */
 function refuses(command: string, rules: DestructiveRules): boolean {
   return destructiveVerdict(command, rules).kind === "match";
 }
 
-export function runRedteam(rules: DestructiveRules): RedteamReport {
+export function runRedteam(
+  rules: DestructiveRules,
+  opts: { precisionCorpus?: { cmd: string; category: string }[]; precisionSource?: "representative" | "observed" } = {},
+): RedteamReport {
   const catchableGaps: Gap[] = [];
   const ceilingGaps: Gap[] = [];
   let dangerousTried = 0;
@@ -141,6 +186,9 @@ export function runRedteam(rules: DestructiveRules): RedteamReport {
     falsePositives,
     catchableAsr: catchableTried === 0 ? 0 : catchableGaps.length / catchableTried,
     fpr: CONTROLS.length === 0 ? 0 : falsePositives.length / CONTROLS.length,
+    precision: opts.precisionCorpus
+      ? measurePrecision(rules, opts.precisionCorpus, opts.precisionSource ?? "representative")
+      : undefined,
   };
 }
 
@@ -173,6 +221,16 @@ export function renderReport(r: RedteamReport): string {
     for (const fp of r.falsePositives) out += `| \`${fp.control}\` | \`${fp.matchedRulePattern}\` |\n`;
   }
   out += "\n";
+  if (r.precision) {
+    const p = r.precision;
+    out += `## Precision — benign corpus (${p.source}: ${p.tried} commands)\n`;
+    out += `False positives (over-blocks): **${p.falsePositives.length}** · FPR ${pct(p.fpr)}\n`;
+    if (p.falsePositives.length) {
+      out += "\n| category | command | matched pattern |\n|---|---|---|\n";
+      for (const fp of p.falsePositives) out += `| ${fp.category} | \`${fp.cmd.slice(0, 70)}\` | \`${fp.matchedPattern}\` |\n`;
+    } else out += "✓ no benign command in the corpus was refused.\n";
+    out += "\n";
+  }
   if (r.ceilingGaps.length > 0) {
     const covered = r.ceilingGaps.filter(g => g.semanticTrigger).length;
     out += "## Regex-ceiling gaps — a denylist cannot catch these (the semantic gate does)\n\n";

@@ -159,3 +159,30 @@ describe("target discovery (AF-T-201)", () => {
     }
   });
 });
+
+import { measurePrecision } from "../src/redteam/runner";
+import { BENIGN_CORPUS } from "../src/redteam/benign-corpus";
+
+describe("benign corpus precision (AF-T-204)", () => {
+  const corpus = BENIGN_CORPUS.map((b) => ({ cmd: b.cmd, category: b.category }));
+  it("GOOD (precise) rules refuse NO benign command — FPR 0", () => {
+    const p = measurePrecision(GOOD, corpus);
+    expect(p.tried).toBe(BENIGN_CORPUS.length);
+    expect(p.falsePositives).toEqual([]);
+    expect(p.fpr).toBe(0);
+  });
+  it("a broad TRUNCATE rule over-blocks the shell `truncate` — the corpus catches it", () => {
+    const broad: typeof GOOD = {
+      allowed_override_token: "X",
+      bash_block_patterns: [{ pattern: "TRUNCATE\\s+", flags: "i", reason: "", severity: "CRITICAL" }],
+    };
+    const p = measurePrecision(broad, corpus);
+    expect(p.falsePositives.length).toBeGreaterThan(0);
+    expect(p.falsePositives.some((fp) => fp.cmd.startsWith("truncate -s 100M"))).toBe(true);
+    expect(p.byCategory.file.falsePositives).toBeGreaterThan(0);
+  });
+  it("runRedteam attaches precision only when a corpus is supplied", () => {
+    expect(runRedteam(GOOD).precision).toBeUndefined();
+    expect(runRedteam(GOOD, { precisionCorpus: corpus }).precision?.tried).toBe(BENIGN_CORPUS.length);
+  });
+});

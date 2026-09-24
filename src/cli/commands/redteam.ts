@@ -15,6 +15,7 @@ import { readFileSync, writeFileSync, existsSync } from "fs";
 import { join } from "path";
 import { runRedteam, renderReport, isClean } from "../../redteam/runner";
 import { buildAttackReport } from "../../redteam/report";
+import { BENIGN_CORPUS } from "../../redteam/benign-corpus";
 import type { DestructiveRules } from "../../kavach/destructive-verdict";
 
 /** Conventional locations a destructive ruleset lives at, relative to a target directory. */
@@ -59,7 +60,20 @@ export default async function redteam(args: string[]): Promise<void> {
   }
   const rulesetContent = readFileSync(rulesPath, "utf-8");
   const rules = JSON.parse(rulesetContent) as DestructiveRules;
-  const report = runRedteam(rules);
+
+  // AF-T-204 — precision corpus: a buyer's own command log (observed) if given, else the
+  // built-in representative set. One command per line for a supplied file; blanks/#-comments
+  // are still commands here (a comment executes nothing — a good gate must permit it).
+  const bcFlag = args.indexOf("--benign-corpus");
+  let precisionCorpus = BENIGN_CORPUS.map((b) => ({ cmd: b.cmd, category: b.category }));
+  let precisionSource: "representative" | "observed" = "representative";
+  if (bcFlag >= 0 && args[bcFlag + 1]) {
+    const lines = readFileSync(args[bcFlag + 1], "utf-8").split("\n").map((l) => l.trimEnd()).filter((l) => l.length);
+    precisionCorpus = lines.map((cmd) => ({ cmd, category: "observed" }));
+    precisionSource = "observed";
+  }
+
+  const report = runRedteam(rules, { precisionCorpus, precisionSource });
   process.stdout.write(renderReport(report));
 
   // AF-T-203 — write the content-addressed report artifact when asked.
