@@ -64,6 +64,8 @@ async function main() {
       return (await import("./commands/anumati-review")).default(args);
     case "check-tripwire":
       return (await import("./commands/check-tripwire")).default(args);
+    case "tripwire-canary":
+      return (await import("./commands/tripwire-canary")).default(args);
     case "help":
     case "--help":
     case "-h":
