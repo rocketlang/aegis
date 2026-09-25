@@ -26,6 +26,7 @@ import { registerMachineLawRoutes } from "./routes/machine-law";
 import { registerAccRoutes } from "./routes/acc";  // @rule:ACC-001
 import { registerDemoRoutes } from "./routes/demo";  // Tier 3 playground
 import { registerTripwireMcpRoutes } from "./routes/tripwire-mcp";  // AF-T-703 external honeypot surface
+import { registerFirewallRoutes } from "./routes/firewall";  // AF-T-802 founder cockpit (behind session guard)
 import { classifyCommand, runKavachGate } from "../kavach/gate";
 import { isApprover, APPROVERS_FILE_PATH } from "./approvers";
 // [EE] Multi-tenant — graceful degradation when EE not licensed
@@ -431,6 +432,7 @@ registerMachineLawRoutes(app);
 registerAccRoutes(app);  // @rule:ACC-001 — ACC Day 1: /suite + /api/suite/inventory
 registerDemoRoutes(app);  // Tier 3 — /demo playground
 registerTripwireMcpRoutes(app);  // AF-T-703 — /mcp external honeypot manifest (bait only, unauthenticated by design)
+registerFirewallRoutes(app);  // AF-T-802 — /firewall cockpit + /api/firewall/* (founder-only: stays BEHIND the session guard)
 
 // --- API Routes ---
 
