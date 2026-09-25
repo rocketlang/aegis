@@ -41,7 +41,7 @@ export interface AttackReport {
 }
 
 /** Deterministic JSON: object keys sorted at every level, so the digest is reproducible. */
-function stable(v: unknown): string {
+export function stable(v: unknown): string {
   if (Array.isArray(v)) return `[${v.map(stable).join(",")}]`;
   if (v && typeof v === "object") {
     const o = v as Record<string, unknown>;
