@@ -168,14 +168,12 @@ function firewallPage(): string {
 <div class="card">
   <h2>Containment mode</h2>
   <div class="mode">
+    <span>Currently:</span>
     <span id="modePill" class="pill observe">…</span>
     <span id="modeNote" class="sub" style="margin:0"></span>
-    <span class="row">
-      <input id="modeConfirm" placeholder='type "observe" or "enforce"' size="22">
-      <button onclick="flipMode()">Set mode</button>
-    </span>
   </div>
-  <div class="sub" style="margin-top:8px">observe = tripwire stages are reported and ledgered, nothing bites · enforce = throttle/quarantine narrow the agent's valve. Rollback is one flip.</div>
+  <div id="modeAction" style="margin-top:12px"></div>
+  <div class="sub" style="margin-top:8px">observe = tripwire stages are reported and ledgered, nothing bites · enforce = throttle/quarantine narrow the agent's valve. You can switch back to observe any time, in one click.</div>
 </div>
 
 <div class="card">
@@ -222,6 +220,17 @@ async function load() {
     document.getElementById('modeNote').textContent = d.mode.note || '';
     document.getElementById('ceiling').textContent = d.ceiling;
 
+    // The action offered = the OTHER mode. Arming (→enforce) asks you to type the word;
+    // disarming (→observe, the safe direction) is one click, always allowed.
+    const act = document.getElementById('modeAction');
+    if (d.mode.mode === 'observe') {
+      act.innerHTML = 'To make stages BITE, type <b>enforce</b> to confirm: ' +
+        '<input id="armWord" placeholder="enforce" size="12"> ' +
+        '<button onclick="arm()">Switch to ENFORCE</button>';
+    } else {
+      act.innerHTML = '<button class="quiet" onclick="disarm()">← Switch back to OBSERVE (safe, one click)</button>';
+    }
+
     const tb = document.querySelector('#watch tbody'); tb.innerHTML = '';
     document.getElementById('watchEmpty').style.display = d.principals.length ? 'none' : 'block';
     for (const p of d.principals) {
@@ -248,18 +257,21 @@ async function load() {
   } catch (e) { say('load failed: ' + e.message, false); }
 }
 
-async function flipMode() {
-  const v = document.getElementById('modeConfirm').value.trim().toLowerCase();
-  if (v !== 'observe' && v !== 'enforce') {
-    return say('You typed "' + v + '" — it must be exactly observe or enforce (check spelling).', false);
-  }
+async function arm() {
+  const v = (document.getElementById('armWord').value || '').trim().toLowerCase();
+  if (v !== 'enforce') return say('Type the word enforce exactly to arm the valve (you typed "' + v + '").', false);
   try {
-    const r = await api('/api/firewall/mode', {method:'POST', body: JSON.stringify({mode:v, confirm:v})});
-    say(r.unchanged ? 'Already in ' + r.mode.mode + ' — nothing to change.' : 'Containment mode sealed: ' + r.mode.mode + (v === 'enforce' ? ' — stages now bite the valve. Rollback: type observe.' : ''), true);
-    document.getElementById('modeConfirm').value='';
+    const r = await api('/api/firewall/mode', {method:'POST', body: JSON.stringify({mode:'enforce', confirm:'enforce'})});
+    say(r.unchanged ? 'Already in enforce.' : 'ARMED — containment now bites the agent valve. Switch back to observe any time.', true);
     load();
-  }
-  catch (e) { say(e.message, false); }
+  } catch (e) { say(e.message, false); }
+}
+async function disarm() {
+  try {
+    const r = await api('/api/firewall/mode', {method:'POST', body: JSON.stringify({mode:'observe', confirm:'observe'})});
+    say(r.unchanged ? 'Already in observe.' : 'Back to OBSERVE — stages are watched and ledgered, nothing bites.', true);
+    load();
+  } catch (e) { say(e.message, false); }
 }
 async function clearP(principal) {
   const reason = prompt('Why is this principal judged safe to de-escalate?\\n(The reason is recorded — this is the human half the ladder requires.)');
