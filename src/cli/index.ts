@@ -84,6 +84,8 @@ async function main() {
       return (await import("./commands/ci-audit")).default(args);
     case "rehearse-chain":
       return (await import("./commands/rehearse-chain")).default(args);
+    case "quarterly-report":
+      return (await import("./commands/quarterly-report")).default(args);
     case "help":
     case "--help":
     case "-h":

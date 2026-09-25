@@ -1,6 +1,6 @@
 # AEGIS
 
-> **Stops your AI agent from destroying your database without asking.**
+> **Can you answer what your agents touched?** AEGIS makes that one command — and stops the answer from ever being "we don't know."
 
 [![npm version](https://img.shields.io/npm/v/@xshieldai/aegis.svg)](https://www.npmjs.com/package/@xshieldai/aegis)
 [![License: AGPL-3.0](https://img.shields.io/badge/License-AGPL%20v3-blue.svg)](LICENSE)
@@ -11,6 +11,24 @@
 **AEGIS** (Agentic Execution Governance & Intelligence System) is a vendor-neutral kill-switch for AI agents. Works with Claude Code, OpenAI Codex, Cursor, and any tool that writes session logs or makes API calls.
 
 Born on **17 April 2026** from a real $200 incident: a user stopped using Claude Code, walked away, came back to find their weekly Max Plan fully exhausted with no visibility into what ran.
+
+## Answerability first
+
+When an autonomous agent swarm attacks a public registry and its operator cannot tell, from its own logs, what its agents touched — that is not a logging gap, it is a missing capability. AEGIS builds it in:
+
+```bash
+aegis touched --since 7d        # per principal: refused, observed, published-under-which-
+                                # mandate, tripwire tells, receipt hash-chain verified
+aegis rehearse-chain            # walk the incident chain against your own gates —
+                                # every step must refuse or alert; digest-sealed evidence pack
+aegis quarterly-report --prev last.json   # the period report + what changed since
+```
+
+Three properties back it, each honest about its stage (shadow ≠ blocked, and the output says which):
+
+1. **A permissive layer between the agent and the world** — unknown state refuses; production-target writes are judged by the *resolved target*, not the command text. New invariants enter in shadow and are promoted only on ledger evidence.
+2. **Publishing is a mandate, never a side effect** — `aegis publish-mandate` grants named, time-bounded consent; every publish attempt leaves a provenance record; undeclared CI publish steps fail the build (`aegis ci-audit`).
+3. **Answerability as a capability** — one command over tamper-evident ledgers, with the ceiling stated: host-computed evidence survives a lying agent, not a compromised host, and an empty report means nothing *ledgered*, never "nothing happened."
 
 ---
 
