@@ -41,6 +41,7 @@ import { isSqlCapableInvocation, isProvablyReadOnly, sqlTargetVerdict } from "./
 import { stageFor as tripwireStageFor } from "../tripwire/enforce";
 import { isNetworkCapableInvocation, netTargetVerdict } from "./net-capability";
 import { fsTargetVerdict } from "./fs-capability";
+import { isPublishInvocation, publishVerdict, readMandates } from "./publish-capability";
 
 const TRIPWIRE_LEDGER = join(process.env.HOME || "/root", ".aegis", "tripwire.jsonl");
 
@@ -77,6 +78,9 @@ export interface AnumatiDecision {
   refusals: PermissiveResult[];
   /** Observe-stage results that were not PERMIT — reported and ledgered, never blocking. */
   observations: PermissiveResult[];
+  /** Results from alwaysLedger permissives, PERMIT included — the provenance record an
+   *  outward write must leave (AFW-012). Written by the ledger, never by check(). */
+  provenance: PermissiveResult[];
   evaluated_at: string;
 }
 
@@ -88,6 +92,8 @@ interface Permissive {
    *  A check() may instead return a per-verdict stage, which wins — so one invariant can enforce
    *  its high-confidence branch and observe its low-confidence one (AF-R-005 graded promotion). */
   stage?: "enforce" | "observe";
+  /** true = this permissive's result is ledgered even on PERMIT (provenance, AFW-012). */
+  alwaysLedger?: boolean;
   applies(a: ProposedAction): boolean;
   check(a: ProposedAction): { verdict: Verdict; detail: string; source?: string; stage?: "enforce" | "observe" };
 }
@@ -471,6 +477,20 @@ const PERMISSIVES: Permissive[] = [
   },
 
   {
+    // AF-T-707 — AFW-012: an outward write (publish/release/upload) is a gated capability.
+    // Permitted only under a live named mandate (`aegis publish-mandate grant`), and every
+    // publish invocation leaves a provenance record via alwaysLedger — permit or refuse.
+    // Ships observe (AFW-006); once enforced, the designed flow is grant-then-publish.
+    id: "ANU-I-010",
+    title: "Outward write (publish) carries a live named mandate",
+    law: "AFW-012 — no mandate, no publish; provenance always recorded",
+    stage: "observe",
+    alwaysLedger: true,
+    applies: a => a.tool === "Bash" && !!a.command && isPublishInvocation(a.command).publish,
+    check: a => publishVerdict(a.command!, readMandates()),
+  },
+
+  {
     // AF-T-702 — a principal the tripwire ladder has QUARANTINED (or revoked) does not act.
     // The evidence and the stage live in the tripwire layer; this permissive only READS the
     // stage and refuses — it never touches the valve (ANU-005: refusal and actuation are
@@ -523,6 +543,7 @@ function writeTargetsOf(a: ProposedAction): string[] {
  */
 export function anumati(action: ProposedAction): AnumatiDecision {
   const results: PermissiveResult[] = [];
+  const alwaysLedgerIds = new Set<string>();
 
   // @rule:ANU-007 — computed ONCE per evaluation and applied at this single choke point,
   // so a permissive added later cannot forget to ask whether its instrument was tampered
@@ -549,6 +570,7 @@ export function anumati(action: ProposedAction): AnumatiDecision {
       continue;
     }
     if (!applies) continue;
+    if (p.alwaysLedger) alwaysLedgerIds.add(p.id);
 
     const stage = p.stage ?? "enforce";
     try {
@@ -598,11 +620,15 @@ export function anumati(action: ProposedAction): AnumatiDecision {
   const notPermitted = results.filter(r => r.verdict !== "PERMIT");
   const refusals = notPermitted.filter(r => (r.stage ?? "enforce") !== "observe");
   const observations = notPermitted.filter(r => (r.stage ?? "enforce") === "observe");
+  // Provenance (AFW-012): alwaysLedger results ride to the ledger even on PERMIT, written
+  // at the choke point so no check() ever writes state itself (ANU-001).
+  const provenance = results.filter(r => alwaysLedgerIds.has(r.id));
   return {
     verdict: refusals.length === 0 ? "PERMIT" : "REFUSE",
     results,
     refusals,
     observations,
+    provenance,
     evaluated_at: new Date().toISOString(),
   };
 }
@@ -616,7 +642,8 @@ const LEDGER = join(LEDGER_DIR, "anumati.jsonl");
  *  would-refuse, even when the overall verdict is PERMIT, so a staged invariant collects its
  *  shadow evidence for the promotion decision. A clean PERMIT with nothing observed is not logged. */
 export function ledgerAnumati(action: ProposedAction, decision: AnumatiDecision, mode: AnumatiMode): void {
-  if (decision.refusals.length === 0 && decision.observations.length === 0) return;
+  const provenance = decision.provenance ?? [];
+  if (decision.refusals.length === 0 && decision.observations.length === 0 && provenance.length === 0) return;
   try {
     mkdirSync(LEDGER_DIR, { recursive: true });
     appendFileSync(
@@ -630,6 +657,8 @@ export function ledgerAnumati(action: ProposedAction, decision: AnumatiDecision,
         target: action.file_path ?? action.command?.slice(0, 300) ?? null,
         refusals: decision.refusals.map(r => ({ id: r.id, verdict: r.verdict, detail: r.detail })),
         observations: decision.observations.map(r => ({ id: r.id, verdict: r.verdict, detail: r.detail })),
+        // AFW-012 — the provenance record an outward write leaves, PERMIT included.
+        ...(provenance.length ? { provenance: provenance.map(r => ({ id: r.id, verdict: r.verdict, detail: r.detail })) } : {}),
       }) + "\n",
     );
   } catch {
