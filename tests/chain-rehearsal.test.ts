@@ -8,7 +8,8 @@ import { readFileSync } from "fs";
 import { runChainRehearsal } from "../src/redteam/chain-rehearsal";
 import type { DestructiveRules } from "../src/kavach/destructive-verdict";
 
-const RULES = JSON.parse(readFileSync("/root/aegis/tests/fixtures/destructive-rules.sample.json", "utf-8")) as DestructiveRules;
+// The repo ruleset IS the live format since the eca0e68 reconciliation (repo == live).
+const RULES = JSON.parse(readFileSync(new URL("../rules/destructive-rules.json", import.meta.url), "utf-8")) as DestructiveRules;
 const TS = "2026-09-25T00:00:00.000Z";
 
 describe("chain rehearsal (AF-T-711)", () => {
