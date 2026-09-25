@@ -80,8 +80,13 @@ export function registerFirewallRoutes(app: FastifyInstance): void {
     if (b.confirm !== b.mode) {
       return reply.code(400).send({ error: `type the word "${b.mode}" to confirm — flipping containment is a named consent (CA-002), never a button reflex` });
     }
+    const current = tripwireMode();
+    if (current.mode === b.mode && !current.note) {
+      // Already sealed at this mode — say so instead of silently re-writing.
+      return { ok: true, unchanged: true, mode: current };
+    }
     writeTripwireMode(b.mode);
-    return { ok: true, mode: tripwireMode() };
+    return { ok: true, unchanged: false, mode: tripwireMode() };
   });
 
   app.post("/api/firewall/mandate/grant", async (req, reply) => {
@@ -155,7 +160,7 @@ function firewallPage(): string {
 </style>
 </head>
 <body>
-<div class="nav"><a href="/">← Dashboard</a><a href="/control-center">Control Center</a></div>
+<div class="nav"><a href="./">← Dashboard</a><a href="./control-center">Control Center</a></div>
 <h1>Agent Firewall — Cockpit</h1>
 <div class="sub">The witness face. Every button here runs the same code as the CLI — this page decides nothing on its own.</div>
 <div id="msg" class="msg"></div>
@@ -199,7 +204,8 @@ const api = (p, opts) => fetch(p, Object.assign({headers:{'content-type':'applic
   if (!r.ok) throw new Error(j.error || r.status);
   return j;
 });
-const say = (t, ok) => { const m = document.getElementById('msg'); m.textContent = t; m.className = 'msg ' + (ok ? 'ok' : 'err'); setTimeout(() => m.className='msg', 6000); };
+// errors STAY on screen until the next action — a guard message that flashes is a guard nobody read
+const say = (t, ok) => { const m = document.getElementById('msg'); m.textContent = t; m.className = 'msg ' + (ok ? 'ok' : 'err'); if (ok) setTimeout(() => m.className='msg', 8000); };
 const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 
 async function load() {
@@ -239,9 +245,16 @@ async function load() {
 }
 
 async function flipMode() {
-  const v = document.getElementById('modeConfirm').value.trim();
-  if (v !== 'observe' && v !== 'enforce') return say('type the exact word: observe or enforce', false);
-  try { const r = await api('/api/firewall/mode', {method:'POST', body: JSON.stringify({mode:v, confirm:v})}); say('containment mode sealed: ' + r.mode.mode, true); document.getElementById('modeConfirm').value=''; load(); }
+  const v = document.getElementById('modeConfirm').value.trim().toLowerCase();
+  if (v !== 'observe' && v !== 'enforce') {
+    return say('You typed "' + v + '" — it must be exactly observe or enforce (check spelling).', false);
+  }
+  try {
+    const r = await api('/api/firewall/mode', {method:'POST', body: JSON.stringify({mode:v, confirm:v})});
+    say(r.unchanged ? 'Already in ' + r.mode.mode + ' — nothing to change.' : 'Containment mode sealed: ' + r.mode.mode + (v === 'enforce' ? ' — stages now bite the valve. Rollback: type observe.' : ''), true);
+    document.getElementById('modeConfirm').value='';
+    load();
+  }
   catch (e) { say(e.message, false); }
 }
 async function clearP(principal) {
