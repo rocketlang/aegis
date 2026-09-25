@@ -42,6 +42,7 @@ import { stageFor as tripwireStageFor } from "../tripwire/enforce";
 import { isNetworkCapableInvocation, netTargetVerdict } from "./net-capability";
 import { fsTargetVerdict } from "./fs-capability";
 import { isPublishInvocation, publishVerdict, readMandates } from "./publish-capability";
+import { checkMudrika, mudrikaActVerdict } from "./mudrika-validator";
 
 const TRIPWIRE_LEDGER = join(process.env.HOME || "/root", ".aegis", "tripwire.jsonl");
 
@@ -488,6 +489,20 @@ const PERMISSIVES: Permissive[] = [
     alwaysLedger: true,
     applies: a => a.tool === "Bash" && !!a.command && isPublishInvocation(a.command).publish,
     check: a => publishVerdict(a.command!, readMandates()),
+  },
+
+  {
+    // AF-T-708 — closes the AF-T-602 fail-open, GRADED: an act-class action (outward write
+    // or schema-touching) requires a proven identity. Absent = observe (the fail-open
+    // branch, promoted on ledger evidence); present-but-invalid = enforce (the hot-path
+    // hooks already exit 2 there). Reads stay checked-when-present — not a reads tax.
+    id: "ANU-I-011",
+    title: "Act-class action carries a proven agent identity (Mudrika)",
+    law: "AFW-010 / AGT-014 — identity is proven, never assumed",
+    applies: a =>
+      a.tool === "Bash" && !!a.command &&
+      (isPublishInvocation(a.command).publish || isSchemaTouching(a.command)),
+    check: a => mudrikaActVerdict(checkMudrika(a.session_id), a.session_id),
   },
 
   {
