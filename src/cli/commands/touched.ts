@@ -41,11 +41,13 @@ export default async function touched(args: string[]): Promise<void> {
     process.exit(1);
   }
 
+  const includeSynthetic = args.includes("--include-synthetic");
   const report: TouchedReport = aggregateTouched(
     readLines(join(AEGIS_DIR, "anumati.jsonl")),
     readLines(join(AEGIS_DIR, "tripwire.jsonl")),
     since,
     now,
+    { includeSynthetic },
   );
 
   const chains: Record<string, string> = {};
@@ -76,6 +78,7 @@ export default async function touched(args: string[]): Promise<void> {
     out += `- kernel receipts: ${chains[p.principal]}\n\n`;
   }
   out += `Totals: ${report.totals.anumati_rows} anumati row(s), ${report.totals.tripwire_rows} tripwire row(s)` +
+    (report.totals.synthetic_excluded ? `, ${report.totals.synthetic_excluded} synthetic test principal(s) EXCLUDED (--include-synthetic to show)` : "") +
     (report.totals.unparseable ? `, ${report.totals.unparseable} unparseable line(s) SKIPPED (they are not evidence)` : "") + `\n\n`;
   out += `CEILING (PRA-004): computed by this host about itself — survives a lying agent, not a compromised\n` +
     `host. An empty row means nothing LEDGERED (tool-route + tripwire visibility), never "nothing happened".\n`;

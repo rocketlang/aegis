@@ -25,7 +25,8 @@ export interface LedgerReview {
 }
 
 // Sessions this project created while building/verifying ANU-I-006 — never real usage.
-const DEFAULT_SYNTHETIC = /^(sem-verify|multic|promo-verify|pv|s|test|test-staging|smoke)(-|$)/i;
+// One canonical definition (a superset of the old local pattern) — see kavach/synthetic.
+import { DEFAULT_SYNTHETIC_PRINCIPAL as DEFAULT_SYNTHETIC } from "./synthetic";
 
 export function reviewAnumatiLedger(
   lines: string[],

@@ -41,6 +41,7 @@ export interface QuarterlyReport {
     provenance_rows: number;
     tripwire_tells: number;
     unparseable_lines: number;
+    synthetic_excluded: number;
   };
   rehearsal: { all_pass: boolean; steps: number; failed: string[]; digest: string };
   posture: { score: number; grade: string; catchableAsr: number; fpr: number; catchableGaps: number; ceilingGaps: number };
@@ -82,6 +83,7 @@ export function composeQuarterly(p: QuarterlyParts, ts = new Date().toISOString(
       provenance_rows: provenance,
       tripwire_tells: tells,
       unparseable_lines: p.touched.totals.unparseable,
+      synthetic_excluded: p.touched.totals.synthetic_excluded,
     },
     rehearsal: {
       all_pass: p.rehearsal.all_pass,
@@ -164,7 +166,8 @@ export function renderQuarterly(r: QuarterlyReport, diff?: QuarterlyDiff): strin
     out += `## Against the previous period\n${diff.headline.map((h) => `- ${h}`).join("\n")}\n\n`;
   }
   out += `## What our agents touched (the lead)\n`;
-  out += `- ${a.principals} principal(s) left ledger evidence · ${a.enforced_refusals} enforced refusal(s) · ${a.tripwire_tells} tripwire tell(s)\n`;
+  out += `- ${a.principals} real principal(s) left ledger evidence · ${a.enforced_refusals} enforced refusal(s) · ${a.tripwire_tells} tripwire tell(s)`;
+  out += a.synthetic_excluded ? ` (${a.synthetic_excluded} synthetic test principal(s) excluded)\n` : `\n`;
   out += `- shadow observations by invariant: ${Object.entries(a.observations_by_invariant).map(([k, v]) => `${k}×${v}`).join(", ") || "none"}\n`;
   out += `- outward-write provenance rows: ${a.provenance_rows}\n\n`;
   out += `## The incident chain, rehearsed\n- ${r.rehearsal.all_pass ? `ALL ${r.rehearsal.steps} steps refused or alerted` : `FAILED: ${r.rehearsal.failed.join(", ")}`} (pack digest ${r.rehearsal.digest.slice(0, 16)}…)\n\n`;

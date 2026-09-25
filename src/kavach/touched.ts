@@ -36,8 +36,10 @@ export interface TouchedReport {
   since: string;
   until: string;
   principals: TouchedPrincipal[];
-  totals: { anumati_rows: number; tripwire_rows: number; unparseable: number };
+  totals: { anumati_rows: number; tripwire_rows: number; unparseable: number; synthetic_excluded: number };
 }
+
+import { isSyntheticPrincipal } from "./synthetic";
 
 const parse = (line: string): any | null => {
   if (!line.trim()) return null;
@@ -49,6 +51,7 @@ export function aggregateTouched(
   tripwireLines: string[],
   sinceMs: number,
   untilMs: number,
+  opts: { includeSynthetic?: boolean } = {},
 ): TouchedReport {
   const by = new Map<string, TouchedPrincipal>();
   const get = (p: string): TouchedPrincipal => {
@@ -104,8 +107,19 @@ export function aggregateTouched(
     }
   }
 
+  // Drop the project's own test-harness sessions unless explicitly asked to keep them, so
+  // the launch numbers count real agents. The count of what was dropped is reported — a
+  // filter that hides its own effect is the kind of thing this stack exists to refuse.
+  let all = [...by.values()];
+  let syntheticExcluded = 0;
+  if (!opts.includeSynthetic) {
+    const before = all.length;
+    all = all.filter((p) => !isSyntheticPrincipal(p.principal));
+    syntheticExcluded = before - all.length;
+  }
+
   // Busiest first: enforced refusals, then tripwire hits, then observation volume.
-  const principals = [...by.values()].sort((a, b) => {
+  const principals = all.sort((a, b) => {
     const score = (x: TouchedPrincipal) =>
       x.anumati.enforced_refusals * 1000 + x.tripwire.hits * 100 +
       Object.values(x.anumati.observations).reduce((s, n) => s + n, 0);
@@ -116,7 +130,7 @@ export function aggregateTouched(
     since: new Date(sinceMs).toISOString(),
     until: new Date(untilMs).toISOString(),
     principals,
-    totals: { anumati_rows: anumatiRows, tripwire_rows: tripwireRows, unparseable },
+    totals: { anumati_rows: anumatiRows, tripwire_rows: tripwireRows, unparseable, synthetic_excluded: syntheticExcluded },
   };
 }
 

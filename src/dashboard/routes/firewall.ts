@@ -26,7 +26,7 @@ const readLines = (p: string): string[] => {
 export function registerFirewallRoutes(app: FastifyInstance): void {
   // ── overview: one payload the page renders from ─────────────────────────────
   app.get("/api/firewall/overview", async (req) => {
-    const q = (req.query ?? {}) as { since?: string };
+    const q = (req.query ?? {}) as { since?: string; includeSynthetic?: string };
     const now = Date.now();
     const since = parseSince(q.since ?? "24h", now) ?? now - 24 * 3600e3;
 
@@ -34,6 +34,7 @@ export function registerFirewallRoutes(app: FastifyInstance): void {
       readLines(join(AEGIS_DIR, "anumati.jsonl")),
       readLines(join(AEGIS_DIR, "tripwire.jsonl")),
       since, now,
+      { includeSynthetic: q.includeSynthetic === "1" },
     );
 
     // principals seen by the tripwire, with their current ladder stage
@@ -177,7 +178,8 @@ function firewallPage(): string {
 </div>
 
 <div class="card">
-  <h2>Watchlist — who tripped what <span class="row" style="float:right"><select id="since" onchange="load()"><option value="24h">last 24h</option><option value="7d">last 7 days</option><option value="30d">last 30 days</option></select></span></h2>
+  <h2>Watchlist — who tripped what <span class="row" style="float:right"><label class="sub" style="margin:0"><input type="checkbox" id="showSynthetic" onchange="load()"> show test entries</label><select id="since" onchange="load()"><option value="24h">last 24h</option><option value="7d">last 7 days</option><option value="30d">last 30 days</option></select></span></h2>
+  <div id="synthNote" class="sub" style="display:none;margin-bottom:8px"></div>
   <table id="watch"><thead><tr><th>Principal</th><th>Stage</th><th>Tripwire</th><th>Refused / Observed</th><th>Outward writes</th><th></th></tr></thead><tbody></tbody></table>
   <div id="watchEmpty" class="empty" style="display:none">Nothing ledgered in this window — quiet is a valid answer.</div>
 </div>
@@ -214,7 +216,8 @@ const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>'
 async function load() {
   try {
     const since = document.getElementById('since').value;
-    const d = await api('/api/firewall/overview?since=' + since);
+    const showSynth = document.getElementById('showSynthetic').checked ? '&includeSynthetic=1' : '';
+    const d = await api('/api/firewall/overview?since=' + since + showSynth);
     const pill = document.getElementById('modePill');
     pill.textContent = d.mode.mode.toUpperCase();
     pill.className = 'pill ' + d.mode.mode;
@@ -234,6 +237,9 @@ async function load() {
 
     const tb = document.querySelector('#watch tbody'); tb.innerHTML = '';
     document.getElementById('watchEmpty').style.display = d.principals.length ? 'none' : 'block';
+    const sn = document.getElementById('synthNote');
+    if (d.totals && d.totals.synthetic_excluded > 0) { sn.style.display = 'block'; sn.textContent = d.totals.synthetic_excluded + ' test/harness principal(s) hidden — tick "show test entries" to include them.'; }
+    else { sn.style.display = 'none'; }
     for (const p of d.principals) {
       const obs = Object.entries(p.observations).map(([k,v]) => k.replace('ANU-I-','I') + '×' + v).join(', ');
       const prov = p.provenance.map(x => '[' + x.verdict + '] ' + esc(x.detail.slice(0,80))).join('<br>');

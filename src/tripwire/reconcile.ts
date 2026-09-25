@@ -36,12 +36,14 @@ export function reconcile(registered: Iterable<string>, observed: Iterable<strin
 // Default: scenario/test principals that are legitimately unregistered on this box (the
 // scenario runner, and this project's own verification sessions). They ARE unregistered actors
 // honestly — separating them keeps the real signal from drowning, it does not excuse them.
-export const DEFAULT_TEST_ACTOR = /^(smoke|test|sem-verify|multic|promo-verify|pv|s|live)(-|$)/i;
+// The canonical synthetic-principal pattern (one definition; a superset of the old local one).
+export { DEFAULT_SYNTHETIC_PRINCIPAL as DEFAULT_TEST_ACTOR } from "../kavach/synthetic";
+import { DEFAULT_SYNTHETIC_PRINCIPAL } from "../kavach/synthetic";
 
 export interface LurkerClasses { likelyTest: string[]; unexplained: string[] }
 
 /** Split lurkers into recognisable test/scenario runs vs the ones that need a human look. */
-export function classifyLurkers(lurkers: string[], testActor: RegExp = DEFAULT_TEST_ACTOR): LurkerClasses {
+export function classifyLurkers(lurkers: string[], testActor: RegExp = DEFAULT_SYNTHETIC_PRINCIPAL): LurkerClasses {
   const likelyTest: string[] = [];
   const unexplained: string[] = [];
   for (const id of lurkers) (testActor.test(id) ? likelyTest : unexplained).push(id);
