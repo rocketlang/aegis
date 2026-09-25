@@ -80,6 +80,8 @@ async function main() {
       return (await import("./commands/publish-mandate")).default(args);
     case "touched":
       return (await import("./commands/touched")).default(args);
+    case "ci-audit":
+      return (await import("./commands/ci-audit")).default(args);
     case "help":
     case "--help":
     case "-h":

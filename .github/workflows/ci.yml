@@ -26,6 +26,9 @@ jobs:
       - name: Red-team the destructive gate (robustness — fails on a catchable gap or false positive)
         run: bun run src/cli/index.ts redteam --rules rules/destructive-rules.json
 
+      - name: CI pipeline audit — every publish step declared (AF-T-710, INF-AFW-007)
+        run: bun run src/cli/index.ts ci-audit --dir .
+
       - name: Run agent governance scenarios (AEGIS on AEGIS)
         run: bun src/test-agents/runner.ts
         env:

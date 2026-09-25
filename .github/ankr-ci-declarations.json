@@ -1,0 +1,12 @@
+{
+  "workflows": {
+    "release-agent-kernel.yml": {
+      "publishes": ["@xshieldai/agent-kernel"],
+      "reason": "open-core kernel package release — tag-triggered, npm --provenance; the pipeline's one sanctioned outward write (AFW-012 applied to CI)"
+    },
+    "release.yml": {
+      "publishes": ["@xshieldai/aegis"],
+      "reason": "aegis CLI package release — v* tag-triggered npm publish; surfaced UNDECLARED by the first ci-audit run 2026-09-25 and declared after verifying the trigger"
+    }
+  }
+}
