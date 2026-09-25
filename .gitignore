@@ -8,3 +8,6 @@ dist/
 bun.lockb
 __pycache__/
 *.pyc
+
+# real-ledger reports never enter the repo (internal principals/commands); rehearsal packs are synthetic and may
+audits/quarterly-*.json
