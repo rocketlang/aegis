@@ -92,7 +92,16 @@ if (config.dashboard.auth?.enabled) {
     if (u === username && p === password) {
       reply
         .header("Set-Cookie", issueSessionCookie(u))
-        .redirect(req.headers["x-forwarded-prefix"] === "/dashboard" ? "/dashboard" : "/", 302);
+        // Behind the public domain, "/" is the static marketing site — a successful login
+        // must land IN the app. nginx only sets X-Forwarded-Prefix on /dashboard/, not on
+        // /login, so detect the public host too (proven: founder logged in and landed on
+        // the marketing page, 2026-09-25).
+        .redirect(
+          req.headers["x-forwarded-prefix"] === "/dashboard" || String(req.headers.host ?? "").startsWith("aegis.")
+            ? "/dashboard/"
+            : "/",
+          302,
+        );
     } else {
       reply.type("text/html").code(401).send(loginPage("Invalid username or password."));
     }
