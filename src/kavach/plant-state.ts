@@ -339,6 +339,13 @@ const AEGIS_DIR = AEGIS_ROOT.path;
 export const ANUMATI_MODE_FILE = `${AEGIS_DIR}/anumati-mode`;
 export const ANUMATI_SEAL_FILE = `${AEGIS_DIR}/anumati-mode.seal.json`;
 export const ANUMATI_TAINT_FILE = `${AEGIS_DIR}/anumati-taint.json`;
+// AF-T-702 — the tripwire containment instruments are enforcement state too (ANU-007):
+// evidence, the human-clear record, and the sealed mode switch all change what bites.
+// Sanctioned writers: the hook faces (in-process) and `aegis tripwire-clear|tripwire-mode`.
+export const TRIPWIRE_LEDGER_FILE = `${AEGIS_DIR}/tripwire.jsonl`;
+export const TRIPWIRE_CLEARS_FILE = `${AEGIS_DIR}/tripwire-clears.json`;
+export const TRIPWIRE_MODE_FILE = `${AEGIS_DIR}/tripwire-mode`;
+export const TRIPWIRE_MODE_SEAL_FILE = `${AEGIS_DIR}/tripwire-mode.seal.json`;
 
 /** The files the permissive layer's own verdicts depend on — including its own controls.
  *  A layer whose mode switch is writable by the thing it governs has no mode switch. */
@@ -350,6 +357,10 @@ export const PROTECTED_SOURCES: readonly string[] = [
   ANUMATI_MODE_FILE,
   ANUMATI_SEAL_FILE,
   ANUMATI_TAINT_FILE,
+  TRIPWIRE_LEDGER_FILE,
+  TRIPWIRE_CLEARS_FILE,
+  TRIPWIRE_MODE_FILE,
+  TRIPWIRE_MODE_SEAL_FILE,
 ];
 
 export function isProtectedSource(path: string): boolean {

@@ -39,6 +39,8 @@ import {
 } from "./plant-state";
 import { isSqlCapableInvocation, isProvablyReadOnly, sqlTargetVerdict } from "./sql-capability";
 import { stageFor as tripwireStageFor } from "../tripwire/enforce";
+import { isNetworkCapableInvocation, netTargetVerdict } from "./net-capability";
+import { fsTargetVerdict } from "./fs-capability";
 
 const TRIPWIRE_LEDGER = join(process.env.HOME || "/root", ".aegis", "tripwire.jsonl");
 
@@ -440,6 +442,32 @@ const PERMISSIVES: Permissive[] = [
       a.tool === "Bash" && !!a.command &&
       isSqlCapableInvocation(a.command) && !isProvablyReadOnly(a.command),
     check: a => sqlTargetVerdict(a.command!, resolveTargetDb, readDbClass),
+  },
+
+  {
+    // AF-T-704 — the ANU-I-006 shape applied to EGRESS: network-capable invocation judged on
+    // the resolved host's class against the same declarations the kernel egress face compiles
+    // from. The cooperative-face control for the crawl/exfil step of the RubyGems-class chain.
+    // Ships FULLY OBSERVE (AFW-006) — no branch has a positive low-FP identification yet.
+    id: "ANU-I-007",
+    title: "Network-capable invocation only toward declared/loopback/private hosts",
+    law: "KOS-042 egress declared at launch — the cooperative-face twin (AFW-YK-002)",
+    stage: "observe",
+    applies: a => a.tool === "Bash" && !!a.command && isNetworkCapableInvocation(a.command),
+    check: a => netTargetVerdict(a.command!),
+  },
+
+  {
+    // AF-T-705 — the same shape applied to the FILESYSTEM: every write target classified by
+    // WHERE it lands (system trust base / dev ground / unclassed), completing the AF-T-108
+    // trio. ANU-I-005 keeps the named-instrument job; this is the general classifier.
+    // Ships FULLY OBSERVE (AFW-006) — system-root writes do happen under founder direction.
+    id: "ANU-I-008",
+    title: "Write-capable action lands on classified ground (system trust base refuses)",
+    law: "AF-T-108 capability-over-target — judge the resolved path's class (AFW-YK-002)",
+    stage: "observe",
+    applies: a => writeTargetsOf(a).length > 0,
+    check: a => fsTargetVerdict(writeTargetsOf(a)),
   },
 
   {
