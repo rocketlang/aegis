@@ -169,28 +169,41 @@ export function detectPersistenceWrite(targetPath: string, rules: ShieldRules): 
 }
 
 // Check Read path for credential access (INF-KAV-001)
-export function detectCredentialRead(targetPath: string, size: number, rules: ShieldRules): DetectionResult {
+/**
+ * AF-T-706 — the PURE half of the credential-read detector: does this path fall under a
+ * credential rule at all? Extracted so the red-team face judges with the SAME matching the
+ * live hook runs, without touching the shared shield state (RT-002: the harness never
+ * records). detectCredentialRead below keeps the state side effects.
+ */
+export function classifyCredentialPath(targetPath: string, rules: ShieldRules): { credPath: string | null } {
   const normalized = targetPath.replace(/\/+/g, "/");
   for (const credPath of rules.credential_paths) {
-    if (normalized.includes(credPath)) {
-      // Record for exfil sequence tracking
-      const state = loadShieldState();
-      state.recent_large_reads.push({
-        path: normalized,
-        size,
-        timestamp: Date.now(),
-        tool_call_index: state.tool_call_index,
-      });
-      state.tool_call_index++;
-      saveShieldState(state);
+    if (normalized.includes(credPath)) return { credPath };
+  }
+  return { credPath: null };
+}
 
-      return {
-        verdict: "QUARANTINE",
-        rule_id: "INF-KAV-001",
-        reason: `Read of credential/key file: ${credPath} — possible data theft`,
-        category: "credential_read",
-      };
-    }
+export function detectCredentialRead(targetPath: string, size: number, rules: ShieldRules): DetectionResult {
+  const normalized = targetPath.replace(/\/+/g, "/");
+  const { credPath } = classifyCredentialPath(targetPath, rules);
+  if (credPath) {
+    // Record for exfil sequence tracking
+    const state = loadShieldState();
+    state.recent_large_reads.push({
+      path: normalized,
+      size,
+      timestamp: Date.now(),
+      tool_call_index: state.tool_call_index,
+    });
+    state.tool_call_index++;
+    saveShieldState(state);
+
+    return {
+      verdict: "QUARANTINE",
+      rule_id: "INF-KAV-001",
+      reason: `Read of credential/key file: ${credPath} — possible data theft`,
+      category: "credential_read",
+    };
   }
 
   // Track large reads for exfil sequence detection
@@ -293,11 +306,19 @@ export function sanitizeHistory(
 
 // Check Bash command for exfiltration sequence (INF-KAV-005)
 // Fires if: command contains exfil tool AND a large/credential Read happened within the window
-export function detectExfilSequence(command: string, rules: ShieldRules): DetectionResult {
-  const state = loadShieldState();
-  state.tool_call_index++;
-  saveShieldState(state);
+/** The state snapshot exfilVerdict judges over — same shape the live state file holds. */
+export interface ShieldExfilState {
+  tool_call_index: number;
+  recent_large_reads: Array<{ path: string; size: number; timestamp: number; tool_call_index: number }>;
+}
 
+/**
+ * AF-T-706 — the PURE half of the exfil-sequence detector: verdict over a state SNAPSHOT
+ * and an explicit clock. Extracted so the red-team face can drive the read→network
+ * sequence (fresh read = BLOCK, stale window/TTL = WARN) with synthetic state, judging
+ * with the SAME code the live hook runs. detectExfilSequence keeps the state IO.
+ */
+export function exfilVerdict(command: string, state: ShieldExfilState, nowMs: number, rules: ShieldRules): DetectionResult {
   // Check if command contains an exfil tool
   const hasExfilTool = rules.exfil_commands.some((cmd) => {
     const trimmed = command.trimStart();
@@ -312,7 +333,7 @@ export function detectExfilSequence(command: string, rules: ShieldRules): Detect
   // Check if any large/credential read happened within the window
   const windowStart = state.tool_call_index - rules.exfil_window_tool_calls;
   const recentLargeRead = state.recent_large_reads.find(
-    (r) => r.tool_call_index >= windowStart && Date.now() - r.timestamp < EXFIL_STATE_TTL_MS
+    (r) => r.tool_call_index >= windowStart && nowMs - r.timestamp < EXFIL_STATE_TTL_MS
   );
 
   if (recentLargeRead) {
@@ -326,4 +347,11 @@ export function detectExfilSequence(command: string, rules: ShieldRules): Detect
 
   // Standalone exfil tool — warn (may be legitimate curl for package download etc)
   return { verdict: "WARN", rule_id: "INF-KAV-005-partial", reason: `Network exfil tool used: ${command.trimStart().split(/\s/)[0]}`, category: "exfiltration" };
+}
+
+export function detectExfilSequence(command: string, rules: ShieldRules): DetectionResult {
+  const state = loadShieldState();
+  state.tool_call_index++;
+  saveShieldState(state);
+  return exfilVerdict(command, state, Date.now(), rules);
 }

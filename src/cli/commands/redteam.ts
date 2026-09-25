@@ -44,6 +44,14 @@ export default async function redteam(args: string[]): Promise<void> {
     process.stdout.write(renderShieldFace(report));
     process.exit(shieldFaceClean(report) ? 0 : 1);
   }
+  // AF-T-706 — the exfil face (credential-read + exfil-sequence), driven through the pure
+  // decision fns; a miss or a scenario mismatch fails, benign over-flags are reported.
+  if (faceFlag >= 0 && args[faceFlag + 1] === "exfil") {
+    const { runExfilFace, renderExfilFace, exfilFaceClean } = await import("../../redteam/exfil-face");
+    const report = runExfilFace(loadShieldRules());
+    process.stdout.write(renderExfilFace(report));
+    process.exit(exfilFaceClean(report) ? 0 : 1);
+  }
 
   const targetFlag = args.indexOf("--target");
   const rulesFlag = args.indexOf("--rules");
