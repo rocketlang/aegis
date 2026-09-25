@@ -51,9 +51,12 @@ export function registerTripwireMcpRoutes(app: FastifyInstance): void {
     const body = (req.body ?? {}) as { jsonrpc?: string; id?: unknown; method?: string; params?: any };
     const { id, method, params } = body;
 
-    // Principal = the calling source, as nginx saw it. External callers have no session id;
-    // per-source attribution is what lets evidence accumulate across probes.
-    const ip = (req.headers["x-real-ip"] as string) || req.ip || "unknown";
+    // Principal = the calling source. Cloudflare fronts this domain, so X-Real-IP is a CF
+    // EDGE ip that rotates per request — evidence for one prober would scatter across edges
+    // and never accumulate. CF-Connecting-IP is the actual caller (proven on the first
+    // public deploy test: edge 172.71.x attributed instead of the caller). External callers
+    // have no session id; per-source attribution is what lets the ladder climb.
+    const ip = (req.headers["cf-connecting-ip"] as string) || (req.headers["x-real-ip"] as string) || req.ip || "unknown";
     const principal = `ext:${ip}`;
 
     switch (method) {

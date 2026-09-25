@@ -115,6 +115,7 @@ if (config.dashboard.auth?.enabled) {
       url === "/kavachos" ||    // public landing page (KOS-093)
       url === "/commands" ||
       url === "/demo" ||         // Tier 3 public playground
+      url === "/mcp" ||          // AF-T-703 external honeypot manifest — bait only, founder-directed public (AGT-018)
       url === "/early-access" ||       // AEGIS waitlist page (public, GTM Phase 0)
       url === "/api/early-access" ||   // waitlist signup POST
       url.startsWith("/api/demo/") ||  // /api/demo/run + /api/demo/health
