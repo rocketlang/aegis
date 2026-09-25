@@ -38,6 +38,9 @@ import {
   type TaintRecord,
 } from "./plant-state";
 import { isSqlCapableInvocation, isProvablyReadOnly, sqlTargetVerdict } from "./sql-capability";
+import { stageFor as tripwireStageFor } from "../tripwire/enforce";
+
+const TRIPWIRE_LEDGER = join(process.env.HOME || "/root", ".aegis", "tripwire.jsonl");
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -437,6 +440,43 @@ const PERMISSIVES: Permissive[] = [
       a.tool === "Bash" && !!a.command &&
       isSqlCapableInvocation(a.command) && !isProvablyReadOnly(a.command),
     check: a => sqlTargetVerdict(a.command!, resolveTargetDb, readDbClass),
+  },
+
+  {
+    // AF-T-702 — a principal the tripwire ladder has QUARANTINED (or revoked) does not act.
+    // The evidence and the stage live in the tripwire layer; this permissive only READS the
+    // stage and refuses — it never touches the valve (ANU-005: refusal and actuation are
+    // separate axes). De-escalation is human-only: `aegis tripwire-clear <principal>`.
+    // IDs ANU-I-007/-008 stay reserved for the egress/filesystem permissives designed in
+    // AF-T-108. Ships observe (AFW-006); promotion is a founder call on ledger evidence.
+    id: "ANU-I-009",
+    title: "Acting principal is not quarantined by the tripwire containment ladder",
+    law: "AFW-011 staged containment — quarantine isolates; only a human clears",
+    stage: "observe",
+    applies: a => {
+      // Cheap gate: no tripwire ledger, or this session never appears in it → not applicable.
+      try {
+        return existsSync(TRIPWIRE_LEDGER) && readFileSync(TRIPWIRE_LEDGER, "utf-8").includes(a.session_id);
+      } catch { return false; }
+    },
+    check: a => {
+      const { decision, hits, distinctKinds } = tripwireStageFor(a.session_id);
+      if (decision.stage === "quarantine" || decision.stage === "revoke") {
+        return {
+          verdict: "REFUSE",
+          detail:
+            `principal ${a.session_id.slice(0, 12)} is at containment stage ${decision.stage} ` +
+            `(${hits} tripwire hit(s), ${distinctKinds} kind(s)) — ${decision.reason}. ` +
+            `A human clears it: aegis tripwire-clear ${a.session_id} --reason "..."`,
+          source: "tripwire.jsonl + tripwire-clears.json",
+        };
+      }
+      return {
+        verdict: "PERMIT",
+        detail: `containment stage ${decision.stage} — below quarantine, action permitted`,
+        source: "tripwire.jsonl + tripwire-clears.json",
+      };
+    },
   },
 ];
 

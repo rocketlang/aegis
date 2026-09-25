@@ -72,6 +72,10 @@ async function main() {
       return (await import("./commands/tripwire-stage")).default(args);
     case "tripwire-manifest":
       return (await import("./commands/tripwire-manifest")).default(args);
+    case "tripwire-clear":
+      return (await import("./commands/tripwire-clear")).default(args);
+    case "tripwire-mode":
+      return (await import("./commands/tripwire-mode")).default(args);
     case "help":
     case "--help":
     case "-h":

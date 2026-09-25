@@ -13,6 +13,8 @@ import { join } from "path";
 import { tripwireVerdict } from "../../tripwire/honeypot";
 import { detectCanaryTrip } from "../../tripwire/canary";
 import { loadCanaries } from "./tripwire-canary";
+import { stageFor, tripwireMode, applyContainment } from "../../tripwire/enforce";
+import { throttleValve, closeValve, lockValve } from "../../kavach/gate-valve";
 
 const AEGIS_DIR = join(process.env.HOME || "/root", ".aegis");
 const LEDGER = join(AEGIS_DIR, "tripwire.jsonl");
@@ -46,11 +48,28 @@ export default async function checkTripwire(_args: string[]): Promise<void> {
 
   // Document canary acted on? Scan the tool input for any registered canary token (AF-T-603).
   const tokens = loadCanaries().map((c) => c.token);
+  let canaryTripped = false;
   if (tokens.length) {
     const c = detectCanaryTrip(JSON.stringify(payload.tool_input ?? ""), tokens);
-    if (c.tripped) ledger({ kind: "canary", stage: c.stage, token: c.token, tool: payload.tool_name ?? "", detail: c.detail });
+    if (c.tripped) { canaryTripped = true; ledger({ kind: "canary", stage: c.stage, token: c.token, tool: payload.tool_name ?? "", detail: c.detail }); }
   }
 
-  // WATCH stage: alert + ledger, never block. Escalation is evidence-gated, never on one touch.
+  // AF-T-702 — containment: on a fresh tell, recompute the principal's stage from ALL its
+  // evidence and apply it (observe: report only; enforce: the valve bites on the principal's
+  // NEXT act). This face itself still exits 0 — the tripwire never blocks the observed call;
+  // narrowing lands via checkValve/ANU-I-009 downstream. Human de-escalation:
+  // `aegis tripwire-clear`. @rule:AFW-011 @rule:AFW-006
+  if ((v.tripped || canaryTripped) && session !== "unknown") {
+    try {
+      const { decision } = stageFor(session);
+      const { mode } = tripwireMode();
+      const r = applyContainment(session, decision, mode, { throttle: throttleValve, close: closeValve, lock: lockValve }, recordTripwire);
+      if (r.action) process.stderr.write(`[TRIPWIRE] containment (${mode}): ${r.detail}\n`);
+    } catch {
+      // Containment failing must not crash the hook; the WATCH ledger entry above stands.
+    }
+  }
+
+  // Alert + ledger always; block never (the valve, not this face, is what bites).
   process.exit(0);
 }
