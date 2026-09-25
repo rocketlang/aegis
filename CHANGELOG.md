@@ -4,6 +4,43 @@ All notable changes to AEGIS will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [2.3.0] — 2026-09-25 — the answerability release
+
+> **Can you answer what your agents touched?** This release makes that one command.
+
+### Added (AGPL-3.0)
+- **`aegis touched [--since 24h|7d|<ISO>] [--json]`** — the answerability report: per principal,
+  what was refused, what the staged invariants observed, what was published under which mandate,
+  what tripwires saw, and whether the principal's receipt hash-chain still verifies. The ceiling
+  is printed every run: host-computed evidence survives a lying agent, not a compromised host;
+  an empty report means nothing *ledgered*, never "nothing happened".
+- **`aegis rehearse-chain [--report <out.json>]`** — walks an eleven-step agent-incident chain
+  (undeclared egress, credential read, read-then-exfiltrate, unmandated publish, hidden-payload
+  SQL at a production target, intrusion tells, staged containment, identity-absent act) against
+  the SAME pure decision functions the live hooks run. Strings and synthetic state only; every
+  step carries a `live_stage` label so "alerted in shadow" is never dressed as "blocked";
+  digest-sealed evidence pack.
+- **`aegis quarterly-report [--since 90d] [--out] [--prev] [--dir]`** — the period report:
+  answerability leads, then rehearsal, destructive-gate posture, shield/exfil faces, CI audit;
+  with `--prev`, the diff opens on regressions first.
+- **`aegis publish-mandate grant|list|revoke`** — an outward write (npm/gem/PyPI/docker/release)
+  is a gated capability: named, time-bounded consent, and every publish attempt leaves a
+  provenance record, permitted or refused. New anumati invariant ships observe-first.
+- **`aegis ci-audit [--dir]`** — every publish step in `.github/workflows` must be declared in
+  `.github/ankr-ci-declarations.json`; undeclared publishes fail; `uses:` actions are reported
+  as a scoped null, never implied coverage.
+- **`aegis tripwire-mode | tripwire-clear | tripwire-stage`** — staged containment with a sealed
+  mode switch (a hand edit can never arm enforcement), human-only de-escalation with a recorded
+  reason, and evidence-gated escalation that never reaches revoke without a verified capture.
+- **`aegis redteam --face exfil`** — credential-read + exfil-sequence detectors driven through
+  their pure decision cores, with authored scenarios and honest over-flag reporting.
+- **Firewall Cockpit** — `/firewall` on the dashboard (behind login): containment mode with a
+  typed named-consent flip, tripwire watchlist with clear-with-reason, publish mandates. Every
+  button calls the same functions as the CLI.
+- New anumati invariants ANU-I-007 (egress capability-over-target), ANU-I-008 (filesystem path
+  class), ANU-I-009 (quarantined principal), ANU-I-010 (publish mandate), ANU-I-011 (act-class
+  identity) — all enter in observe stage; promotion is a human decision on ledger evidence.
+
 ## [2.1.0] — 2026-09-22
 
 ### Fixed (KAVACH-KERNEL — AGPL-3.0)
