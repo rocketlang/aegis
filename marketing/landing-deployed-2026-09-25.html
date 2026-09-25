@@ -1,0 +1,652 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AEGIS · KavachOS · PRAMANA — The Agentic Governance Stack</title>
+  <meta name="description" content="Three layers. One coherent governance stack for autonomous AI agents. AEGIS governs spend. KavachOS governs behavior. PRAMANA proves what happened.">
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%23111827'/%3E%3Cpath d='M16 4L27 8.5V16c0 6.5-4.8 11.5-11 13C8.8 27.5 5 22.5 5 16V8.5Z' fill='%23F59E0B'/%3E%3Ctext x='16' y='21.5' font-family='system-ui,sans-serif' font-size='13' font-weight='800' text-anchor='middle' fill='%23111827'%3EA%3C/text%3E%3C/svg%3E">
+  <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%23111827'/%3E%3Cpath d='M16 4L27 8.5V16c0 6.5-4.8 11.5-11 13C8.8 27.5 5 22.5 5 16V8.5Z' fill='%23F59E0B'/%3E%3Ctext x='16' y='21.5' font-family='system-ui,sans-serif' font-size='13' font-weight='800' text-anchor='middle' fill='%23111827'%3EA%3C/text%3E%3C/svg%3E">
+  <style>
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+    :root {
+      --aegis:   #F59E0B;
+      --kavach:  #8B5CF6;
+      --pramana: #06B6D4;
+      --red:     #EF4444;
+      --green:   #10B981;
+      --dark:    #080810;
+      --smoke:   #0d0d18;
+      --card:    #13131f;
+      --bdr:     #1e1e30;
+      --text:    #E8E8F4;
+      --muted:   #555570;
+      --serif:   Georgia, 'Times New Roman', serif;
+      --sans:    -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      --mono:    'SF Mono', 'Fira Code', 'Consolas', monospace;
+    }
+
+    html, body { height: 100%; overflow: hidden; font-family: var(--sans); background: var(--dark); color: var(--text); }
+
+    /* ── DECK SHELL ── */
+    #deck { width: 100%; height: 100vh; position: relative; }
+
+    /* ── SLIDES ── */
+    .slide {
+      position: absolute; inset: 0;
+      display: flex; flex-direction: column; justify-content: center; align-items: center;
+      padding: 1.4rem 1.8rem 5rem;
+      opacity: 0; pointer-events: none;
+      transform: translateX(40px);
+      transition: opacity .45s ease, transform .45s ease;
+      overflow-y: auto;
+    }
+    .slide.active  { opacity: 1; pointer-events: all; transform: translateX(0); }
+    .slide.prev    { transform: translateX(-40px); }
+    .slide-inner   { max-width: 860px; width: 100%; }
+
+    .slide-dark  { background: var(--dark); }
+    .slide-smoke { background: var(--smoke); }
+    .slide-glow-aegis {
+      background: radial-gradient(ellipse 80% 60% at 50% 110%,
+        rgba(245,158,11,.15) 0%, transparent 65%), var(--dark);
+    }
+    .slide-glow-kavach {
+      background: radial-gradient(ellipse 80% 60% at 50% 110%,
+        rgba(139,92,246,.13) 0%, transparent 65%), var(--dark);
+    }
+    .slide-glow-pramana {
+      background: radial-gradient(ellipse 70% 50% at 50% 0%,
+        rgba(6,182,212,.09) 0%, transparent 60%), var(--dark);
+    }
+
+    /* ── NAV BAR ── */
+    #nav {
+      position: fixed; bottom: 0; left: 0; right: 0; z-index: 200;
+      display: flex; justify-content: space-between; align-items: center;
+      padding: .75rem 1.8rem;
+      background: rgba(8,8,16,.88); backdrop-filter: blur(14px);
+      border-top: 1px solid var(--bdr);
+    }
+    #nav .logo { font-size: .78rem; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; color: var(--aegis); }
+    #nav .npm-badge {
+      font-size: .62rem; letter-spacing: .1em; text-transform: uppercase;
+      color: #333348; border: 1px solid #1a1a2a; border-radius: 3px; padding: .2rem .55rem;
+    }
+    #nav .nav-r { display: flex; gap: 1rem; align-items: center; }
+    #nav .counter { font-size: .75rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+    .nav-cta {
+      font-size: .75rem; font-weight: 600; padding: .4rem 1rem;
+      border: 1px solid var(--aegis); border-radius: 4px; color: var(--aegis);
+      text-decoration: none; letter-spacing: .06em; text-transform: uppercase;
+      transition: all .2s;
+    }
+    .nav-cta:hover { background: var(--aegis); color: #000; }
+
+    /* ── PROGRESS BAR ── */
+    #progress-bar {
+      position: fixed; bottom: 2.8rem; left: 0; height: 2px; z-index: 300;
+      background: linear-gradient(90deg, var(--aegis), var(--kavach), var(--pramana));
+      transition: width .4s ease;
+    }
+
+    /* ── ARROW CONTROLS ── */
+    .arrow {
+      position: fixed; top: 50%; transform: translateY(-50%);
+      z-index: 200; width: 44px; height: 44px;
+      border: 1px solid var(--bdr); border-radius: 50%;
+      background: rgba(8,8,16,.7); backdrop-filter: blur(8px);
+      color: var(--muted); cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      transition: all .2s; user-select: none;
+    }
+    .arrow:hover { border-color: var(--aegis); color: var(--aegis); background: rgba(245,158,11,.1); }
+    .arrow.disabled { opacity: .2; pointer-events: none; }
+    #prev { left: .8rem; }
+    #next { right: .8rem; }
+
+    /* ── DOTS ── */
+    #dots {
+      position: fixed; bottom: 3.6rem; left: 50%; transform: translateX(-50%);
+      display: flex; gap: .45rem; z-index: 200;
+    }
+    .dot {
+      width: 6px; height: 6px; border-radius: 50%;
+      background: var(--bdr); cursor: pointer; transition: all .25s;
+    }
+    .dot.active { background: var(--aegis); transform: scale(1.4); }
+
+    /* ── CONTENT ELEMENTS ── */
+    .tag {
+      font-size: .68rem; letter-spacing: .2em; text-transform: uppercase;
+      color: var(--aegis); margin-bottom: .9rem; display: block;
+    }
+    .tag.kavach  { color: var(--kavach); }
+    .tag.pramana { color: var(--pramana); }
+    .tag.red     { color: var(--red); }
+    .tag.green   { color: var(--green); }
+
+    h1 {
+      font-family: var(--serif); font-weight: 400;
+      font-size: clamp(1.8rem, 5vw, 3.6rem); line-height: 1.18;
+      margin-bottom: 1.2rem;
+    }
+    h1 em { font-style: normal; color: var(--aegis); }
+    h1 em.k { color: var(--kavach); }
+    h1 em.p { color: var(--pramana); }
+    h1 em.r { color: var(--red); }
+
+    h2 {
+      font-family: var(--serif); font-weight: 400;
+      font-size: clamp(1.45rem, 3.4vw, 2.5rem); line-height: 1.22;
+      margin-bottom: 1rem;
+    }
+    h2 strong { font-weight: 700; }
+
+    .lead {
+      font-size: clamp(.88rem, 1.6vw, 1rem);
+      color: #9999bb; max-width: 700px; line-height: 1.65;
+      margin-bottom: .8rem;
+    }
+
+    .aegis-bar {
+      height: 3px; width: 80px;
+      background: linear-gradient(90deg, var(--aegis), var(--kavach), var(--pramana));
+      border-radius: 2px; margin-bottom: 2rem;
+    }
+
+    /* ── STAT GRID ── */
+    .stats { display: grid; gap: .85rem; margin: 1.4rem 0; }
+    .stats-3 { grid-template-columns: repeat(3, 1fr); }
+    .stats-2 { grid-template-columns: repeat(2, 1fr); }
+    @media (max-width:640px) { .stats-3, .stats-2 { grid-template-columns: 1fr 1fr; } }
+    @media (max-width:420px) { .stats-3, .stats-2 { grid-template-columns: 1fr; } }
+
+    .stat {
+      background: var(--card); border: 1px solid var(--bdr);
+      border-radius: 8px; padding: 1.1rem 1rem;
+    }
+    .stat .num {
+      font-size: clamp(1.4rem, 3.6vw, 2.3rem); font-weight: 900;
+      line-height: 1; letter-spacing: -1px;
+    }
+    .stat .lbl { font-size: .75rem; color: var(--muted); margin-top: .4rem; line-height: 1.4; }
+    .num.a { color: var(--aegis); }
+    .num.k { color: var(--kavach); }
+    .num.p { color: var(--pramana); }
+    .num.r { color: var(--red); }
+    .num.g { color: var(--green); }
+
+    /* ── PULL QUOTE ── */
+    .quote {
+      border-left: 3px solid var(--aegis);
+      padding: .75rem 1.2rem; margin: 1.1rem 0;
+      font-family: var(--serif); font-style: italic;
+      font-size: clamp(.9rem, 1.8vw, 1.15rem); color: #aaaac0; line-height: 1.55;
+    }
+    .quote.k { border-color: var(--kavach); }
+    .quote.p { border-color: var(--pramana); }
+    .quote cite { display: block; margin-top: .5rem; font-size: .75rem; font-style: normal; color: var(--muted); }
+
+    /* ── TABLE ── */
+    .tbl { width: 100%; border-collapse: collapse; margin: 1.5rem 0; font-size: .88rem; }
+    .tbl th { text-align: left; padding: .6rem 1rem; font-size: .68rem; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); border-bottom: 1px solid var(--bdr); }
+    .tbl td { padding: .8rem 1rem; border-bottom: 1px solid var(--bdr); vertical-align: top; }
+    .tbl tr:last-child td { border-bottom: none; }
+    .bad  { color: var(--red); font-weight: 600; }
+    .good { color: var(--green); font-weight: 600; }
+    .dim  { color: var(--muted); }
+
+    /* ── LAYER CARDS ── */
+    .layers { display: grid; gap: .85rem; margin: 1.4rem 0; grid-template-columns: repeat(3,1fr); }
+    @media (max-width:640px) { .layers { grid-template-columns: 1fr; } }
+    .layer-card {
+      background: var(--card); border: 1px solid var(--bdr);
+      border-radius: 10px; padding: 1.3rem 1.2rem;
+    }
+    .layer-card .lc-label { font-size: .62rem; letter-spacing: .18em; text-transform: uppercase; color: var(--muted); margin-bottom: .3rem; }
+    .layer-card .lc-name  { font-size: 1.15rem; font-weight: 800; margin-bottom: .3rem; }
+    .layer-card .lc-tag   { font-size: .72rem; font-weight: 600; margin-bottom: .7rem; padding: .18rem .6rem; border-radius: 3px; display: inline-block; }
+    .layer-card .lc-body  { font-size: .82rem; color: #7777aa; line-height: 1.55; }
+    .lc-a { border-top: 2px solid var(--aegis); }
+    .lc-k { border-top: 2px solid var(--kavach); }
+    .lc-p { border-top: 2px solid var(--pramana); }
+    .lc-tag-a { background: rgba(245,158,11,.12); color: var(--aegis); }
+    .lc-tag-k { background: rgba(139,92,246,.12); color: var(--kavach); }
+    .lc-tag-p { background: rgba(6,182,212,.12);  color: var(--pramana); }
+
+    /* ── FLOW ── */
+    .flow { display: grid; gap: .75rem; margin: 1.4rem 0; grid-template-columns: repeat(4,1fr); }
+    @media (max-width:640px) { .flow { grid-template-columns: 1fr 1fr; } }
+    .flow-step { background: var(--card); border: 1px solid var(--bdr); border-radius: 8px; padding: 1rem 1.1rem; }
+    .flow-step .sn { font-size: .65rem; letter-spacing: .18em; text-transform: uppercase; color: var(--muted); margin-bottom: .3rem; }
+    .flow-step .st { font-size: .88rem; font-weight: 600; line-height: 1.45; }
+
+    /* ── CODE BLOCK ── */
+    .code-block {
+      background: #0a0a14; border: 1px solid var(--bdr); border-radius: 8px;
+      padding: 1.2rem 1.4rem; margin: 1.2rem 0; font-family: var(--mono);
+      font-size: .8rem; line-height: 1.7; color: #c0c0dd; overflow-x: auto;
+    }
+    .code-block .cm { color: #444460; }
+    .code-block .kw { color: var(--kavach); }
+    .code-block .st { color: var(--green); }
+    .code-block .cn { color: var(--aegis); }
+    .code-block .fn { color: var(--pramana); }
+    .code-block .num-c { color: var(--red); }
+
+    /* ── FEATURE LIST ── */
+    .feature-list { display: flex; flex-direction: column; gap: .6rem; margin: 1.2rem 0; }
+    .feature-item { display: flex; align-items: flex-start; gap: .8rem; font-size: .88rem; }
+    .feature-item .fi-icon { width: 1.5rem; height: 1.5rem; border-radius: 4px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; font-size: .75rem; font-weight: 700; margin-top: .05rem; }
+    .fi-a { background: rgba(245,158,11,.15); color: var(--aegis); }
+    .fi-k { background: rgba(139,92,246,.15); color: var(--kavach); }
+    .fi-p { background: rgba(6,182,212,.15);  color: var(--pramana); }
+    .feature-item .fi-body { color: #9999bb; line-height: 1.5; }
+    .feature-item .fi-body strong { color: var(--text); font-weight: 600; }
+
+    /* ── BADGES ── */
+    .badges { display: flex; flex-wrap: wrap; gap: .5rem; margin-top: 1.2rem; }
+    .badge { background: #0e0e1c; border: 1px solid var(--bdr); border-radius: 4px; padding: .3rem .8rem; font-size: .75rem; color: #666688; }
+
+    /* ── CTA ── */
+    .cta-wrap { text-align: center; }
+    .cta-wrap h2 { margin-bottom: .7rem; }
+    .cta-wrap .lead { margin: 0 auto 1.5rem; }
+    .cta-grid { display: grid; gap: 1rem; grid-template-columns: 1fr 1fr; margin: 1.5rem 0; }
+    @media (max-width: 520px) { .cta-grid { grid-template-columns: 1fr; } }
+    .cta-list-title { font-size: .65rem; letter-spacing: .16em; text-transform: uppercase; color: var(--muted); margin-bottom: .55rem; }
+    .cta-list { list-style: none; display: flex; flex-direction: column; gap: .45rem; }
+    .cta-list li { font-size: .85rem; color: #9999bb; }
+    .btns { display: flex; gap: .8rem; justify-content: center; flex-wrap: wrap; margin-top: 1.8rem; }
+    .btn {
+      padding: .8rem 1.8rem; border-radius: 5px; font-size: .83rem; font-weight: 700;
+      letter-spacing: .06em; text-transform: uppercase; text-decoration: none;
+      transition: all .2s; border: none; font-family: var(--sans); cursor: pointer;
+    }
+    .btn-p { background: var(--aegis); color: #000; }
+    .btn-p:hover { background: #fbbf24; transform: translateY(-1px); }
+    .btn-k { background: transparent; color: var(--kavach); border: 1px solid var(--kavach); }
+    .btn-k:hover { background: rgba(139,92,246,.12); }
+    .btn-s { background: transparent; color: var(--text); border: 1px solid var(--bdr); }
+    .btn-s:hover { border-color: var(--muted); }
+    .contact-line { margin-top: 1.4rem; font-size: .8rem; color: var(--muted); line-height: 1.8; }
+    .contact-line a { color: var(--aegis); text-decoration: none; }
+    .contact-line strong { color: var(--text); }
+
+    /* ── MOBILE: clear fixed nav arrows + fix justify-center overflow ── */
+    @media (max-width: 640px) {
+      .slide { padding-left: 4rem; padding-right: 4rem; justify-content: flex-start; padding-top: 2.2rem; }
+    }
+
+    /* ── MOBILE: compliance table → stacked row cards ── */
+    @media (max-width: 640px) {
+      .tbl thead { display: none; }
+      .tbl, .tbl tbody { display: block; }
+      .tbl tbody tr {
+        display: block;
+        border: 1px solid var(--bdr);
+        border-radius: 6px;
+        margin-bottom: .65rem;
+        padding: .65rem .75rem;
+      }
+      .tbl td {
+        display: block;
+        padding: .2rem 0;
+        border: none;
+        font-size: .8rem;
+        line-height: 1.45;
+      }
+      .tbl td:first-child { font-weight: 600; color: var(--text); padding-bottom: .35rem; }
+      .tbl td:nth-child(2)::before { content: '✗  '; color: var(--red); font-weight: 700; }
+      .tbl td:nth-child(3)::before { content: '✓  '; color: var(--green); font-weight: 700; }
+      .tbl tr:last-child td { border-bottom: none; }
+    }
+  </style>
+</head>
+<body>
+
+<div id="progress-bar"></div>
+
+<!-- NAV -->
+<nav id="nav">
+  <div style="display:flex;align-items:center;gap:.9rem">
+    <span class="logo">AEGIS · KavachOS · PRAMANA</span>
+    <span class="npm-badge">@rocketlang</span>
+  </div>
+  <div class="nav-r">
+    <span class="counter" id="counter">1 / 9</span>
+    <a href="/dashboard" class="nav-cta" style="background:transparent;color:var(--aegis);border:1px solid var(--aegis);margin-right:.4rem">Dashboard →</a>
+    <a href="#" class="nav-cta" id="nav-cta">Get Started</a>
+  </div>
+</nav>
+
+<!-- PREV / NEXT -->
+<button class="arrow disabled" id="prev" onclick="go(-1)" aria-label="Previous">
+  <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="11 4 6 9 11 14"/></svg>
+</button>
+<button class="arrow" id="next" onclick="go(1)" aria-label="Next">
+  <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="7 4 12 9 7 14"/></svg>
+</button>
+
+<!-- DOTS -->
+<div id="dots"></div>
+
+<!-- ═══════════════════════════════════════ -->
+<!-- SLIDE 1 — HERO                         -->
+<!-- ═══════════════════════════════════════ -->
+<div class="slide slide-glow-aegis active" id="s0">
+  <div class="slide-inner">
+    <div class="aegis-bar"></div>
+    <span class="tag">Born 17 April 2026 · A $200 incident</span>
+    <h1>Your AI agent ran<br>while you were sleeping.<br><em>No one stopped it.</em></h1>
+    <p class="lead">A user paused Claude Code, stepped away, came back to find their weekly Max Plan fully exhausted. No kill-switch fired. No budget cap triggered. No audit trail existed. AEGIS, KavachOS, and PRAMANA were built so that never happens again.</p>
+    <div class="stats stats-3">
+      <div class="stat"><div class="num a">$200</div><div class="lbl">real incident that triggered this stack — one unattended agent, one weekend, one bill</div></div>
+      <div class="stat"><div class="num k">225+</div><div class="lbl">ANKR production services running this stack as Customer Zero — live since April 2026</div></div>
+      <div class="stat"><div class="num p">Article 14</div><div class="lbl">EU AI Act human oversight requirement — this stack is the compliance architecture</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════ -->
+<!-- SLIDE 2 — THE PROBLEM                  -->
+<!-- ═══════════════════════════════════════ -->
+<div class="slide slide-smoke" id="s1">
+  <div class="slide-inner">
+    <span class="tag red">The Problem</span>
+    <h2>Agents don't stop.<br><strong>That is the design.</strong></h2>
+    <p class="lead">Autonomous AI agents are built to run. They spawn subagents, call APIs, write files, execute code — and they do it whether you are watching or not. The same property that makes them powerful makes them dangerous the moment your back is turned.</p>
+    <div class="stats stats-3">
+      <div class="stat"><div class="num r">No cap</div><div class="lbl">Claude Code, Cursor, and OpenAI Codex ship with no native budget ceiling on agent spend</div></div>
+      <div class="stat"><div class="num r">No log</div><div class="lbl">Most agentic frameworks produce no tamper-evident record of what ran, when, and why</div></div>
+      <div class="stat"><div class="num r">No proof</div><div class="lbl">EU AI Act Article 14 requires demonstrable human oversight — "we think it was fine" is not proof</div></div>
+    </div>
+    <div class="quote">
+      "The problem is not that AI agents are unsafe. The problem is that when they are unsafe, no one can prove what happened — or stop the next one."
+      <cite>— The founding insight, 17 April 2026.</cite>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════ -->
+<!-- SLIDE 3 — THREE LAYERS                 -->
+<!-- ═══════════════════════════════════════ -->
+<div class="slide slide-dark" id="s2">
+  <div class="slide-inner">
+    <span class="tag">The Stack</span>
+    <h2>Four layers.<br><strong>One coherent answer.</strong></h2>
+    <p class="lead">Each layer solves a distinct, unsolved problem. Together they form the governance stack that EU AI Act Article 14 implicitly requires — but does not specify how to build.</p>
+    <div class="layers">
+      <div class="layer-card lc-a">
+        <div class="lc-label">Layer 1 — Spend</div>
+        <div class="lc-name" style="color:var(--aegis)">AEGIS</div>
+        <div class="lc-tag lc-tag-a">@xshieldai/aegis</div>
+        <div class="lc-body">Budget caps · spawn governance · cross-surface usage visibility · kill-switches. The agent cannot spend past the ceiling you set.</div>
+      </div>
+      <div class="layer-card lc-k">
+        <div class="lc-label">Layer 2 — Behavior</div>
+        <div class="lc-name" style="color:var(--kavach)">KavachOS</div>
+        <div class="lc-tag lc-tag-k">@xshieldai/agent-kernel</div>
+        <div class="lc-body">Syscall mediation · exec allowlist · egress firewall · sandboxed runtime. The agent cannot do what it is not permitted to do.</div>
+      </div>
+      <div class="layer-card lc-p">
+        <div class="lc-label">Layer 3 — Proof</div>
+        <div class="lc-name" style="color:var(--pramana)">PRAMANA</div>
+        <div class="lc-tag lc-tag-p">DOI 10.5281/zenodo.19273330</div>
+        <div class="lc-body">Cryptographic attestation · tamper-evident chain · every decision recorded. What the agent did is provable — not inferred.</div>
+      </div>
+      <div class="layer-card lc-a">
+        <div class="lc-label">Layer 4 — Answerability · NEW</div>
+        <div class="lc-name" style="color:var(--aegis)">Agent Firewall</div>
+        <div class="lc-tag lc-tag-a">aegis touched · rehearse-chain</div>
+        <div class="lc-body">Can you answer what your agents touched? One command reconstructs it per principal — refused, observed, published under which mandate — from tamper-evident ledgers. Publishing requires a named, time-bounded human mandate. An eleven-step incident rehearsal proves every gate, digest-sealed.</div>
+      </div>
+    </div>
+    <div class="quote p">
+      KavachOS is the airbag. PRAMANA is the black box. Article 14 requires both.
+      <cite>— The stack invariant.</cite>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════ -->
+<!-- SLIDE 4 — AEGIS                        -->
+<!-- ═══════════════════════════════════════ -->
+<div class="slide slide-glow-aegis" id="s3">
+  <div class="slide-inner">
+    <span class="tag">Layer 1</span>
+    <h2><em>AEGIS</em> — Agentic Execution<br>Governance &amp; Intelligence System</h2>
+    <p class="lead">A vendor-neutral kill-switch for AI agents. Works with Claude Code, OpenAI Codex, Cursor, and any tool that writes session logs or makes API calls.</p>
+    <div class="feature-list">
+      <div class="feature-item"><div class="fi-icon fi-a">$</div><div class="fi-body"><strong>Budget caps</strong> — hard ceiling per session, per agent type, per time window. Agent hits the cap, it stops. No exceptions.</div></div>
+      <div class="feature-item"><div class="fi-icon fi-a">⊕</div><div class="fi-body"><strong>Spawn governance</strong> — subagent tree depth limits. An agent cannot recursively spawn indefinitely.</div></div>
+      <div class="feature-item"><div class="fi-icon fi-a">◎</div><div class="fi-body"><strong>Cross-surface visibility</strong> — Claude Code + Cursor + Codex unified into one spend view. One dashboard, all agents.</div></div>
+      <div class="feature-item"><div class="fi-icon fi-a">✕</div><div class="fi-body"><strong>Kill-switch</strong> — one command terminates any running agent session. Immediately. With receipt.</div></div>
+      <div class="feature-item"><div class="fi-icon fi-a">⚑</div><div class="fi-body"><strong>Multi-tenant isolation</strong> — per-tenant budget walls with X-Tenant-ID headers. SaaS-ready from day one.</div></div>
+    </div>
+    <div class="badges">
+      <span class="badge">AGPL-3.0</span>
+      <span class="badge">npm @xshieldai/aegis</span>
+      <span class="badge">port 4850</span>
+      <span class="badge">Fastify · Bun</span>
+      <span class="badge">v1.0.0 — April 2026</span>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════ -->
+<!-- SLIDE 5 — KAVACHOS                     -->
+<!-- ═══════════════════════════════════════ -->
+<div class="slide slide-glow-kavach" id="s4">
+  <div class="slide-inner">
+    <span class="tag kavach">Layer 2</span>
+    <h2><em class="k">KavachOS</em> — Sanskrit for<br><em class="k">armour.</em> Named deliberately.</h2>
+    <p class="lead">Born from the GlassWorm attack of April 2026 — a Zig-compiled dropper that targeted developer laptops via Cursor, Windsurf, and VS Code extensions. KavachOS intercepts what the agent does at the OS level before it happens.</p>
+    <div class="feature-list">
+      <div class="feature-item"><div class="fi-icon fi-k">⬡</div><div class="fi-body"><strong>Syscall mediation</strong> — allowlist-based. The agent cannot call what is not on the list.</div></div>
+      <div class="feature-item"><div class="fi-icon fi-k">⊞</div><div class="fi-body"><strong>Exec allowlist</strong> — only whitelisted binaries can be spawned. No surprise processes.</div></div>
+      <div class="feature-item"><div class="fi-icon fi-k">⊘</div><div class="fi-body"><strong>Egress firewall</strong> — outbound network calls require explicit permit. Exfiltration path eliminated.</div></div>
+      <div class="feature-item"><div class="fi-icon fi-k">▣</div><div class="fi-body"><strong>Sandboxed runtime</strong> — agent runs in an isolated context. Host filesystem and credentials are not reachable by default.</div></div>
+      <div class="feature-item"><div class="fi-icon fi-k">☰</div><div class="fi-body"><strong>Maritime injection signatures</strong> — 8 domain-specific patterns (MAR-001..008) for vessel-side agent deployments.</div></div>
+    </div>
+    <div class="badges">
+      <span class="badge">npm @xshieldai/agent-kernel</span>
+      <span class="badge">v2.0.0</span>
+      <span class="badge">n8n node available</span>
+      <span class="badge">GlassWorm defense — Apr 2026</span>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════ -->
+<!-- SLIDE 6 — PRAMANA                      -->
+<!-- ═══════════════════════════════════════ -->
+<div class="slide slide-glow-pramana" id="s5">
+  <div class="slide-inner">
+    <span class="tag pramana">Layer 3</span>
+    <h2><em class="p">PRAMANA</em> — Sanskrit for<br><em class="p">proof of knowledge.</em></h2>
+    <p class="lead">A cryptographic attestation protocol. Every decision AEGIS makes and every action KavachOS mediates is written into a SHA-256 chain. The chain is tamper-evident. What happened can be proven — not reconstructed from memory.</p>
+    <div class="stats stats-2">
+      <div class="stat">
+        <div class="num p" style="font-size:1rem;letter-spacing:0">SHA-256 chain</div>
+        <div class="lbl" style="margin-top:.6rem">Each audit record hashes the previous one. A single edit anywhere in the chain is immediately detectable — the hash breaks.</div>
+      </div>
+      <div class="stat">
+        <div class="num p" style="font-size:1rem;letter-spacing:0">File-persisted</div>
+        <div class="lbl" style="margin-top:.6rem">Receipts written to <code style="color:var(--pramana);font-family:var(--mono)">~/.aegis/pramana/</code> — survives process restart, power loss, container teardown.</div>
+      </div>
+    </div>
+    <div class="quote p">
+      AEGIS + KavachOS alone are enforcement — they gate behavior but leave no verifiable trail. PRAMANA closes the loop: the human can override, and the override is recorded.
+      <cite>— Protocol design invariant. DOI 10.5281/zenodo.19273330</cite>
+    </div>
+    <div class="badges">
+      <span class="badge">Zenodo DOI: 10.5281/zenodo.19273330</span>
+      <span class="badge">v1.1 — April 2026</span>
+      <span class="badge">AGPL-3.0</span>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════ -->
+<!-- SLIDE 7 — EU AI ACT                    -->
+<!-- ═══════════════════════════════════════ -->
+<div class="slide slide-smoke" id="s6">
+  <div class="slide-inner">
+    <span class="tag">Compliance</span>
+    <h2>EU AI Act Article 14<br><strong>requires human oversight.</strong></h2>
+    <p class="lead">Article 14 demands that high-risk AI systems allow human intervention, monitoring, and override. "We think it behaved" is not compliance. The law requires a verifiable record.</p>
+    <table class="tbl">
+      <thead><tr><th>Article 14 Requirement</th><th>Without this stack</th><th>With this stack</th></tr></thead>
+      <tbody>
+        <tr><td>Human can stop the system at any time</td><td class="bad">No kill-switch</td><td class="good">AEGIS kill-switch — immediate, with receipt</td></tr>
+        <tr><td>System behavior is monitorable</td><td class="bad">Logs exist, not tamper-evident</td><td class="good">PRAMANA SHA-256 chain — tamper-evident by design</td></tr>
+        <tr><td>Actions are bounded and predictable</td><td class="bad">Agent can call any API, spawn any process</td><td class="good">KavachOS allowlist — bounded by construction</td></tr>
+        <tr><td>Audit trail available to regulators</td><td class="bad">Vendor logs only — not independently verifiable</td><td class="good">PRAMANA file-persisted receipts — independently auditable</td></tr>
+        <tr><td>Budget / resource limits</td><td class="bad">Platform-level only, coarse-grained</td><td class="good">AEGIS per-session, per-agent-type caps</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════ -->
+<!-- SLIDE 8 — QUICK START                  -->
+<!-- ═══════════════════════════════════════ -->
+<div class="slide slide-dark" id="s7">
+  <div class="slide-inner">
+    <span class="tag green">Quick Start</span>
+    <h2>Running in <strong>three minutes.</strong><br>No infrastructure required.</h2>
+    <p class="lead">Install both packages. Wrap your agent. The rest is automatic — caps, mediation, and attestation are on by default.</p>
+    <div class="code-block">
+<span class="cm"># 1. Install</span>
+npm install <span class="cn">@xshieldai/aegis</span> <span class="cn">@xshieldai/agent-kernel</span>
+
+<span class="cm"># 2. Initialise AEGIS (creates ~/.aegis/config.json)</span>
+npx aegis init
+
+<span class="cm"># 3. Set a budget cap (stops any agent session at $5)</span>
+npx aegis budget set --max <span class="num-c">5.00</span> --window session
+    </div>
+    <div class="code-block">
+<span class="cm">// 4. Wrap any agent call — TypeScript / Node / Bun</span>
+<span class="kw">import</span> { withKavach } <span class="kw">from</span> <span class="st">'@xshieldai/agent-kernel'</span>;
+<span class="kw">import</span> { withAegis }  <span class="kw">from</span> <span class="st">'@xshieldai/aegis'</span>;
+
+<span class="kw">const</span> safeAgent = <span class="fn">withAegis</span>(<span class="fn">withKavach</span>(myAgentFn), {
+  budgetCap: <span class="num-c">5.00</span>,
+  tenant:    <span class="st">'my-service'</span>,
+});
+    </div>
+    <div class="badges">
+      <span class="badge">Claude Code</span>
+      <span class="badge">OpenAI Codex</span>
+      <span class="badge">Cursor</span>
+      <span class="badge">Windsurf</span>
+      <span class="badge">Any Fastify / Express / Bun app</span>
+      <span class="badge">n8n workflow node</span>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════ -->
+<!-- SLIDE 9 — CONNECT                      -->
+<!-- ═══════════════════════════════════════ -->
+<div class="slide slide-glow-aegis" id="s8">
+  <div class="slide-inner cta-wrap">
+    <span class="tag" style="display:block;margin-bottom:.8rem">Open Source · Production Ready</span>
+    <h2>Built in production.<br><strong style="color:var(--green)">Open to everyone.</strong></h2>
+    <p class="lead" style="margin:0 auto 1.5rem">225 ANKR services run this stack as Customer Zero. AGPL-3.0 — free to use, modify, and deploy. EE features (maritime signatures, HanumanG posture, multi-tenant) are in-tree, not behind a paywall.</p>
+    <div class="cta-grid">
+      <div class="stat" style="text-align:left">
+        <div class="cta-list-title">Packages</div>
+        <ul class="cta-list">
+          <li>→ npm: @xshieldai/aegis</li>
+          <li>→ npm: @xshieldai/agent-kernel</li>
+          <li>→ GitHub: rocketlang/ankr-ai-gateway</li>
+          <li>→ Zenodo: DOI 10.5281/zenodo.19273330</li>
+          <li>→ Zenodo: DOI 10.5281/zenodo.19508513</li>
+        </ul>
+      </div>
+      <div class="stat" style="text-align:left">
+        <div class="cta-list-title">If you are building with agents</div>
+        <ul class="cta-list">
+          <li>→ Add a kill-switch before you need it</li>
+          <li>→ Budget caps cost nothing to set</li>
+          <li>→ PRAMANA receipts are free insurance</li>
+          <li>→ EU AI Act compliance is not optional</li>
+          <li>→ Customer Zero ships 225 services on this</li>
+        </ul>
+      </div>
+    </div>
+    <div class="btns">
+      <a href="https://www.npmjs.com/package/@xshieldai/agent-kernel" class="btn btn-p">npm install</a>
+      <a href="https://github.com/rocketlang/ankr-ai-gateway" class="btn btn-k">GitHub</a>
+      <a href="mailto:capt.anil.sharma@powerpbox.org?subject=AEGIS%20%2F%20KavachOS%20%2F%20PRAMANA" class="btn btn-s">Contact</a>
+    </div>
+    <div class="contact-line">
+      <strong>Captain Anil Kumar Sharma</strong> · Founder, ANKR<br>
+      <a href="mailto:capt.anil.sharma@powerpbox.org">capt.anil.sharma@powerpbox.org</a><br>
+      <span style="font-size:.72rem;color:#333358">PowerP Box IT Solutions Pvt Ltd · DPIIT82415 · xshieldai.com</span>
+    </div>
+  </div>
+</div>
+
+<script>
+  const slides  = document.querySelectorAll('.slide');
+  const dotsEl  = document.getElementById('dots');
+  const counter = document.getElementById('counter');
+  const pBar    = document.getElementById('progress-bar');
+  const prevBtn = document.getElementById('prev');
+  const nextBtn = document.getElementById('next');
+  const navCta  = document.getElementById('nav-cta');
+  const N = slides.length;
+  let cur = 0;
+
+  for (let i = 0; i < N; i++) {
+    const d = document.createElement('div');
+    d.className = 'dot' + (i === 0 ? ' active' : '');
+    d.onclick = () => goTo(i);
+    dotsEl.appendChild(d);
+  }
+
+  function goTo(idx) {
+    const prev = cur;
+    slides[prev].classList.remove('active');
+    slides[prev].classList.add('prev');
+    setTimeout(() => slides[prev].classList.remove('prev'), 500);
+
+    cur = idx;
+    slides[cur].classList.add('active');
+
+    dotsEl.querySelectorAll('.dot').forEach((d, i) => d.classList.toggle('active', i === cur));
+    counter.textContent = `${cur + 1} / ${N}`;
+    pBar.style.width = `${((cur + 1) / N) * 100}%`;
+    prevBtn.classList.toggle('disabled', cur === 0);
+    nextBtn.classList.toggle('disabled', cur === N - 1);
+
+    navCta.textContent = cur === N - 1 ? 'npm install' : 'Get Started';
+    navCta.href = cur === N - 1 ? 'https://www.npmjs.com/package/@xshieldai/agent-kernel' : '#';
+    navCta.onclick = cur !== N - 1 ? (e) => { e.preventDefault(); goTo(N - 1); } : null;
+  }
+
+  function go(dir) { goTo(Math.max(0, Math.min(N - 1, cur + dir))); }
+
+  document.addEventListener('keydown', e => {
+    if (e.key === 'ArrowRight' || e.key === 'ArrowDown' || e.key === ' ') { e.preventDefault(); go(1); }
+    if (e.key === 'ArrowLeft'  || e.key === 'ArrowUp')                    { e.preventDefault(); go(-1); }
+  });
+
+  let tx = 0;
+  document.addEventListener('touchstart', e => tx = e.touches[0].clientX, { passive: true });
+  document.addEventListener('touchend',   e => {
+    const dx = tx - e.changedTouches[0].clientX;
+    if (Math.abs(dx) > 40) go(dx > 0 ? 1 : -1);
+  });
+
+  pBar.style.width = `${(1 / N) * 100}%`;
+  navCta.onclick = (e) => { e.preventDefault(); goTo(N - 1); };
+</script>
+</body>
+</html>
