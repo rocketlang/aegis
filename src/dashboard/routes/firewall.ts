@@ -200,7 +200,8 @@ function firewallPage(): string {
 // RELATIVE fetches only: this page serves at /firewall direct AND at /dashboard/firewall
 // behind nginx. A root-relative '/api/...' escapes the /dashboard/ prefix and lands on the
 // static marketing site (GET gets HTML, POST gets 405 — proven by the founder's first click).
-const api = (p, opts) => fetch(p.replace(/^\//, ''), Object.assign({headers:{'content-type':'application/json'}}, opts)).then(async r => {
+const rel = (p) => p.charAt(0) === '/' ? p.slice(1) : p;
+const api = (p, opts) => fetch(rel(p), Object.assign({headers:{'content-type':'application/json'}}, opts)).then(async r => {
   const j = await r.json().catch(() => null);
   if (!r.ok) throw new Error((j && j.error) || ('HTTP ' + r.status + (r.status === 401 ? ' — session expired, log in again' : '')));
   if (j === null) throw new Error('the server answered with something that is not JSON — wrong path or proxy');
