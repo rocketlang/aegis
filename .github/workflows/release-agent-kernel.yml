@@ -43,7 +43,10 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-          registry-url: 'https://registry.npmjs.org'
+          # NO registry-url: it makes setup-node write an .npmrc with a placeholder
+          # _authToken (XXXXX-XXXXX-...), and npm then uses that bogus token instead of
+          # the OIDC identity — the request goes out unauthenticated and the registry
+          # answers 404. Without it, npm publishes to the default registry via OIDC.
 
       # Provenance needs npm >= 9.5; trusted publishing needs newer still. The runner's
       # bundled npm drifts, so pin it forward rather than inherit whatever ships.
