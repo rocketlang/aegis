@@ -87,9 +87,12 @@ jobs:
 
       - name: Publish with provenance
         working-directory: packages/kavachos
+        # Trusted Publishing (OIDC): npm authenticates via the workflow's id-token, no
+        # stored secret. A publish token is deliberately NOT passed — a 2FA-bypass token is
+        # staging-restricted (E_STAGE_REQUIRED) and npm is retiring it; OIDC publishes
+        # directly, with the same provenance. Requires a Trusted Publisher configured on
+        # npmjs.com for this package (repo rocketlang/aegis, workflow release-agent-kernel.yml).
         run: npm publish --provenance --access public
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: Confirm the attestation is actually on the registry
         working-directory: packages/kavachos
