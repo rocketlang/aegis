@@ -88,6 +88,16 @@ jobs:
         working-directory: packages/kavachos
         run: npm pack --dry-run
 
+      - name: Diagnose OIDC/publish environment
+        working-directory: packages/kavachos
+        run: |
+          echo "npm: $(npm --version)  at $(command -v npm)"
+          echo "node: $(node --version)"
+          echo "registry: $(npm config get registry)"
+          echo "ACTIONS_ID_TOKEN_REQUEST_URL set? ${ACTIONS_ID_TOKEN_REQUEST_URL:+yes}${ACTIONS_ID_TOKEN_REQUEST_URL:-NO}"
+          echo "ACTIONS_ID_TOKEN_REQUEST_TOKEN set? ${ACTIONS_ID_TOKEN_REQUEST_TOKEN:+yes}${ACTIONS_ID_TOKEN_REQUEST_TOKEN:-NO}"
+          echo "--- effective .npmrc (redacted) ---"; npm config ls -l 2>/dev/null | grep -iE 'registry|authtoken|provenance|_auth' | sed 's#\(_authToken=\).*#\1<redacted>#' || true
+
       - name: Publish with provenance
         working-directory: packages/kavachos
         # Trusted Publishing (OIDC): npm authenticates via the workflow's id-token, no
