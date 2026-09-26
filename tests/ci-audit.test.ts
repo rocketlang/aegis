@@ -3,7 +3,12 @@
 // undeclared publishes, single-line and block run: parsing, undeclared egress reported,
 // uses: actions surfaced as the scoped null. And the live repo must PASS its own audit.
 import { describe, it, expect } from "bun:test";
+import { fileURLToPath } from "url";
 import { runLines, auditWorkflow, auditWorkflowsDir, readCiDeclarations } from "../src/kavach/ci-audit";
+
+// The repo root, resolved relative to THIS test file — never a hardcoded absolute path,
+// which only exists on the dev box and fails in CI (checked out elsewhere).
+const REPO_ROOT = fileURLToPath(new URL("..", import.meta.url));
 
 const DECL = { workflows: { "release.yml": { publishes: ["@x/pkg"], reason: "test" } } };
 
@@ -49,7 +54,7 @@ describe("auditWorkflow", () => {
 
 describe("the aegis repo audits itself clean", () => {
   it("every publish step in .github/workflows is declared (a regression here = an undeclared outward write)", () => {
-    const r = auditWorkflowsDir("/root/aegis", readCiDeclarations("/root/aegis"));
+    const r = auditWorkflowsDir(REPO_ROOT, readCiDeclarations(REPO_ROOT));
     expect(r.audits.length).toBeGreaterThanOrEqual(3);
     expect(r.undeclaredPublishes).toBe(0);
   });
