@@ -18,8 +18,10 @@
 import { randomBytes } from "crypto";
 import { appendFileSync, mkdirSync, existsSync } from "fs";
 import { join, dirname } from "path";
-// @ts-ignore — untyped canon brick export (engine profile factory)
-import { createApprovalEngine } from "@ankr/approve";
+// Canon brick @ankr/approve, loaded optionally with a behaviour-identical local floor
+// for public installs (the brick 404s off ANKR's network). See kavach/canon-bricks.
+import { loadCreateApprovalEngine } from "../kavach/canon-bricks";
+const createApprovalEngine = loadCreateApprovalEngine();
 import type { GateApprovalRecord, AegisEnforcementDecision } from "./types";
 
 // ── CANON U-10 adoption (2026-07-11) ─────────────────────────────────────────

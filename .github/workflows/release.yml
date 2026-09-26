@@ -9,27 +9,24 @@ jobs:
   release:
     runs-on: ubuntu-latest
     permissions:
-      contents: write
+      contents: read
+      id-token: write        # OIDC trusted publishing — no stored token
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup Bun
-        uses: oven-sh/setup-bun@v2
+      # No registry-url: it writes an .npmrc with a placeholder _authToken that npm would
+      # use instead of the OIDC identity (a 404). Default registry + OIDC is what we want.
+      - uses: actions/setup-node@v4
         with:
-          bun-version: latest
+          node-version: '22'
 
-      - name: Install dependencies
-        run: bun install
+      # Trusted publishing (OIDC) needs npm >= 11.5.1; the runner's bundled npm drifts.
+      - name: Upgrade npm for OIDC trusted publishing
+        run: npm install -g npm@latest && npm --version
 
-      - name: Run tests
-        run: bun test src/
-
-      - name: Build
-        run: bun build src/cli/index.ts --target=bun --outdir=dist/
-
-      - name: Publish to npm
-        run: |
-          echo "//registry.npmjs.org/:_authToken=${NPM_TOKEN}" > ~/.npmrc
-          npm publish --access public
-        env:
-          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+      # @xshieldai/aegis ships its source (files[]); publish only packs those, so there is
+      # no dependency install to fail on the internal @ankr/* bricks (now optional). npm
+      # authenticates via the workflow's OIDC identity — requires a Trusted Publisher on
+      # npmjs.com for @xshieldai/aegis (rocketlang/aegis, release.yml, publish-directly on).
+      - name: Publish to npm (OIDC trusted publishing, with provenance)
+        run: npm publish --provenance --access public

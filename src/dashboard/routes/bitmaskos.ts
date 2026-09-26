@@ -10,8 +10,11 @@
 // @rule:BMI-002  BMOS-Authorize is the single inter-service authorization path
 // @rule:BMI-003  mask source is services.json (with 60s version-validated cache)
 // @rule:BMI-006  gate valve state is the enforcement oracle for agent queries
-// CANON U-17: authorization sourced from @ankr/mask-authorize (2026-07-11)
-import { authorize as maskAuthorize } from "@ankr/mask-authorize";
+// CANON U-17: authorization sourced from @ankr/mask-authorize (2026-07-11), loaded
+// optionally with a behaviour-identical local floor for public installs (the brick 404s
+// off ANKR's network). See kavach/canon-bricks.
+import { loadMaskAuthorize } from "../../kavach/canon-bricks";
+const maskAuthorize = loadMaskAuthorize();
 
 import type { FastifyInstance } from "fastify";
 import { readFileSync, existsSync, statSync } from "fs";
