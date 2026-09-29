@@ -116,15 +116,42 @@ SECCOMP_USER_NOTIF_FLAG_CONTINUE = 1               # allow syscall to proceed
 
 # ── Syscall name lookup ────────────────────────────────────────────────────────
 
-# Build a reverse map: syscall_nr → name from /usr/include (fallback: libseccomp)
+# Build a reverse map: syscall_nr → name.
+#
+# libseccomp FIRST, because it resolves against the running architecture. The old order
+# read /usr/include/x86_64-linux-gnu/asm/unistd_64.h — a path that does not exist on
+# arm64, where the fallback also misses and the map comes back EMPTY. An empty map is
+# not visibly broken: syscall_name() just returns "syscall#221" forever, so every audit
+# line, every receipt and every operator prompt names a number instead of a syscall, on
+# the architecture where the numbers differ from the ones a reader knows.
+#
+# Headers are still read afterwards, for anything libseccomp does not know, and they
+# never overwrite a name libseccomp already resolved.
 def _build_nr_to_name() -> dict:
     mapping: dict = {}
+    # libseccomp knows every syscall it can enforce; ask it for each name it has.
+    # SCMP_ARCH_NATIVE is 0 in libseccomp's header — whatever this machine is.
+    _SCMP_ARCH_NATIVE = 0
     try:
-        import os as _os
-        path = "/usr/include/x86_64-linux-gnu/asm/unistd_64.h"
-        if not _os.path.exists(path):
-            path = "/usr/include/asm/unistd_64.h"
-        if _os.path.exists(path):
+        _resolve_num = _lib.seccomp_syscall_resolve_num_arch
+        _resolve_num.restype = ctypes.c_char_p
+        _resolve_num.argtypes = [ctypes.c_uint32, ctypes.c_int]
+        for nr in range(0, 600):
+            raw = _resolve_num(_SCMP_ARCH_NATIVE, nr)
+            if raw:
+                mapping[nr] = raw.decode()
+    except Exception:
+        pass
+    # Headers second: fill gaps only, never override libseccomp.
+    try:
+        import os as _os, platform as _platform
+        machine = _platform.machine()
+        for path in (f"/usr/include/{machine}-linux-gnu/asm/unistd_64.h",
+                     "/usr/include/asm/unistd_64.h",
+                     "/usr/include/asm/unistd.h",
+                     "/usr/include/asm-generic/unistd.h"):
+            if not _os.path.exists(path):
+                continue
             with open(path) as f:
                 for line in f:
                     if line.startswith("#define __NR_"):
@@ -133,14 +160,23 @@ def _build_nr_to_name() -> dict:
                             name = parts[1].replace("__NR_", "")
                             try:
                                 nr = int(parts[2])
-                                mapping[nr] = name
                             except ValueError:
-                                pass
+                                continue
+                            mapping.setdefault(nr, name)
+            break
     except Exception:
         pass
     return mapping
 
 _NR_TO_NAME = _build_nr_to_name()
+
+# An empty map is not visibly broken — syscall_name() keeps working and every label
+# silently becomes a bare number. Say so once, at import, rather than let a reader
+# discover it in an audit trail months later.
+if not _NR_TO_NAME:
+    print("[seccomp] WARNING: no syscall name table on this architecture — audit lines, "
+          "receipts and operator prompts will show numbers, not names.",
+          file=sys.stderr, flush=True)
 
 def syscall_name(nr: int) -> str:
     return _NR_TO_NAME.get(nr, f"syscall#{nr}")
@@ -342,9 +378,36 @@ def _read_procmem_str(pid: int, addr: int, max_len: int = 512) -> Optional[str]:
         return None
 
 
-# Syscall numbers for execve/execveat on x86_64
-_NR_EXECVE    = 59
-_NR_EXECVEAT  = 322
+# Syscall numbers for execve/execveat, resolved for THIS architecture.
+#
+# These were hardcoded to the x86_64 numbers (59 and 322). That is not a portability
+# nuisance — it is a silent misfire. On the asm-generic table that arm64 uses, 59 is
+# pipe2 and execve is 221. A strict-exec guard built on the constant would not crash,
+# warn, or fail: it would watch pipe2, let every exec through, and report success.
+# A check that silently guards the wrong thing is the same defect as a check that is
+# skipped, and it is harder to see.
+#
+# libseccomp resolves by name against the running architecture, so it is right
+# everywhere and cannot drift. If it cannot resolve them, refuse the constant rather
+# than guess: __NR_SCMP_ERROR (-1) never equals a real syscall number, so the guards
+# below fail closed instead of matching something arbitrary.
+def _resolve_nr(name: str) -> int:
+    try:
+        nr = _lib.seccomp_syscall_resolve_name(name.encode())
+    except Exception:
+        return -1
+    return nr if nr >= 0 else -1
+
+_NR_EXECVE    = _resolve_nr("execve")
+_NR_EXECVEAT  = _resolve_nr("execveat")
+
+if _NR_EXECVE < 0 or _NR_EXECVEAT < 0:
+    # Loud, because strict_exec silently guarding nothing is the failure we are
+    # preventing. Never downgrade this to a warning.
+    print(f"[seccomp] FATAL: cannot resolve execve/execveat on this architecture "
+          f"(execve={_NR_EXECVE}, execveat={_NR_EXECVEAT}) — strict_exec would guard "
+          f"nothing. Refusing to continue.", file=sys.stderr, flush=True)
+    sys.exit(1)
 
 
 # @rule:KOS-047 — parsed once at launch, before the agent is exec'd. None means either
