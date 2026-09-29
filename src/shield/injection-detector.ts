@@ -14,6 +14,8 @@ import { existsSync, readFileSync, writeFileSync, mkdirSync } from "fs";
 import { join } from "path";
 import { loadConfig, getAegisDir, ensureAegisDir } from "../core/config";
 import { getFeedPatterns } from "./threat-feed";
+import { DROP_SITES, dropSitesNamed } from "./drop-sites";
+import { credentialMarkers, renderMarkers, redactSecrets } from "./credential-marker";
 
 export type DetectionVerdict = "PASS" | "WARN" | "BLOCK" | "QUARANTINE";
 
@@ -32,6 +34,9 @@ export interface ShieldRules {
   exfil_commands: string[];             // prefixes — Bash with these after large Read = BLOCK
   large_read_threshold_bytes: number;   // default: 100KB
   exfil_window_tool_calls: number;      // how many calls back to look for large read
+  /** AF-T-709 — paste/file-drop/request-catcher hosts: network tool + named sink = BLOCK with no
+   *  prior read needed. Optional so older rule files stay valid; absent = the shipped list. */
+  drop_sites?: string[];
 }
 
 const DEFAULT_RULES: ShieldRules = {
@@ -67,9 +72,15 @@ const DEFAULT_RULES: ShieldRules = {
     "/.claude/settings.json",
     "/etc/passwd", "/etc/shadow", "/etc/sudoers",
   ],
-  exfil_commands: ["curl", "wget", "nc", "ncat", "netcat", "openssl s_client", "python3 -c.*socket", "python -c.*socket"],
+  exfil_commands: [
+    "curl", "wget", "nc", "ncat", "netcat", "openssl s_client", "python3 -c.*socket", "python -c.*socket",
+    // AF-T-709 — inline HTTP clients; `python3 -c "requests.post(...)"` used to PASS outright
+    "python[0-9.]* -c.*(requests|urllib|http\\.client|httpx|aiohttp)",
+    "(node|bun|deno) -e.*(fetch|https?\\.request|axios)",
+  ],
   large_read_threshold_bytes: 102400,
   exfil_window_tool_calls: 5,
+  drop_sites: [...DROP_SITES],
 };
 
 // State file for cross-call exfil ring buffer
@@ -319,16 +330,32 @@ export interface ShieldExfilState {
  * with the SAME code the live hook runs. detectExfilSequence keeps the state IO.
  */
 export function exfilVerdict(command: string, state: ShieldExfilState, nowMs: number, rules: ShieldRules): DetectionResult {
-  // Check if command contains an exfil tool
-  const hasExfilTool = rules.exfil_commands.some((cmd) => {
-    const trimmed = command.trimStart();
+  // Check if command contains an exfil tool — and remember WHICH, so the reason names it
+  // (it used to print the command's first token: `cat .env | curl …` reported "cat").
+  const trimmed = command.trimStart();
+  const matchedTool = rules.exfil_commands.find((cmd) => {
     if (cmd.includes(".*")) {
       try { return new RegExp(cmd, "i").test(trimmed); } catch { return false; }
     }
     return trimmed.startsWith(cmd) || trimmed.includes(` ${cmd} `) || trimmed.includes(` ${cmd}\n`);
   });
 
-  if (!hasExfilTool) return { verdict: "PASS", rule_id: "clean", reason: "", category: "clean" };
+  if (!matchedTool) return { verdict: "PASS", rule_id: "clean", reason: "", category: "clean" };
+  const toolLabel = matchedTool.includes(".*") ? matchedTool.split(" ")[0] : matchedTool;
+
+  // AF-T-709 — network tool + a named drop site = BLOCK with no prior read required. The
+  // sink itself is the positive identification; typed credential markers ride in the reason.
+  const sinks = dropSitesNamed(command, rules.drop_sites ?? []);
+  if (sinks.length > 0) {
+    const markers = credentialMarkers(command);
+    return {
+      verdict: "BLOCK",
+      rule_id: "INF-KAV-005-sink",
+      reason: `Upload/fetch via ${toolLabel} to a drop site (${sinks.join(", ")})` +
+        (markers.length ? ` — credential markers: ${renderMarkers(markers)}` : " — no credential markers"),
+      category: "exfiltration",
+    };
+  }
 
   // Check if any large/credential read happened within the window
   const windowStart = state.tool_call_index - rules.exfil_window_tool_calls;
@@ -340,13 +367,13 @@ export function exfilVerdict(command: string, state: ShieldExfilState, nowMs: nu
     return {
       verdict: "BLOCK",
       rule_id: "INF-KAV-005",
-      reason: `Exfiltration sequence: network tool (${command.slice(0, 40)}) within ${rules.exfil_window_tool_calls} calls of large/credential read (${recentLargeRead.path})`,
+      reason: `Exfiltration sequence: network tool (${redactSecrets(command).slice(0, 40)}) within ${rules.exfil_window_tool_calls} calls of large/credential read (${recentLargeRead.path})`,
       category: "exfiltration",
     };
   }
 
   // Standalone exfil tool — warn (may be legitimate curl for package download etc)
-  return { verdict: "WARN", rule_id: "INF-KAV-005-partial", reason: `Network exfil tool used: ${command.trimStart().split(/\s/)[0]}`, category: "exfiltration" };
+  return { verdict: "WARN", rule_id: "INF-KAV-005-partial", reason: `Network exfil tool used: ${toolLabel}`, category: "exfiltration" };
 }
 
 export function detectExfilSequence(command: string, rules: ShieldRules): DetectionResult {

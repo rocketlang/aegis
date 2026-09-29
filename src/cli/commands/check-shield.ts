@@ -211,14 +211,17 @@ function emitBlock(source: string, ruleId: string, reason: string, category: str
   process.stderr.write([
     ``,
     `╔══════════════════════════════════════════════════════════════╗`,
-    `║  AEGIS ${source} — BLOCKED                                       ║`,
+    // the banner states the ACTUAL verdict — monitor mode lets the action run (AF-T-709)
+    `║  AEGIS ${source} — ${verdict}                                       ║`,
     `╚══════════════════════════════════════════════════════════════╝`,
     ``,
     `  Rule     : ${ruleId}`,
     `  Category : ${category}`,
     `  Reason   : ${reason}`,
     ``,
-    `  This action was blocked by LakshmanRekha (AEGIS Shield).`,
+    verdict === "ALLOWED"
+      ? `  Monitor mode: this action was ALLOWED and recorded by LakshmanRekha (AEGIS Shield).`
+      : `  This action was ${verdict.toLowerCase()} by LakshmanRekha (AEGIS Shield).`,
     `  If legitimate, add a named exemption in ~/.aegis/shield-rules.json`,
     ``,
   ].join("\n"));

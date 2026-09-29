@@ -35,7 +35,9 @@
   "exfil_commands": [
     "curl", "wget", "nc", "ncat", "netcat",
     "openssl s_client",
-    "python3 -c.*socket", "python -c.*socket"
+    "python3 -c.*socket", "python -c.*socket",
+    "python[0-9.]* -c.*(requests|urllib|http\\.client|httpx|aiohttp)",
+    "(node|bun|deno) -e.*(fetch|https?\\.request|axios)"
   ],
   "large_read_threshold_bytes": 102400,
   "exfil_window_tool_calls": 5

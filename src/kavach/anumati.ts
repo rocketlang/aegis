@@ -43,6 +43,7 @@ import { isNetworkCapableInvocation, netTargetVerdict } from "./net-capability";
 import { fsTargetVerdict } from "./fs-capability";
 import { isPublishInvocation, publishVerdict, readMandates } from "./publish-capability";
 import { checkMudrika, mudrikaActVerdict } from "./mudrika-validator";
+import { redactSecrets } from "../shield/credential-marker";
 
 const TRIPWIRE_LEDGER = join(process.env.HOME || "/root", ".aegis", "tripwire.jsonl");
 
@@ -455,7 +456,8 @@ const PERMISSIVES: Permissive[] = [
     // AF-T-704 — the ANU-I-006 shape applied to EGRESS: network-capable invocation judged on
     // the resolved host's class against the same declarations the kernel egress face compiles
     // from. The cooperative-face control for the crawl/exfil step of the RubyGems-class chain.
-    // Ships FULLY OBSERVE (AFW-006) — no branch has a positive low-FP identification yet.
+    // Permissive default OBSERVE (AFW-006); the drop-site branch returns a per-verdict
+    // stage "enforce" (AF-T-709, founder ruling 2026-09-29) — the one positive identification.
     id: "ANU-I-007",
     title: "Network-capable invocation only toward declared/loopback/private hosts",
     law: "KOS-042 egress declared at launch — the cooperative-face twin (AFW-YK-002)",
@@ -669,7 +671,9 @@ export function ledgerAnumati(action: ProposedAction, decision: AnumatiDecision,
         enforced: mode === "enforce" && decision.refusals.length > 0,
         session: action.session_id,
         tool: action.tool,
-        target: action.file_path ?? action.command?.slice(0, 300) ?? null,
+        // AF-T-709 — redacted BEFORE the slice: a refusal must not copy the key it stopped
+        // into this plaintext ledger. Trust moves to the hash12 (correlate, never recover).
+        target: action.file_path ?? (action.command ? redactSecrets(action.command).slice(0, 300) : null),
         refusals: decision.refusals.map(r => ({ id: r.id, verdict: r.verdict, detail: r.detail })),
         observations: decision.observations.map(r => ({ id: r.id, verdict: r.verdict, detail: r.detail })),
         // AFW-012 — the provenance record an outward write leaves, PERMIT included.

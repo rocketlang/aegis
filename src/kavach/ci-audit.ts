@@ -90,7 +90,8 @@ export function auditWorkflow(name: string, yamlText: string, decl: CiDeclaratio
       publishes.push({ line, kind: p.kind!, artifact, declared: isDeclared });
     }
     for (const h of resolveTargetHosts(line)) {
-      if (h && classifyHost(h, universe) === "undeclared") hostSet.add(h);
+      // a drop site is reported too — it is worse than undeclared, never better (AF-T-709)
+      if (h && ["undeclared", "drop-site"].includes(classifyHost(h, universe))) hostSet.add(h);
     }
   }
 
