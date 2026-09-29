@@ -50,8 +50,10 @@ export interface RuntimeManifest {
 /** The rungs of the ladder, strongest binding first. Anything else is `"unnamed"`, which
  *  the comparator refuses — an unnamed voucher is an assertion about nothing. */
 export type Voucher =
-  | "silicon"              // TPM, secure element, fused SoC key, PUF
-  | "hypervisor"           // vTPM
+  | "silicon"              // DISCRETE part: TPM chip, secure element, PUF
+  | "firmware-tpm"         // fTPM in a secure world (TrustZone/OP-TEE) rooted in a fused SoC key
+  | "hypervisor"           // vTPM — the hypervisor vouches
+  | "software-tpm"         // swtpm on bare metal: a TPM INTERFACE with NO hardware root
   | "cloud-provider"       // instance identity document
   | "cluster"              // SPIFFE/SPIRE node + workload attestation
   | "removable-token"      // USB / PIV / smartcard — binds the CREDENTIAL, not the board
@@ -105,6 +107,17 @@ export function ceilingOf(v: Voucher): string[] {
     case "silicon":
       return [...universal,
         "Physical attack on the part itself, which is out of scope for any software check."];
+    case "firmware-tpm":
+      return [...universal,
+        "Anything the secure world does not isolate: the root is a fused SoC key and the binding is exactly as good as the TrustZone/OP-TEE boundary.",
+        "Independence from the SoC vendor, who controls the fusing and the secure-world image."];
+    case "software-tpm":
+      // The dangerous rung. It presents the same TPM 2.0 interface as a real part, so a
+      // reader who sees "TPM" will assume a hardware root that is not there.
+      return [...universal,
+        "ANY hardware root. This is a TPM interface implemented in software: the keys live in ordinary memory and storage and CAN BE COPIED, which is the exact attack a TPM exists to prevent.",
+        "DEVICE IDENTITY in the anti-cloning sense. A copied image produces an identical, valid attestation.",
+        "Anything more than the surrounding platform vouches for — on a bare board, that is nothing; in a VM, it is the hypervisor and the voucher should say so."];
     case "hypervisor":
       return [...universal,
         "That the hypervisor is uncompromised — the binding is exactly as good as the host."];

@@ -228,3 +228,39 @@ describe("verifySigned — an unsigned reference is not a reference", () => {
     expect(v.failed).toBe(1);
   });
 });
+
+describe("a TPM interface is not a hardware root", () => {
+  const { ceilingOf } = require("../src/kernel/runtime-manifest");
+
+  it("a firmware TPM admits it is only as good as the secure world", () => {
+    const c = ceilingOf("firmware-tpm").join(" ");
+    expect(c).toMatch(/secure world|TrustZone|OP-TEE/);
+    expect(c).toMatch(/SoC vendor/);
+  });
+
+  it("a SOFTWARE TPM admits it has no hardware root at all", () => {
+    const c = ceilingOf("software-tpm").join(" ");
+    expect(c).toMatch(/ANY hardware root/);
+    expect(c).toMatch(/CAN BE COPIED/);
+  });
+
+  it("software-tpm and silicon are NOT interchangeable, though both present a TPM", () => {
+    // The whole risk: swtpm speaks TPM 2.0, so a reader seeing "TPM" assumes silicon.
+    expect(ceilingOf("software-tpm")).not.toEqual(ceilingOf("silicon"));
+    expect(ceilingOf("silicon").join(" ")).not.toMatch(/ANY hardware root/);
+  });
+
+  it("a device claiming silicon while the manifest published software-tpm is caught", () => {
+    const m = { ...manifest, voucher: "software-tpm" as const };
+    const r = { ...good, identity: { ...good.identity, voucher: "silicon" as const } };
+    const v = verifyReceipt(m, r);
+    expect(v.checks.find(c => c.name.includes("the one the manifest published"))!.ok).toBe(false);
+  });
+
+  it("every new rung still carries the two universal limits", () => {
+    for (const v of ["firmware-tpm", "software-tpm"] as const) {
+      expect(ceilingOf(v).join(" ")).toMatch(/Freshness/);
+      expect(ceilingOf(v).join(" ")).toMatch(/reported by the device|reporting are done by the device/);
+    }
+  });
+});
