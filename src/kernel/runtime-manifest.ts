@@ -25,6 +25,8 @@
 // Pure. No filesystem, no network, no clock. A comparator that needs to reach anything
 // is not an offline comparator.
 
+import { createHash, sign as cryptoSign, verify as cryptoVerify, generateKeyPairSync } from "node:crypto";
+
 export const MANIFEST_SCHEMA = "ankr-runtime-manifest-v1";
 export const RECEIPT_SCHEMA = "ankr-launch-receipt-v1";
 
@@ -198,4 +200,112 @@ export function formatVerdict(v: Verdict): string {
   lines.push("", `  ${v.passed} passed, ${v.failed} failed`, "", "  What a clean run here does NOT establish:");
   for (const l of v.doesNotEstablish) lines.push(`    · ${l}`);
   return lines.join("\n");
+}
+
+
+// ─────────────────────────────────────────────────────────────────────────────────────
+// Signing
+//
+// THE KEY COMES FROM OUTSIDE. This is the lesson that cost the most this week: a
+// verifier that takes its trust anchor from the thing it is verifying is not a verifier.
+// The manifest therefore carries a signature and NOT a public key, and `verifyManifest`
+// takes the key as an argument the caller had to obtain some other way — pinned in the
+// verifier, fetched from a separate surface, or confirmed through a channel of their
+// own. There is deliberately no convenience path that reads a key out of the document.
+//
+// Ed25519, matching the ledger's checkpoint signatures, so one key discipline covers
+// both. Signature is over CANONICAL bytes, not over the file: a manifest reformatted,
+// reordered or reindented must verify identically, or the reference value depends on how
+// somebody's editor saved it.
+// ─────────────────────────────────────────────────────────────────────────────────────
+
+/** Canonical bytes of a manifest: every signed field, fixed order, no formatting. */
+export function canonicalManifest(m: RuntimeManifest): string {
+  return [
+    m.schema,
+    m.service,
+    m.release,
+    m.expect?.progTag ?? "",
+    m.expect?.policyDigest ?? "",
+    m.voucher,
+  ].join("\u0000");
+}
+
+export interface SignedManifest {
+  manifest: RuntimeManifest;
+  /** base64 Ed25519 over canonicalManifest(). No key travels with it, on purpose. */
+  signature: string;
+  /** Which key signed, so a holder of several can pick — an IDENTIFIER, never material. */
+  keyId: string;
+}
+
+export function signManifest(m: RuntimeManifest, privateKeyHex: string, keyId: string): SignedManifest {
+  const key = { key: Buffer.from(privateKeyHex, "hex"), format: "der" as const, type: "pkcs8" as const };
+  const signature = cryptoSign(null, Buffer.from(canonicalManifest(m), "utf8"), key).toString("base64");
+  return { manifest: m, signature, keyId };
+}
+
+/**
+ * Verify a signed manifest against a key the CALLER supplies.
+ *
+ * Returns a Check so a failure reads the same way as every other failure, and so an
+ * absent signature is a FAILED check rather than a skipped one — the defect this whole
+ * body of work exists to refuse.
+ */
+export function verifyManifest(sm: SignedManifest, publicKeyHex: string): Check {
+  if (!sm?.signature) {
+    return { name: "the manifest is signed", ok: false,
+             detail: "ABSENT — no signature on the manifest, not skipped, FAILED" };
+  }
+  if (!publicKeyHex) {
+    return { name: "the manifest is signed", ok: false,
+             detail: "no public key supplied — the key must come from OUTSIDE the manifest, and none was given" };
+  }
+  try {
+    const ok = cryptoVerify(
+      null,
+      Buffer.from(canonicalManifest(sm.manifest), "utf8"),
+      { key: Buffer.from(publicKeyHex, "hex"), format: "der", type: "spki" },
+      Buffer.from(sm.signature, "base64"),
+    );
+    return { name: "the manifest is signed", ok,
+             detail: ok ? `valid Ed25519 signature, keyId=${sm.keyId}`
+                        : `signature does NOT verify under the supplied key (keyId=${sm.keyId})` };
+  } catch (e) {
+    // A malformed key or signature is a failure, never an exception that a caller might
+    // catch and treat as "could not check, carry on".
+    return { name: "the manifest is signed", ok: false,
+             detail: `signature could not be checked: ${(e as Error).message}` };
+  }
+}
+
+/** Convenience for tests and enrolment. Never used to obtain a verification key. */
+export function generateManifestKeypair(): { privateKeyHex: string; publicKeyHex: string } {
+  const { privateKey, publicKey } = generateKeyPairSync("ed25519");
+  return {
+    privateKeyHex: privateKey.export({ type: "pkcs8", format: "der" }).toString("hex"),
+    publicKeyHex: publicKey.export({ type: "spki", format: "der" }).toString("hex"),
+  };
+}
+
+/**
+ * The whole check in one call: signature first, then the device comparison.
+ *
+ * Signature FIRST and its failure is not recoverable by the rest passing: an unsigned or
+ * badly signed manifest is not a reference, so comparing a device against it would be
+ * measuring against whatever an attacker chose to publish.
+ */
+export function verifySigned(sm: SignedManifest, publicKeyHex: string, r: LaunchReceipt): Verdict {
+  const sig = verifyManifest(sm, publicKeyHex);
+  if (!sig.ok) {
+    return {
+      service: sm.manifest?.service ?? "(unknown)",
+      checks: [sig],
+      passed: 0,
+      failed: 1,
+      doesNotEstablish: ["Everything: the manifest itself is not trustworthy, so nothing was compared against it."],
+    };
+  }
+  const v = verifyReceipt(sm.manifest, r);
+  return { ...v, checks: [sig, ...v.checks], passed: v.passed + 1 };
 }

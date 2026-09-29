@@ -138,3 +138,93 @@ describe("the ceiling is derived from the voucher, not written by hand", () => {
     expect(verifyReceipt(manifest, r).doesNotEstablish.join(" ")).toMatch(/DEVICE IDENTITY at all/);
   });
 });
+
+describe("signing — and the key comes from OUTSIDE", () => {
+  const { signManifest, verifyManifest, verifySigned, generateManifestKeypair,
+          canonicalManifest } = require("../src/kernel/runtime-manifest");
+  const kp = generateManifestKeypair();
+  const other = generateManifestKeypair();
+  const signed = signManifest(manifest, kp.privateKeyHex, "release-key-1");
+
+  it("a genuine signature verifies under the right key", () => {
+    const c = verifyManifest(signed, kp.publicKeyHex);
+    expect(c.ok).toBe(true);
+    expect(c.detail).toMatch(/release-key-1/);
+  });
+
+  it("it does NOT verify under a different key", () => {
+    expect(verifyManifest(signed, other.publicKeyHex).ok).toBe(false);
+  });
+
+  it("an ABSENT signature FAILS — not skipped", () => {
+    const c = verifyManifest({ ...signed, signature: "" }, kp.publicKeyHex);
+    expect(c.ok).toBe(false);
+    expect(c.detail).toMatch(/ABSENT.*FAILED/);
+  });
+
+  it("no public key supplied is a FAILURE that says the key must come from outside", () => {
+    const c = verifyManifest(signed, "");
+    expect(c.ok).toBe(false);
+    expect(c.detail).toMatch(/must come from OUTSIDE/);
+  });
+
+  it("a malformed key is a failure, never an exception a caller could swallow", () => {
+    expect(() => verifyManifest(signed, "nothex")).not.toThrow();
+    expect(verifyManifest(signed, "nothex").ok).toBe(false);
+  });
+
+  it("ANY change to a signed field breaks the signature", () => {
+    const tweaks = [
+      { ...manifest, service: "other" },
+      { ...manifest, release: "v9" },
+      { ...manifest, voucher: "registrar-statement" as const },
+      { ...manifest, expect: { ...manifest.expect, progTag: "0000000000000000" } },
+      { ...manifest, expect: { ...manifest.expect, policyDigest: "0000000000000000" } },
+    ];
+    for (const t of tweaks) {
+      expect(verifyManifest({ ...signed, manifest: t }, kp.publicKeyHex).ok).toBe(false);
+    }
+  });
+
+  it("the canonical form does not depend on key order or formatting", () => {
+    const reordered: any = { voucher: manifest.voucher, release: manifest.release,
+                             expect: manifest.expect, service: manifest.service,
+                             schema: manifest.schema };
+    expect(canonicalManifest(reordered)).toBe(canonicalManifest(manifest));
+    expect(verifyManifest({ ...signed, manifest: reordered }, kp.publicKeyHex).ok).toBe(true);
+  });
+
+  it("the manifest carries NO key material — a verifier cannot be fed its own anchor", () => {
+    const blob = JSON.stringify(signed);
+    expect(blob).not.toContain(kp.publicKeyHex);
+    expect(blob).not.toContain(kp.privateKeyHex);
+    expect(Object.keys(signed).sort()).toEqual(["keyId", "manifest", "signature"]);
+  });
+});
+
+describe("verifySigned — an unsigned reference is not a reference", () => {
+  const { signManifest, verifySigned, generateManifestKeypair } = require("../src/kernel/runtime-manifest");
+  const kp = generateManifestKeypair();
+  const other = generateManifestKeypair();
+  const signed = signManifest(manifest, kp.privateKeyHex, "k1");
+
+  it("a good signature and a good device pass together", () => {
+    const v = verifySigned(signed, kp.publicKeyHex, good);
+    expect(v.failed).toBe(0);
+    expect(v.checks[0].name).toMatch(/signed/);
+  });
+
+  it("a BAD signature stops the comparison entirely, even with a perfect device", () => {
+    const v = verifySigned(signed, other.publicKeyHex, good);
+    expect(v.failed).toBe(1);
+    expect(v.checks).toHaveLength(1);                 // nothing else was even compared
+    expect(v.doesNotEstablish[0]).toMatch(/Everything/);
+  });
+
+  it("a good signature does not rescue a bad device", () => {
+    const bad = { ...good, observed: { ...good.observed, policyDigest: "ffff" } };
+    const v = verifySigned(signed, kp.publicKeyHex, bad);
+    expect(v.checks[0].ok).toBe(true);
+    expect(v.failed).toBe(1);
+  });
+});
