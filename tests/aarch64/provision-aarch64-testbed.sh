@@ -29,13 +29,18 @@ if [ ! -f "$BED/base.qcow2" ]; then
   echo "$IMG_URL" > "$BED/IMAGE_URL"
 fi
 
-# Overlay, so base.qcow2 stays pristine and a corrupted run is thrown away, never repaired.
-rm -f "$BED/test.qcow2"
-qemu-img create -f qcow2 -F qcow2 -b "$BED/base.qcow2" "$BED/test.qcow2" 8G >/dev/null
+# Three images, on purpose:
+#   base.qcow2    pristine download, never booted
+#   staged.qcow2  base + the runner unit + test dependencies — built once, here
+#   test.qcow2    a throwaway overlay on staged, recreated by EVERY run
+# Runs are therefore hermetic: a harness cannot leave state behind for the next one to
+# find, which is how a test starts passing for a reason nobody chose.
+rm -f "$BED/staged.qcow2"
+qemu-img create -f qcow2 -F qcow2 -b "$BED/base.qcow2" "$BED/staged.qcow2" 8G >/dev/null
 
 modprobe nbd max_part=8
 qemu-nbd --disconnect /dev/nbd0 >/dev/null 2>&1 || true
-qemu-nbd --connect=/dev/nbd0 "$BED/test.qcow2"
+qemu-nbd --connect=/dev/nbd0 "$BED/staged.qcow2"
 sleep 2
 MNT=$(mktemp -d)
 mount /dev/nbd0p1 "$MNT"
@@ -74,4 +79,35 @@ printf '9pnet_virtio\n9p\n9pnet\n' > "$MNT/etc/modules-load.d/9p.conf"
 [ -L "$MNT/etc/systemd/system/multi-user.target.wants/ankr-testbed.service" ] || { echo "[provision] FAIL: unit not enabled"; exit 1; }
 echo "[provision] guest: $(sed -n 's/^PRETTY_NAME="\(.*\)"/\1/p' "$MNT/etc/os-release")"
 echo "[provision] guest kernel: $(basename "$(ls "$MNT"/boot/vmlinuz-* | head -1)" | sed 's/vmlinuz-//')"
+cleanup; trap - EXIT
+
+# Test dependencies, installed ONCE into the staged image. The egress path shells out to
+# clang and bpftool, so a guest without them would not fail the egress test — it would
+# skip it and report nothing wrong, which is the defect this whole bed exists to catch.
+if [ "${1:-}" != "--no-deps" ]; then
+  echo "[provision] installing guest test dependencies (one time, over user-mode NAT)"
+  DEPS=$(mktemp -d); mkdir -p "$DEPS/out"
+  cat > "$DEPS/run.sh" <<'DEPSH'
+#!/bin/sh
+set -e
+echo "installing: clang bpftool libbpf-dev iproute2"
+export DEBIAN_FRONTEND=noninteractive
+apt-get update -qq
+apt-get install -y -qq --no-install-recommends clang bpftool libbpf-dev iproute2 >/dev/null
+for t in clang bpftool ip; do
+  printf "  %-10s " "$t"; command -v $t >/dev/null && echo "$(command -v $t)" || { echo MISSING; exit 1; }
+done
+echo "deps ok"
+DEPSH
+  qemu-system-aarch64 -machine virt -cpu cortex-a72 -smp 4 -m 2048     -bios /usr/share/qemu-efi-aarch64/QEMU_EFI.fd     -drive if=virtio,file="$BED/staged.qcow2",format=qcow2     -virtfs local,path="$DEPS",mount_tag=hostshare,security_model=none,id=hostshare     -netdev user,id=n0 -device virtio-net-pci,netdev=n0     -nographic -no-reboot > "$DEPS/out/boot.log" 2>&1
+  if [ "$(cat "$DEPS/out/exitcode" 2>/dev/null)" = "0" ]; then
+    sed 's/^/[provision]   /' "$DEPS/out/console.log"
+  else
+    echo "[provision] FAIL: guest dependency install did not succeed"
+    tail -25 "$DEPS/out/console.log" 2>/dev/null || tail -25 "$DEPS/out/boot.log"
+    exit 1
+  fi
+  rm -rf "$DEPS"
+fi
+
 echo "[provision] ready — run tests with run-aarch64-testbed.sh <harness.sh> [payload ...]"

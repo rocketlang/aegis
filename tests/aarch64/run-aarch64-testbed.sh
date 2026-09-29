@@ -15,7 +15,12 @@ SHARE="$BED/share"
 HARNESS="${1:?usage: run-aarch64-testbed.sh <harness.sh> [payload ...]}"
 shift || true
 
-[ -f "$BED/test.qcow2" ] || { echo "no $BED/test.qcow2 — run provision-aarch64-testbed.sh first"; exit 2; }
+[ -f "$BED/staged.qcow2" ] || { echo "no $BED/staged.qcow2 — run provision-aarch64-testbed.sh first"; exit 2; }
+
+# A THROWAWAY overlay per run. Nothing a harness writes survives into the next run, so a
+# test cannot start passing because of something an earlier one left behind.
+rm -f "$BED/test.qcow2"
+qemu-img create -f qcow2 -F qcow2 -b "$BED/staged.qcow2" "$BED/test.qcow2" 8G >/dev/null
 
 rm -rf "$SHARE"; mkdir -p "$SHARE/out"
 cp "$HARNESS" "$SHARE/run.sh"
