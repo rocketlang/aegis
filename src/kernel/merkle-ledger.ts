@@ -25,13 +25,13 @@ export interface MerkleCheckpoint {
   rule_ref: "KOS-T040";
 }
 
-export interface InclusionProof {
-  leaf_hash: string;
-  leaf_index: number;
-  tree_size: number;
-  audit_path: string[];            // sibling hashes bottom-up
-  root_hash: string;
-}
+export type { InclusionProof } from "./merkle-tree";
+
+// The tree maths lives in merkle-tree.ts (pure — no database, no config) and is
+// re-exported here so every existing caller is unchanged.
+export { buildMerkleRoot, generateInclusionProof, verifyInclusionProof } from "./merkle-tree";
+import { buildMerkleRoot, generateInclusionProof, verifyInclusionProof, sha256, type InclusionProof } from "./merkle-tree";
+
 
 export interface VerifyChainResult {
   session_id: string;
@@ -91,74 +91,6 @@ export function verifySthSignature(data: string, signatureB64: string, publicKey
 
 // ── Merkle tree construction (RFC 6962 style) ─────────────────────────────────
 
-function sha256(data: string): string {
-  return createHash("sha256").update(data).digest("hex");
-}
-
-// Leaf hash: sha256("leaf:" + hash) — domain-separates leaves from interior nodes
-function leafHash(receiptHash: string): string {
-  return sha256("leaf:" + receiptHash);
-}
-
-// Interior node: sha256("node:" + left + right)
-function nodeHash(left: string, right: string): string {
-  return sha256("node:" + left + right);
-}
-
-export function buildMerkleRoot(receiptHashes: string[]): { root: string; tree: string[][] } {
-  if (receiptHashes.length === 0) return { root: sha256("empty"), tree: [] };
-
-  let layer: string[] = receiptHashes.map(leafHash);
-  const tree: string[][] = [layer];
-
-  while (layer.length > 1) {
-    const next: string[] = [];
-    for (let i = 0; i < layer.length; i += 2) {
-      // RFC 6962: odd leaf duplicates itself
-      const right = i + 1 < layer.length ? layer[i + 1] : layer[i];
-      next.push(nodeHash(layer[i], right));
-    }
-    layer = next;
-    tree.push(layer);
-  }
-
-  return { root: layer[0], tree };
-}
-
-export function generateInclusionProof(receiptHashes: string[], leafIndex: number): InclusionProof {
-  const { root, tree } = buildMerkleRoot(receiptHashes);
-  const auditPath: string[] = [];
-  let idx = leafIndex;
-
-  for (let level = 0; level < tree.length - 1; level++) {
-    const layer = tree[level];
-    const sibling = idx % 2 === 0
-      ? (idx + 1 < layer.length ? layer[idx + 1] : layer[idx])
-      : layer[idx - 1];
-    auditPath.push(sibling);
-    idx = Math.floor(idx / 2);
-  }
-
-  return {
-    leaf_hash: leafHash(receiptHashes[leafIndex]),
-    leaf_index: leafIndex,
-    tree_size: receiptHashes.length,
-    audit_path: auditPath,
-    root_hash: root,
-  };
-}
-
-export function verifyInclusionProof(proof: InclusionProof): boolean {
-  let current = proof.leaf_hash;
-  let idx = proof.leaf_index;
-
-  for (const sibling of proof.audit_path) {
-    current = idx % 2 === 0 ? nodeHash(current, sibling) : nodeHash(sibling, current);
-    idx = Math.floor(idx / 2);
-  }
-
-  return current === proof.root_hash;
-}
 
 // ── Schema ────────────────────────────────────────────────────────────────────
 

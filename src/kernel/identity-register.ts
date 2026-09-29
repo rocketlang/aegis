@@ -35,7 +35,7 @@
 import { createHash } from "node:crypto";
 import { appendFileSync, existsSync, readFileSync, mkdirSync } from "node:fs";
 import { dirname } from "node:path";
-import { buildMerkleRoot, generateInclusionProof, verifyInclusionProof, type InclusionProof } from "./merkle-ledger";
+import { buildMerkleRoot, generateInclusionProof, verifyInclusionProof, type InclusionProof } from "./merkle-tree";
 
 export type Verdict = "OK" | "CONTESTED" | "ALARM" | "UNKNOWN";
 
