@@ -193,7 +193,9 @@ function extractFilePath(toolName: string, input: Record<string, unknown>): stri
 // @rule:KOS-077
 function run(): void {
   const stdin = (() => {
-    try { return readFileSync("/dev/stdin", "utf-8"); } catch { return "{}"; }
+    // fd 0, not "/dev/stdin": hook stdin arrives as a SOCKET, where opening /dev/stdin throws
+    // ENXIO and the payload silently became "{}" (blind since ~2026-09-25). fd 0 reads pipes too.
+    try { return readFileSync(0, "utf-8"); } catch { return "{}"; }
   })();
 
   let payload: PostToolPayload = {};

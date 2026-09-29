@@ -55,6 +55,25 @@ describe("precededBy", () => {
   });
 });
 
+describe("hook stdin arrives as a SOCKET (the form Claude Code uses) — regression", () => {
+  // A pipe-fed smoke passed for four days while every live hook read "{}": /dev/stdin throws
+  // ENXIO on a socket. This drives the hook through a real socketpair, not a pipe.
+  it("session-activity reads the payload from a socket stdin", () => {
+    const home = mkdtempSync(join(tmpdir(), "aegis-sock-"));
+    const hook = join(import.meta.dir, "../src/hooks/session-activity.ts");
+    const py = `
+import socket, subprocess, sys, os
+a, b = socket.socketpair()
+a.sendall(sys.argv[2].encode()); a.shutdown(socket.SHUT_WR)
+sys.exit(subprocess.run(["bun", "run", sys.argv[1]], stdin=b).returncode)`;
+    const payload = JSON.stringify({ session_id: "sock1", tool_name: "WebFetch", tool_input: {}, tool_response: "hello" });
+    const r = Bun.spawnSync(["python3", "-c", py, hook, payload], { env: { ...process.env, HOME: home, AEGIS_HOME: join(home, ".aegis") } });
+    expect(r.exitCode).toBe(0);
+    const ring = JSON.parse(readFileSync(join(home, ".aegis/provenance/sock1.json"), "utf-8"));
+    expect(ring[0].source).toBe("web");
+  });
+});
+
 describe("session-activity hook (PostToolUse) — end to end, private HOME", () => {
   it("records the ring and redacts inline secrets in the session log", () => {
     const home = mkdtempSync(join(tmpdir(), "aegis-prov-"));

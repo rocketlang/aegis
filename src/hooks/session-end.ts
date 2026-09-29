@@ -52,7 +52,8 @@ function countActivityLines(sessionId: string): number {
 // @rule:KOS-078
 async function run(): Promise<void> {
   const stdin = (() => {
-    try { return readFileSync("/dev/stdin", "utf-8"); } catch { return "{}"; }
+    // fd 0, not "/dev/stdin": socket stdin makes /dev/stdin throw ENXIO (blind since ~2026-09-25)
+    try { return readFileSync(0, "utf-8"); } catch { return "{}"; }
   })();
 
   let payload: StopPayload = {};
