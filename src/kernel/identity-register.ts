@@ -33,6 +33,7 @@
 // ─────────────────────────────────────────────────────────────────────────────────────
 
 import { createHash } from "node:crypto";
+import { buildMerkleRoot, generateInclusionProof, verifyInclusionProof, type InclusionProof } from "./merkle-ledger";
 
 export type Verdict = "OK" | "CONTESTED" | "ALARM" | "UNKNOWN";
 
@@ -52,6 +53,13 @@ export interface Sighting {
   /** Seconds since epoch, as reported. NOT trusted for ordering: the register orders by
    *  arrival, because a clone controls its own clock. Kept for the human reading it. */
   reportedAt?: number;
+  /** A REMOVABLE credential — a USB key, smartcard or PIV token — if one is in use.
+   *  Telecoms solved this shape already: a SIM binds the subscription, an IMEI binds the
+   *  handset, and fraud is found by noticing which pairs change. Same here. */
+  tokenId?: string;
+  /** The machine the token was plugged into. Distinct from `instance`, which changes on
+   *  every boot; a host is expected to persist across boots. */
+  hostId?: string;
 }
 
 export interface Enrolment {
@@ -61,6 +69,15 @@ export interface Enrolment {
   voucher: string;
   /** A decoy is issued to no device. Any sighting of it is unambiguously an attacker. */
   decoy?: boolean;
+}
+
+/** A token or host that moved. Reported, never adjudicated — see PairingReport. */
+export interface PairingChange {
+  identity: string;
+  kind: "token-moved-host" | "host-changed-token";
+  from: string;
+  to: string;
+  evidence: Sighting[];
 }
 
 export interface Finding {
@@ -182,6 +199,74 @@ export class IdentityRegister {
               `Existing operation is untouched by design.`,
     };
   }
+
+  /**
+   * Pairing changes between a removable credential and the machine holding it.
+   *
+   * REPORTED, NEVER ADJUDICATED (XRA-R-009). A moved token is not evidence of an attack:
+   * it is the normal, intended behaviour of a removable credential, which is the whole
+   * reason to have one. Treating it as a compromise would punish the field engineer who
+   * swapped a failed board and kept the key — the commonest legitimate event there is.
+   *
+   * It is also not nothing. A token that appears on a second host while the first is
+   * still reporting is the same picture as one SIM in two handsets, and that is worth a
+   * human's attention. So: surfaced separately from the clone verdict, because calling a
+   * swapped dongle a cloned key would be a confident wrong label, and those are worse
+   * than missing ones.
+   */
+  pairings(identity: string): PairingChange[] {
+    const seen = this.log.filter(s => s.identity === identity);
+    const out: PairingChange[] = [];
+    const lastHostFor = new Map<string, string>();   // token -> host
+    const lastTokenFor = new Map<string, string>();  // host  -> token
+    for (const s of seen) {
+      if (s.tokenId && s.hostId) {
+        const prevHost = lastHostFor.get(s.tokenId);
+        if (prevHost && prevHost !== s.hostId) {
+          out.push({ identity, kind: "token-moved-host", from: prevHost, to: s.hostId,
+                     evidence: seen.filter(x => x.tokenId === s.tokenId) });
+        }
+        const prevToken = lastTokenFor.get(s.hostId);
+        if (prevToken && prevToken !== s.tokenId) {
+          out.push({ identity, kind: "host-changed-token", from: prevToken, to: s.tokenId,
+                     evidence: seen.filter(x => x.hostId === s.hostId) });
+        }
+        lastHostFor.set(s.tokenId, s.hostId);
+        lastTokenFor.set(s.hostId, s.tokenId);
+      }
+    }
+    return out;
+  }
+
+  // ── Merkle wiring ──────────────────────────────────────────────────────────
+  //
+  // A digest says the log changed. A merkle root says WHICH entries a published root
+  // committed to, and lets any single sighting be proved against it without handing over
+  // the whole register. Same primitives the receipt ledger already uses (RFC 6962), so
+  // one verifier understands both.
+
+  /** Canonical, order-independent-of-formatting encoding of a sighting. Every field that
+   *  a verdict depends on is in here; anything omitted could be altered undetectably. */
+  static leafOf(s: Sighting): string {
+    return [s.identity, s.instance, String(s.counter), s.progTag ?? "", s.mapDigest ?? "",
+            s.tokenId ?? "", s.hostId ?? ""].join("\u0000");
+  }
+
+  leaves(): string[] { return this.log.map(IdentityRegister.leafOf); }
+
+  /** The value to publish. A reader who has it can check any sighting they are shown. */
+  merkleRoot(): string { return buildMerkleRoot(this.leaves()).root; }
+
+  /** Prove one sighting belongs to the published root, without revealing the rest. */
+  proofFor(index: number): InclusionProof {
+    if (!Number.isInteger(index) || index < 0 || index >= this.log.length) {
+      throw new Error(`no sighting at index ${index} (log holds ${this.log.length})`);
+    }
+    return generateInclusionProof(this.leaves(), index);
+  }
+
+  /** Re-exported so a consumer never has to reach into the ledger module for it. */
+  static verifyProof(p: InclusionProof): boolean { return verifyInclusionProof(p); }
 
   /** Digest over the log in order, so a reader can confirm nothing was removed later. */
   digest(): string {

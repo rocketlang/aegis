@@ -160,3 +160,100 @@ describe("the log is a register, not a report", () => {
     expect(r.sweep().map(f => f.verdict)).toEqual(["ALARM", "CONTESTED", "UNKNOWN", "OK"]);
   });
 });
+
+describe("merkle wiring — a published root anyone can check against", () => {
+  const build = () => {
+    const r = new IdentityRegister();
+    r.enrol({ identity: "dev-1", voucher: "usb-piv-token" });
+    [1, 2, 3, 4, 5].forEach(c => r.record(S("dev-1", "boot-a", c)));
+    return r;
+  };
+
+  it("every sighting proves against the published root", () => {
+    const r = build();
+    const root = r.merkleRoot();
+    for (let i = 0; i < r.entries().length; i++) {
+      const p = r.proofFor(i);
+      expect(p.root_hash).toBe(root);
+      expect(IdentityRegister.verifyProof(p)).toBe(true);
+    }
+  });
+
+  it("a proof from one log does NOT verify against another root", () => {
+    const a = build();
+    const b = build(); b.record(S("dev-1", "boot-a", 6));
+    const p = a.proofFor(0);
+    expect(a.merkleRoot()).not.toBe(b.merkleRoot());
+    expect(IdentityRegister.verifyProof({ ...p, root_hash: b.merkleRoot() })).toBe(false);
+  });
+
+  it("a tampered leaf breaks its own proof", () => {
+    const r = build();
+    const p = r.proofFor(2);
+    expect(IdentityRegister.verifyProof({ ...p, leaf_hash: "0".repeat(64) })).toBe(false);
+  });
+
+  it("the leaf commits to the fields a verdict depends on", () => {
+    const base = { identity: "d", instance: "i", counter: 1 };
+    const leaves = [
+      IdentityRegister.leafOf(base),
+      IdentityRegister.leafOf({ ...base, counter: 2 }),
+      IdentityRegister.leafOf({ ...base, instance: "j" }),
+      IdentityRegister.leafOf({ ...base, progTag: "t" }),
+      IdentityRegister.leafOf({ ...base, mapDigest: "m" }),
+      IdentityRegister.leafOf({ ...base, tokenId: "k" }),
+      IdentityRegister.leafOf({ ...base, hostId: "h" }),
+    ];
+    expect(new Set(leaves).size).toBe(leaves.length); // no two collide
+  });
+
+  it("refuses a proof for an index that is not there", () => {
+    const r = build();
+    expect(() => r.proofFor(99)).toThrow(/no sighting at index/);
+    expect(() => r.proofFor(-1)).toThrow(/no sighting at index/);
+  });
+});
+
+describe("removable credentials — the SIM/IMEI shape", () => {
+  const P = (identity: string, instance: string, counter: number, tokenId: string, hostId: string) =>
+    ({ identity, instance, counter, tokenId, hostId });
+
+  it("a token staying on one host reports no pairing change", () => {
+    const r = new IdentityRegister();
+    r.enrol({ identity: "dev-1", voucher: "usb-piv-token" });
+    r.record(P("dev-1", "b1", 1, "tok-A", "host-1"));
+    r.record(P("dev-1", "b2", 2, "tok-A", "host-1"));
+    expect(r.pairings("dev-1")).toHaveLength(0);
+    expect(r.verdict("dev-1").verdict).toBe("CONTESTED"); // two boots = two instances
+  });
+
+  it("a token moved to another host is REPORTED", () => {
+    const r = new IdentityRegister();
+    r.enrol({ identity: "dev-1", voucher: "usb-piv-token" });
+    r.record(P("dev-1", "b1", 1, "tok-A", "host-1"));
+    r.record(P("dev-1", "b1", 2, "tok-A", "host-2"));
+    const p = r.pairings("dev-1");
+    expect(p).toHaveLength(1);
+    expect(p[0].kind).toBe("token-moved-host");
+    expect([p[0].from, p[0].to]).toEqual(["host-1", "host-2"]);
+  });
+
+  it("a host given a different token is REPORTED", () => {
+    const r = new IdentityRegister();
+    r.enrol({ identity: "dev-1", voucher: "usb-piv-token" });
+    r.record(P("dev-1", "b1", 1, "tok-A", "host-1"));
+    r.record(P("dev-1", "b1", 2, "tok-B", "host-1"));
+    expect(r.pairings("dev-1").some(c => c.kind === "host-changed-token")).toBe(true);
+  });
+
+  it("a moved token does NOT by itself make the identity CONTESTED", () => {
+    // The whole point of a removable credential is that it moves. Calling that a clone
+    // would punish the engineer who swapped a failed board and kept the key.
+    const r = new IdentityRegister();
+    r.enrol({ identity: "dev-1", voucher: "usb-piv-token" });
+    r.record(P("dev-1", "b1", 1, "tok-A", "host-1"));
+    r.record(P("dev-1", "b1", 2, "tok-A", "host-2"));
+    expect(r.verdict("dev-1").verdict).toBe("OK");
+    expect(r.pairings("dev-1")).toHaveLength(1);   // seen, and kept separate
+  });
+});
