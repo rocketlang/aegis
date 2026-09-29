@@ -17,6 +17,18 @@ shift || true
 
 [ -f "$BED/staged.qcow2" ] || { echo "no $BED/staged.qcow2 — run provision-aarch64-testbed.sh first"; exit 2; }
 
+# ONE RUN AT A TIME. Every run recreates $SHARE and test.qcow2, so two overlapping runs
+# silently destroy each other's results — the second wipes the first's share while the
+# first is still booted, and the first reports "no output" or, worse, reads the second's.
+# Measured the hard way on 2026-09-29: a negative control came back empty because another
+# harness had started underneath it. A collision must be loud, never a lost result.
+exec 9>"$BED/.run.lock"
+if ! flock -n 9; then
+  echo "[testbed] REFUSED: another run holds $BED/.run.lock — runs share \$SHARE and the"
+  echo "[testbed] overlay, so a second one would destroy the first's results. Wait for it."
+  exit 3
+fi
+
 # A THROWAWAY overlay per run. Nothing a harness writes survives into the next run, so a
 # test cannot start passing because of something an earlier one left behind.
 rm -f "$BED/test.qcow2"

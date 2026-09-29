@@ -53,6 +53,8 @@ any git tree; only these scripts are tracked.
 |---|---|---|
 | `harness-syscall-resolution.sh` | 0 failures | **6 failures** |
 | `harness-egress-enforcement.sh` | **0 failures** (6 checks) | **1 failure** with attach neutered |
+| `harness-seccomp-enforcement.sh` | **0 failures** (6 checks) | see below (pre-fix build) |
+| `harness-no-toolchain.sh` | **0 failures** (2 checks) | n/a — it *is* the control |
 
 Both directions forced. On the pre-fix code the guest reports `execve` resolving to 59
 (it is `pipe2` there), `execveat` to 322, and a syscall name table with **0 entries** —
@@ -97,8 +99,46 @@ not: their accept threads still hold a reference, so `close()` never frees the p
 correct outcome — connect succeeds, proving the block is gone — was scored as a failure.
 The test was wrong, not the firewall. Forcing both directions is what surfaced it.
 
+### `harness-seccomp-enforcement.sh`
+
+Proves the filter refuses a syscall that is not on the allowlist while still permitting
+one that is, and — the point — that **`strict_exec` actually blocks on aarch64**, which is
+the guard the hardcoded-syscall bug would have silently disabled.
+
+**Two harness bugs it caught before it caught anything else**, both kept here because the
+shape recurs:
+
+1. The first version put no `SCMP_ACT_NOTIFY` tier in the profile. `strict_exec` is
+   decided *inside* the notify supervisor (KOS-047), so the profile loaded, printed
+   `strict_exec active`, enforced nothing, and the harness scored it green — against both
+   the fixed and the broken build. **A test that passes on the broken build is not
+   testing what its name says.**
+2. The exec probe originally read a non-zero exit as "blocked". A non-zero exit also
+   means "the binary ran and then died under the filter". It now distinguishes
+   `EXEC-DENIED` (execve itself refused, no output) from `EXEC-RAN` (output produced) and
+   refuses to score an ambiguous result as either.
+
+Every probe is bounded by `timeout 120`, and a timeout is its own named outcome. The
+pre-fix build does not fail open here — it **hangs**, because the supervisor does not
+recognise `execve` and falls through to the human-approval path that no one can answer.
+
+### `harness-no-toolchain.sh`
+
+Answers whether the egress layer can run on a hardened production image with no compiler,
+by taking `clang` away and asking. **Measured: it cannot.** `_is_available()` returns
+False, and the layer disables itself by writing `UNAVAILABLE` and exiting 0 — quietly,
+completely, and by design. Shipping to such an image needs a **precompiled BPF object**
+rather than runtime compilation. That is a design consequence, not a bug.
+
+## One run at a time
+
+The launcher takes an exclusive `flock`. Every run recreates the share directory and the
+overlay, so two overlapping runs destroy each other's results — measured on 2026-09-29
+when a negative control came back empty because another harness had started underneath
+it. A collision is now a loud refusal (exit 3), never a lost result.
+
 ## Not yet measured
 
-seccomp filter *enforcement*, `SCMP_ACT_NOTIFY` supervision, IPv6 egress, and the AppArmor
+IPv6 egress, the DNS-steering path (KOS-046), and the AppArmor
 path jail (no AppArmor in this guest; the target OS is SELinux anyway). Those are the next
 harnesses. Until one exists for a claim, the claim is unmeasured.
