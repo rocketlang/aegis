@@ -33,6 +33,8 @@
 // ─────────────────────────────────────────────────────────────────────────────────────
 
 import { createHash } from "node:crypto";
+import { appendFileSync, existsSync, readFileSync, mkdirSync } from "node:fs";
+import { dirname } from "node:path";
 import { buildMerkleRoot, generateInclusionProof, verifyInclusionProof, type InclusionProof } from "./merkle-ledger";
 
 export type Verdict = "OK" | "CONTESTED" | "ALARM" | "UNKNOWN";
@@ -106,6 +108,7 @@ export class IdentityRegister {
       throw new Error(`refusing enrolment of ${e.identity}: no voucher named`);
     }
     this.enrolments.set(e.identity, { ...e });
+    this.write({ t: "enrol", identity: e.identity, voucher: e.voucher, decoy: !!e.decoy });
   }
 
   /** Records a sighting verbatim. Rejects only what it cannot reason about. */
@@ -117,6 +120,7 @@ export class IdentityRegister {
       throw new Error(`refusing a sighting with a non-monotonic counter: ${s.counter}`);
     }
     this.log.push({ ...s });
+    this.write({ t: "sight", s: { ...s } });
   }
 
   entries(): readonly Sighting[] { return this.log; }
@@ -267,6 +271,77 @@ export class IdentityRegister {
 
   /** Re-exported so a consumer never has to reach into the ledger module for it. */
   static verifyProof(p: InclusionProof): boolean { return verifyInclusionProof(p); }
+
+  // ── Persistence ────────────────────────────────────────────────────────────
+  //
+  // A register that lives only in memory detects nothing across a restart — and a
+  // restart is exactly when a clone has its best chance, because the evidence of the
+  // first instance died with the process. So the log is written as it happens, and
+  // loading it VERIFIES rather than trusts.
+  //
+  // Append-only on disk as well as in memory: lines are only ever added. Checkpoints
+  // carry the merkle root at that point, so a later reader can prove no earlier line was
+  // removed or altered. A register that can be quietly edited is not a register, and a
+  // loader that accepts a file it cannot reconcile is the "absent check scored as a
+  // pass" defect one more time. It refuses instead.
+
+  private journal?: string;
+
+  /** Every subsequent enrol/record is appended here as it happens. */
+  openJournal(path: string): void {
+    mkdirSync(dirname(path), { recursive: true });
+    this.journal = path;
+  }
+
+  private write(line: object): void {
+    if (this.journal) appendFileSync(this.journal, JSON.stringify(line) + "\n");
+  }
+
+  /** Writes a checkpoint line carrying the current root and entry count. */
+  checkpoint(): { root: string; count: number } {
+    const cp = { t: "checkpoint" as const, root: this.merkleRoot(), count: this.log.length };
+    this.write(cp);
+    return { root: cp.root, count: cp.count };
+  }
+
+  /**
+   * Replays a journal and verifies every checkpoint against the log as replayed.
+   *
+   * THROWS on a mismatch. It does not load a best-effort register and warn: a register
+   * you cannot reconcile is worse than none, because it will be believed. The error says
+   * which checkpoint failed and what was expected, so the tampering is legible.
+   */
+  static loadFrom(path: string): IdentityRegister {
+    const r = new IdentityRegister();
+    if (!existsSync(path)) { r.openJournal(path); return r; }
+
+    const lines = readFileSync(path, "utf8").split("\n").filter(l => l.trim());
+    let n = 0;
+    for (const line of lines) {
+      n++;
+      let e: any;
+      try { e = JSON.parse(line); }
+      catch { throw new Error(`register journal ${path}: line ${n} is not JSON — refusing to load a register that cannot be read whole`); }
+
+      if (e.t === "enrol") {
+        r.enrolments.set(e.identity, { identity: e.identity, voucher: e.voucher, decoy: !!e.decoy });
+      } else if (e.t === "sight") {
+        r.log.push(e.s);
+      } else if (e.t === "checkpoint") {
+        if (r.log.length !== e.count) {
+          throw new Error(`register journal ${path}: checkpoint at line ${n} expected ${e.count} sightings, replay has ${r.log.length} — entries were removed or inserted`);
+        }
+        const root = r.merkleRoot();
+        if (root !== e.root) {
+          throw new Error(`register journal ${path}: checkpoint at line ${n} root MISMATCH\n  recorded ${e.root}\n  replayed ${root}\n— an earlier entry was altered`);
+        }
+      } else {
+        throw new Error(`register journal ${path}: line ${n} has unknown type ${JSON.stringify(e.t)} — refusing rather than skipping it`);
+      }
+    }
+    r.openJournal(path);
+    return r;
+  }
 
   /** Digest over the log in order, so a reader can confirm nothing was removed later. */
   digest(): string {

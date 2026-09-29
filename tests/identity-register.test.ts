@@ -6,6 +6,9 @@
 // running device on a guess.
 import { describe, it, expect } from "bun:test";
 import { IdentityRegister } from "../src/kernel/identity-register";
+import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
+import { tmpdir } from "node:os";
 
 const S = (identity: string, instance: string, counter: number) =>
   ({ identity, instance, counter, progTag: "927b5c5e18d0c7ee", mapDigest: "deadbeef" });
@@ -255,5 +258,80 @@ describe("removable credentials — the SIM/IMEI shape", () => {
     r.record(P("dev-1", "b1", 2, "tok-A", "host-2"));
     expect(r.verdict("dev-1").verdict).toBe("OK");
     expect(r.pairings("dev-1")).toHaveLength(1);   // seen, and kept separate
+  });
+});
+
+describe("persistence — a register that dies on restart detects nothing", () => {
+  const tmp = () => join(mkdtempSync(join(tmpdir(), "reg-")), "register.jsonl");
+
+  it("a clone that appears AFTER a restart is still caught", () => {
+    const path = tmp();
+    const a = IdentityRegister.loadFrom(path);
+    a.enrol({ identity: "pump-7", voucher: "usb-piv-token" });
+    a.record(S("pump-7", "boot-a", 1));
+    a.checkpoint();
+    expect(a.verdict("pump-7").verdict).toBe("OK");
+
+    // process restarts; the clone turns up while the first instance is forgotten
+    const b = IdentityRegister.loadFrom(path);
+    b.record(S("pump-7", "boot-b", 1));
+    expect(b.verdict("pump-7").verdict).toBe("CONTESTED");   // the whole point
+  });
+
+  it("round-trips enrolments, decoys and sightings", () => {
+    const path = tmp();
+    const a = IdentityRegister.loadFrom(path);
+    a.enrol({ identity: "dev-1", voucher: "silicon" });
+    a.enrol({ identity: "decoy-1", voucher: "registrar-statement", decoy: true });
+    a.record(S("dev-1", "boot-a", 1));
+    a.record(S("dev-1", "boot-a", 2));
+    const root = a.merkleRoot();
+
+    const b = IdentityRegister.loadFrom(path);
+    expect(b.merkleRoot()).toBe(root);
+    expect(b.verdict("dev-1").verdict).toBe("OK");
+    b.record(S("decoy-1", "boot-z", 1));
+    expect(b.verdict("decoy-1").verdict).toBe("ALARM");      // decoy survived the restart
+  });
+
+  it("REFUSES to load a journal with a removed sighting", () => {
+    const path = tmp();
+    const a = IdentityRegister.loadFrom(path);
+    a.enrol({ identity: "dev-1", voucher: "silicon" });
+    [1, 2, 3].forEach(c => a.record(S("dev-1", "boot-a", c)));
+    a.checkpoint();
+
+    const lines = readFileSync(path, "utf8").split("\n").filter(Boolean);
+    writeFileSync(path, [lines[0], lines[1], lines[3], lines[4]].join("\n") + "\n"); // drop one
+    expect(() => IdentityRegister.loadFrom(path)).toThrow(/expected 3 sightings, replay has 2/);
+  });
+
+  it("REFUSES to load a journal with an ALTERED sighting", () => {
+    const path = tmp();
+    const a = IdentityRegister.loadFrom(path);
+    a.enrol({ identity: "dev-1", voucher: "silicon" });
+    [1, 2].forEach(c => a.record(S("dev-1", "boot-a", c)));
+    a.checkpoint();
+
+    const lines = readFileSync(path, "utf8").split("\n").filter(Boolean);
+    const tampered = lines.map(l => l.includes('"counter":2') ? l.replace('"counter":2', '"counter":7') : l);
+    writeFileSync(path, tampered.join("\n") + "\n");
+    expect(() => IdentityRegister.loadFrom(path)).toThrow(/root MISMATCH/);
+  });
+
+  it("REFUSES an unreadable line rather than skipping it", () => {
+    const path = tmp();
+    const a = IdentityRegister.loadFrom(path);
+    a.enrol({ identity: "dev-1", voucher: "silicon" });
+    writeFileSync(path, readFileSync(path, "utf8") + "{not json\n");
+    expect(() => IdentityRegister.loadFrom(path)).toThrow(/not JSON/);
+  });
+
+  it("REFUSES an unknown record type rather than ignoring it", () => {
+    const path = tmp();
+    const a = IdentityRegister.loadFrom(path);
+    a.enrol({ identity: "dev-1", voucher: "silicon" });
+    writeFileSync(path, readFileSync(path, "utf8") + JSON.stringify({ t: "revoke", identity: "dev-1" }) + "\n");
+    expect(() => IdentityRegister.loadFrom(path)).toThrow(/unknown type/);
   });
 });
