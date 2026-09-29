@@ -122,28 +122,63 @@ _BPF_CONNECT6_C = r"""
 #include <bpf/bpf_helpers.h>
 #include <bpf/bpf_endian.h>
 
-// Key: last 32 bits of IPv6 address (BE) << 32 | port_host
-// Sufficient for ::1 loopback matching
+// Key: the WHOLE address (4 words, host order after ntohl) + port. @rule:KOS-040
+//
+// E-1, found 2026-09-29. This map was keyed on the last 32 bits of the address, with
+// the comment "sufficient for ::1 loopback matching". It would have been — but
+// _populate() pushes every AAAA record of every allowlisted host through the same key,
+// so the allowlist was matching 32 of 128 bits. 2606:4700:4700::1111 and
+// 2001:db8:dead:beef::1111 produced an IDENTICAL key. An attacker inside their own /64
+// chooses the low 32 bits freely, so 2^96 addresses collided with each entry, and the
+// exfiltration this allowlist exists to prevent was not prevented.
+//
+// The key is now the full address. Nothing is truncated.
+struct v6key {
+    __u32 a0, a1, a2, a3;   // address words, network order, converted by ntohl
+    __u32 port;             // host order; 0 means "any port for this address"
+};
+
 struct {
     __uint(type, BPF_MAP_TYPE_HASH);
-    __uint(max_entries, 64);
-    __type(key, __u64);
+    __uint(max_entries, 256);
+    __type(key, struct v6key);
     __type(value, __u8);
 } egress_allow_v6 SEC(".maps");
 
 SEC("cgroup/connect6")
 int connect6(struct bpf_sock_addr *ctx) {
-    // user_ip6[3] is NBO; bpf_ntohl converts to host order matching Python's key
-    __u32 addr_last = bpf_ntohl(ctx->user_ip6[3]);
     // user_port stores the BE16 port in the *lower* 16 bits (not upper)
-    __u16 dst_port  = bpf_ntohs((__u16)ctx->user_port);
+    __u16 dst_port = bpf_ntohs((__u16)ctx->user_port);
 
-    __u64 key = ((__u64)addr_last << 32) | dst_port;
+    // E-3, found the same day. connect4 treats port 53 as a special case for a stated
+    // reason: a resolver an agent can reach is an exfiltration channel one query name
+    // at a time, so connect4 STEERS it to this session's resolving proxy, or denies it
+    // when no proxy exists. connect6 had no such case, so the channel connect4 closes
+    // stood open on v6.
+    //
+    // It REFUSES rather than steering, deliberately. The proxy listens on 127.0.0.1, so
+    // a query that reaches it does so over AF_INET and is already handled by connect4.
+    // A DNS query arriving on an AF_INET6 socket therefore has no steered path, and
+    // @rule:INF-KOS-009 says a missing instrument refuses. Denying it costs nothing and
+    // leaves no unsteered resolver.
+    if (dst_port == 53) return 0;
+
+    struct v6key key = {};
+    key.a0 = bpf_ntohl(ctx->user_ip6[0]);
+    key.a1 = bpf_ntohl(ctx->user_ip6[1]);
+    key.a2 = bpf_ntohl(ctx->user_ip6[2]);
+    key.a3 = bpf_ntohl(ctx->user_ip6[3]);
+
+    // A v4-mapped destination (::ffff:a.b.c.d) arrives HERE, not at connect4, whenever
+    // the socket is AF_INET6. Python programs the ::ffff: form of every allowlisted
+    // IPv4 address into this map, so dual-stack callers are matched without this object
+    // needing to share the v4 map.
+    key.port = dst_port;
     __u8 *v = bpf_map_lookup_elem(&egress_allow_v6, &key);
     if (v && *v) return 1;
 
-    __u64 wildcard = (__u64)addr_last << 32;
-    v = bpf_map_lookup_elem(&egress_allow_v6, &wildcard);
+    key.port = 0;                       // wildcard: any port for this address
+    v = bpf_map_lookup_elem(&egress_allow_v6, &key);
     if (v && *v) return 1;
 
     return 0;
@@ -170,10 +205,15 @@ def _is_available() -> bool:
     # layer disabled itself, wrote UNAVAILABLE and exited 0. Requiring a compiler at run
     # time on the target is what made the firewall unshippable to the images that most
     # need it, so a prebuilt object satisfies the requirement instead.
-    if not _prebuilt_obj("connect4") and not _has_tool("clang"):
-        sys.stderr.write("[kavachos:egress] no prebuilt BPF object and no clang — "
-                         "egress firewall disabled\n")
-        ok = False
+    #
+    # E-2: this gate named connect4 alone, so a board carrying only connect4.o passed
+    # availability and then armed half a firewall. Both objects are required, because
+    # both are enforced.
+    for prog in ("connect4", "connect6"):
+        if not _prebuilt_obj(prog) and not _has_tool("clang"):
+            sys.stderr.write(f"[kavachos:egress] no prebuilt {prog}.o and no clang — "
+                             "egress firewall disabled\n")
+            ok = False
     if not _has_tool("bpftool"):
         sys.stderr.write("[kavachos:egress] bpftool not found — egress firewall disabled\n")
         ok = False
@@ -273,12 +313,35 @@ def _ip4_be32(ip: str) -> Optional[int]:
     except Exception:
         return None
 
-def _ip6_last32_be(ip: str) -> Optional[int]:
+def _ip6_key(ip: str, port: int) -> Optional[bytes]:
+    """
+    The 20 bytes of `struct v6key` for this address and port. E-1's fix.
+
+    Layout must match the BPF struct EXACTLY or every lookup misses. Five __u32 fields,
+    no padding (all 4-byte aligned), each stored little-endian on the architectures this
+    runs on — which is what bpftool writes when given raw key bytes. The four address
+    words are the big-endian groups of the address, which is the same integer the
+    program gets from bpf_ntohl() on each word.
+
+    A mismatch here fails CLOSED (nothing matches, everything is denied), which is the
+    right direction for a bug to fall, but the round-trip is asserted in the tests
+    rather than left to that.
+    """
     try:
         packed = socket.inet_pton(socket.AF_INET6, ip)
-        return struct.unpack(">I", packed[12:16])[0]
     except Exception:
         return None
+    a0, a1, a2, a3 = struct.unpack(">4I", packed)
+    return struct.pack("<5I", a0, a1, a2, a3, port & 0xFFFF)
+
+
+def _v4_mapped(ip4: str) -> Optional[str]:
+    """`a.b.c.d` -> `::ffff:a.b.c.d`, the form an AF_INET6 socket actually connects to."""
+    try:
+        socket.inet_pton(socket.AF_INET, ip4)
+    except Exception:
+        return None
+    return "::ffff:" + ip4
 
 # ── bpftool helpers ───────────────────────────────────────────────────────────
 
@@ -323,6 +386,17 @@ def _map_update(map_id: int, key_u64: int, value: int) -> None:
                  *key_bytes.split(), "value", "hex", val_hex, check=False)
     if r.returncode != 0:
         sys.stderr.write(f"[kavachos:egress] map update failed for key {key_u64:#018x}: {r.stderr[:100]}\n")
+
+
+def _map_update_bytes(map_id: int, key_bytes: bytes, value: int) -> bool:
+    """Update a hash map whose key is wider than a u64 (the v6 struct key)."""
+    key_hex = [f"{b:02x}" for b in key_bytes]
+    r = _bpftool("map", "update", "id", str(map_id), "key", "hex", *key_hex,
+                 "value", "hex", f"{value:02x}", check=False)
+    if r.returncode != 0:
+        sys.stderr.write(f"[kavachos:egress] v6 map update failed for {key_bytes.hex()}: {r.stderr[:100]}\n")
+        return False
+    return True
 
 def _start_resolving_proxy(sess, policy: dict, session_id: str) -> None:
     """
@@ -434,7 +508,12 @@ def _destroy_cgroup(session_id: str) -> None:
 class EgressSession:
     """Lifetime: agent session. Load → attach → populate → wait → cleanup."""
 
-    def __init__(self, session_id: str):
+    def __init__(self, session_id: str, v4_only: bool = False):
+        # v4_only is an explicit DECLARATION, never an inference. E-2's fix turns every
+        # IPv6 arming failure into a refusal; an operator who genuinely wants a v4-only
+        # session has to say so, and what was armed is then recorded rather than guessed
+        # at by a reader of the receipt.
+        self.v4_only     = v4_only
         self.session_id  = session_id
         self.cgroup_path = os.path.join(CGROUP_ROOT, session_id)
         self.pin_dir     = os.path.join(BPF_PIN_ROOT, session_id)
@@ -486,7 +565,16 @@ class EgressSession:
 
         if not _obtain_bpf(_BPF_CONNECT4_C, "connect4", v4_obj):
             return False
-        _obtain_bpf(_BPF_CONNECT6_C, "connect6", v6_obj)  # v6 failure is non-fatal
+        # E-2: this line used to discard its result. Combined with the three checks
+        # below it, a session that could not arm IPv6 armed IPv4, returned True, and
+        # reported itself ready — enforcing half of what it claimed, silently. A run
+        # that did not happen must not look like one that did.
+        if not _obtain_bpf(_BPF_CONNECT6_C, "connect6", v6_obj):
+            if not self.v4_only:
+                sys.stderr.write("[kavachos:egress] connect6 object unavailable and this "
+                                 "session did not declare v4_only — REFUSING to arm\n")
+                return False
+            sys.stderr.write("[kavachos:egress] connect6 unavailable; v4_only DECLARED, continuing\n")
 
         # Load + pin
         v4_pin = os.path.join(self.pin_dir, "connect4")
@@ -513,13 +601,31 @@ class EgressSession:
 
         if os.path.exists(v6_obj):
             v6_pin = os.path.join(self.pin_dir, "connect6")
-            self.prog_id_v6 = _prog_load(v6_obj, v6_pin) or -1   # v6 failure is non-fatal
+            # Same shape as the v4 load above: test the result BEFORE normalising, so
+            # the sentinel does not make the failure check dead code.
+            loaded_v6 = _prog_load(v6_obj, v6_pin)
+            if loaded_v6 is None:
+                self.prog_id_v6 = -1
+                if not self.v4_only:
+                    sys.stderr.write("[kavachos:egress] connect6 failed to load — REFUSING to arm\n")
+                    return False
+            else:
+                self.prog_id_v6 = loaded_v6
+        elif not self.v4_only:
+            sys.stderr.write("[kavachos:egress] no connect6 object to load — REFUSING to arm\n")
+            return False
 
         # Attach to cgroup
         if not _cgroup_attach(self.cgroup_path, self.prog_id_v4, "connect4"):
             return False
         if self.prog_id_v6 > 0:
-            _cgroup_attach(self.cgroup_path, self.prog_id_v6, "connect6")
+            # E-2: this attach used to be called without checking. A program that loads
+            # but never attaches enforces nothing at all.
+            if not _cgroup_attach(self.cgroup_path, self.prog_id_v6, "connect6"):
+                if not self.v4_only:
+                    sys.stderr.write("[kavachos:egress] connect6 failed to attach — REFUSING to arm\n")
+                    return False
+                self.prog_id_v6 = -1
 
         # Populate allowlist maps
         self._populate(policy)
@@ -539,6 +645,26 @@ class EgressSession:
             f"{who} hosts={allow_len}\n"
         )
         return True
+
+    def enforced_families(self) -> dict:
+        """
+        What this session ACTUALLY armed — for the receipt. @rule:KOS-040
+
+        The defect this closes is not that IPv6 could fail; it is that a receipt looked
+        identical whether it had or not. A verifier comparing two receipts could not
+        tell a session that enforced both families from one that enforced one, so the
+        degradation was invisible to exactly the artefact meant to make it visible.
+
+        `complete` is the single bit a policy digest or a manifest should carry.
+        """
+        v4 = self.prog_id_v4 > 0
+        v6 = self.prog_id_v6 > 0
+        return {
+            "ipv4": v4,
+            "ipv6": v6,
+            "v4_only_declared": bool(self.v4_only),
+            "complete": bool(v4 and (v6 or self.v4_only)),
+        }
 
     def procs(self) -> list:
         """Pids currently inside the cgroup."""
@@ -564,16 +690,36 @@ class EgressSession:
 
             for ip in ips:
                 be32 = _ip4_be32(ip)
-                if be32 is not None and map_v4 is not None:
+                if be32 is not None:
+                    if map_v4 is None:
+                        # E-2: this used to be silent. An allowlist entry that was never
+                        # programmed is a denial the operator did not ask for, and the
+                        # v4 path already warns about unresolvable hosts — the two cases
+                        # deserve the same volume.
+                        sys.stderr.write(f"[kavachos:egress] WARNING: v4 map absent, entry NOT enforced: {ip}:{port} ({note})\n")
+                        continue
                     # Key: ip_be32 << 32 | port_host (stored little-endian for bpftool)
-                    key = (be32 << 32) | port
-                    _map_update(map_v4, key, 1)
+                    _map_update(map_v4, (be32 << 32) | port, 1)
+
+                    # A dual-stack caller reaches this same host as ::ffff:a.b.c.d, and
+                    # that connect() is hooked by connect6, not connect4. Program the
+                    # mapped form too, or widening the v6 key would newly DENY traffic
+                    # the policy permits.
+                    if map_v6 is not None:
+                        mapped = _v4_mapped(ip)
+                        kb = _ip6_key(mapped, port) if mapped else None
+                        if kb is not None:
+                            _map_update_bytes(map_v6, kb, 1)
                     continue
 
-                last32 = _ip6_last32_be(ip)
-                if last32 is not None and map_v6 is not None:
-                    key = (last32 << 32) | port
-                    _map_update(map_v6, key, 1)
+                kb = _ip6_key(ip, port)
+                if kb is None:
+                    sys.stderr.write(f"[kavachos:egress] WARNING: unparseable address skipped: {ip} ({note})\n")
+                    continue
+                if map_v6 is None:
+                    sys.stderr.write(f"[kavachos:egress] WARNING: v6 map absent, entry NOT enforced: {ip}:{port} ({note})\n")
+                    continue
+                _map_update_bytes(map_v6, kb, 1)
 
     def set_dns_proxy_port(self, port: int) -> bool:
         """
