@@ -1,0 +1,34 @@
+{
+  "schema": "apibox-policy-face-v1",
+  "egress": [
+    {
+      "host": "127.0.0.1",
+      "port": 4444,
+      "note": "depends_on ai-proxy",
+      "source": "depends_on"
+    },
+    {
+      "host": "127.0.0.1",
+      "port": 4015,
+      "note": "depends_on complymitra-api",
+      "source": "depends_on"
+    },
+    {
+      "host": "127.0.0.1",
+      "port": 3401,
+      "note": "depends_on ankr-marketplace",
+      "source": "depends_on"
+    }
+  ],
+  "unresolved": [
+    {
+      "name": "vyomo-live-chart-api",
+      "reason": "declared in depends_on but the port authority could not place it"
+    },
+    {
+      "name": "ankr-eon",
+      "reason": "declared in depends_on but the port authority could not place it"
+    }
+  ],
+  "digest": "24156f397be1339dcb197f3a2dc82c1b75ed716f55a2a0910ef989d16bb635e2"
+}
