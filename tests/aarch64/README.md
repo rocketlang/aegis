@@ -56,6 +56,8 @@ any git tree; only these scripts are tracked.
 | `harness-seccomp-enforcement.sh` | **0 failures** (6 checks) | **4 failures**, all timeouts (pre-fix build) |
 | `harness-no-toolchain.sh` | **0 failures** (2 checks) | n/a — it *is* the control |
 | `harness-prog-tag.sh` | **0 failures** (9 checks) | n/a — it measures a kernel property |
+| `harness-prebuilt-no-clang.sh` | **0 failures** (5 checks) | tampered object → refused |
+| `harness-tag-vs-bytes.sh` | **0 failures** (5 checks) | n/a — it settles a design question |
 
 Both directions forced. On the pre-fix code the guest reports `execve` resolving to 59
 (it is `pipe2` there), `execveat` to 322, and a syscall name table with **0 entries** —
@@ -162,6 +164,37 @@ instruction stream, **not the maps**. Policy lives in the maps, so two programs 
 identical bytecode and completely different allowlists share a tag. A runtime manifest
 must therefore digest map contents separately — the program tag alone would attest the
 enforcement *mechanism* while saying nothing about the *policy* being enforced.
+
+### `harness-prebuilt-no-clang.sh` — the shipping blocker, closed
+
+`harness-no-toolchain` showed the egress layer disables itself without a compiler, which
+ruled it out of exactly the images that most need it ("read-only rootfs, root locked, no
+SSH, no debug tooling"). The layer now prefers a **prebuilt BPF object**, and
+`_is_available()` requires clang only when there is nothing prebuilt to load.
+
+**Measured:** an object built on **x86_64** loads and attaches on **aarch64**, an allowed
+destination connects, and a denied one is refused with `PermissionError` — with **clang
+moved off the machine entirely**. BPF bytecode is architecture-neutral between
+little-endian targets, so one CI build serves both.
+
+**Loading bytes somebody else compiled moves trust**, so each object ships with a
+`.sha256` sidecar. A mismatch is **refused outright** and never compiled around — a silent
+fallback to clang would hide precisely the substitution the sidecar exists to catch.
+Measured both ways: untampered accepted, one flipped byte refused, and tampered-plus-no-
+compiler reports UNAVAILABLE rather than passing quietly.
+
+### `harness-tag-vs-bytes.sh` — what a manifest can publish
+
+An object compiled on a different host has **different bytes** (different clang, different
+paths in debug info). If a reference manifest published a byte digest, an operator who
+rebuilt from source would see a mismatch and reasonably conclude tampering.
+
+**Measured:** x86-built `c6c1a262…`, natively-built `147bef39…` — different. Both load,
+and **both report the same kernel tag `927b5c5e18d0c7ee`.**
+
+So the publishable value is the **tag**: it survives a rebuild on a different host, the
+bytes do not. Combined with `harness-prog-tag`'s finding that the tag does not cover the
+maps, a runtime manifest needs **tag + separate map digest**.
 
 ## One run at a time
 

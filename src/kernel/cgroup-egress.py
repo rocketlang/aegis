@@ -30,6 +30,7 @@ import os
 import re
 import shutil
 import socket
+import hashlib
 import struct
 import subprocess
 import sys
@@ -164,8 +165,14 @@ def _has_cgroupv2() -> bool:
 
 def _is_available() -> bool:
     ok = True
-    if not _has_tool("clang"):
-        sys.stderr.write("[kavachos:egress] clang not found — egress firewall disabled\n")
+    # clang is needed ONLY when there is nothing prebuilt to load. A hardened production
+    # image ships "no debug tooling" — measured 2026-09-29: with clang removed this whole
+    # layer disabled itself, wrote UNAVAILABLE and exited 0. Requiring a compiler at run
+    # time on the target is what made the firewall unshippable to the images that most
+    # need it, so a prebuilt object satisfies the requirement instead.
+    if not _prebuilt_obj("connect4") and not _has_tool("clang"):
+        sys.stderr.write("[kavachos:egress] no prebuilt BPF object and no clang — "
+                         "egress firewall disabled\n")
         ok = False
     if not _has_tool("bpftool"):
         sys.stderr.write("[kavachos:egress] bpftool not found — egress firewall disabled\n")
@@ -176,6 +183,63 @@ def _is_available() -> bool:
     return ok
 
 # ── Compilation ────────────────────────────────────────────────────────────────
+
+# ── Prebuilt objects ───────────────────────────────────────────────────────────
+#
+# BPF bytecode is architecture-neutral between little-endian targets, so one object
+# built in CI can serve x86_64 and aarch64 alike. That is what lets this layer run on an
+# image with no toolchain.
+#
+# It also moves trust: loading bytes somebody else compiled is not the same as compiling
+# them here. So a prebuilt object is used only when its recorded digest matches, and the
+# digest is printed at load so a receipt can carry it. An object with a sidecar that
+# does NOT match is refused outright rather than compiled around — a silent fallback to
+# clang would hide exactly the substitution the sidecar exists to catch.
+BPF_OBJ_DIR = os.environ.get(
+    "KAVACHOS_BPF_OBJ_DIR",
+    os.path.join(os.path.dirname(os.path.abspath(__file__)), "bpf"),
+)
+
+def _prebuilt_obj(name: str) -> Optional[str]:
+    """Path to a usable prebuilt <name>.o, or None. Refuses a digest mismatch."""
+    obj = os.path.join(BPF_OBJ_DIR, f"{name}.o")
+    if not os.path.exists(obj):
+        return None
+    sidecar = obj + ".sha256"
+    if os.path.exists(sidecar):
+        try:
+            want = open(sidecar).read().split()[0].strip().lower()
+            got = hashlib.sha256(open(obj, "rb").read()).hexdigest()
+        except Exception as e:
+            sys.stderr.write(f"[kavachos:egress] REFUSING prebuilt {name}.o — digest "
+                             f"unreadable ({type(e).__name__}); not falling back to clang\n")
+            return None
+        if got != want:
+            sys.stderr.write(f"[kavachos:egress] REFUSING prebuilt {name}.o — digest "
+                             f"MISMATCH\n    recorded {want}\n    actual   {got}\n")
+            return None
+    return obj
+
+def _obtain_bpf(src: str, name: str, out_path: str) -> bool:
+    """Prefer a prebuilt object; fall back to compiling. Says which, every time."""
+    pre = _prebuilt_obj(name)
+    if pre:
+        try:
+            shutil.copyfile(pre, out_path)
+        except Exception as e:
+            sys.stderr.write(f"[kavachos:egress] prebuilt {name}.o unusable: {e}\n")
+            return False
+        digest = hashlib.sha256(open(out_path, "rb").read()).hexdigest()
+        sys.stderr.write(f"[kavachos:egress] loading PREBUILT {name}.o sha256={digest}\n")
+        return True
+    if not _has_tool("clang"):
+        sys.stderr.write(f"[kavachos:egress] no prebuilt {name}.o and no clang\n")
+        return False
+    if not _compile_bpf(src, out_path):
+        return False
+    digest = hashlib.sha256(open(out_path, "rb").read()).hexdigest()
+    sys.stderr.write(f"[kavachos:egress] COMPILED {name}.o sha256={digest}\n")
+    return True
 
 def _compile_bpf(src: str, out_path: str) -> bool:
     """Compile BPF C source to object file via clang."""
@@ -420,9 +484,9 @@ class EgressSession:
         v6_obj = f"/tmp/kavachos-{self.session_id}-connect6.o"
         self._tmp.extend([v4_obj, v6_obj])
 
-        if not _compile_bpf(_BPF_CONNECT4_C, v4_obj):
+        if not _obtain_bpf(_BPF_CONNECT4_C, "connect4", v4_obj):
             return False
-        _compile_bpf(_BPF_CONNECT6_C, v6_obj)  # v6 failure is non-fatal
+        _obtain_bpf(_BPF_CONNECT6_C, "connect6", v6_obj)  # v6 failure is non-fatal
 
         # Load + pin
         v4_pin = os.path.join(self.pin_dir, "connect4")

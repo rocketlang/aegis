@@ -1,0 +1,5 @@
+# Build artefacts: bytes are NOT reproducible across build hosts (measured 2026-09-29).
+# The publishable value is the kernel program TAG, which IS stable. Build with
+# tests/aarch64/build-bpf-objects.sh; ship the .o, publish the tag.
+*.o
+*.o.sha256
