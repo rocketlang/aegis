@@ -53,7 +53,7 @@ any git tree; only these scripts are tracked.
 |---|---|---|
 | `harness-syscall-resolution.sh` | 0 failures | **6 failures** |
 | `harness-egress-enforcement.sh` | **0 failures** (6 checks) | **1 failure** with attach neutered |
-| `harness-seccomp-enforcement.sh` | **0 failures** (6 checks) | see below (pre-fix build) |
+| `harness-seccomp-enforcement.sh` | **0 failures** (6 checks) | **4 failures**, all timeouts (pre-fix build) |
 | `harness-no-toolchain.sh` | **0 failures** (2 checks) | n/a — it *is* the control |
 
 Both directions forced. On the pre-fix code the guest reports `execve` resolving to 59
@@ -118,9 +118,23 @@ shape recurs:
    `EXEC-DENIED` (execve itself refused, no output) from `EXEC-RAN` (output produced) and
    refuses to score an ambiguous result as either.
 
-Every probe is bounded by `timeout 120`, and a timeout is its own named outcome. The
-pre-fix build does not fail open here — it **hangs**, because the supervisor does not
-recognise `execve` and falls through to the human-approval path that no one can answer.
+Every probe is bounded by `timeout 120`, and a timeout is its own named outcome.
+
+**Negative control, measured 2026-09-29 on the pre-fix build:** 4 failures, every one a
+timeout, launcher exit 1. The pre-fix code does **not** fail open here — it **hangs**,
+because the supervisor's `nr in (_NR_EXECVE, _NR_EXECVEAT)` does not match (execve is 221
+on this architecture, the constant said 59), so exec falls through to the human-approval
+path that nobody can answer. The same run prints:
+
+```
+[kavachos:supervisor] GATED syscall=fadvise64 pid=511 approval=KOS-D8AA17AA
+```
+
+`fadvise64` is 221's name **on x86**. So an operator watching a hardened ARM device would
+be asked to approve a syscall that is not the one being made. **Confidently wrong labels
+are worse than missing ones** — and this is why the earlier description of the bug as
+"lets every exec through" was wrong, and is corrected here: the mechanism is
+hang-and-mislabel.
 
 ### `harness-no-toolchain.sh`
 
