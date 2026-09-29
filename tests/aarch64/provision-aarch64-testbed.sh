@@ -90,11 +90,11 @@ if [ "${1:-}" != "--no-deps" ]; then
   cat > "$DEPS/run.sh" <<'DEPSH'
 #!/bin/sh
 set -e
-echo "installing: clang bpftool libbpf-dev iproute2"
+echo "installing: clang bpftool libbpf-dev iproute2 unzip"
 export DEBIAN_FRONTEND=noninteractive
 apt-get update -qq
-apt-get install -y -qq --no-install-recommends clang bpftool libbpf-dev iproute2 >/dev/null
-for t in clang bpftool ip; do
+apt-get install -y -qq --no-install-recommends clang bpftool libbpf-dev iproute2 unzip >/dev/null
+for t in clang bpftool ip unzip; do
   printf "  %-10s " "$t"; command -v $t >/dev/null && echo "$(command -v $t)" || { echo MISSING; exit 1; }
 done
 echo "deps ok"

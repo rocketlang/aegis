@@ -58,6 +58,7 @@ any git tree; only these scripts are tracked.
 | `harness-prog-tag.sh` | **0 failures** (9 checks) | n/a — it measures a kernel property |
 | `harness-prebuilt-no-clang.sh` | **0 failures** (5 checks) | tampered object → refused |
 | `harness-tag-vs-bytes.sh` | **0 failures** (5 checks) | n/a — it settles a design question |
+| `harness-typescript-layer.sh` | **0 failures** — 87 TS tests pass in-guest | n/a — it closes a named unknown |
 
 Both directions forced. On the pre-fix code the guest reports `execve` resolving to 59
 (it is `pipe2` there), `execveat` to 322, and a syscall name table with **0 entries** —
@@ -195,6 +196,28 @@ and **both report the same kernel tag `927b5c5e18d0c7ee`.**
 So the publishable value is the **tag**: it survives a rebuild on a different host, the
 bytes do not. Combined with `harness-prog-tag`'s finding that the tag does not cover the
 maps, a runtime manifest needs **tag + separate map digest**.
+
+### `harness-typescript-layer.sh`
+
+Answers whether the TypeScript half runs on the target at all. The design doc named this
+unmeasured and said that until it was, "mount AEGIS on the edge" was an intention rather
+than a claim — and it is decision-relevant: if the runtime will not start there, whatever
+produces a receipt has to be written in something else.
+
+**Measured 2026-09-29:** bun 1.4.2 installs and runs on aarch64, reports `arm64 linux`
+(not an emulated x64 build), and **all 87 tests of the dependency-light modules pass
+in-guest** — the register, the policy compiler, the manifest comparator and the ApiBox
+cross-check.
+
+Only those modules are under test, deliberately: they are the ones that stopped importing
+a database when `merkle-tree` was split out, and they are exactly what an edge device
+would carry. **The full stack's resource fit is still unmeasured** and is not implied by
+this.
+
+A note kept because it cost a run: bun's installer unpacks a zip, and `unzip` was absent.
+The failure named itself — *"unzip is required to install bun"* — which is the only
+reason it took one run rather than an afternoon. A runtime that cannot install is
+otherwise indistinguishable from one that cannot run.
 
 ## One run at a time
 
