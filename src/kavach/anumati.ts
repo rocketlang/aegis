@@ -44,6 +44,7 @@ import { fsTargetVerdict } from "./fs-capability";
 import { isPublishInvocation, publishVerdict, readMandates } from "./publish-capability";
 import { checkMudrika, mudrikaActVerdict } from "./mudrika-validator";
 import { redactSecrets } from "../shield/credential-marker";
+import { precededByForSession } from "../shield/provenance";
 
 const TRIPWIRE_LEDGER = join(process.env.HOME || "/root", ".aegis", "tripwire.jsonl");
 
@@ -678,6 +679,11 @@ export function ledgerAnumati(action: ProposedAction, decision: AnumatiDecision,
         observations: decision.observations.map(r => ({ id: r.id, verdict: r.verdict, detail: r.detail })),
         // AFW-012 — the provenance record an outward write leaves, PERMIT included.
         ...(provenance.length ? { provenance: provenance.map(r => ({ id: r.id, verdict: r.verdict, detail: r.detail })) } : {}),
+        // AF-T-710 — an egress verdict carries what the agent READ just before it (source
+        // classes, hashes, injection hits — no content), so attribution is checkable.
+        ...([...decision.refusals, ...decision.observations].some(r => r.id === "ANU-I-007")
+          ? { preceded_by: precededByForSession(action.session_id) }
+          : {}),
       }) + "\n",
     );
   } catch {

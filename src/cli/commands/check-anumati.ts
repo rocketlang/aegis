@@ -14,6 +14,7 @@
 
 import { readFileSync, existsSync, appendFileSync } from "fs";
 import { join } from "path";
+import { precededByForSession } from "../../shield/provenance";
 import {
   anumati,
   anumatiMode,
@@ -105,5 +106,9 @@ export default async function checkAnumati(_args: string[]): Promise<void> {
   }
 
   process.stderr.write(renderRefusal(decision, mode));
+  // AF-T-710 — an egress refusal names what preceded it (ledgered in full as preceded_by)
+  if (decision.refusals.some(r => r.id === "ANU-I-007")) {
+    try { process.stderr.write(`[ANUMATI] ${precededByForSession(action.session_id).summary}\n`); } catch {}
+  }
   process.exit(mode === "enforce" ? 2 : 0);
 }

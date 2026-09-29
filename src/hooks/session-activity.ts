@@ -18,6 +18,8 @@ import { getDb } from "../core/db";
 import { appendToolCall } from "../telemetry/turn-store";
 import { recordActualCap } from "../core/ase";
 import { DASHBOARD_PORT } from "../core/config";
+import { redactSecrets } from "../shield/credential-marker";
+import { recordProvenance } from "../shield/provenance";
 
 // Extract task_id from Agent tool response — Claude Code returns it in several possible shapes
 function extractTaskId(response: unknown): string | null {
@@ -39,12 +41,15 @@ interface PostToolPayload {
 // Sanitize tool_input — never log credential values
 const REDACT_KEYS = new Set(["password", "token", "secret", "api_key", "key", "credential", "auth"]);
 
+// AF-T-710 — key names alone missed a secret written INLINE in a string field (a Bash
+// `command` carrying `-H "X-Auth-Token: …"` or an sk-… literal was logged raw). String
+// values now pass through the same redactSecrets the anumati ledger uses.
 function sanitizeInput(input: Record<string, unknown> | undefined): Record<string, unknown> {
   if (!input) return {};
   return Object.fromEntries(
     Object.entries(input).map(([k, v]) => [
       k,
-      REDACT_KEYS.has(k.toLowerCase()) ? "[REDACTED]" : v,
+      REDACT_KEYS.has(k.toLowerCase()) ? "[REDACTED]" : typeof v === "string" ? redactSecrets(v) : v,
     ])
   );
 }
@@ -213,13 +218,16 @@ function run(): void {
       if (resp.toLowerCase().includes("error") || resp.toLowerCase().includes("failed")) {
         outcome = "error";
       }
-      responseSummary = resp.slice(0, 200);
+      responseSummary = redactSecrets(resp).slice(0, 200);
     } else if (typeof resp === "object" && resp !== null) {
       const respStr = JSON.stringify(resp);
       if (respStr.toLowerCase().includes("error")) outcome = "error";
-      responseSummary = respStr.slice(0, 200);
+      responseSummary = redactSecrets(respStr).slice(0, 200);
     }
   } catch {}
+
+  // @rule:AF-T-710 — provenance ring: what the agent READ, so a later egress can say what preceded it
+  recordProvenance(sessionId, toolName, payload.tool_input, payload.tool_response);
 
   const record = {
     ts: now,

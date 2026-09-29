@@ -28,10 +28,13 @@ import { recordObservation, extractBashFirstToken, normalizePathPrefix } from ".
 import { readValve } from "../../kavach/gate-valve";
 import { emitReceipt } from "../../kavach/pramana-emit";
 import type { ReceiptVerdict } from "../../../ee/kavach/pramana-receipts";
+import { precededByForSession } from "../../shield/provenance";
 
 // Session id for the current hook invocation — captured once, read by emitBlock
 // when it records the PRAMANA receipt. Each hook run is its own process.
 let _shieldSession = "unknown";
+// AF-T-710 — set only for an exfil BLOCK; rides into the receipt context and the banner.
+let _precededBy: string | null = null;
 
 function readStdin(): string {
   try {
@@ -160,6 +163,8 @@ export default async function checkShield(_args: string[]): Promise<void> {
       // Exfil ring buffer check
       const exfilResult = detectExfilSequence(command, rules);
       if (exfilResult.verdict === "BLOCK") {
+        // AF-T-710 — the receipt/banner names what the agent read just before this egress
+        try { _precededBy = precededByForSession(sessionId).summary; } catch {}
         // Alert mode lets the command run → the audit verdict must say ALLOWED, not BLOCKED.
         emitBlock("SHIELD", exfilResult.rule_id, exfilResult.reason, exfilResult.category, enforce ? "BLOCKED" : "ALLOWED");
         if (enforce) process.exit(2);
@@ -201,7 +206,7 @@ function emitBlock(source: string, ruleId: string, reason: string, category: str
   emitReceipt(
     "INJECTION_SHIELD",
     verdict,
-    { session_id: _shieldSession, rule_id: ruleId, reason, context: { source, detector_category: category } },
+    { session_id: _shieldSession, rule_id: ruleId, reason, context: { source, detector_category: category, ...(_precededBy ? { preceded_by: _precededBy } : {}) } },
     {
       rule_applied: ruleId,
       decision_path: `INJECTION_SHIELD -> ${source} -> ${verdict}`,
@@ -218,6 +223,7 @@ function emitBlock(source: string, ruleId: string, reason: string, category: str
     `  Rule     : ${ruleId}`,
     `  Category : ${category}`,
     `  Reason   : ${reason}`,
+    ...(_precededBy ? [`  Context  : ${_precededBy}`] : []),
     ``,
     verdict === "ALLOWED"
       ? `  Monitor mode: this action was ALLOWED and recorded by LakshmanRekha (AEGIS Shield).`
