@@ -25,7 +25,8 @@ import {
 
 function readStdin(): string {
   try {
-    return readFileSync("/dev/stdin", "utf-8");
+    // fd 0, not "/dev/stdin": hook stdin is a socket, where /dev/stdin throws ENXIO (blind 09-25→09-29)
+    return readFileSync(0, "utf-8");
   } catch {
     return "";
   }

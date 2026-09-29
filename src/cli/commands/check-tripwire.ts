@@ -30,7 +30,8 @@ function recordTripwire(rec: Record<string, unknown>): void {
 
 export default async function checkTripwire(_args: string[]): Promise<void> {
   let stdin = "";
-  try { stdin = readFileSync("/dev/stdin", "utf-8").trim(); } catch { /* no stdin */ }
+  // fd 0, not "/dev/stdin": hook stdin is a socket, where /dev/stdin throws ENXIO (blind 09-25→09-29)
+  try { stdin = readFileSync(0, "utf-8").trim(); } catch { /* no stdin */ }
   if (!stdin) process.exit(0);
 
   let payload: { tool_name?: string; session_id?: string; agent_id?: string; cwd?: string; tool_input?: unknown };

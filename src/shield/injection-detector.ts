@@ -265,7 +265,12 @@ export function detectMCPInjection(stdinJson: unknown): DetectionResult {
   harvest(raw.tool_result);
   harvest(raw.content);
   const toolInput = raw.tool_input as Record<string, unknown> | undefined;
-  if (toolInput) {
+  // tool_input.content of an AUTHORING tool is the agent's own text (a Write's file body),
+  // not a response from any MCP server — scanning it flagged test fixtures as "MCP injection"
+  // and would QUARANTINE the write (stage-2 replay, 2026-09-29). Authored content is
+  // chitta's lane (check-chitta scans protected writes).
+  const AUTHORING = new Set(["Write", "Edit", "NotebookEdit", "MultiEdit", "Bash"]);
+  if (toolInput && !AUTHORING.has(String(raw.tool_name ?? ""))) {
     harvest(toolInput.tool_result);
     harvest(toolInput.content);
   }
