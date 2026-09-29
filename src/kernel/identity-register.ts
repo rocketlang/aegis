@@ -252,8 +252,13 @@ export class IdentityRegister {
   /** Canonical, order-independent-of-formatting encoding of a sighting. Every field that
    *  a verdict depends on is in here; anything omitted could be altered undetectably. */
   static leafOf(s: Sighting): string {
-    return [s.identity, s.instance, String(s.counter), s.progTag ?? "", s.mapDigest ?? "",
-            s.tokenId ?? "", s.hostId ?? ""].join("\u0000");
+    // JSON, not a NUL-joined string. A separator-joined encoding is forgeable across
+    // field boundaries: identity "a\u0000b" + instance "c" produced the SAME leaf as
+    // identity "a" + instance "b\u0000c", so two different sightings shared one merkle
+    // leaf and could be substituted under a published root. Found by attacking this
+    // file on 2026-09-29. JSON escapes the separator, so no value can impersonate one.
+    return JSON.stringify([s.identity, s.instance, s.counter, s.progTag ?? "",
+                           s.mapDigest ?? "", s.tokenId ?? "", s.hostId ?? ""]);
   }
 
   leaves(): string[] { return this.log.map(IdentityRegister.leafOf); }

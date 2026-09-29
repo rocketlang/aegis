@@ -145,8 +145,10 @@ export function inAgreement(d: Drift): boolean {
  * should be told when the justification changed.
  */
 export function policyDigest(allow: AllowEntry[], sha256: (s: string) => string): string {
+  // JSON per entry, for the same reason leafOf uses it: a NUL-joined encoding lets a
+  // value containing the separator impersonate a field boundary.
   const lines = allow
-    .map(e => `${e.host}\u0000${e.port}\u0000${e.source}\u0000${e.note}`)
+    .map(e => JSON.stringify([e.host, e.port, e.source, e.note]))
     .sort();
   return sha256(lines.join("\n"));
 }

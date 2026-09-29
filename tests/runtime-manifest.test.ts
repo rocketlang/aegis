@@ -63,8 +63,15 @@ describe("absence is FAILURE, never a skip — the whole lesson", () => {
     // the MANIFEST and says nothing about the device. Assert the shape rather than a
     // bare count, so the test states what it means: no EVIDENCE check passed.
     const passing = v.checks.filter(c => c.ok).map(c => c.name);
-    expect(passing.every(n => n.includes("schema"))).toBe(true);
-    expect(v.checks.filter(c => !c.ok).length).toBeGreaterThanOrEqual(5);
+    // Everything that may pass here is about the MANIFEST — its schema, and that it
+    // states expectations at all. None of it says anything about the device. Assert
+    // that intent rather than a substring or a count, so adding a manifest-side check
+    // does not look like a regression (it did once, on 2026-09-29).
+    const manifestSide = (n: string) => n.includes("schema") || n.startsWith("the manifest states");
+    expect(passing.every(manifestSide)).toBe(true);
+    const deviceChecks = v.checks.filter(c => !manifestSide(c.name));
+    expect(deviceChecks.length).toBeGreaterThanOrEqual(5);
+    expect(deviceChecks.every(c => !c.ok)).toBe(true);   // no EVIDENCE check passed
   });
 });
 

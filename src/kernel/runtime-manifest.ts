@@ -149,6 +149,19 @@ export function verifyReceipt(m: RuntimeManifest, r: LaunchReceipt): Verdict {
   const checks: Check[] = [];
   const add = (name: string, ok: boolean, detail: string) => checks.push({ name, ok, detail });
 
+  // A manifest that expects NOTHING is satisfied by a device showing nothing. Both were
+  // real: an absent `expect` crashed the comparator (a crash is not a verdict, and a
+  // caller catching it may read it as "could not check"), and empty strings on both
+  // sides passed with 0 failures. Found by attacking this file on 2026-09-29.
+  const expTag = m?.expect?.progTag;
+  const expPol = m?.expect?.policyDigest;
+  add("the manifest states a program tag to expect",
+      typeof expTag === "string" && expTag.length > 0,
+      expTag ? `expect ${expTag}` : "ABSENT or empty — a manifest expecting nothing cannot be a reference");
+  add("the manifest states a policy digest to expect",
+      typeof expPol === "string" && expPol.length > 0,
+      expPol ? `expect ${expPol}` : "ABSENT or empty — a manifest expecting nothing cannot be a reference");
+
   add("manifest schema is the one this verifier understands",
       m.schema === MANIFEST_SCHEMA, `manifest schema=${m.schema ?? "(absent)"}`);
   add("receipt schema is the one this verifier understands",
@@ -166,8 +179,8 @@ export function verifyReceipt(m: RuntimeManifest, r: LaunchReceipt): Verdict {
         false, "ABSENT from the receipt — not skipped, FAILED: nothing attests the mechanism");
   } else {
     add("the enforcing program's kernel tag matches the published reference",
-        r.observed.progTag === m.expect.progTag,
-        `expected ${m.expect.progTag} observed ${r.observed.progTag}`);
+        !!expTag && r.observed.progTag === expTag,
+        `expected ${expTag ?? "(absent)"} observed ${r.observed.progTag}`);
   }
 
   if (r.observed?.policyDigest === undefined) {
@@ -175,8 +188,8 @@ export function verifyReceipt(m: RuntimeManifest, r: LaunchReceipt): Verdict {
         false, "ABSENT from the receipt — not skipped, FAILED: the tag alone says nothing about the rules");
   } else {
     add("the enforced policy matches the published reference",
-        r.observed.policyDigest === m.expect.policyDigest,
-        `expected ${m.expect.policyDigest} observed ${r.observed.policyDigest}`);
+        !!expPol && r.observed.policyDigest === expPol,
+        `expected ${expPol ?? "(absent)"} observed ${r.observed.policyDigest}`);
   }
 
   // XRA-R-007: a receipt must name its voucher, and it must be the one that was
