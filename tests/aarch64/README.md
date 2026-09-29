@@ -55,6 +55,7 @@ any git tree; only these scripts are tracked.
 | `harness-egress-enforcement.sh` | **0 failures** (6 checks) | **1 failure** with attach neutered |
 | `harness-seccomp-enforcement.sh` | **0 failures** (6 checks) | **4 failures**, all timeouts (pre-fix build) |
 | `harness-no-toolchain.sh` | **0 failures** (2 checks) | n/a — it *is* the control |
+| `harness-prog-tag.sh` | **0 failures** (9 checks) | n/a — it measures a kernel property |
 
 Both directions forced. On the pre-fix code the guest reports `execve` resolving to 59
 (it is `pipe2` there), `execveat` to 322, and a syscall name table with **0 entries** —
@@ -143,6 +144,24 @@ by taking `clang` away and asking. **Measured: it cannot.** `_is_available()` re
 False, and the layer disables itself by writing `UNAVAILABLE` and exiting 0 — quietly,
 completely, and by design. Shipping to such an image needs a **precompiled BPF object**
 rather than runtime compilation. That is a design consequence, not a bug.
+
+### `harness-prog-tag.sh`
+
+Asks whether a runtime receipt could carry a digest the **kernel** computed rather than
+the supervisor's word for what it loaded — the load-bearing assumption under an
+rc13-shaped design for runtime policy. In a TPM quote the PCR values come from hardware,
+not from the software being attested; the runtime analogue would be the BPF program tag.
+
+**Measured 2026-09-29, aarch64:** the kernel reports `tag=927b5c5e18d0c7ee`, 64-bit,
+addressable by the id it assigned, and **identical across two separate loads** of the same
+program (ids 42 and 54; the tag does not change). That is exactly the property a published
+reference needs — a value fixed in advance that a device can be compared against.
+
+**And the gap it found, which matters more than the confirmation:** the tag covers the
+instruction stream, **not the maps**. Policy lives in the maps, so two programs with
+identical bytecode and completely different allowlists share a tag. A runtime manifest
+must therefore digest map contents separately — the program tag alone would attest the
+enforcement *mechanism* while saying nothing about the *policy* being enforced.
 
 ## One run at a time
 
