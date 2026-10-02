@@ -1,8 +1,8 @@
 {
   "_comment": "AEGIS Destructive Command Rules — append-only. Never remove entries. Add new ones as threats discovered.",
-  "_version": "1.1.0",
-  "_updated": "2026-08-01",
-  "_reason": "5 database wipes in production. This file defines what agents can NEVER do without human override. 2026-08-01: +2 Prisma shadow-database patterns — the wiper that wears the safety tool's name (see those entries' reason fields).",
+  "_version": "1.2.0",
+  "_updated": "2026-10-02",
+  "_reason": "5 database wipes in production. This file defines what agents can NEVER do without human override. 2026-08-01: +2 Prisma shadow-database patterns — the wiper that wears the safety tool's name (see those entries' reason fields). 2026-10-02: two patterns narrowed, none removed — each still refuses every statement form in tests/shipped-ruleset.test.ts, and refuses nothing it did not refuse before.",
 
   "bash_block_patterns": [
     {
@@ -12,9 +12,9 @@
       "severity": "CRITICAL"
     },
     {
-      "pattern": "DROP\\s+TABLE",
+      "pattern": "DROP\\s+TABLE(?:\\s+(?![\\s\\-—–·|/().,;])|\\s*[\"`\\[])",
       "flags": "i",
-      "reason": "Drops table — schema and data loss",
+      "reason": "Drops table — schema and data loss (2026-10-02: narrowed — what follows must be able to begin a table name; a match followed only by punctuation such as . , ; | / ( ) or a dash is prose, not a statement)",
       "severity": "CRITICAL"
     },
     {
@@ -24,9 +24,9 @@
       "severity": "CRITICAL"
     },
     {
-      "pattern": "TRUNCATE\\s+",
+      "pattern": "TRUNCATE\\s+(?![\\s\\-—–·|/().,;])",
       "flags": "i",
-      "reason": "Truncates table — deletes all rows instantly, no WAL",
+      "reason": "Truncates table — deletes all rows instantly, no WAL (2026-10-02: narrowed — the shell tool's flag form `truncate -s …` and a keyword followed only by punctuation no longer match; a quoted, variable or bare table name still does)",
       "severity": "CRITICAL"
     },
     {
