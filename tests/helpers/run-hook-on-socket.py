@@ -26,8 +26,10 @@ def main() -> int:
     payload = sys.stdin.buffer.read()
     ours, theirs = socket.socketpair()
     try:
+        # AEGIS_TEST_CLI points the run at another build of the same CLI (a bundled file, say).
+        cli = os.environ.get("AEGIS_TEST_CLI") or os.path.join(root, "src/cli/index.ts")
         proc = subprocess.Popen(
-            ["bun", os.path.join(root, "src/cli/index.ts"), hook],
+            ["bun", cli, hook],
             cwd=root, stdin=theirs, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=os.environ.copy(),
         )
         theirs.close()
