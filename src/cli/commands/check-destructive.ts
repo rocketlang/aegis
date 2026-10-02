@@ -8,7 +8,19 @@
 //
 // Level 0: (perm_mask & required_bits) !== 0        — O(1), silent block  (KAV-061)
 // Level 1: (class_mask & resource_class_bits) !== 0  — O(1), silent block  (KAV-062)
-// Level 2: DAN pattern match → KAVACH Gate (human approval)               (KAV-052)
+// Level 2: DAN pattern match → block, or the KAVACH Gate (human approval)   (KAV-052)
+//
+// Two settings decide how much of this runs. Both default to the quieter, safer side, and
+// an unreadable config means the defaults — a config fault must not widen what runs.
+//
+//   kavach.perm_mask_levels    "live"     Levels 0 and 1 run.
+//                              (default)  HELD. Only Level 2 runs. Levels 0 and 1 narrow an
+//                                         agent's valve after repeated violations, so they are
+//                                         switched on deliberately, not by default.
+//   kavach.destructive_critical "approve" A CRITICAL match opens the approval gate: a human is
+//                                         notified and the call waits for the answer.
+//                              (default)  BLOCK. A CRITICAL match is refused at once, like HIGH.
+//                                         Nobody is paged and nothing waits.
 //
 // @rule:KAV-052 — pre-execution intercept for all destructive actions
 // @rule:KAV-061 — Level 0 perm_mask enforcement
@@ -17,12 +29,13 @@
 
 import { readFileSync, existsSync } from "fs";
 import { join } from "path";
-import { DASHBOARD_PORT } from "../../core/config";
+import { DASHBOARD_PORT, loadConfig } from "../../core/config";
 import { requiredBitsForTool } from "../../kavach/perm-mask";
 import { classifyResource, extractResourceFromToolInput } from "../../kavach/class-mask";
 import { checkValve, incrementLoopCount } from "../../kavach/gate-valve";
 import { checkMudrika } from "../../kavach/mudrika-validator";
 import { destructiveVerdict, type DestructiveRule, type DestructiveRules } from "../../kavach/destructive-verdict";
+import { recordRefusal } from "../../core/refusal-ledger";
 
 const AEGIS_DIR = join(process.env.HOME || "/root", ".aegis");
 const RULES_PATH = join(AEGIS_DIR, "destructive-rules.json");
@@ -42,9 +55,20 @@ function loadRules(): DestructiveRules | null {
 
 function readStdin(): string {
   try {
-    return readFileSync("/dev/stdin", "utf-8");
+    // fd 0, not "/dev/stdin": hook stdin is a socket, where /dev/stdin throws ENXIO
+    return readFileSync(0, "utf-8");
   } catch {
     return "";
+  }
+}
+
+/** The two settings, read so that anything unreadable or unset lands on the default. */
+function gateSettings(): { permMaskLive: boolean; criticalApprove: boolean } {
+  try {
+    const k = (loadConfig().kavach ?? {}) as Record<string, unknown>;
+    return { permMaskLive: k.perm_mask_levels === "live", criticalApprove: k.destructive_critical === "approve" };
+  } catch {
+    return { permMaskLive: false, criticalApprove: false };
   }
 }
 
@@ -63,36 +87,39 @@ export default async function checkDestructive(_args: string[]): Promise<void> {
     const toolName = toolInput.tool_name ?? "";
     const agentId = toolInput.agent_id || toolInput.session_id || process.env.CLAUDE_SESSION_ID || "unknown";
     const command = (toolInput.tool_input?.command as string) ?? "";
+    const settings = gateSettings();
 
-    // ── Mudrika identity check (KOS-062) — before any enforcement ─────────
-    // Agents registered after Phase 4 always have a mudrika. Agents registered
-    // before Phase 4 (no mudrika file) are allowed through — no mudrika file
-    // means pre-Phase-4 spawn, not a spoofed identity.
-    const mudrika = checkMudrika(agentId);
-    if (!mudrika.valid && mudrika.reason !== "no mudrika — agent not registered") {
-      process.stderr.write(
-        `\n[KAVACH:MUDRIKA] IDENTITY DENIED — ${agentId}: ${mudrika.reason}\n\n`
-      );
-      process.exit(2);
+    if (settings.permMaskLive) {
+      // ── Mudrika identity check (KOS-062) — before any enforcement ─────────
+      // Agents registered after Phase 4 always have a mudrika. Agents registered
+      // before Phase 4 (no mudrika file) are allowed through — no mudrika file
+      // means pre-Phase-4 spawn, not a spoofed identity.
+      const mudrika = checkMudrika(agentId);
+      if (!mudrika.valid && mudrika.reason !== "no mudrika — agent not registered") {
+        process.stderr.write(
+          `\n[KAVACH:MUDRIKA] IDENTITY DENIED — ${agentId}: ${mudrika.reason}\n\n`
+        );
+        process.exit(2);
+      }
+
+      // ── Level 0 + Level 1: bitmask enforcement (KAV-YK-014) ──────────────
+      const requiredBits = requiredBitsForTool(toolName, command);
+      const resourcePath = extractResourceFromToolInput(toolName, toolInput.tool_input ?? {});
+      const resourceClassBits = resourcePath ? classifyResource(resourcePath) : 0;
+
+      const valveResult = checkValve(agentId, requiredBits, resourceClassBits);
+      incrementLoopCount(agentId);
+
+      if (!valveResult.allowed) {
+        const label = valveResult.level === 0 ? "PERM_MASK" : "CLASS_MASK";
+        process.stderr.write(
+          `\n[KAVACH:L${valveResult.level}] ${label} BLOCK — ${valveResult.reason}\n` +
+          `[KAVACH:L${valveResult.level}] Valve state: ${valveResult.valve_state} | Rule: ${valveResult.rule}\n\n`
+        );
+        process.exit(2);
+      }
+      // ── End Level 0 + Level 1 ─────────────────────────────────────────────
     }
-
-    // ── Level 0 + Level 1: bitmask enforcement (KAV-YK-014) ──────────────
-    const requiredBits = requiredBitsForTool(toolName, command);
-    const resourcePath = extractResourceFromToolInput(toolName, toolInput.tool_input ?? {});
-    const resourceClassBits = resourcePath ? classifyResource(resourcePath) : 0;
-
-    const valveResult = checkValve(agentId, requiredBits, resourceClassBits);
-    incrementLoopCount(agentId);
-
-    if (!valveResult.allowed) {
-      const label = valveResult.level === 0 ? "PERM_MASK" : "CLASS_MASK";
-      process.stderr.write(
-        `\n[KAVACH:L${valveResult.level}] ${label} BLOCK — ${valveResult.reason}\n` +
-        `[KAVACH:L${valveResult.level}] Valve state: ${valveResult.valve_state} | Rule: ${valveResult.rule}\n\n`
-      );
-      process.exit(2);
-    }
-    // ── End Level 0 + Level 1 ─────────────────────────────────────────────
 
     // Level 2 only runs for Bash tool (DAN pattern matching)
     if (toolName !== "Bash") process.exit(0);
@@ -105,6 +132,7 @@ export default async function checkDestructive(_args: string[]): Promise<void> {
       // not itself depend on the file that just failed to load.
       if (!command) process.exit(0); // nothing to judge is not unknown state
       if (command.includes(FALLBACK_OVERRIDE_TOKEN)) {
+        recordRefusal({ gate: "aegis-destructive", kind: "override", rule: "ANU-004" });
         process.stderr.write(`[KAVACH] Rules unreadable, override token present — allowing (human confirmed)\n`);
         process.exit(0);
       }
@@ -123,8 +151,10 @@ export default async function checkDestructive(_args: string[]): Promise<void> {
     // everything below is the side effect of that decision.
     const verdict = destructiveVerdict(command, rules);
 
-    // Override token: human has already confirmed via explicit comment
+    // Override token: human has already confirmed via explicit comment. Its use is recorded:
+    // an override nobody can count is indistinguishable from a gate that never fired.
     if (verdict.kind === "override") {
+      recordRefusal({ gate: "aegis-destructive", kind: "override", rule: "KAV-052" });
       process.stderr.write(`[KAVACH] Override token present — allowing (human confirmed)\n`);
       process.exit(0);
     }
@@ -141,7 +171,7 @@ export default async function checkDestructive(_args: string[]): Promise<void> {
     if (verdict.kind === "match") {
       const rule = verdict.rule;
 
-      if (rule.severity === "CRITICAL") {
+      if (rule.severity === "CRITICAL" && settings.criticalApprove) {
         // @rule:KAV-052 — CRITICAL → KAVACH Gate (human approval via WhatsApp + dashboard)
         process.stderr.write(`\n[KAVACH] DANGEROUS ACTION INTERCEPTED — Level ${rule.severity}\n`);
         process.stderr.write(`[KAVACH] Opening approval gate. Check WhatsApp or http://localhost:${DASHBOARD_PORT}\n\n`);
@@ -175,7 +205,7 @@ export default async function checkDestructive(_args: string[]): Promise<void> {
         }
 
       } else {
-        // HIGH/MEDIUM — immediate block with override token info
+        // HIGH/MEDIUM, and CRITICAL unless the approval gate is switched on — immediate block.
         const msg = buildBlockMessage(rule, null, rule.reason);
         process.stderr.write(msg);
         process.exit(2);
@@ -208,6 +238,7 @@ function buildBlockMessage(
     `║  KAVACH BLOCK — DESTRUCTIVE COMMAND INTERCEPTED              ║`,
     `╚══════════════════════════════════════════════════════════════╝`,
     ``,
+    `  Rule     : KAV-052`,
     `  Severity : ${rule.severity}`,
     `  Reason   : ${reason}`,
     approvalId ? `  Gate ID  : ${approvalId}` : `  Matched  : ${rule.pattern}`,
