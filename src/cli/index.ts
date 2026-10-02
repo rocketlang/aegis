@@ -7,7 +7,17 @@
 const command = Bun.argv[2] || "status";
 const args = Bun.argv.slice(3);
 
+// Every exit 2 from these gates is recorded in the refusal ledger (core/refusal-ledger.ts).
+// anumati and tripwire keep their own ledgers and are not listed. If the ledger cannot
+// load, the gate runs exactly as before — recording must never be able to switch a gate off.
+const RECORDED_GATES = ["check-budget", "check-spawn", "check-destructive", "check-shield", "check-chitta"];
+
 async function main() {
+  if (RECORDED_GATES.includes(command)) {
+    try {
+      (await import("../core/refusal-ledger")).armRefusalLedger("aegis-" + command.slice("check-".length));
+    } catch { /* unrecorded, not unguarded */ }
+  }
   switch (command) {
     case "status":
       return (await import("./commands/status")).default(args);
