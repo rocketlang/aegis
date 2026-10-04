@@ -122,10 +122,21 @@ jobs:
         run: |
           # Publishing without error is not proof the attestation landed. Ask the
           # registry, the way a consumer would.
+          #
+          # 2.1.1 took about 100 seconds to be listed. The earlier fixed 15-second wait
+          # found no version at all and reported "published without provenance", which
+          # was not what it had seen. Two different answers get two different messages:
+          # not listed yet is waited for; listed with no attestation is the real alarm.
           PKG=$(node -p "require('./package.json').version")
-          sleep 15
-          if npm view "@xshieldai/agent-kernel@$PKG" dist.attestations --json | grep -q provenance; then
-            echo "provenance attestation present for $PKG"
-          else
-            echo "PUBLISHED WITHOUT PROVENANCE — investigate before announcing"; exit 1
-          fi
+          URL="https://registry.npmjs.org/-/npm/v1/attestations/@xshieldai%2fagent-kernel@$PKG"
+          for i in $(seq 1 30); do
+            LISTED=$(curl -s -o /dev/null -w '%{http_code}' "https://registry.npmjs.org/@xshieldai%2fagent-kernel/$PKG")
+            if [ "$LISTED" = "200" ]; then
+              if curl -sf "$URL" | grep -q 'slsa.dev/provenance'; then
+                echo "provenance attestation present for $PKG"; exit 0
+              fi
+              echo "PUBLISHED WITHOUT PROVENANCE — $PKG is listed and the registry holds no provenance attestation for it"; exit 1
+            fi
+            echo "$PKG not listed yet (HTTP $LISTED), waiting"; sleep 10
+          done
+          echo "COULD NOT CONFIRM — $PKG was not listed after 5 minutes. This is not a finding about provenance; look at the registry by hand."; exit 1
