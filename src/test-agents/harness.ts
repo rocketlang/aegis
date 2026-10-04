@@ -200,7 +200,9 @@ export class TestHarness {
   ): Promise<HookResult> {
     const stdinBytes = Buffer.from(JSON.stringify(json));
     const proc = Bun.spawn(["bun", "src/cli/index.ts", hookName], {
-      cwd: "/root/aegis",
+      // The repository root, wherever it is checked out. This was a literal path on the
+      // machine it was written on, so the spawn failed (EACCES) on any other checkout.
+      cwd: new URL("../..", import.meta.url).pathname,
       stdin: stdinBytes,
       stdout: "pipe",
       stderr: "pipe",
