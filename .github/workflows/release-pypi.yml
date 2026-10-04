@@ -1,0 +1,125 @@
+# Publish one of the Python packages under packages/ to PyPI, with attestations.
+#
+#   tag                              project                 directory
+#   xshieldai-langchain-v<version>   xshieldai-langchain     packages/xshieldai-langchain
+#   xshieldai-crewai-v<version>      xshieldai-crewai        packages/xshieldai-crewai
+#
+# A tag publishes. A manual run (pick the package) is a rehearsal: it builds and lists what
+# would ship, and publishes nothing.
+#
+# AUTH: a Trusted Publisher on pypi.org for each project (GitHub · rocketlang/aegis ·
+# release-pypi.yml · no environment). No token is stored anywhere. The publish action
+# signs an attestation for every file with the workflow's own identity (PEP 740), which
+# is what lets a stranger tie a file on PyPI to this repository and this commit.
+#
+# WHAT THIS DOES NOT STOP: an upload from a machine with an API token. Python has no
+# publish hook to refuse it. What catches it is outside this repository: a file uploaded
+# that way carries no attestation, and a check of the release fails.
+
+name: Release a Python package
+
+on:
+  push:
+    tags:
+      - 'xshieldai-langchain-v*'
+      - 'xshieldai-crewai-v*'
+  workflow_dispatch:
+    inputs:
+      package:
+        description: 'Package to rehearse (nothing is published from a manual run)'
+        required: true
+        type: choice
+        options:
+          - xshieldai-langchain
+          - xshieldai-crewai
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write        # OIDC trusted publishing and attestations — no stored token
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      # The package comes from the tag's prefix, or from the choice on a manual run, and is
+      # matched against a fixed list. The tag's version must equal the one in pyproject.toml.
+      - name: Resolve the package and refuse a tag that disagrees with it
+        id: pkg
+        env:
+          CHOICE: ${{ inputs.package }}
+        run: |
+          if [ "$GITHUB_REF_TYPE" = "tag" ]; then KEY="${GITHUB_REF_NAME%-v*}"; else KEY="$CHOICE"; fi
+          case "$KEY" in
+            xshieldai-langchain|xshieldai-crewai) DIR="packages/$KEY" ;;
+            *) echo "no Python package is released under the name '$KEY' — refusing"; exit 1 ;;
+          esac
+          NAME=$(python3 -c "import tomllib,sys;print(tomllib.load(open(sys.argv[1],'rb'))['project']['name'])" "$DIR/pyproject.toml")
+          VERSION=$(python3 -c "import tomllib,sys;print(tomllib.load(open(sys.argv[1],'rb'))['project']['version'])" "$DIR/pyproject.toml")
+          if [ "$NAME" != "$KEY" ]; then
+            echo "$DIR/pyproject.toml is named $NAME, not $KEY — refusing"; exit 1
+          fi
+          if [ "$GITHUB_REF_TYPE" = "tag" ] && [ "${GITHUB_REF_NAME##*-v}" != "$VERSION" ]; then
+            echo "tag $GITHUB_REF_NAME does not match $NAME $VERSION — refusing"; exit 1
+          fi
+          # The module states its version too; the two must agree or the release is refused.
+          MOD=$(grep -hoE '^__version__ = "[^"]+"' "$DIR/${KEY//-/_}/__init__.py" | sed -E 's/.*"([^"]+)"/\1/')
+          if [ "$MOD" != "$VERSION" ]; then
+            echo "version drift: pyproject.toml $VERSION vs __version__ '$MOD' — refusing"; exit 1
+          fi
+          echo "$NAME $VERSION in $DIR"
+          echo "dir=$DIR" >> "$GITHUB_OUTPUT"
+          echo "name=$NAME" >> "$GITHUB_OUTPUT"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      # Before the build: the build writes an egg-info directory beside the source, which is
+      # untracked and expected. What must not happen is a tracked file differing from the tag.
+      - name: Refuse if a tracked file changed
+        run: |
+          if [ -n "$(git status --porcelain --untracked-files=no)" ]; then
+            echo "a tracked file differs from the commit — refusing:"; git status --porcelain --untracked-files=no; exit 1
+          fi
+          echo "tree clean at $(git rev-parse HEAD)"
+
+      - name: Build the sdist and the wheel
+        env:
+          DIR: ${{ steps.pkg.outputs.dir }}
+        run: |
+          python -m pip install --quiet build==1.5.0
+          export SOURCE_DATE_EPOCH=$(git log -1 --format=%ct)
+          python -m build "$DIR" --outdir dist/
+
+      - name: Show what would ship
+        run: |
+          sha256sum dist/*
+          for f in dist/*.tar.gz; do echo "--- $f"; tar tzf "$f"; done
+          for f in dist/*.whl; do echo "--- $f"; python -m zipfile -l "$f"; done
+
+      - name: Publish to PyPI (trusted publishing, with attestations)
+        if: github.ref_type == 'tag'
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: dist/
+
+      - name: Confirm an attestation is on PyPI for every file
+        if: github.ref_type == 'tag'
+        env:
+          NAME: ${{ steps.pkg.outputs.name }}
+          VERSION: ${{ steps.pkg.outputs.version }}
+        run: |
+          # Uploading without error is not proof the attestations landed. Ask PyPI, the way
+          # a consumer would, for each file, and give it time to serve them.
+          for f in dist/*; do
+            FN=$(basename "$f"); OK=0
+            for i in $(seq 1 30); do
+              if curl -sf "https://pypi.org/integrity/$NAME/$VERSION/$FN/provenance" | grep -q 'attestation_bundles'; then OK=1; break; fi
+              echo "$FN: provenance not served yet, waiting"; sleep 10
+            done
+            if [ "$OK" = "1" ]; then echo "attestation present for $FN"; else
+              echo "NO ATTESTATION — PyPI serves no provenance for $FN after 5 minutes"; exit 1
+            fi
+          done

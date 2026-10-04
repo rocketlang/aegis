@@ -7,4 +7,4 @@
 from .gate import KavachGateCallback, KavachGateError, AegisClient
 
 __all__ = ["KavachGateCallback", "KavachGateError", "AegisClient"]
-__version__ = "1.0.0"
+__version__ = "1.0.1"

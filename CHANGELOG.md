@@ -4,6 +4,19 @@ All notable changes to AEGIS will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [python packages] — 2026-10-05
+
+`xshieldai-langchain` 1.0.1 · `xshieldai-crewai` 1.0.1 (PyPI)
+
+### Changed (AGPL-3.0)
+- **Published by a release workflow, from a tag, with attestations**
+  (`.github/workflows/release-pypi.yml`; tags `<project>-v<version>`). PyPI holds an
+  attestation for every file, naming this repository and the commit.
+- The Repository link on each PyPI page pointed at a branch that does not exist; it now
+  points at `master`.
+- No change to the code since 1.0.0 other than the version string. The workflow refuses
+  a release whose `__version__` disagrees with `pyproject.toml`.
+
 ## [packages] — 2026-10-05
 
 `@xshieldai/aegis-guard` 0.3.0 · `@xshieldai/aegis-suite` 0.2.1 · `@xshieldai/chitta-detect`
