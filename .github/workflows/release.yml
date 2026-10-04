@@ -1,9 +1,21 @@
+# Publish @xshieldai/aegis with npm provenance.
+#
+# The package ships its source (files[] in package.json); there is no build step. A tag
+# `v<version>` publishes. A manual run from a branch is a rehearsal: it checks and packs,
+# and publishes nothing.
+#
+# AUTH: a Trusted Publisher on npmjs.com for @xshieldai/aegis (GitHub Actions ·
+# rocketlang/aegis · release.yml · publish). No secret is stored anywhere.
+#
+#   git tag v<version> && git push origin v<version>
+
 name: Release
 
 on:
   push:
     tags:
       - 'v*'
+  workflow_dispatch:
 
 jobs:
   release:
@@ -24,9 +36,50 @@ jobs:
       - name: Upgrade npm for OIDC trusted publishing
         run: npm install -g npm@latest && npm --version
 
+      - name: Refuse to publish a tag that disagrees with package.json
+        run: |
+          PKG=$(node -p "require('./package.json').version")
+          TAG="${GITHUB_REF_NAME#v}"
+          if [ "$GITHUB_REF_TYPE" = "tag" ] && [ "$PKG" != "$TAG" ]; then
+            echo "tag $TAG does not match package.json $PKG — refusing"; exit 1
+          fi
+          echo "version $PKG"
+
+      - name: Refuse if a tracked file changed
+        run: |
+          if [ -n "$(git status --porcelain)" ]; then
+            echo "the tree is not clean — refusing:"; git status --porcelain; exit 1
+          fi
+          echo "tree clean at $(git rev-parse HEAD)"
+
+      # The shasum printed here is what a stranger gets from `npm pack` on a clean checkout
+      # of the same commit. It is the number to compare with the registry listing.
+      - name: Show what would ship
+        run: npm pack --dry-run
+
       # @xshieldai/aegis ships its source (files[]); publish only packs those, so there is
-      # no dependency install to fail on the internal @ankr/* bricks (now optional). npm
-      # authenticates via the workflow's OIDC identity — requires a Trusted Publisher on
-      # npmjs.com for @xshieldai/aegis (rocketlang/aegis, release.yml, publish-directly on).
+      # no dependency install to fail on the internal @ankr/* bricks (now optional).
+      # prepublishOnly runs scripts/publish-guard.mjs, which refuses outside this workflow.
       - name: Publish to npm (OIDC trusted publishing, with provenance)
+        if: github.ref_type == 'tag'
         run: npm publish --provenance --access public
+
+      - name: Confirm the attestation is actually on the registry
+        if: github.ref_type == 'tag'
+        run: |
+          # Publishing without error is not proof the attestation landed. Ask the registry,
+          # the way a consumer would. A new version can take a couple of minutes to be
+          # listed: not listed yet is waited for; listed with no attestation is the alarm.
+          PKG=$(node -p "require('./package.json').version")
+          URL="https://registry.npmjs.org/-/npm/v1/attestations/@xshieldai%2faegis@$PKG"
+          for i in $(seq 1 30); do
+            LISTED=$(curl -s -o /dev/null -w '%{http_code}' "https://registry.npmjs.org/@xshieldai%2faegis/$PKG")
+            if [ "$LISTED" = "200" ]; then
+              if curl -sf "$URL" | grep -q 'slsa.dev/provenance'; then
+                echo "provenance attestation present for $PKG"; exit 0
+              fi
+              echo "PUBLISHED WITHOUT PROVENANCE — $PKG is listed and the registry holds no provenance attestation for it"; exit 1
+            fi
+            echo "$PKG not listed yet (HTTP $LISTED), waiting"; sleep 10
+          done
+          echo "COULD NOT CONFIRM — $PKG was not listed after 5 minutes. This is not a finding about provenance; look at the registry by hand."; exit 1
