@@ -4,6 +4,42 @@ All notable changes to AEGIS will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [hanumang-mandate 0.3.0] — 2026-10-05
+
+`@xshieldai/hanumang-mandate`. Results change for callers who pass incomplete or malformed
+input; read "Changed" before upgrading.
+
+### Changed (AGPL-3.0)
+- **`verifyMudrika()` checks types and ranges, and never throws (rule HNG-S-012).** Text
+  fields must be text; `ttl_seconds` must be a finite number above 0 and at most one year;
+  `issued_at` may not be more than five minutes ahead of the clock; `trust_mask` must be a
+  whole number; `pramana_chain` must be a list of text; `mudrika_version`, when present,
+  must be a version 1; an expected agent id must be non-empty text; only the credential's
+  own fields count. Anything else is `FAIL` with a reason.
+- **Missing evidence is a FAIL on each axis (rule HNG-S-013).** `mandate_bounds` and
+  `no_overreach` need their masks; `proportional_force` needs a mode of 1, 2 or 3; flags
+  must be `true`, not text; an unknown axis scores 0. `mandate_bounds` without scope
+  evidence is a WARN.
+- **Masks are compared whole.** Bits above 31 are no longer dropped.
+- **`computePostureScore()` grades all seven axes, each once.** An absent axis, a
+  duplicate, an unknown axis and a score outside 0–100 each count as a violation. An
+  entry's outcome is recomputed from its score. An empty list is grade F (was D).
+
+### Added
+- `signature_verified: false` on every `verifyMudrika()` result. The signature is still not
+  checked; the field says so where the result is read.
+- `axes_missing` and `axes_invalid` on the posture score; `MAX_TTL_SECONDS` and
+  `CLOCK_SKEW_MS` exported.
+- `tests/hardening.test.ts`: 52 tests. 98 tests in the package.
+
+### Fixed
+- The README's credential example used a fixed date and so returned `EXPIRED`, not the
+  `PASS` it showed. It now issues the credential at the time it runs.
+
+### Not covered, and pinned by tests
+- The signature is not verified. The scorer grades the evidence it is given and does not
+  verify it.
+
 ## [chitta-detect 0.3.0] — 2026-10-05
 
 `@xshieldai/chitta-detect`. Verdicts change in this version; read "Changed" before upgrading.

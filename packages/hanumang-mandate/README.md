@@ -1,7 +1,7 @@
 # @xshieldai/hanumang-mandate
 
-> **🔍 Verification status (2026-10-05 IST — v0.2.3)**
-> - **Tests:** ✅ **46/46 passing** ([tests/hanumang-mandate.test.ts](tests/hanumang-mandate.test.ts) — `bun test`). Covers §1 verifyMudrika (structural/TTL/trust-mask/agent-id), §2 scoreAxis (all 7 axes incl. spawn invariant + overreach), §3 computePostureScore (HNG-YK-001 worst-axis-floor enforced + grade thresholds), §4 ACC bus.
+> **🔍 Verification status (2026-10-05 IST — v0.3.0)**
+> - **Tests:** ✅ **98/98 passing** — 46 in [tests/hanumang-mandate.test.ts](tests/hanumang-mandate.test.ts) and 52 in [tests/hardening.test.ts](tests/hardening.test.ts), which covers malformed credentials, missing evidence, genuine callers that must still pass, and the stated limits (`bun test`). Covers §1 verifyMudrika (structural/TTL/trust-mask/agent-id), §2 scoreAxis (all 7 axes incl. spawn invariant + overreach), §3 computePostureScore (HNG-YK-001 worst-axis-floor enforced + grade thresholds), §4 ACC bus.
 > - **Examples:** ✅ runnable quickstart, in the repository (not in the npm package): [examples/quickstart.ts](https://github.com/rocketlang/aegis/blob/master/packages/hanumang-mandate/examples/quickstart.ts) — `bun run examples/quickstart.ts` runs 3 mudrika verifications (PASS/EXPIRED/FAIL) + 7-axis posture demo + the HNG-YK-001 worst-axis-floor invariant in action (one FAIL caps grade at D even with average 86)
 > - **Live demo:** ⚠️ planned (Tier 3)
 > - **Phase-1 limits:** **`verifyMudrika()` does NOT cryptographically verify the signature** — see "Phase-1 limit" callout below. Test HM-011 explicitly documents this: a mudrika with a fake `signature` field still PASSES today. Signature crypto lands in v0.3 — HM-011 will then flip to expect FAIL. Use only in trusted-transport environments until then.
@@ -53,7 +53,7 @@ const mudrika = {
   task_id: 'task:refactor-routes',
   trust_mask: 0b00011111,         // 5 bits set
   scope_key: 'aegis/packages/aegis-guard',
-  issued_at: '2026-05-16T12:00:00Z',
+  issued_at: new Date().toISOString(),   // a fixed past date here would come back EXPIRED
   ttl_seconds: 3600,
   required_return_proof: 'pramana_receipt',
   revocation_url: 'https://aegis.rocketlang.dev/mudrika/revoke',
@@ -64,23 +64,55 @@ const result = verifyMudrika(mudrika, 'agent:codex-001');
 // {
 //   outcome: 'PASS',                       // or 'FAIL' / 'EXPIRED' / 'REVOKED'
 //   failure_reason: null,
-//   expires_at: '2026-05-16T13:00:00Z',
+//   expires_at: '…',                       // issued_at plus one hour
 //   trust_mask: 31,
 //   scope_key: 'aegis/packages/aegis-guard',
 //   principal_id: 'user:capt-anil',
+//   signature_verified: false,             // always, in this version — see below
 //   ...
 // }
 ```
 
+### What `verifyMudrika()` checks (v0.3.0)
+
+- the credential is an object with its own fields (not a list, not inherited ones);
+- `mudrika_id`, `principal_id`, `agent_id`, `task_id`, `scope_key`, `issued_at` are present and are text;
+- `ttl_seconds` is a finite number above 0 and at most one year (`MAX_TTL_SECONDS`);
+- `issued_at` is a date, not more than five minutes ahead of this machine's clock (`CLOCK_SKEW_MS`), and the credential has not expired;
+- `trust_mask`, when present, is a whole number from 0 to 2³²−1 (absent means 0);
+- `pramana_chain`, when present, is a list of text;
+- `mudrika_version`, when present, is a version 1 (`v1`, `1`, `1.2`, …);
+- when you pass an expected agent id it must be non-empty text and must equal `agent_id`.
+
+Anything else is `FAIL` with a `failure_reason`. No input makes it throw.
+
 ### Phase-1 limit — signature is NOT cryptographically verified
 
-`verifyMudrika()` validates structure + TTL + trust_mask range. It does **not** verify the `signature` field cryptographically. The `signature` is in the payload schema for forward compatibility; today, callers must establish provenance themselves (e.g., authenticated transport, internal trust boundary).
+`verifyMudrika()` validates structure, types, TTL and trust_mask range. It does **not** verify the `signature` field cryptographically, and every result carries `signature_verified: false` so that a `PASS` cannot be read as a cryptographic one. The `signature` is in the payload schema for forward compatibility; today, callers must establish provenance themselves (e.g., authenticated transport, internal trust boundary).
 
 Phase 2 will add signature verification. If you need it now, wrap `verifyMudrika()` with your own crypto check.
 
 ## 7-axis posture scorer
 
 The scorer assesses an agent's per-action behaviour across seven axes. Each axis returns 0–100 + an outcome (`PASS` / `WARN` / `FAIL`). The aggregate `PostureScore` uses a **worst-axis floor** (`HNG-YK-001`) — a single FAIL caps the grade at D regardless of how high the average is.
+
+**Missing evidence is a FAIL (v0.3.0).** An axis scored without the evidence it needs
+fails; it does not pass by default:
+
+- `mandate_bounds` and `no_overreach` need their masks, as non-negative whole numbers. Masks
+  are compared whole, so bits above 31 count.
+- `proportional_force` needs `response_mode` to be 1, 2 or 3.
+- flags such as `mudrika_verified`, `self_declared` and `receipt_filed` must be `true`; text
+  such as `"true"` or `"false"` is not accepted.
+- an axis name the scorer does not know scores 0.
+
+`computePostureScore()` grades **all seven axes, each once**. An absent axis, a duplicate,
+an unknown axis and a score outside 0–100 each count as a violation, listed in
+`axes_missing` and `axes_invalid`. An entry's outcome is recomputed from its score.
+
+**What the scorer does not do.** It grades the evidence it is given; it does not verify
+that evidence. A caller who passes `mudrika_verified: true` is taken at their word, and
+seven hand-written axis objects with plausible scores are graded like real ones.
 
 ```typescript
 import { scoreAxis, computePostureScore } from '@xshieldai/hanumang-mandate';

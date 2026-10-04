@@ -19,6 +19,8 @@
 
 export {
   verifyMudrika,
+  MAX_TTL_SECONDS,
+  CLOCK_SKEW_MS,
 } from './mudrika.js';
 
 export type {

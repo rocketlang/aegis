@@ -32,6 +32,13 @@ export interface MudrikaPayload {
   signature?: string;
 }
 
+/** Versions this verifier understands: `v1`, `1`, `v1.2`, … */
+const SUPPORTED_VERSION = /^v?1(\.\d+)*$/;
+/** The longest life a credential may claim: one year. A delegation is not a standing grant. */
+export const MAX_TTL_SECONDS = 366 * 24 * 3600;
+/** How far ahead of this machine's clock `issued_at` may be. */
+export const CLOCK_SKEW_MS = 5 * 60 * 1000;
+
 export type VerifyOutcome = 'PASS' | 'FAIL' | 'EXPIRED' | 'REVOKED';
 
 export interface VerifyResult {
@@ -44,16 +51,24 @@ export interface VerifyResult {
   mudrika_id: string;
   pramana_chain: string[];
   duration_ms: number;
+  /**
+   * Always false in this version: the `signature` field is NOT checked (Phase-1 limit).
+   * It is a field, and not only a sentence in the README, so that a caller reading the
+   * result of a PASS cannot take it for a cryptographic one.
+   */
+  signature_verified: false;
 }
 
 export function verifyMudrika(raw: unknown, expected_agent_id?: string): VerifyResult {
   const t0 = Date.now();
 
-  if (!raw || typeof raw !== 'object') {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
     return fail('mudrika_missing', t0);
   }
 
-  const m = raw as Partial<MudrikaPayload>;
+  // Only the object's own fields count. A credential whose fields come from its prototype
+  // is not the document that was handed over.
+  const m = { ...(raw as object) } as Partial<MudrikaPayload>;
 
   // Required fields
   if (
@@ -68,15 +83,43 @@ export function verifyMudrika(raw: unknown, expected_agent_id?: string): VerifyR
     return fail('missing_required_fields', t0);
   }
 
-  // Agent ID must match if provided
-  if (expected_agent_id && m.agent_id !== expected_agent_id) {
-    return fail(`agent_id_mismatch: expected ${expected_agent_id} got ${m.agent_id}`, t0);
+  // @rule:HNG-S-012 — a field of the wrong type is a refusal, never a value to carry on with.
+  // Before v0.3.0 only presence was checked: a trust_mask of NaN or "admin" passed, and
+  // a ttl_seconds of 1e18 or "forever" made the function throw instead of answer.
+  for (const f of ['mudrika_id', 'principal_id', 'agent_id', 'task_id', 'scope_key', 'issued_at'] as const) {
+    if (typeof m[f] !== 'string') return fail(`invalid_field_type: ${f}`, t0);
+  }
+  if (m.mudrika_version !== undefined && (typeof m.mudrika_version !== 'string' || !SUPPORTED_VERSION.test(m.mudrika_version))) {
+    return fail('unsupported_mudrika_version', t0);
+  }
+  if (typeof m.ttl_seconds !== 'number' || !Number.isFinite(m.ttl_seconds) || m.ttl_seconds <= 0 || m.ttl_seconds > MAX_TTL_SECONDS) {
+    return fail('invalid_ttl_seconds', t0);
+  }
+  if (m.trust_mask !== undefined && m.trust_mask !== null && !Number.isInteger(m.trust_mask)) {
+    return fail('invalid_trust_mask', t0);
+  }
+  if (m.pramana_chain !== undefined && (!Array.isArray(m.pramana_chain) || m.pramana_chain.some((x) => typeof x !== 'string'))) {
+    return fail('invalid_pramana_chain', t0);
+  }
+
+  // Agent ID must match if the caller names one. An empty or non-text expectation is a
+  // caller error and is refused: before v0.3.0 an empty string silently skipped the check.
+  if (expected_agent_id !== undefined) {
+    if (typeof expected_agent_id !== 'string' || expected_agent_id.length === 0) {
+      return fail('invalid_expected_agent_id', t0);
+    }
+    if (m.agent_id !== expected_agent_id) {
+      return fail(`agent_id_mismatch: expected ${expected_agent_id} got ${m.agent_id}`, t0);
+    }
   }
 
   // TTL check — @rule:HNG-S-009
   const issuedAt = new Date(m.issued_at).getTime();
   if (isNaN(issuedAt)) return fail('invalid_issued_at', t0);
-  const expiresAt = new Date(issuedAt + (m.ttl_seconds ?? 0) * 1000);
+  // A credential dated in the future is not yet valid, and with a long ttl would never
+  // expire in practice. A small allowance covers clocks that disagree.
+  if (issuedAt > Date.now() + CLOCK_SKEW_MS) return fail('issued_in_future', t0);
+  const expiresAt = new Date(issuedAt + m.ttl_seconds * 1000);
   if (Date.now() > expiresAt.getTime()) {
     const expiredResult: VerifyResult = {
       outcome: 'EXPIRED',
@@ -88,6 +131,7 @@ export function verifyMudrika(raw: unknown, expected_agent_id?: string): VerifyR
       mudrika_id: m.mudrika_id ?? '',
       pramana_chain: m.pramana_chain ?? [],
       duration_ms: Date.now() - t0,
+      signature_verified: false,
     };
     emitAccReceipt({
       receipt_id: `hanumang-mudrika-expired-${m.mudrika_id ?? t0}`,
@@ -120,6 +164,7 @@ export function verifyMudrika(raw: unknown, expected_agent_id?: string): VerifyR
     mudrika_id: m.mudrika_id,
     pramana_chain,
     duration_ms: Date.now() - t0,
+    signature_verified: false,
   };
 
   // @rule:ACC-003 @rule:ACC-004 — emit ACC receipt for cockpit observability
@@ -152,6 +197,7 @@ function fail(reason: string, t0: number): VerifyResult {
     mudrika_id: '',
     pramana_chain: [],
     duration_ms: Date.now() - t0,
+    signature_verified: false,
   };
 
   // @rule:ACC-003 — emit failure receipt for cockpit observability

@@ -401,10 +401,14 @@ describe('§3 computePostureScore', () => {
     expect(posture.overall_grade).toBe('A');
   });
 
-  it('HM-038: empty axis list → score 0 grade D, no crash', () => {
+  it('HM-038: empty axis list → score 0 grade F, no crash (grade D before v0.3.0)', () => {
+    // Seven axes absent is seven violations. Before v0.3.0 an absent axis was not counted
+    // at all, so an empty list had no violations and landed on D.
     const posture = computePostureScore([]);
     expect(posture.overall_score).toBe(0);
-    expect(posture.overall_grade).toBe('D');
+    expect(posture.overall_grade).toBe('F');
+    expect(posture.axes_missing.length).toBe(7);
+    expect(posture.violation_count).toBe(7);
   });
 
   it('HM-039: axes object keyed by axis name', () => {
