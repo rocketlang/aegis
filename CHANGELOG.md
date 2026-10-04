@@ -4,6 +4,14 @@ All notable changes to AEGIS will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [aegis-suite 0.2.4] — 2026-10-05
+
+`@xshieldai/aegis-suite`.
+
+### Changed (AGPL-3.0)
+- Depends on lakshmanrekha `^0.4.0` (was `^0.3.1`, which does not admit it). Verdicts and the
+  refusal rate change for some inputs; see its entry below.
+
 ## [lakshmanrekha 0.4.0] — 2026-10-05
 
 `@xshieldai/lakshmanrekha`. Verdicts and the refusal rate change for some inputs; read

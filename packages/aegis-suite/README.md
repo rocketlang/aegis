@@ -1,7 +1,7 @@
 # @xshieldai/aegis-suite
 
-> **🔍 Verification status (2026-10-05 IST — v0.2.3)**
-> - **Tests:** ⚠️ `wireAllToBus()` helper has no standalone tests yet. Bundled primitives' test status: **4 of 6** bundled packages have automated tests today (aegis-guard: 70, chitta-detect: 108, lakshmanrekha: 60, hanumang-mandate: 98 — **336 tests total** across primitives at their current versions, all passing on `bun test`).
+> **🔍 Verification status (2026-10-05 IST — v0.2.4)**
+> - **Tests:** ⚠️ `wireAllToBus()` helper has no standalone tests yet. Bundled primitives' test status: **4 of 6** bundled packages have automated tests today (aegis-guard: 70, chitta-detect: 108, lakshmanrekha: 109, hanumang-mandate: 98 — **385 tests total** across primitives at their current versions, all passing on `bun test`).
 > - **Examples:** ✅ runnable quickstart, in the repository (not in the npm package): [examples/quickstart.ts](https://github.com/rocketlang/aegis/blob/master/packages/aegis-suite/examples/quickstart.ts) — `bun run examples/quickstart.ts` calls `wireAllToBus()` then exercises each primitive, showing receipts unified into one stream (primitive name in `[brackets]` per line). Writes to `~/.aegis/acc-events.db` for later inspection.
 > - **Live demo:** ⚠️ planned (Tier 3)
 > - **Phase-1 limits:** documented in "Phase-1 limits (v0.2.0)" section below (SQLite WAL checkpointing, in-process vs cross-process visibility, etc.)
@@ -26,7 +26,7 @@ That's it. You now have all six primitives. Import from each sub-package by name
 | [`@xshieldai/agent-kernel`](https://www.npmjs.com/package/@xshieldai/agent-kernel) | Agent **behavior**: seccomp-bpf, Falco, syscall mediation, exec allowlist, egress firewall | `^2.0.2` |
 | [`@xshieldai/aegis-guard`](https://www.npmjs.com/package/@xshieldai/aegis-guard) | Five Locks SDK: approval-token, nonce, idempotency, SENSE, quality-evidence | `^0.3.1` |
 | [`@xshieldai/chitta-detect`](https://www.npmjs.com/package/@xshieldai/chitta-detect) | Memory poisoning detection: trust / imperative / tool-output / capability-expansion / fingerprint scanners | `^0.3.0` |
-| [`@xshieldai/lakshmanrekha`](https://www.npmjs.com/package/@xshieldai/lakshmanrekha) | LLM endpoint probe suite: 8 deterministic attack probes + replayable refusal classifier + multi-provider runner | `^0.3.1` |
+| [`@xshieldai/lakshmanrekha`](https://www.npmjs.com/package/@xshieldai/lakshmanrekha) | LLM endpoint probe suite: 8 deterministic attack probes + replayable refusal classifier + multi-provider runner | `^0.4.0` |
 | [`@xshieldai/hanumang-mandate`](https://www.npmjs.com/package/@xshieldai/hanumang-mandate) | Mudrika delegation-credential verifier + 7-axis posture scorer | `^0.3.0` |
 
 ## Deliberately NOT bundled
