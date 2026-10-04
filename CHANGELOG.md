@@ -4,6 +4,29 @@ All notable changes to AEGIS will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [2.3.1] — 2026-10-05
+
+`@xshieldai/aegis`. The 2.3.0 changes below, first published to npm in this version, plus how
+the package is published.
+
+### Changed (AGPL-3.0)
+- **Published by the release workflow, from a tag, with npm provenance.** The registry holds an
+  attestation naming this repository, the workflow file and the commit.
+- **`npm publish` refuses outside the release workflow.** `prepublishOnly` runs
+  `scripts/publish-guard.mjs`; a dry run is allowed.
+- **A manual workflow run from a branch packs only.** Only a tag publishes, and the tag must
+  equal the version in `package.json`.
+- `bin` paths written in the form npm stores, so the manifest in the tarball equals the
+  registry listing.
+
+### Fixed
+- The self-governance test harness spawned hooks from a literal path. It now uses the
+  repository's own location, so the suite runs from any checkout.
+
+### Reproducing the tarball
+The package ships its source; there is no build. From a clean checkout of the tag, `npm pack`
+gives a tarball whose shasum should equal the one the registry lists.
+
 ## [agent-kernel 2.1.1] — 2026-10-05
 
 `@xshieldai/agent-kernel`. No change to what the kernel enforces since 2.1.0; this release is
