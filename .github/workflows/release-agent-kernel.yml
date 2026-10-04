@@ -84,11 +84,30 @@ jobs:
           fi
           echo "version $PKG"
 
+      # 2.0.2 was published from a working tree with uncommitted changes: its package.json
+      # is not the one at the commit it names. A build that alters a tracked file would
+      # recreate that here, silently. dist/ is ignored, so a clean build leaves nothing.
+      - name: Refuse if the build changed a tracked file
+        run: |
+          if [ -n "$(git status --porcelain)" ]; then
+            echo "the tree is not clean after the build — refusing:"; git status --porcelain; exit 1
+          fi
+          echo "tree clean at $(git rev-parse HEAD)"
+
+      # The numbers a stranger needs to rebuild and compare. The same commit built offline
+      # on another machine with the pinned bun gave the same tarball shasum as this runner
+      # (measured on commit 0f637d7, 2026-10-04) — so these lines are checkable, not decor.
       - name: Show what would ship
         working-directory: packages/kavachos
-        run: npm pack --dry-run
+        run: |
+          sha256sum dist/*
+          npm pack --dry-run
 
+      # A manual run from a branch is a rehearsal: it builds, checks and packs, and stops
+      # here. Only a tag publishes — a branch run has no version tag to be checked against,
+      # and it used to fall through to publish.
       - name: Publish with provenance
+        if: github.ref_type == 'tag'
         working-directory: packages/kavachos
         # Trusted Publishing (OIDC): npm authenticates via the workflow's id-token, no
         # stored secret. A publish token is deliberately NOT passed — a 2FA-bypass token is
@@ -98,6 +117,7 @@ jobs:
         run: npm publish --provenance --access public
 
       - name: Confirm the attestation is actually on the registry
+        if: github.ref_type == 'tag'
         working-directory: packages/kavachos
         run: |
           # Publishing without error is not proof the attestation landed. Ask the
