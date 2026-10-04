@@ -44,7 +44,8 @@
   ],
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "test": "bun test"
+    "test": "bun test",
+    "prepublishOnly": "node ../../scripts/publish-guard.mjs"
   },
   "devDependencies": {
     "typescript": "^5.4.0",

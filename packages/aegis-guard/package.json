@@ -42,7 +42,8 @@
   ],
   "scripts": {
     "test": "bun test tests/aegis-guard.test.ts",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "prepublishOnly": "node ../../scripts/publish-guard.mjs"
   },
   "devDependencies": {
     "typescript": "^5.4.0",

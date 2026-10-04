@@ -4,6 +4,23 @@ All notable changes to AEGIS will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [packages] — 2026-10-05
+
+`@xshieldai/aegis-guard` 0.3.0 · `@xshieldai/aegis-suite` 0.2.1 · `@xshieldai/chitta-detect`
+0.2.2 · `@xshieldai/hanumang-mandate` 0.2.2 · `@xshieldai/lakshmanrekha` 0.3.0 ·
+`@xshieldai/n8n-nodes` 1.1.1
+
+### Changed (AGPL-3.0)
+- **All six are published by one release workflow, from a tag, with npm provenance**
+  (`.github/workflows/release-package.yml`; tags `<package>-v<version>`). The workflow runs
+  the package's tests before it publishes.
+- **`npm publish` refuses outside a release workflow** (`scripts/publish-guard.mjs` in
+  `prepublishOnly`); a dry run is allowed.
+- aegis-suite, chitta-detect, hanumang-mandate and n8n-nodes: no change to the code since
+  the previous version; the new version exists so that a provenance attestation does.
+- aegis-guard 0.3.0 and lakshmanrekha 0.3.0 are first published to npm in this release.
+- n8n-nodes: the LICENSE file its manifest lists is now in the package.
+
 ## [2.3.1] — 2026-10-05
 
 `@xshieldai/aegis`. The 2.3.0 changes below, first published to npm in this version, plus how

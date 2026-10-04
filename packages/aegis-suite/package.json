@@ -1,6 +1,6 @@
 {
   "name": "@xshieldai/aegis-suite",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Meta-package — installs the full xShieldAI Posture Suite (AEGIS + Agent Kernel + 4 primitives) in one shot + wireAllToBus() helper that connects all 4 primitives to a single SQLite event bus for the Agentic Control Center. Open-source counter to Fin Operator's hosted governance plane.",
   "license": "AGPL-3.0-only",
   "type": "module",
@@ -50,7 +50,8 @@
     "@xshieldai/hanumang-mandate": "^0.2.0"
   },
   "scripts": {
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "prepublishOnly": "node ../../scripts/publish-guard.mjs"
   },
   "devDependencies": {
     "typescript": "^5.4.0",

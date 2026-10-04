@@ -1,0 +1,153 @@
+# Publish one of the packages under packages/ with npm provenance.
+#
+# One workflow for six packages, so the checks are written once:
+#
+#   tag                            package                        directory
+#   aegis-guard-v<version>         @xshieldai/aegis-guard         packages/aegis-guard
+#   aegis-suite-v<version>         @xshieldai/aegis-suite         packages/aegis-suite
+#   chitta-detect-v<version>       @xshieldai/chitta-detect       packages/chitta-detect
+#   hanumang-mandate-v<version>    @xshieldai/hanumang-mandate    packages/hanumang-mandate
+#   lakshmanrekha-v<version>       @xshieldai/lakshmanrekha       packages/lakshmanrekha
+#   n8n-nodes-v<version>           @xshieldai/n8n-nodes           packages/n8n-nodes-kavachos
+#
+# A tag publishes. A manual run (pick the package) is a rehearsal: it installs, builds,
+# tests and packs, and publishes nothing.
+#
+# AUTH: a Trusted Publisher on npmjs.com for each package (GitHub Actions · rocketlang/aegis
+# · release-package.yml · publish). No secret is stored anywhere.
+#
+# The root package has release.yml (tag v*); the kernel has release-agent-kernel.yml.
+
+name: Release a package
+
+on:
+  push:
+    tags:
+      - 'aegis-guard-v*'
+      - 'aegis-suite-v*'
+      - 'chitta-detect-v*'
+      - 'hanumang-mandate-v*'
+      - 'lakshmanrekha-v*'
+      - 'n8n-nodes-v*'
+  workflow_dispatch:
+    inputs:
+      package:
+        description: 'Package to rehearse (nothing is published from a manual run)'
+        required: true
+        type: choice
+        options:
+          - aegis-guard
+          - aegis-suite
+          - chitta-detect
+          - hanumang-mandate
+          - lakshmanrekha
+          - n8n-nodes
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write        # OIDC trusted publishing and provenance — no stored token
+    steps:
+      - uses: actions/checkout@v4
+
+      # No registry-url: it writes an .npmrc with a placeholder _authToken that npm would
+      # use instead of the OIDC identity.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Upgrade npm for OIDC trusted publishing
+        run: npm install -g npm@latest && npm --version
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.9     # pinned: the test runner is part of what the release rests on
+
+      # The package comes from the tag's prefix, or from the choice on a manual run. It is
+      # matched against a fixed list; anything else is refused. The tag's version must
+      # equal the version in the package's own package.json.
+      - name: Resolve the package and refuse a tag that disagrees with it
+        id: pkg
+        env:
+          CHOICE: ${{ inputs.package }}
+        run: |
+          if [ "$GITHUB_REF_TYPE" = "tag" ]; then KEY="${GITHUB_REF_NAME%-v*}"; else KEY="$CHOICE"; fi
+          case "$KEY" in
+            aegis-guard|aegis-suite|chitta-detect|hanumang-mandate|lakshmanrekha) DIR="packages/$KEY" ;;
+            n8n-nodes) DIR="packages/n8n-nodes-kavachos" ;;
+            *) echo "no package is released under the name '$KEY' — refusing"; exit 1 ;;
+          esac
+          NAME=$(node -p "require('./$DIR/package.json').name")
+          VERSION=$(node -p "require('./$DIR/package.json').version")
+          if [ "$NAME" != "@xshieldai/$KEY" ]; then
+            echo "$DIR/package.json is named $NAME, not @xshieldai/$KEY — refusing"; exit 1
+          fi
+          if [ "$GITHUB_REF_TYPE" = "tag" ] && [ "${GITHUB_REF_NAME##*-v}" != "$VERSION" ]; then
+            echo "tag $GITHUB_REF_NAME does not match $NAME $VERSION — refusing"; exit 1
+          fi
+          echo "$NAME $VERSION in $DIR"
+          echo "dir=$DIR" >> "$GITHUB_OUTPUT"
+          echo "name=$NAME" >> "$GITHUB_OUTPUT"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      # Only a package with a lockfile has anything to install; only one with a build
+      # script has anything to build. Install scripts of dependencies are not run.
+      - name: Install from the lockfile and build, where the package has them
+        working-directory: ${{ steps.pkg.outputs.dir }}
+        run: |
+          if [ -f package-lock.json ]; then npm ci --ignore-scripts; else echo "no lockfile: nothing to install"; fi
+          if node -e "process.exit(require('./package.json').scripts?.build ? 0 : 1)"; then npm run build; else echo "no build script: the package ships its source"; fi
+
+      - name: Run the package's tests, where it has them
+        working-directory: ${{ steps.pkg.outputs.dir }}
+        run: |
+          if [ -d tests ]; then bun test; else echo "no tests directory in this package"; fi
+
+      - name: Refuse if a tracked file changed
+        run: |
+          if [ -n "$(git status --porcelain)" ]; then
+            echo "the tree is not clean — refusing:"; git status --porcelain; exit 1
+          fi
+          echo "tree clean at $(git rev-parse HEAD)"
+
+      # The shasum printed here is what a stranger gets from the same steps on a clean
+      # checkout of the same commit. It is the number to compare with the registry listing.
+      - name: Show what would ship
+        working-directory: ${{ steps.pkg.outputs.dir }}
+        run: |
+          if [ -d dist ]; then find dist -type f | sort | xargs sha256sum; fi
+          npm pack --dry-run
+
+      # prepublishOnly runs scripts/publish-guard.mjs, which refuses outside a tag run.
+      - name: Publish to npm (OIDC trusted publishing, with provenance)
+        if: github.ref_type == 'tag'
+        working-directory: ${{ steps.pkg.outputs.dir }}
+        run: npm publish --provenance --access public
+
+      - name: Confirm the attestation is actually on the registry
+        if: github.ref_type == 'tag'
+        env:
+          NAME: ${{ steps.pkg.outputs.name }}
+          PKG: ${{ steps.pkg.outputs.version }}
+        run: |
+          # Publishing without error is not proof the attestation landed. Ask the registry,
+          # the way a consumer would. The listing and the attestation each take their own
+          # time to appear and are waited for separately.
+          ENC=$(printf '%s' "$NAME" | sed 's#/#%2f#')
+          URL="https://registry.npmjs.org/-/npm/v1/attestations/$ENC@$PKG"
+          for i in $(seq 1 30); do
+            LISTED=$(curl -s -o /dev/null -w '%{http_code}' "https://registry.npmjs.org/$ENC/$PKG")
+            if [ "$LISTED" = "200" ]; then
+              for j in $(seq 1 18); do
+                if curl -sf "$URL" | grep -q 'slsa.dev/provenance'; then
+                  echo "provenance attestation present for $NAME $PKG"; exit 0
+                fi
+                echo "$NAME $PKG is listed; attestation not served yet, waiting"; sleep 10
+              done
+              echo "PUBLISHED WITHOUT PROVENANCE — $NAME $PKG has been listed for 3 minutes and the registry holds no provenance attestation for it"; exit 1
+            fi
+            echo "$NAME $PKG not listed yet (HTTP $LISTED), waiting"; sleep 10
+          done
+          echo "COULD NOT CONFIRM — $NAME $PKG was not listed after 5 minutes. This is not a finding about provenance; look at the registry by hand."; exit 1
