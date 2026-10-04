@@ -113,7 +113,11 @@ jobs:
         run: |
           # Uploading without error is not proof the attestations landed. Ask PyPI, the way
           # a consumer would, for each file, and give it time to serve them.
-          for f in dist/*; do
+          # Only the distributions. The publish action leaves a *.publish.attestation file
+          # beside each one in dist/; looping over those asked PyPI about files it never
+          # had, and failed the langchain 1.0.1 run after a correct release.
+          for f in dist/*.whl dist/*.tar.gz; do
+            [ -e "$f" ] || continue
             FN=$(basename "$f"); OK=0
             for i in $(seq 1 30); do
               if curl -sf "https://pypi.org/integrity/$NAME/$VERSION/$FN/provenance" | grep -q 'attestation_bundles'; then OK=1; break; fi
