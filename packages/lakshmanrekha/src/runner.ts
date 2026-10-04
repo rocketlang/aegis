@@ -35,8 +35,26 @@ export interface ProbeRunResult {
 
 // @rule:ASMAI-S-005 — mask API key in logs; only first 4 + last 4 chars visible
 export function maskKey(key: string): string {
-  if (key.length <= 8) return '****';
+  // First and last four characters, and only of a key long enough that eight characters
+  // are a small part of it. Before v0.4.0 a nine-character key showed eight of its nine.
+  if (typeof key !== 'string' || key.length < 16) return '****';
   return `${key.slice(0, 4)}...${key.slice(-4)}`;
+}
+
+// @rule:ASMAI-S-005 — nothing the runner returns or emits contains the API key
+//
+// The runner never writes the key itself, but an endpoint can send it back: an error body
+// that quotes the Authorization header, a model that repeats its input, a network library
+// that puts the request in its error text. Every string that leaves the runner goes
+// through this first. Keys of fewer than six characters are not scrubbed: replacing a
+// string that short would rewrite ordinary text.
+function scrubKey(text: string, api_key: string): string {
+  if (typeof text !== 'string' || typeof api_key !== 'string' || api_key.length < 6) return text;
+  const masked = maskKey(api_key);
+  let out = text.split(api_key).join(masked);
+  const encoded = encodeURIComponent(api_key);
+  if (encoded !== api_key) out = out.split(encoded).join(masked);
+  return out;
 }
 
 // Build OpenAI-compatible messages array from probe payload
@@ -107,13 +125,18 @@ async function callOpenAICompat(
 
     if (!res.ok) {
       const text = await res.text();
-      throw new Error(`HTTP ${res.status}: ${text.slice(0, 200)}`);
+      // Scrubbed before it is cut: cutting first could leave the front of a key behind.
+      throw new Error(`HTTP ${res.status}: ${scrubKey(text, api_key).slice(0, 200)}`);
     }
 
     const data = (await res.json()) as {
       choices?: Array<{ message?: { content?: string } }>;
     };
-    return data?.choices?.[0]?.message?.content ?? '';
+    const content = data?.choices?.[0]?.message?.content;
+    // A body with no message in it is not a reply from the model. Before v0.4.0 it was
+    // read as an empty reply and classified.
+    if (typeof content !== 'string') throw new Error('response had no message content');
+    return content;
   } finally {
     clearTimeout(timer);
   }
@@ -153,13 +176,16 @@ async function callAnthropic(
 
     if (!res.ok) {
       const text = await res.text();
-      throw new Error(`HTTP ${res.status}: ${text.slice(0, 200)}`);
+      // Scrubbed before it is cut: cutting first could leave the front of a key behind.
+      throw new Error(`HTTP ${res.status}: ${scrubKey(text, api_key).slice(0, 200)}`);
     }
 
     const data = (await res.json()) as {
       content?: Array<{ type: string; text?: string }>;
     };
-    return data?.content?.find((c) => c.type === 'text')?.text ?? '';
+    const text = Array.isArray(data?.content) ? data.content.find((c) => c?.type === 'text')?.text : undefined;
+    if (typeof text !== 'string') throw new Error('response had no message content');
+    return text;
   } finally {
     clearTimeout(timer);
   }
@@ -180,6 +206,16 @@ export async function runProbe(opts: RunProbeOptions): Promise<ProbeRunResult> {
   try {
     let responseText = '';
 
+    // Only http and https. Some runtimes will fetch a file: address and hand its
+    // contents back as if a model had replied.
+    let scheme = '';
+    try {
+      scheme = new URL(endpoint_url).protocol;
+    } catch {
+      throw new Error('endpoint_url is not a URL');
+    }
+    if (scheme !== 'https:' && scheme !== 'http:') throw new Error(`unsupported endpoint scheme ${scheme}`);
+
     if (api_type === 'anthropic') {
       const anthropicPayload = buildAnthropicPayload(probe.payload);
       responseText = await callAnthropic(endpoint_url, api_key, anthropicPayload, timeout_ms, model);
@@ -191,7 +227,7 @@ export async function runProbe(opts: RunProbeOptions): Promise<ProbeRunResult> {
 
     const verdict = classifyResponse(responseText, probe.id);
     const duration_ms = Date.now() - t0;
-    const response_snippet = responseText.slice(0, 200);
+    const response_snippet = scrubKey(responseText, api_key).slice(0, 200);
 
     // @rule:ACC-003 @rule:ACC-004 — emit ACC receipt for cockpit observability
     emitAccReceipt({
@@ -217,7 +253,7 @@ export async function runProbe(opts: RunProbeOptions): Promise<ProbeRunResult> {
     };
   } catch (err) {
     const duration_ms = Date.now() - t0;
-    const errorMsg = err instanceof Error ? err.message : String(err);
+    const errorMsg = scrubKey(err instanceof Error ? err.message : String(err), api_key);
 
     // @rule:ACC-003 — emit on errored verdict too
     emitAccReceipt({

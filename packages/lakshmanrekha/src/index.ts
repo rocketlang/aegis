@@ -28,6 +28,7 @@ export type { ProbeVerdict, ProbeDefinition } from './registry.js';
 export {
   classifyResponse,
   computeRefusalRate,
+  summariseVerdicts,
   REFUSAL_PATTERN_SET,
   COMPLIANCE_PATTERN_SET,
 } from './classifier.js';
