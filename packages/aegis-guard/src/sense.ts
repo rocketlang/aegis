@@ -3,6 +3,9 @@
 // @rule:AEG-HG-2B-004 — gate_phase tags event to soak vs live phase
 // @rule:AEG-HG-2B-005 — approval_token_ref must be a digest (digestApprovalToken), never raw token
 
+import { createHash } from 'crypto';
+import { emitAccReceipt } from './acc-bus.js';
+
 export interface AegisSenseEvent {
   event_type: string;
   service_id: string;
@@ -28,18 +31,36 @@ function defaultJsonTransport(event: AegisSenseEvent): void {
 let _transport: SenseTransport = defaultJsonTransport;
 
 export function configureSenseTransport(transport: SenseTransport): void {
-  _transport = transport;
+  _transport = typeof transport === 'function' ? transport : defaultJsonTransport;
+}
+
+// The shape digestApprovalToken() returns: 24 lower-case hex characters.
+const DIGEST = /^[0-9a-f]{24}$/;
+
+// @rule:AEG-HG-2B-005 — the event is the audit record, and an audit record must not hold
+// the thing it audits. A reference that is not already a digest is digested here, so a
+// caller who passes the raw token by mistake does not write it to the log. (Same digest
+// as digestApprovalToken; computed here so this module does not import the token module.)
+function asDigest(ref: unknown): string | undefined {
+  if (ref === undefined || ref === null || ref === '') return undefined;
+  if (typeof ref === 'string' && DIGEST.test(ref)) return ref;
+  return createHash('sha256').update(String(ref)).digest('hex').slice(0, 24);
 }
 
 // @rule:CA-003 — all three snapshot fields are required by the type; callers must supply them.
-// approval_token_ref, if present, must already be the output of digestApprovalToken (AEG-HG-2B-005).
+// The SDK does not check that they are present.
 // @rule:ACC-003 — also emit an ACC receipt for cockpit observability (no-op when bus unset).
+//
+// If the transport throws, this throws: the caller of an irreversible operation should
+// know its audit event was not written. (A bus that throws is different: it is swallowed.)
 export function emitAegisSenseEvent(event: AegisSenseEvent): void {
-  _transport(event);
-  emitAccReceiptFromSense(event);
+  const ref = asDigest(event?.approval_token_ref);
+  const safe: AegisSenseEvent = { ...event };
+  if (ref === undefined) delete safe.approval_token_ref;
+  else safe.approval_token_ref = ref;
+  _transport(safe);
+  emitAccReceiptFromSense(safe);
 }
-
-import { emitAccReceipt } from './acc-bus.js';
 
 function emitAccReceiptFromSense(event: AegisSenseEvent): void {
   emitAccReceipt({

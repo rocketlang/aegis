@@ -135,7 +135,8 @@ async function runDemo(req: DemoRunRequest): Promise<unknown> {
         operation: "demo_op",
         nonce: `demo-${Date.now()}`,
         scope: { content_sha_prefix: req.content.slice(0, 12) },
-        ttl_seconds: 60,
+        issued_at: Date.now(),
+        expires_at: Date.now() + 60_000,
       });
       const payload = verifyApprovalToken(token, "demo-svc", "settle", "demo_op");
       return {

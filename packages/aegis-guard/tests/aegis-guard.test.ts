@@ -6,8 +6,8 @@ import { mkdtempSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
 
-// KGT-T1.1: minting auto-provisions an Ed25519 keypair under AEGIS_DIR — keep the
-// suite hermetic by pointing it at a temp dir before the first mint.
+// KGT-T1.1: the signing keypair lives under AEGIS_DIR — keep the suite hermetic by
+// pointing it at a temp dir before the key is made.
 process.env.AEGIS_DIR = mkdtempSync(join(tmpdir(), 'aegis-guard-test-'));
 
 import {
@@ -33,7 +33,10 @@ import {
   verifyApprovalJwt,
   getPublicKeyPem,
 } from '../src/index.js';
-import { __resetSigningCache } from '../src/signing.js';
+import { __resetSigningCache, ensureSigningKeypair } from '../src/signing.js';
+
+// v0.4.0: minting no longer makes a key. The suite plays the authority, so it makes one.
+ensureSigningKeypair();
 
 // ─── §1 errors ───────────────────────────────────────────────────────────────
 
@@ -291,11 +294,14 @@ describe('§4 idempotency', () => {
     expect(r.safeNoOp).toBe(false);
   });
 
-  it('B93-025: existing record + no fingerprint comparison = safeNoOp', () => {
+  // Changed in v0.4.0 (AEG-HG-2B-009): this case was a safe no-op. With no stored
+  // fingerprint nothing shows the new request is the same one, so it is not safe.
+  it('B93-025: existing record + no fingerprint to compare = NOT a safe no-op', () => {
     const r = checkIdempotency('ref-exists', { id: 1 }, 'fp1');
     expect(r.isDuplicate).toBe(true);
     expect(r.payloadMismatch).toBe(false);
-    expect(r.safeNoOp).toBe(true);
+    expect(r.comparable).toBe(false);
+    expect(r.safeNoOp).toBe(false);
   });
 
   it('B93-026: existing record + matching fingerprint = safeNoOp', () => {

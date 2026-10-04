@@ -8,6 +8,7 @@ import {
   setEventBus,
   verifyApprovalToken,
   mintApprovalToken,
+  ensureSigningKeypair,
   checkIdempotency,
   buildIdempotencyFingerprint,
   emitAegisSenseEvent,
@@ -17,6 +18,17 @@ import {
   defaultNonceStore,
   type AccReceipt,
 } from '../src/index.js';
+import { mkdtempSync } from 'fs';
+import { tmpdir } from 'os';
+import { join } from 'path';
+
+// 0) The quickstart plays the approving authority, so it needs a signing key. It makes a
+//    throwaway one in a temp directory and leaves your ~/.aegis alone. In a real
+//    deployment only the AEGIS box calls ensureSigningKeypair(); every other service is
+//    given the public key and can verify, not mint.
+process.env.AEGIS_DIR = mkdtempSync(join(tmpdir(), 'aegis-guard-quickstart-'));
+delete process.env.AEGIS_APPROVAL_PUBKEY_PEM;
+ensureSigningKeypair();
 
 // 1) Wire the ACC bus so every receipt prints to stdout
 setEventBus({
@@ -36,7 +48,8 @@ const token = mintApprovalToken({
   operation: 'record_settle',
   nonce: 'nonce-quickstart-' + Date.now(),
   scope: { vessel_id: 'V-001', amount: 5000 },
-  ttl_seconds: 60,
+  issued_at: Date.now(),
+  expires_at: Date.now() + 60_000, // verifyApprovalToken refuses a token without one
 });
 console.log(`minted token digest=${digestApprovalToken(token)}`);
 const payload = verifyApprovalToken(token, 'demo-svc', 'settle', 'record_settle');

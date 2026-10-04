@@ -1,6 +1,6 @@
 {
   "name": "@xshieldai/aegis-guard",
-  "version": "0.3.1",
+  "version": "0.4.0",
   "description": "AEGIS Guard SDK — Five Locks primitives (approval-token, nonce, idempotency, SENSE, quality-evidence) + opt-in Agentic Control Center event bus for AEGIS-governed services",
   "license": "AGPL-3.0-only",
   "type": "module",
@@ -41,7 +41,7 @@
     "LICENSE"
   ],
   "scripts": {
-    "test": "bun test tests/aegis-guard.test.ts",
+    "test": "bun test",
     "typecheck": "tsc --noEmit",
     "prepublishOnly": "node ../../scripts/publish-guard.mjs"
   },

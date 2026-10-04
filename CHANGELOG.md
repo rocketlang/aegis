@@ -4,6 +4,58 @@ All notable changes to AEGIS will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [aegis-guard 0.4.0] — 2026-10-05
+
+`@xshieldai/aegis-guard`. Some calls that passed are now refused, and minting no longer
+makes a key; read "Changed" and the README's "Upgrading from 0.3.x" before upgrading.
+
+### Changed (AGPL-3.0)
+- **Minting never makes a key; a verifier never makes its own (rule AEG-HG-2B-007).**
+  `mintApprovalToken()` and `signApprovalJwt()` throw on a box with no private key.
+  `ensureSigningKeypair()` throws on a box that holds a public key (file or
+  `AEGIS_APPROVAL_PUBKEY_PEM`) and no private key, and writes nothing there. The authority
+  calls `ensureSigningKeypair()` once, at boot.
+- **Keys that disagree are not trusted.** The private key, the public file and the
+  environment PEM must all be the same Ed25519 key, or every verification is refused with a
+  reason. A change of the environment PEM is picked up without a restart.
+- **`verifyApprovalToken()` checks types (rule AEG-HG-2B-008).** `expires_at` must be a
+  number; `issued_at`, when present, a number not after `expires_at`; `status`, when
+  present, exactly `approved`; `nonce`, when present, text; the expected service,
+  capability and operation non-empty text. A token that is not text, or whose body is not a
+  JSON object, is refused with `IrrNoApprovalError`. The signature segment must be exactly
+  the 64 bytes in base64url.
+- **`verifyScopedApprovalToken()`** refuses a scope field with no value, compares only the
+  token's own fields, and refuses a scope that is not an object of fields.
+- **`verifyAndConsumeNonce()`** needs a text nonce and a payload in date, and counts the
+  nonce as consumed only when the store answers exactly `true`.
+- **`checkIdempotency()` (rule AEG-HG-2B-009):** a duplicate is a safe no-op only when both
+  fingerprints are present and equal. Without a stored fingerprint it is `safeNoOp: false`
+  with the new field `comparable: false` and a `lock.idempotency.unverifiable` receipt.
+- **`buildIdempotencyFingerprint()`** sorts keys at every depth; keeps `NaN`, `±Infinity`,
+  `bigint`, `Map` and `Set` distinct; throws a plain error for a payload that is not an
+  object of fields or that contains itself. Flat payloads fingerprint as before.
+- **`emitAegisSenseEvent()`** digests an `approval_token_ref` that is not already a digest,
+  before the transport and the bus see it.
+- **`meetsHgQualityRequirement()`** is false for a mask that is not a whole number of bits
+  0–11 and for a group not in the table. `HG_REQUIRED_MASKS` is frozen.
+- **`verifyEnvelope()` and `issueEnvelope()` (rule ASE-016)** read the answer strictly:
+  verified only on exactly `true` for the session asked about; drift unless the answer says
+  exactly `false` with an empty list; an answer with no session id or seal throws; http and
+  https addresses only. The budget is read from the names the audit route uses.
+
+### Added
+- `tests/hardening.test.ts`: 107 tests. 177 tests in the package.
+- README: "Keys — who signs, who verifies", "Upgrading from 0.3.x", "What this does not do".
+
+### Fixed
+- The quickstart and the dashboard demo minted a token with no `expires_at`. Both now set
+  one; the quickstart uses a throwaway key in a temp directory.
+
+### Not covered, and pinned by tests
+- No upper limit on a token's life; no revocation list; the nonce call checks no signature;
+  a key file swapped under a running process is not noticed until restart; the fingerprint
+  is the payload encoded, not a hash; only the reference field of a SENSE event is digested.
+
 ## [aegis-suite 0.2.4] — 2026-10-05
 
 `@xshieldai/aegis-suite`.

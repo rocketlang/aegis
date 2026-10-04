@@ -35,6 +35,7 @@ const PROMOTION_BIT_MAP: Array<[keyof QualityEvidenceInput, number]> = [
 // @rule:AEG-Q-003 — bits 12-15 are never touched by this function (point-in-time only)
 export function buildQualityMaskAtPromotion(evidence: QualityEvidenceInput): number {
   let mask = 0;
+  if (evidence === null || typeof evidence !== 'object') return mask; // no evidence, no bits
   for (const [field, bit] of PROMOTION_BIT_MAP) {
     if (evidence[field] === true) mask |= (1 << bit);
   }
@@ -58,23 +59,35 @@ const DRIFT_BIT_MAP: Array<[keyof QualityDriftInput, number]> = [
 // @rule:AEG-Q-002 — drift bits 12-15 only; never OR'd with promotion mask into a single field
 export function buildQualityDriftScore(drift: QualityDriftInput): number {
   let score = 0;
+  if (drift === null || typeof drift !== 'object') return score;
   for (const [field, bit] of DRIFT_BIT_MAP) {
     if (drift[field] === true) score |= (1 << bit);
   }
   return score;
 }
 
-// HG group minimum quality mask requirements (promotion bits 0-11 only)
-export const HG_REQUIRED_MASKS = {
+// HG group minimum quality mask requirements (promotion bits 0-11 only).
+// Frozen: the table is exported, and before v0.4.0 any code in the process could lower a
+// bar by assigning to it.
+export const HG_REQUIRED_MASKS = Object.freeze({
   'HG-1':            0x0302,
   'HG-2A':           0x0B83,
   'HG-2B':           0x0FAB,
   'HG-2B-financial': 0x0FFF,
-} as const;
+} as const);
 
 export type HgGroup = keyof typeof HG_REQUIRED_MASKS;
 
+const PROMOTION_BITS = 0x0fff;
+
+// @rule:AEG-Q-003 — a promotion mask is a whole number made of bits 0-11 and nothing else.
+// Anything that is not one does not meet any bar: before v0.4.0 the bitwise test coerced
+// its input, so -1, the text "4095" and 4095.9 all met the financial bar, and so did a
+// mask carrying drift bits.
 export function meetsHgQualityRequirement(hgGroup: HgGroup, qualityMask: number): boolean {
+  if (typeof hgGroup !== 'string' || !Object.prototype.hasOwnProperty.call(HG_REQUIRED_MASKS, hgGroup)) return false;
+  if (typeof qualityMask !== 'number' || !Number.isInteger(qualityMask)) return false;
+  if (qualityMask < 0 || (qualityMask & ~PROMOTION_BITS) !== 0 || qualityMask > PROMOTION_BITS) return false;
   const required = HG_REQUIRED_MASKS[hgGroup];
   return (qualityMask & required) === required;
 }

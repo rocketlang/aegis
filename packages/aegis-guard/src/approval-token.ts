@@ -1,6 +1,9 @@
 // @rule:AEG-E-016 — approval tokens are scoped to service_id + capability + operation
 // @rule:AEG-HG-2B-005 — approval token references in SENSE use digest, not raw token material
 // @rule:AEG-HG-2B-006 — nonce protects the approval; idempotency protects the operation (separate locks)
+// @rule:AEG-HG-2B-008 — every field a decision rests on is checked for its type before it is
+//                       compared; anything the gate cannot read is a refusal, with the
+//                       package's own error, never a pass and never a TypeError
 
 import { createHash } from 'crypto';
 import { IrrNoApprovalError } from './errors.js';
@@ -23,16 +26,25 @@ export interface ApprovalTokenPayload {
   [key: string]: unknown;
 }
 
+const isTime = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v) && v > 0;
+const isText = (v: unknown): v is string => typeof v === 'string' && v.length > 0;
+const say = (v: unknown): string => (typeof v === 'string' ? v : typeof v).slice(0, 60);
+const own = (o: object, k: string): boolean => Object.prototype.hasOwnProperty.call(o, k);
+
 // @rule:AEG-HG-2B-005 — SENSE stores proof reference, not proof secret.
 // Returns first 24 hex chars of SHA-256 (96 bits) — sufficient for correlation, not reconstruction.
 export function digestApprovalToken(token: string): string {
-  return createHash('sha256').update(token).digest('hex').slice(0, 24);
+  return createHash('sha256').update(String(token)).digest('hex').slice(0, 24);
 }
 
 // @rule:AEG-E-016 @rule:KGT-002 — mint an AEGIS-signed EdDSA JWT (KGT-T1.1).
 // Signing requires the AEGIS private key (~/.aegis/approval-signing.key) — present on
-// the AEGIS box, auto-provisioned by the :4850 dashboard. Throws where the key is absent:
-// a service that cannot sign cannot mint, by design.
+// the AEGIS box, where the :4850 dashboard provisions it at boot with
+// ensureSigningKeypair(). Throws where the key is absent: a service that cannot sign
+// cannot mint, by design. Minting never makes a key.
+//
+// The payload is signed as given. verifyApprovalToken() will refuse a token without a
+// numeric expires_at, so mint with one.
 export function mintApprovalToken(payload: ApprovalTokenPayload): string {
   return signApprovalJwt(payload);
 }
@@ -41,6 +53,8 @@ export function mintApprovalToken(payload: ApprovalTokenPayload): string {
 // @rule:KGT-002 — signature verified FIRST, fail-closed: unsigned/tampered/alg:none/
 // wrong-key tokens are rejected before any scope check. Legacy base64url(JSON) tokens
 // (pre-KGT-T1.1, forgeable) are rejected outright.
+// @rule:AEG-HG-2B-008 — expires_at must be a number; a status other than 'approved' is a
+// refusal here, in LOCK_1, not only in the scoped check.
 export function verifyApprovalToken(
   token: string,
   expectedServiceId: string,
@@ -48,40 +62,70 @@ export function verifyApprovalToken(
   expectedOperation: string,
 ): ApprovalTokenPayload {
   // @rule:ACC-003 @rule:ACC-004 — emit ACC receipt on success OR failure
-  const scope = `${expectedServiceId}/${expectedCapability}/${expectedOperation}`;
+  const cap = isText(expectedCapability) ? expectedCapability : 'unknown';
+  const scope = `${say(expectedServiceId)}/${say(expectedCapability)}/${say(expectedOperation)}`;
   try {
+    if (!isText(expectedServiceId) || !isText(expectedCapability) || !isText(expectedOperation)) {
+      throw new IrrNoApprovalError(cap, 'AEG-E-016: the expected service, capability and operation must each be non-empty text');
+    }
     const jwt = verifyApprovalJwt(token);
     if (!jwt.ok) {
-      throw new IrrNoApprovalError(expectedCapability, `KGT-002: ${jwt.reason}`);
+      throw new IrrNoApprovalError(cap, `KGT-002: ${jwt.reason}`);
     }
     const payload = jwt.payload as ApprovalTokenPayload;
 
     if (payload.service_id !== expectedServiceId) {
       throw new IrrNoApprovalError(
-        expectedCapability,
-        `AEG-E-016: token scoped to '${payload.service_id}', not '${expectedServiceId}'`,
+        cap,
+        `AEG-E-016: token scoped to '${say(payload.service_id)}', not '${expectedServiceId}'`,
       );
     }
     if (payload.capability !== expectedCapability) {
       throw new IrrNoApprovalError(
-        expectedCapability,
-        `AEG-E-016: token capability '${payload.capability}' does not match '${expectedCapability}'`,
+        cap,
+        `AEG-E-016: token capability '${say(payload.capability)}' does not match '${expectedCapability}'`,
       );
     }
     if (payload.operation !== expectedOperation) {
       throw new IrrNoApprovalError(
-        expectedCapability,
-        `AEG-E-016: token operation '${payload.operation}' does not match '${expectedOperation}'`,
+        cap,
+        `AEG-E-016: token operation '${say(payload.operation)}' does not match '${expectedOperation}'`,
       );
+    }
+    // A token with no expiry, or one written as text, used to compare false against the
+    // clock and so never expired.
+    if (!isTime(payload.expires_at)) {
+      throw new IrrNoApprovalError(cap, 'AEG-E-016: token has no numeric expires_at');
     }
     if (Date.now() > payload.expires_at) {
-      throw new IrrNoApprovalError(expectedCapability, 'AEG-E-016: token expired');
+      throw new IrrNoApprovalError(cap, 'AEG-E-016: token expired');
     }
-    if (payload.issued_at !== undefined && payload.issued_at > Date.now() + CLOCK_SKEW_MS) {
+    if (payload.issued_at !== undefined) {
+      if (!isTime(payload.issued_at)) {
+        throw new IrrNoApprovalError(cap, 'AEG-E-016: token issued_at is not a number');
+      }
+      if (payload.issued_at > Date.now() + CLOCK_SKEW_MS) {
+        throw new IrrNoApprovalError(
+          cap,
+          'AEG-E-016: token issued_at is in the future (clock skew > 60s or forged timestamp)',
+        );
+      }
+      if (payload.issued_at > payload.expires_at) {
+        throw new IrrNoApprovalError(cap, 'AEG-E-016: token expires before it was issued');
+      }
+    }
+    // Absent means approved (tokens minted before the field existed). Anything else that
+    // is not exactly 'approved' is not an approval.
+    if (payload.status !== undefined && payload.status !== 'approved') {
       throw new IrrNoApprovalError(
-        expectedCapability,
-        'AEG-E-016: token issued_at is in the future (clock skew > 60s or forged timestamp)',
+        cap,
+        payload.status === 'revoked' ? 'AEG-E-016: token revoked'
+          : payload.status === 'denied' ? 'AEG-E-016: token denied'
+          : `AEG-E-016: token status '${say(payload.status)}' is not 'approved'`,
       );
+    }
+    if (payload.nonce !== undefined && !isText(payload.nonce)) {
+      throw new IrrNoApprovalError(cap, 'AEG-E-016: token nonce is not text');
     }
 
     emitAccReceipt({
@@ -106,29 +150,52 @@ export function verifyApprovalToken(
 
 // @rule:AEG-HG-2B-006 — consume nonce before any state mutation; missing nonce = hard reject.
 // Nonce TTL is bounded by token lifetime; store unavailable = fail CLOSED (throws, never open).
+// @rule:AEG-HG-2B-008 — the nonce must be text, the payload must be in date, and only a
+// store that answers exactly `true` has consumed it.
+//
+// This takes a payload, not a token: it does not check a signature. Pass it what
+// verifyApprovalToken() returned.
 export async function verifyAndConsumeNonce(
   payload: ApprovalTokenPayload,
   store: NonceStore = defaultNonceStore,
 ): Promise<void> {
   // @rule:ACC-003 @rule:ACC-004 — emit ACC receipt on success OR failure
-  const scope = `${payload.service_id}/${payload.capability}/${payload.operation}`;
+  const p = (payload !== null && typeof payload === 'object' ? payload : {}) as ApprovalTokenPayload;
+  const cap = isText(p.capability) ? p.capability : 'unknown';
+  const scope = `${say(p.service_id)}/${say(p.capability)}/${say(p.operation)}`;
   try {
-    if (!payload.nonce) {
+    if (p !== payload) {
+      throw new IrrNoApprovalError(cap, 'AEG-E-016: no approval payload');
+    }
+    if (payload.nonce === undefined || payload.nonce === null || payload.nonce === '') {
       throw new IrrNoApprovalError(
-        payload.capability,
+        cap,
         'AEG-E-016: irreversible operation requires nonce for replay prevention',
       );
     }
-    const ttlMs = Math.max(0, payload.expires_at - Date.now());
+    // An object as a nonce is a different object each time the token is parsed, so it
+    // would never be seen twice.
+    if (!isText(payload.nonce)) {
+      throw new IrrNoApprovalError(cap, 'AEG-E-016: nonce is not text');
+    }
+    if (!isTime(payload.expires_at)) {
+      throw new IrrNoApprovalError(cap, 'AEG-E-016: approval has no numeric expires_at');
+    }
+    // An expired approval has nothing left to protect, and a nonce stored for zero
+    // milliseconds is forgotten at once: the same approval could be consumed again.
+    const ttlMs = payload.expires_at - Date.now();
+    if (ttlMs <= 0) {
+      throw new IrrNoApprovalError(cap, 'AEG-E-016: approval expired');
+    }
     const consumed = await store.consumeNonce(payload.nonce, ttlMs);
-    if (!consumed) {
+    if (consumed !== true) {
       throw new IrrNoApprovalError(
-        payload.capability,
-        `AEG-E-016: nonce '${payload.nonce}' already consumed — approval replay rejected`,
+        cap,
+        `AEG-E-016: nonce '${payload.nonce.slice(0, 60)}' already consumed — approval replay rejected`,
       );
     }
     emitAccReceipt({
-      receipt_id: `aegis-guard-nonce-${payload.nonce}`,
+      receipt_id: `aegis-guard-nonce-${payload.nonce.slice(0, 80)}`,
       event_type: 'lock.nonce.consumed',
       verdict: 'PASS',
       rules_fired: ['AEG-HG-2B-006'],
@@ -149,6 +216,10 @@ export async function verifyAndConsumeNonce(
 // @rule:AEG-E-016 — HG-2B: verify scope fields declared by the caller service.
 // requiredScope: Record<string, unknown> — caller declares which fields to bind; SDK enforces them.
 // Service-agnostic: the caller owns the field names; the SDK never names domain concepts.
+// @rule:AEG-HG-2B-008 — a field the caller has no value for binds nothing, so it is a
+// refusal: before v0.4.0 `{ vessel_id: undefined }` matched any token without a vessel_id.
+//
+// An empty requiredScope checks nothing more than verifyApprovalToken() does.
 export function verifyScopedApprovalToken(
   token: string,
   expectedServiceId: string,
@@ -160,19 +231,22 @@ export function verifyScopedApprovalToken(
     token, expectedServiceId, expectedCapability, expectedOperation,
   );
 
-  if (payload.status === 'revoked') {
-    throw new IrrNoApprovalError(expectedCapability, 'AEG-E-016: token revoked');
-  }
-  if (payload.status === 'denied') {
-    throw new IrrNoApprovalError(expectedCapability, 'AEG-E-016: token denied');
+  if (requiredScope === null || typeof requiredScope !== 'object' || Array.isArray(requiredScope)) {
+    throw new IrrNoApprovalError(expectedCapability, 'AEG-E-016: required scope is not an object of fields');
   }
 
   for (const [field, contextValue] of Object.entries(requiredScope)) {
-    const tokenValue = payload[field];
+    if (contextValue === undefined || contextValue === null) {
+      throw new IrrNoApprovalError(
+        expectedCapability,
+        `AEG-E-016: scope field '${field}' has no value to bind the token to`,
+      );
+    }
+    const tokenValue = own(payload, field) ? payload[field] : undefined;
     if (tokenValue !== contextValue) {
       throw new IrrNoApprovalError(
         expectedCapability,
-        `AEG-E-016: token ${field} '${String(tokenValue)}' does not match scope '${String(contextValue)}'`,
+        `AEG-E-016: token ${field} '${String(tokenValue).slice(0, 60)}' does not match scope '${String(contextValue).slice(0, 60)}'`,
       );
     }
   }
