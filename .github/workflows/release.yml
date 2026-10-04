@@ -75,10 +75,16 @@ jobs:
           for i in $(seq 1 30); do
             LISTED=$(curl -s -o /dev/null -w '%{http_code}' "https://registry.npmjs.org/@xshieldai%2faegis/$PKG")
             if [ "$LISTED" = "200" ]; then
-              if curl -sf "$URL" | grep -q 'slsa.dev/provenance'; then
-                echo "provenance attestation present for $PKG"; exit 0
-              fi
-              echo "PUBLISHED WITHOUT PROVENANCE — $PKG is listed and the registry holds no provenance attestation for it"; exit 1
+              # The listing and the attestation do not appear at the same instant: aegis
+              # 2.3.1 was listed a moment before its attestation was served, and this step
+              # raised the alarm on a version that had one. Give the attestation its own wait.
+              for j in $(seq 1 18); do
+                if curl -sf "$URL" | grep -q 'slsa.dev/provenance'; then
+                  echo "provenance attestation present for $PKG"; exit 0
+                fi
+                echo "$PKG is listed; attestation not served yet, waiting"; sleep 10
+              done
+              echo "PUBLISHED WITHOUT PROVENANCE — $PKG has been listed for 3 minutes and the registry holds no provenance attestation for it"; exit 1
             fi
             echo "$PKG not listed yet (HTTP $LISTED), waiting"; sleep 10
           done
