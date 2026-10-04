@@ -4,6 +4,27 @@ All notable changes to AEGIS will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [agent-kernel 2.1.1] — 2026-10-05
+
+`@xshieldai/agent-kernel`. No change to what the kernel enforces since 2.1.0; this release is
+about how the package is published.
+
+### Changed (KAVACH-KERNEL — AGPL-3.0)
+- **Published by the release workflow, from a tag, with npm provenance.** The registry holds an
+  attestation naming this repository, the workflow file and the commit.
+- **`npm publish` refuses outside the release workflow.** `prepublishOnly` runs
+  `scripts/publish-guard.mjs` first; a dry run is allowed.
+- **A manual workflow run from a branch builds and packs only.** Only a tag publishes.
+- **The workflow refuses if the build changed a tracked file**, and prints the sha256 of each
+  built file so a rebuild can be compared.
+- `bin` path written as `bin/kavachos`, the form npm stores, so the manifest in the tarball
+  equals the registry listing.
+
+### Reproducing the build
+From a clean checkout of the tag, with bun 1.3.9 and no `bun install`:
+`cd packages/kavachos && bun run build && npm pack`. The tarball's shasum should equal the one
+the registry lists.
+
 ## [2.3.0] — 2026-09-25 — the answerability release
 
 > **Can you answer what your agents touched?** This release makes that one command.
