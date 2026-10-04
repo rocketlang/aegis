@@ -1,39 +1,39 @@
-# @rocketlang/aegis-suite
+# @xshieldai/aegis-suite
 
-> **🔍 Verification status (2026-05-17 IST)**
-> - **Tests:** ⚠️ `wireAllToBus()` helper has no standalone tests yet (tracked for v0.2.2). Bundled primitives' test status: **4 of 6** bundled packages have automated tests today (aegis-guard: 63, chitta-detect: 60, lakshmanrekha: 36, hanumang-mandate: 46 — **205 tests total** across primitives, all passing on `bun test`).
-> - **Examples:** ✅ runnable quickstart: [examples/quickstart.ts](examples/quickstart.ts) — `bun run examples/quickstart.ts` calls `wireAllToBus()` then exercises each primitive, showing receipts unified into one stream (primitive name in `[brackets]` per line). Writes to `~/.aegis/acc-events.db` for later inspection.
+> **🔍 Verification status (2026-10-05 IST — v0.2.2)**
+> - **Tests:** ⚠️ `wireAllToBus()` helper has no standalone tests yet. Bundled primitives' test status: **4 of 6** bundled packages have automated tests today (aegis-guard: 70, chitta-detect: 60, lakshmanrekha: 60, hanumang-mandate: 46 — **236 tests total** across primitives at their current versions, all passing on `bun test`).
+> - **Examples:** ✅ runnable quickstart, in the repository (not in the npm package): [examples/quickstart.ts](https://github.com/rocketlang/aegis/blob/master/packages/aegis-suite/examples/quickstart.ts) — `bun run examples/quickstart.ts` calls `wireAllToBus()` then exercises each primitive, showing receipts unified into one stream (primitive name in `[brackets]` per line). Writes to `~/.aegis/acc-events.db` for later inspection.
 > - **Live demo:** ⚠️ planned (Tier 3)
 > - **Phase-1 limits:** documented in "Phase-1 limits (v0.2.0)" section below (SQLite WAL checkpointing, in-process vs cross-process visibility, etc.)
 >
-> This is the **installer convenience layer**. The verification trust transfers from the underlying primitives — see [PROOF-STACK.md](../../PROOF-STACK.md) for the full per-package matrix. Do not assume "the suite is tested" because the meta-package version went up; check each primitive's banner.
+> This is the **installer convenience layer**. The verification trust transfers from the underlying primitives — see [PROOF-STACK.md](https://github.com/rocketlang/aegis/blob/master/PROOF-STACK.md) for the full per-package matrix. Do not assume "the suite is tested" because the meta-package version went up; check each primitive's banner.
 
 **Meta-package.** Installs the full open-source AEGIS / KavachOS / xShieldAI agent governance stack in one shot.
 
 ```bash
-npm install @rocketlang/aegis-suite
+npm install @xshieldai/aegis-suite
 # or
-bun add @rocketlang/aegis-suite
+bun add @xshieldai/aegis-suite
 ```
 
 That's it. You now have all six primitives. Import from each sub-package by name (this meta-package does not re-export — keep your imports honest about which primitive you're using).
 
 ## What's bundled (6 packages)
 
-| Package | Role | Phase |
+| Package | Role | Range this package installs |
 |---|---|---|
-| [`@rocketlang/aegis`](https://www.npmjs.com/package/@rocketlang/aegis) | Agent **spend** governance: budget caps, kill-switch, DAN gate, HanumanG 7-axis spawn check | v2.1.0 stable |
-| [`@rocketlang/kavachos`](https://www.npmjs.com/package/@rocketlang/kavachos) | Agent **behavior**: seccomp-bpf, Falco, syscall mediation, exec allowlist, egress firewall | v2.0.2 stable |
-| [`@rocketlang/aegis-guard`](https://www.npmjs.com/package/@rocketlang/aegis-guard) | Five Locks SDK: approval-token, nonce, idempotency, SENSE, quality-evidence | v0.1.0 |
-| [`@rocketlang/chitta-detect`](https://www.npmjs.com/package/@rocketlang/chitta-detect) | Memory poisoning detection: trust / imperative / tool-output / capability-expansion / fingerprint scanners | v0.1.0 |
-| [`@rocketlang/lakshmanrekha`](https://www.npmjs.com/package/@rocketlang/lakshmanrekha) | LLM endpoint probe suite: 8 deterministic attack probes + replayable refusal classifier + multi-provider runner | v0.1.0 |
-| [`@rocketlang/hanumang-mandate`](https://www.npmjs.com/package/@rocketlang/hanumang-mandate) | Mudrika delegation-credential verifier + 7-axis posture scorer | v0.1.0 |
+| [`@xshieldai/aegis`](https://www.npmjs.com/package/@xshieldai/aegis) | Agent **spend** governance: budget caps, kill-switch, DAN gate, HanumanG 7-axis spawn check | `^2.2.0` |
+| [`@xshieldai/agent-kernel`](https://www.npmjs.com/package/@xshieldai/agent-kernel) | Agent **behavior**: seccomp-bpf, Falco, syscall mediation, exec allowlist, egress firewall | `^2.0.2` |
+| [`@xshieldai/aegis-guard`](https://www.npmjs.com/package/@xshieldai/aegis-guard) | Five Locks SDK: approval-token, nonce, idempotency, SENSE, quality-evidence | `^0.3.1` |
+| [`@xshieldai/chitta-detect`](https://www.npmjs.com/package/@xshieldai/chitta-detect) | Memory poisoning detection: trust / imperative / tool-output / capability-expansion / fingerprint scanners | `^0.2.0` |
+| [`@xshieldai/lakshmanrekha`](https://www.npmjs.com/package/@xshieldai/lakshmanrekha) | LLM endpoint probe suite: 8 deterministic attack probes + replayable refusal classifier + multi-provider runner | `^0.3.1` |
+| [`@xshieldai/hanumang-mandate`](https://www.npmjs.com/package/@xshieldai/hanumang-mandate) | Mudrika delegation-credential verifier + 7-axis posture scorer | `^0.2.0` |
 
 ## Deliberately NOT bundled
 
 | Package | Why excluded |
 |---|---|
-| `@rocketlang/n8n-nodes-kavachos` | n8n-specific integration — `npm install @rocketlang/n8n-nodes-kavachos` separately if you use n8n. Excluded so non-n8n users don't pull n8n-shaped deps. |
+| `@xshieldai/n8n-nodes` | n8n-specific integration — `npm install @xshieldai/n8n-nodes` separately if you use n8n. Excluded so non-n8n users don't pull n8n-shaped deps. |
 | `@rocketlang/kavachos-ee` | BSL-1.1 Enterprise Edition (PRAMANA Merkle ledger, HanumanG EE posture registry, dual-control approvals, multi-tenant isolation). Not published to npm. Contact [captain@ankr.in](mailto:captain@ankr.in) for design partner access. |
 
 ## Why a meta-package and not a fused single package?
@@ -51,7 +51,7 @@ This meta-package is the **convenience installer**, not a re-architected mono-pr
 ### Day-1: Aegis CLI sets up the spend gate
 
 ```bash
-# Installed globally via @rocketlang/aegis bin
+# Installed globally via @xshieldai/aegis bin
 aegis init
 aegis-monitor &
 aegis-dashboard &
@@ -61,7 +61,7 @@ aegis-dashboard &
 ### Day-1: Probe your LLM endpoint with lakshmanrekha
 
 ```typescript
-import { runAllProbes, computeRefusalRate } from '@rocketlang/lakshmanrekha';
+import { runAllProbes, computeRefusalRate } from '@xshieldai/lakshmanrekha';
 
 const results = await runAllProbes(
   'https://api.openai.com/v1',
@@ -75,7 +75,7 @@ console.log(`Refusal rate: ${computeRefusalRate(results.map(r => r.verdict))}%`)
 ### Day-2: Scan persistent memory writes with chitta-detect
 
 ```typescript
-import { scan } from '@rocketlang/chitta-detect';
+import { scan } from '@xshieldai/chitta-detect';
 
 const result = scan.evaluate(suspiciousMemoryContent, { agent_id: 'agent-001' });
 if (result.verdict === 'BLOCK') {
@@ -86,7 +86,7 @@ if (result.verdict === 'BLOCK') {
 ### Day-3: Verify agent mandates with hanumang-mandate
 
 ```typescript
-import { verifyMudrika, scoreAxis, computePostureScore } from '@rocketlang/hanumang-mandate';
+import { verifyMudrika, scoreAxis, computePostureScore } from '@xshieldai/hanumang-mandate';
 
 const mandate = verifyMudrika(receivedMudrika, expectedAgentId);
 if (mandate.outcome !== 'PASS') {
@@ -97,7 +97,7 @@ if (mandate.outcome !== 'PASS') {
 ### Day-4: Wire Five Locks with aegis-guard
 
 ```typescript
-import { verifyApprovalToken, emitAegisSenseEvent, checkIdempotency } from '@rocketlang/aegis-guard';
+import { verifyApprovalToken, emitAegisSenseEvent, checkIdempotency } from '@xshieldai/aegis-guard';
 
 // LOCK_1 — verify approval token before irreversible action
 const payload = verifyApprovalToken(token, 'my-service', 'settle', 'record_settle');
@@ -109,7 +109,7 @@ emitAegisSenseEvent({ event_type: 'allowance.settle', /* ... */ });
 ### Day-N: Kernel-enforce behavior with kavachos (when ready)
 
 ```bash
-# Installed via @rocketlang/kavachos bin (note: bin name collision with aegis's
+# Installed via @xshieldai/agent-kernel bin (note: bin name collision with aegis's
 # bundled kavachos shim — use whichever is on your PATH first; both point at
 # the same kernel-enforcement primitives)
 kavachos audit ./my-agent.config.json
@@ -120,9 +120,9 @@ kavachos generate seccomp ./policy.bpf
 
 [Fin Operator](https://www.fin.ai/) launched 2026-05-15 as a Pro-tier subscription product whose "proposal system" puts a human gate between AI agents and the systems they change. The same primitives — pull-request-shaped intercepts, agent-managing-agent, attestation chains — are open and self-hostable here. `aegis` was born 17 April 2026, about a month before Fin Operator's launch, from a real $200 incident with an unmonitored Claude Code session.
 
-| | Fin Operator (2026-05-15) | @rocketlang/aegis-suite (2026-05-16) |
+| | Fin Operator (2026-05-15) | @xshieldai/aegis-suite (2026-05-16) |
 |---|---|---|
-| Distribution | Pro-tier subscription, vendor-hosted | `npm install @rocketlang/aegis-suite`, self-hosted |
+| Distribution | Pro-tier subscription, vendor-hosted | `npm install @xshieldai/aegis-suite`, self-hosted |
 | License | Proprietary | AGPL-3.0-only (suite) + BSL-1.1 → AGPL-3.0 in 4 years (EE) |
 | Scope | Bound to the Fin platform | Vendor-neutral (Claude Code, OpenAI Codex, Cursor, custom) |
 | Self-host | No | Yes — local-first by default |
@@ -151,7 +151,7 @@ file to render the **Agentic Control Center** page at
 ### Quick start
 
 ```typescript
-import { wireAllToBus } from '@rocketlang/aegis-suite';
+import { wireAllToBus } from '@xshieldai/aegis-suite';
 
 // One call — wires all 4 primitives + sets up SQLite writer
 const handle = wireAllToBus();
@@ -161,8 +161,8 @@ console.log('Events persisting to:', handle.sqlitePath);
 
 // Now use any of the @rocketlang primitives normally — every operation
 // emits a receipt that lands in the SQLite file:
-import { verifyApprovalToken } from '@rocketlang/aegis-guard';
-import { scan } from '@rocketlang/chitta-detect';
+import { verifyApprovalToken } from '@xshieldai/aegis-guard';
+import { scan } from '@xshieldai/chitta-detect';
 
 verifyApprovalToken(token, 'svc', 'cap', 'op');     // → emits lock.approval.verified
 scan.evaluate(content, { agent_id: 'agent-1' });    // → emits scan.evaluated
@@ -170,7 +170,7 @@ scan.evaluate(content, { agent_id: 'agent-1' });    // → emits scan.evaluated
 
 ### View live in the Agentic Control Center
 
-If you also have `@rocketlang/aegis` v2.2.0+ installed and the dashboard
+If you also have `@xshieldai/aegis` v2.2.0+ installed and the dashboard
 running (`aegis-dashboard &`), visit:
 
 - **`http://localhost:4850/control-center`** — single-page grid with 6
@@ -199,7 +199,7 @@ const unsub = handle.subscribe!((receipt) => {
 ### Bring your own bus
 
 ```typescript
-import type { EventBus, AccReceipt } from '@rocketlang/aegis-suite';
+import type { EventBus, AccReceipt } from '@xshieldai/aegis-suite';
 
 const myBus: EventBus = {
   emit: (r: AccReceipt) => sendToRedis(r),  // your transport
@@ -211,7 +211,7 @@ wireAllToBus({ bus: myBus });  // no SQLite, no in-memory fan-out — fully dele
 ### Detach when done
 
 ```typescript
-import { unwireAll } from '@rocketlang/aegis-suite';
+import { unwireAll } from '@xshieldai/aegis-suite';
 unwireAll();  // all 4 primitives revert to v0.1.0 (no emission)
 ```
 
@@ -245,7 +245,7 @@ aegis-dashboard (separate process, v2.2.0+)
   visibility, call `handle.checkpoint!()`** after a batch of activity
   (e.g., end-of-request handler) or periodically (e.g., every 30s).
   Single-process (consumer == dashboard) needs no checkpointing.
-- **`@rocketlang/aegis` v2.2.0 required for the cockpit UI.** The
+- **`@xshieldai/aegis` v2.2.0 required for the cockpit UI.** The
   dashboard at port 4850 needs aegis v2.2.0 (which ships in this same
   release wave) to expose the `/control-center` route. Events still
   persist to SQLite with any aegis version; only the rendering layer
@@ -256,7 +256,7 @@ aegis-dashboard (separate process, v2.2.0+)
 - **WAL files (`-wal`, `-shm`) accompany `acc-events.db`.** If you
   move/copy the SQLite file, take all three together or call
   `checkpoint()` first to consolidate into the main file.
-- **`@rocketlang/n8n-nodes-kavachos` is NOT wired.** It's an n8n
+- **`@xshieldai/n8n-nodes` is NOT wired.** It's an n8n
   integration, not a primitive — its event-bus story is the consumer's
   n8n workflow, not `wireAllToBus`.
 

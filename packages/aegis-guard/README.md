@@ -1,9 +1,9 @@
-# @rocketlang/aegis-guard
+# @xshieldai/aegis-guard
 
-> **🔍 Verification status (2026-05-17 IST)**
-> - **Tests:** ✅ **63/63 passing** ([tests/aegis-guard.test.ts](tests/aegis-guard.test.ts) — `bun test`)
-> - **Examples:** ✅ runnable quickstart: [examples/quickstart.ts](examples/quickstart.ts) — `bun run examples/quickstart.ts` shows all 5 Locks in action with receipts
-> - **Live demo:** ⚠️ planned (Tier 3, see [PROOF-STACK.md](../../PROOF-STACK.md))
+> **🔍 Verification status (2026-10-05 IST — v0.3.1)**
+> - **Tests:** ✅ **70/70 passing** in the repository; the npm package ships `src/` only, so run them from a clone ([tests/aegis-guard.test.ts](https://github.com/rocketlang/aegis/blob/master/packages/aegis-guard/tests/aegis-guard.test.ts) — `bun test`)
+> - **Examples:** ✅ runnable quickstart, in the repository (not in the npm package): [examples/quickstart.ts](https://github.com/rocketlang/aegis/blob/master/packages/aegis-guard/examples/quickstart.ts) — `bun run examples/quickstart.ts` shows all 5 Locks in action with receipts
+> - **Live demo:** ⚠️ planned (Tier 3, see [PROOF-STACK.md](https://github.com/rocketlang/aegis/blob/master/PROOF-STACK.md))
 > - **Phase-1 limits:** documented in the v0.2.0 ACC section below
 
 AEGIS Guard SDK — reusable approval-token, nonce, idempotency, SENSE, and quality-evidence primitives for AEGIS-governed services.
@@ -25,9 +25,9 @@ The Five Locks were proven across 13 batches (62–74) of carbonx-backend. This 
 ## Install
 
 ```bash
-bun add @rocketlang/aegis-guard
+bun add @xshieldai/aegis-guard
 # or
-npm install @rocketlang/aegis-guard
+npm install @xshieldai/aegis-guard
 ```
 
 ## Usage
@@ -35,7 +35,7 @@ npm install @rocketlang/aegis-guard
 ### LOCK_1 + LOCK_2 — decision + identity
 
 ```typescript
-import { verifyApprovalToken, verifyScopedApprovalToken } from '@rocketlang/aegis-guard';
+import { verifyApprovalToken, verifyScopedApprovalToken } from '@xshieldai/aegis-guard';
 
 // LOCK_1 — base token verification (service_id + capability + operation)
 const payload = verifyApprovalToken(token, 'my-service', 'settle', 'record_settle');
@@ -50,7 +50,7 @@ const payload = verifyScopedApprovalToken(
 ### LOCK_3 — observability (SENSE)
 
 ```typescript
-import { emitAegisSenseEvent, digestApprovalToken, configureSenseTransport } from '@rocketlang/aegis-guard';
+import { emitAegisSenseEvent, digestApprovalToken, configureSenseTransport } from '@xshieldai/aegis-guard';
 
 // Wire your logger (default: process.stdout JSON)
 configureSenseTransport((event) => logger.info(event, `SENSE:${event.event_type}`));
@@ -73,7 +73,7 @@ emitAegisSenseEvent({
 ### LOCK_4 — rollback guard (idempotency check)
 
 ```typescript
-import { checkIdempotency, buildIdempotencyFingerprint } from '@rocketlang/aegis-guard';
+import { checkIdempotency, buildIdempotencyFingerprint } from '@xshieldai/aegis-guard';
 
 const existing = await db.findByExternalRef(args.externalRef);
 const fp = buildIdempotencyFingerprint({ amount: args.amount, vessel_id: args.vesselId });
@@ -86,7 +86,7 @@ if (isDuplicate && !safeNoOp) throw new Error('payload mismatch on duplicate ext
 ### LOCK_5 — nonce replay prevention
 
 ```typescript
-import { verifyAndConsumeNonce } from '@rocketlang/aegis-guard';
+import { verifyAndConsumeNonce } from '@xshieldai/aegis-guard';
 
 // Requires nonce in payload; throws IrrNoApprovalError on missing or replayed nonce
 await verifyAndConsumeNonce(payload, redisNonceStore);
@@ -95,7 +95,7 @@ await verifyAndConsumeNonce(payload, redisNonceStore);
 ### Quality evidence
 
 ```typescript
-import { buildQualityMaskAtPromotion, meetsHgQualityRequirement } from '@rocketlang/aegis-guard';
+import { buildQualityMaskAtPromotion, meetsHgQualityRequirement } from '@xshieldai/aegis-guard';
 
 const mask = buildQualityMaskAtPromotion({
   tests_passed: true,
@@ -111,7 +111,7 @@ const ready = meetsHgQualityRequirement('HG-2B-financial', mask);
 The default `defaultNonceStore` is in-memory (single-process only). Multi-instance deployments must provide a Redis-backed store:
 
 ```typescript
-import { type NonceStore } from '@rocketlang/aegis-guard';
+import { type NonceStore } from '@xshieldai/aegis-guard';
 
 const redisNonceStore: NonceStore = {
   async consumeNonce(nonce, ttlMs) {
@@ -145,7 +145,7 @@ v0.2.0 behaves identically to v0.1.0 — no emission, no state, no side effect.
 ### Wire it in 3 lines
 
 ```typescript
-import { setEventBus, type EventBus, type AccReceipt } from '@rocketlang/aegis-guard';
+import { setEventBus, type EventBus, type AccReceipt } from '@xshieldai/aegis-guard';
 
 const myBus: EventBus = {
   emit: (r: AccReceipt) => console.log(`[ACC] ${r.event_type} verdict=${r.verdict} ${r.summary}`),
@@ -200,12 +200,12 @@ consumers ingest these events without translation.
   etc.) are a consumer choice — implement the `EventBus` interface and
   call `setEventBus(yourBus)`.
 
-### Use with `@rocketlang/aegis-suite`
+### Use with `@xshieldai/aegis-suite`
 
 If you installed the meta-package, you can wire all 6 primitives in one call:
 
 ```typescript
-import { wireAllToBus } from '@rocketlang/aegis-suite';  // available in suite v0.2.0+
+import { wireAllToBus } from '@xshieldai/aegis-suite';  // available in suite v0.2.0+
 wireAllToBus();  // default: in-memory bus + SQLite writer to ~/.aegis/acc-events.db
 ```
 

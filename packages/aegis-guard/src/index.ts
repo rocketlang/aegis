@@ -1,4 +1,4 @@
-// @rocketlang/aegis-guard — AEGIS Guard SDK public API
+// @xshieldai/aegis-guard — AEGIS Guard SDK public API
 // Five Locks proved in carbonx-backend (batches 62-74). Batch 93 makes them reusable.
 // v0.2.0 adds opt-in Agentic Control Center (ACC) event bus integration.
 

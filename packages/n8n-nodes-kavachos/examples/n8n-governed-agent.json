@@ -19,7 +19,7 @@
       },
       "id": "kavach-gate-001",
       "name": "Kavach Gate",
-      "type": "@ankr/n8n-nodes-kavachos.kavachGate",
+      "type": "@xshieldai/n8n-nodes.kavachGate",
       "typeVersion": 1,
       "position": [480, 300],
       "credentials": {

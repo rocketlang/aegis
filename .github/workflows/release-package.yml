@@ -105,6 +105,32 @@ jobs:
         run: |
           if [ -d tests ]; then bun test; else echo "no tests directory in this package"; fi
 
+      # Six packages were once released with READMEs titled for, and telling the reader to
+      # install, another package name. The README is inside the tarball and is what the
+      # registry page shows.
+      - name: Refuse if the README does not describe this package
+        env:
+          DIR: ${{ steps.pkg.outputs.dir }}
+        run: node scripts/check-readme.mjs "$DIR"
+
+      # aegis-suite shipped for months importing its dependencies under names it did not
+      # depend on, so it could not be imported at all. The repository's own tests use
+      # relative imports and never saw it. This installs the packed tarball the way a
+      # consumer would and imports it by its published name.
+      - name: Refuse if the package cannot be imported under its own name
+        env:
+          DIR: ${{ steps.pkg.outputs.dir }}
+          NAME: ${{ steps.pkg.outputs.name }}
+        run: |
+          if [ "$NAME" = "@xshieldai/n8n-nodes" ]; then
+            echo "skipped for $NAME: its nodes load inside n8n, a peer dependency that is not installed here"; exit 0
+          fi
+          TGZ=$(cd "$DIR" && npm pack --ignore-scripts --pack-destination "$RUNNER_TEMP" | tail -1)
+          mkdir "$RUNNER_TEMP/consumer" && cd "$RUNNER_TEMP/consumer"
+          npm init -y > /dev/null
+          npm install --ignore-scripts "$RUNNER_TEMP/$TGZ"
+          bun -e "const m = await import('$NAME'); console.log('$NAME imports under its own name;', Object.keys(m).length, 'exports')"
+
       - name: Refuse if a tracked file changed
         run: |
           if [ -n "$(git status --porcelain)" ]; then

@@ -127,7 +127,7 @@ export class KavachRun implements INodeType {
         const platform = process.platform;
         const reason = !linux
           ? `KavachRun kernel enforcement not available on ${platform} — requires Linux with seccomp-bpf`
-          : "kavachos CLI not found — install with: npm install -g @rocketlang/kavachos";
+          : "kavachos CLI not found — install with: npm install -g @xshieldai/agent-kernel";
 
         if (onNonLinux === "throw") {
           throw new NodeOperationError(this.getNode(), reason, { itemIndex: i });

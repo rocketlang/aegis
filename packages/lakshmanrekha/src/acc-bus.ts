@@ -2,7 +2,7 @@
 // Copyright (c) 2026 Capt. Anil Sharma (rocketlang). All rights reserved.
 // See LICENSE for details.
 //
-// @rocketlang/lakshmanrekha — opt-in Agentic Control Center event bus (v0.2.0)
+// @xshieldai/lakshmanrekha — opt-in Agentic Control Center event bus (v0.2.0)
 // @rule:ACC-003 — Opt-in. emit only when setEventBus() called.
 // @rule:ACC-004 — Lightweight OSS receipt shape (strict subset of EE PRAMANA).
 // @rule:ACC-YK-003 — Stateless-primitive contract preserved.

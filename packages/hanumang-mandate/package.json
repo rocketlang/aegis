@@ -1,11 +1,11 @@
 {
   "name": "@xshieldai/hanumang-mandate",
-  "version": "0.2.2",
+  "version": "0.2.3",
   "description": "HanumanG mandate primitives — Mudrika delegation credential verifier + 7-axis posture scorer (mudrika_integrity, identity_broadcast, mandate_bounds, proportional_force, return_with_proof, no_overreach, truthful_report) + opt-in Agentic Control Center event bus. Extracted from xshieldai-hanumang.",
   "license": "AGPL-3.0-only",
   "type": "module",
   "author": "Capt. Anil Sharma <capt.anil.sharma@powerpbox.org>",
-  "homepage": "https://github.com/rocketlang/aegis/tree/main/packages/hanumang-mandate",
+  "homepage": "https://github.com/rocketlang/aegis/tree/master/packages/hanumang-mandate",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/rocketlang/aegis.git",

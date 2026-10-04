@@ -1,11 +1,11 @@
 {
   "name": "@xshieldai/aegis-guard",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "AEGIS Guard SDK — Five Locks primitives (approval-token, nonce, idempotency, SENSE, quality-evidence) + opt-in Agentic Control Center event bus for AEGIS-governed services",
   "license": "AGPL-3.0-only",
   "type": "module",
   "author": "Capt. Anil Sharma <capt.anil.sharma@powerpbox.org>",
-  "homepage": "https://github.com/rocketlang/aegis/tree/main/packages/aegis-guard",
+  "homepage": "https://github.com/rocketlang/aegis/tree/master/packages/aegis-guard",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/rocketlang/aegis.git",

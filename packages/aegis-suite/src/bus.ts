@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Copyright (c) 2026 Capt. Anil Sharma (rocketlang). All rights reserved.
 //
-// @rocketlang/aegis-suite — InMemoryBus + SqliteEventWriter (v0.2.0)
+// @xshieldai/aegis-suite — InMemoryBus + SqliteEventWriter (v0.2.0)
 //
 // Self-contained default bus implementation for wireAllToBus(). Writes to
 // ~/.aegis/acc-events.db using a forward-compatible-additive schema. The

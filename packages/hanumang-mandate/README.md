@@ -1,8 +1,8 @@
-# @rocketlang/hanumang-mandate
+# @xshieldai/hanumang-mandate
 
-> **🔍 Verification status (2026-05-17 IST — v0.2.1)**
+> **🔍 Verification status (2026-10-05 IST — v0.2.3)**
 > - **Tests:** ✅ **46/46 passing** ([tests/hanumang-mandate.test.ts](tests/hanumang-mandate.test.ts) — `bun test`). Covers §1 verifyMudrika (structural/TTL/trust-mask/agent-id), §2 scoreAxis (all 7 axes incl. spawn invariant + overreach), §3 computePostureScore (HNG-YK-001 worst-axis-floor enforced + grade thresholds), §4 ACC bus.
-> - **Examples:** ✅ runnable quickstart: [examples/quickstart.ts](examples/quickstart.ts) — `bun run examples/quickstart.ts` runs 3 mudrika verifications (PASS/EXPIRED/FAIL) + 7-axis posture demo + the HNG-YK-001 worst-axis-floor invariant in action (one FAIL caps grade at D even with average 86)
+> - **Examples:** ✅ runnable quickstart, in the repository (not in the npm package): [examples/quickstart.ts](https://github.com/rocketlang/aegis/blob/master/packages/hanumang-mandate/examples/quickstart.ts) — `bun run examples/quickstart.ts` runs 3 mudrika verifications (PASS/EXPIRED/FAIL) + 7-axis posture demo + the HNG-YK-001 worst-axis-floor invariant in action (one FAIL caps grade at D even with average 86)
 > - **Live demo:** ⚠️ planned (Tier 3)
 > - **Phase-1 limits:** **`verifyMudrika()` does NOT cryptographically verify the signature** — see "Phase-1 limit" callout below. Test HM-011 explicitly documents this: a mudrika with a fake `signature` field still PASSES today. Signature crypto lands in v0.3 — HM-011 will then flip to expect FAIL. Use only in trusted-transport environments until then.
 > - **Verified invariants:** HNG-YK-001 worst-axis floor (single FAIL caps grade at D regardless of average — HM-035), spawn invariant (HM-020), no-overreach bitmask check (HM-030), receipt emission swallow-on-error (HM-046).
@@ -17,11 +17,11 @@ Agent delegation credential verifier + 7-axis posture scorer. Pure primitives ex
 
 `hanumang-mandate` is the credential + posture-scoring layer of HanumanG, the agent-delegation-posture monitor inside xShieldAI. The full service has SQLite-backed attestations, regression alerts, revocation-URL polling, and Forja endpoints — that lives in the closed product. This package is the two primitives the rest of the service is built on: **Mudrika credential verification** and **7-axis posture scoring**.
 
-## Complementary to `@rocketlang/aegis` HanumanG
+## Complementary to `@xshieldai/aegis` HanumanG
 
 The aegis package and this package are **different governance moments**, both named "HanumanG":
 
-| | `@rocketlang/aegis` HanumanG | `@rocketlang/hanumang-mandate` |
+| | `@xshieldai/aegis` HanumanG | `@xshieldai/hanumang-mandate` |
 |---|---|---|
 | Question | *Can this agent SPAWN?* | *Is this agent's MANDATE valid? What's its posture?* |
 | When | PreToolUse hook (spawn-time) | Continuous (per-action) |
@@ -33,9 +33,9 @@ Use both. They are **not duplicates** — they cover different governance concer
 ## Install
 
 ```bash
-npm install @rocketlang/hanumang-mandate
+npm install @xshieldai/hanumang-mandate
 # or
-bun add @rocketlang/hanumang-mandate
+bun add @xshieldai/hanumang-mandate
 ```
 
 ## Mudrika — the delegation credential
@@ -43,7 +43,7 @@ bun add @rocketlang/hanumang-mandate
 A Mudrika is a JWT-shaped credential that a principal issues to an agent. It declares: who is acting, on whose behalf, for what task, with what trust mask, in what scope, for how long, with what proof of provenance.
 
 ```typescript
-import { verifyMudrika } from '@rocketlang/hanumang-mandate';
+import { verifyMudrika } from '@xshieldai/hanumang-mandate';
 
 const mudrika = {
   mudrika_version: 'v1',
@@ -83,7 +83,7 @@ Phase 2 will add signature verification. If you need it now, wrap `verifyMudrika
 The scorer assesses an agent's per-action behaviour across seven axes. Each axis returns 0–100 + an outcome (`PASS` / `WARN` / `FAIL`). The aggregate `PostureScore` uses a **worst-axis floor** (`HNG-YK-001`) — a single FAIL caps the grade at D regardless of how high the average is.
 
 ```typescript
-import { scoreAxis, computePostureScore } from '@rocketlang/hanumang-mandate';
+import { scoreAxis, computePostureScore } from '@xshieldai/hanumang-mandate';
 
 const axisScores = [
   scoreAxis({
@@ -177,11 +177,11 @@ The Phase-1 signature limit is real. Use this for structural verification in tru
 
 ## Related
 
-- [`@rocketlang/aegis`](https://www.npmjs.com/package/@rocketlang/aegis) — spawn-time HanumanG + DAN gate + budget caps (complementary to this)
-- [`@rocketlang/kavachos`](https://www.npmjs.com/package/@rocketlang/kavachos) — seccomp-bpf + Falco behavior governance
-- [`@rocketlang/chitta-detect`](https://www.npmjs.com/package/@rocketlang/chitta-detect) — memory poisoning detection
-- [`@rocketlang/lakshmanrekha`](https://www.npmjs.com/package/@rocketlang/lakshmanrekha) — LLM endpoint probe suite
-- [`@rocketlang/aegis-guard`](https://www.npmjs.com/package/@rocketlang/aegis-guard) — Five Locks SDK
+- [`@xshieldai/aegis`](https://www.npmjs.com/package/@xshieldai/aegis) — spawn-time HanumanG + DAN gate + budget caps (complementary to this)
+- [`@xshieldai/agent-kernel`](https://www.npmjs.com/package/@xshieldai/agent-kernel) — seccomp-bpf + Falco behavior governance
+- [`@xshieldai/chitta-detect`](https://www.npmjs.com/package/@xshieldai/chitta-detect) — memory poisoning detection
+- [`@xshieldai/lakshmanrekha`](https://www.npmjs.com/package/@xshieldai/lakshmanrekha) — LLM endpoint probe suite
+- [`@xshieldai/aegis-guard`](https://www.npmjs.com/package/@xshieldai/aegis-guard) — Five Locks SDK
 
 ## License
 
@@ -203,7 +203,7 @@ v0.1.0 — no emission, no state, no side effect.
 ### Wire it in 3 lines
 
 ```typescript
-import { setEventBus, type EventBus, type AccReceipt } from '@rocketlang/hanumang-mandate';
+import { setEventBus, type EventBus, type AccReceipt } from '@xshieldai/hanumang-mandate';
 
 const myBus: EventBus = {
   emit: (r: AccReceipt) => console.log(`[ACC] ${r.event_type} ${r.verdict} ${r.summary}`),
@@ -252,9 +252,9 @@ Strict subset of EE PRAMANA receipt format — EE consumers ingest without trans
   range checks only. Phase-2 will add cryptographic signature verification.
 - **Default bus is in-process only.** Multi-process buses are a consumer choice.
 
-### Use with `@rocketlang/aegis-suite`
+### Use with `@xshieldai/aegis-suite`
 
 ```typescript
-import { wireAllToBus } from '@rocketlang/aegis-suite';  // suite v0.2.0+
+import { wireAllToBus } from '@xshieldai/aegis-suite';  // suite v0.2.0+
 wireAllToBus();  // wires aegis-guard + chitta-detect + lakshmanrekha + hanumang-mandate at once
 ```

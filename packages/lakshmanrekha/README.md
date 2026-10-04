@@ -1,8 +1,8 @@
-# @rocketlang/lakshmanrekha
+# @xshieldai/lakshmanrekha
 
-> **🔍 Verification status (2026-05-17 IST — v0.2.1)**
-> - **Tests:** ✅ **36/36 passing** ([tests/lakshmanrekha.test.ts](tests/lakshmanrekha.test.ts) — `bun test`). Covers §1 registry, §2 classifier (incl. determinism), §3 refusal rate, §4 maskKey, §5 runner (fetch stubbed for openai + anthropic + HTTP errors + network errors), §6 ACC bus + API-key safety regression.
-> - **Examples:** ✅ runnable quickstart: [examples/quickstart.ts](examples/quickstart.ts) — `bun run examples/quickstart.ts` lists all 8 probes + classifies 6 sample responses (no live LLM endpoint needed). For a real probe against your own endpoint, see "Run a single probe" below.
+> **🔍 Verification status (2026-10-05 IST — v0.3.1)**
+> - **Tests:** ✅ **60/60 passing** — 36 in [tests/lakshmanrekha.test.ts](tests/lakshmanrekha.test.ts) and 24 in [tests/surface.test.ts](tests/surface.test.ts) for the HTTP-surface probes (`bun test`). Covers §1 registry, §2 classifier (incl. determinism), §3 refusal rate, §4 maskKey, §5 runner (fetch stubbed for openai + anthropic + HTTP errors + network errors), §6 ACC bus + API-key safety regression.
+> - **Examples:** ✅ runnable quickstart, in the repository (not in the npm package): [examples/quickstart.ts](https://github.com/rocketlang/aegis/blob/master/packages/lakshmanrekha/examples/quickstart.ts) — `bun run examples/quickstart.ts` lists all 8 probes + classifies 6 sample responses (no live LLM endpoint needed). For a real probe against your own endpoint, see "Run a single probe" below.
 > - **Live demo:** ⚠️ planned (Tier 3)
 > - **Phase-1 limits:** documented in "Phase 1 limits" + "Authorization" sections below (incl. honor-system endpoint ownership)
 > - **Test-found behavior worth knowing:** `runProbe` error path can echo the network error message verbatim (sliced to 200 chars). The runner masks the API key in *receipts* (verified in LR-035 — receipt JSON never contains the secret, and query strings are stripped from `endpoint_host`), but a hostile network library could theoretically include the key in its own error string. If you log the returned `error` field directly, also pipe through `maskKey()`.
@@ -20,15 +20,15 @@ If you're running an LLM endpoint (your own, or your team's, or a customer's wit
 ## Install
 
 ```bash
-npm install @rocketlang/lakshmanrekha
+npm install @xshieldai/lakshmanrekha
 # or
-bun add @rocketlang/lakshmanrekha
+bun add @xshieldai/lakshmanrekha
 ```
 
 ## Quick start
 
 ```typescript
-import { runAllProbes, computeRefusalRate } from '@rocketlang/lakshmanrekha';
+import { runAllProbes, computeRefusalRate } from '@xshieldai/lakshmanrekha';
 
 const results = await runAllProbes(
   'https://api.openai.com/v1',  // any OpenAI-compatible endpoint
@@ -72,7 +72,7 @@ The 8 probes above test what the **model says**. They cannot see an open front d
 | ASMAI-SURFACE-004 | open-perimeter | critical | the inference endpoint serves a completion with **no credential** | OWASP API2:2023 |
 
 ```ts
-import { runAllSurfaceProbes, countExposed } from '@rocketlang/lakshmanrekha';
+import { runAllSurfaceProbes, countExposed } from '@xshieldai/lakshmanrekha';
 
 const results = await runAllSurfaceProbes('https://your-endpoint.example.com');
 console.log(countExposed(results)); // { exposed, secure, inconclusive, errored, total }
@@ -99,7 +99,7 @@ The classifier returns one of:
 ## Run a single probe
 
 ```typescript
-import { runProbe, getProbe } from '@rocketlang/lakshmanrekha';
+import { runProbe, getProbe } from '@xshieldai/lakshmanrekha';
 
 const probe = getProbe('ASMAI-PROBE-001');  // the CA-006 sockpuppet
 if (!probe) throw new Error('probe not found');
@@ -132,7 +132,7 @@ For self-hosted LLMs that speak OpenAI's chat-completions schema (vLLM, LiteLLM,
 If you have your own runner (custom transport, batched, async) and just want to classify response text:
 
 ```typescript
-import { classifyResponse, computeRefusalRate, REFUSAL_PATTERN_SET, COMPLIANCE_PATTERN_SET } from '@rocketlang/lakshmanrekha';
+import { classifyResponse, computeRefusalRate, REFUSAL_PATTERN_SET, COMPLIANCE_PATTERN_SET } from '@xshieldai/lakshmanrekha';
 
 const verdict = classifyResponse(myLLMResponseText, 'my-probe-id');
 // 'refused' | 'complied' | 'partial' | 'inconclusive' | 'errored'
@@ -175,10 +175,10 @@ The full xshieldai-asm-ai-module service (in the closed product) implements owne
 
 ## Related
 
-- [`@rocketlang/aegis`](https://www.npmjs.com/package/@rocketlang/aegis) — agent spend governance (kill-switch, DAN gate)
-- [`@rocketlang/kavachos`](https://www.npmjs.com/package/@rocketlang/kavachos) — agent behavior governance (seccomp-bpf, Falco)
-- [`@rocketlang/chitta-detect`](https://www.npmjs.com/package/@rocketlang/chitta-detect) — memory poisoning detection primitives
-- [`@rocketlang/aegis-guard`](https://www.npmjs.com/package/@rocketlang/aegis-guard) — Five Locks SDK (approval tokens, nonces, idempotency, SENSE)
+- [`@xshieldai/aegis`](https://www.npmjs.com/package/@xshieldai/aegis) — agent spend governance (kill-switch, DAN gate)
+- [`@xshieldai/agent-kernel`](https://www.npmjs.com/package/@xshieldai/agent-kernel) — agent behavior governance (seccomp-bpf, Falco)
+- [`@xshieldai/chitta-detect`](https://www.npmjs.com/package/@xshieldai/chitta-detect) — memory poisoning detection primitives
+- [`@xshieldai/aegis-guard`](https://www.npmjs.com/package/@xshieldai/aegis-guard) — Five Locks SDK (approval tokens, nonces, idempotency, SENSE)
 - xshieldai-asm-ai-module (internal) — the full Fastify service this was extracted from
 
 ## License
@@ -201,7 +201,7 @@ v0.1.0 — no emission, no state, no side effect.
 ### Wire it in 3 lines
 
 ```typescript
-import { setEventBus, type EventBus, type AccReceipt } from '@rocketlang/lakshmanrekha';
+import { setEventBus, type EventBus, type AccReceipt } from '@xshieldai/lakshmanrekha';
 
 const myBus: EventBus = {
   emit: (r: AccReceipt) => console.log(`[ACC] ${r.event_type} ${r.verdict} ${r.summary}`),
@@ -252,9 +252,9 @@ Strict subset of EE PRAMANA receipt format — EE consumers ingest without trans
 - **API keys are never in receipts** — `maskKey` continues to apply to
   any logging; receipts never include `api_key` field.
 
-### Use with `@rocketlang/aegis-suite`
+### Use with `@xshieldai/aegis-suite`
 
 ```typescript
-import { wireAllToBus } from '@rocketlang/aegis-suite';  // suite v0.2.0+
+import { wireAllToBus } from '@xshieldai/aegis-suite';  // suite v0.2.0+
 wireAllToBus();  // wires aegis-guard + chitta-detect + lakshmanrekha + hanumang-mandate at once
 ```

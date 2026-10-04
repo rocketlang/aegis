@@ -1,4 +1,4 @@
-// @ankr/aegis-guard — Agent Session Envelope helpers (ASE-T020)
+// @xshieldai/aegis-guard — Agent Session Envelope helpers (ASE-T020)
 //
 // issueEnvelope  — POST /api/v1/aegis/session   — proxy-native agent frameworks use this at startup
 // verifyEnvelope — GET  /api/v1/aegis/sessions/:id/audit — check seal integrity + drift

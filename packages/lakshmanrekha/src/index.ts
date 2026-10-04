@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Copyright (c) 2026 Capt. Anil Sharma (rocketlang). All rights reserved.
 //
-// @rocketlang/lakshmanrekha — LLM endpoint probe suite for AI agent security.
+// @xshieldai/lakshmanrekha — LLM endpoint probe suite for AI agent security.
 //
 // Extracted from xshieldai-asm-ai-module (the full Fastify service with
 // SQLite-backed attestations and Forja STATE/TRUST/SENSE/PROOF endpoints).
@@ -15,7 +15,7 @@
 //     PROBE_REGISTRY, getProbe, getProbes,
 //     classifyResponse, computeRefusalRate,
 //     runProbe, runAllProbes, maskKey,
-//   } from '@rocketlang/lakshmanrekha';
+//   } from '@xshieldai/lakshmanrekha';
 
 export {
   PROBE_REGISTRY,

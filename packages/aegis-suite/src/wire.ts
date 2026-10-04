@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Copyright (c) 2026 Capt. Anil Sharma (rocketlang). All rights reserved.
 //
-// @rocketlang/aegis-suite — wireAllToBus helper (v0.2.0)
+// @xshieldai/aegis-suite — wireAllToBus helper (v0.2.0)
 //
 // One-call setup that wires all 4 OSS primitive packages to a single
 // EventBus + persists to ~/.aegis/acc-events.db. The Agentic Control
@@ -12,10 +12,10 @@
 // @rule:ACC-005 — SQLite file at ~/.aegis/acc-events.db, separate from
 //                  aegis.db and turn-store.db.
 
-import { setEventBus as setAegisGuardBus } from '@rocketlang/aegis-guard';
-import { setEventBus as setChittaBus } from '@rocketlang/chitta-detect';
-import { setEventBus as setLakshmanBus } from '@rocketlang/lakshmanrekha';
-import { setEventBus as setHanumangBus } from '@rocketlang/hanumang-mandate';
+import { setEventBus as setAegisGuardBus } from '@xshieldai/aegis-guard';
+import { setEventBus as setChittaBus } from '@xshieldai/chitta-detect';
+import { setEventBus as setLakshmanBus } from '@xshieldai/lakshmanrekha';
+import { setEventBus as setHanumangBus } from '@xshieldai/hanumang-mandate';
 import { createDefaultBus, type InMemoryBus, type SqliteEventWriter } from './bus.js';
 
 // ── Canonical receipt + bus types ────────────────────────────────────────────

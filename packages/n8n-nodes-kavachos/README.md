@@ -1,8 +1,8 @@
-# @ankr/n8n-nodes-kavachos
+# @xshieldai/n8n-nodes
 
-> **🔍 Verification status (2026-05-17 IST)**
-> - **Tests:** ⚠️ none yet — n8n node test fixtures planned. See [PROOF-STACK.md](../../PROOF-STACK.md).
-> - **Examples:** ✅ 1 importable workflow: [examples/n8n-governed-agent.json](examples/n8n-governed-agent.json). Drag into n8n, wire the Aegis API credential pointing at `http://localhost:4850`, run.
+> **🔍 Verification status (2026-10-05 IST — v1.1.2)**
+> - **Tests:** ⚠️ none yet — n8n node test fixtures planned. See [PROOF-STACK.md](https://github.com/rocketlang/aegis/blob/master/PROOF-STACK.md).
+> - **Examples:** ✅ 1 importable workflow, in the repository (not in the npm package): [examples/n8n-governed-agent.json](https://github.com/rocketlang/aegis/blob/master/packages/n8n-nodes-kavachos/examples/n8n-governed-agent.json). Drag into n8n, wire the Aegis API credential pointing at `http://localhost:4850`, run.
 > - **Live demo:** ⚠️ planned (Tier 3)
 > - **Phase-1 limits:** KavachRun is Linux-only with graceful fallback (`warn`/`skip`/`throw` configurable) on macOS/Windows. KavachGate works on any OS — it's a thin HTTP relay to AEGIS.
 >
@@ -42,7 +42,7 @@ Wraps a subprocess in kavachos **kernel enforcement** (seccomp-bpf + cgroup BPF 
 
 ```bash
 # In your n8n data directory
-npm install @ankr/n8n-nodes-kavachos
+npm install @xshieldai/n8n-nodes
 ```
 
 Then restart n8n and add the **Aegis API** credential pointing to your Aegis dashboard (`http://localhost:4850` by default).
@@ -51,7 +51,7 @@ Then restart n8n and add the **Aegis API** credential pointing to your Aegis das
 
 ## Quick Start
 
-1. **Start Aegis**: `npx @rocketlang/aegis` (or `kavachos run n8n --domain=general`)
+1. **Start Aegis**: `npx @xshieldai/aegis` (or `kavachos run n8n --domain=general`)
 2. **Add credential**: Aegis API → base URL `http://localhost:4850`
 3. **Import template**: `examples/n8n-governed-agent.json`
 4. **Run**: Trigger → KavachGate → AI Agent → Audit

@@ -1,26 +1,26 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Copyright (c) 2026 Capt. Anil Sharma (rocketlang). All rights reserved.
 //
-// @rocketlang/aegis-suite — meta-package. The value of this package is its
+// @xshieldai/aegis-suite — meta-package. The value of this package is its
 // dependency list (installs all 6 OSS @rocketlang governance primitives in
 // one shot). Import from the sub-packages by name:
 //
-//   import { runProbe } from '@rocketlang/lakshmanrekha';
-//   import { trust, scan } from '@rocketlang/chitta-detect';
-//   import { verifyMudrika, scoreAxis } from '@rocketlang/hanumang-mandate';
-//   import { verifyApprovalToken } from '@rocketlang/aegis-guard';
+//   import { runProbe } from '@xshieldai/lakshmanrekha';
+//   import { trust, scan } from '@xshieldai/chitta-detect';
+//   import { verifyMudrika, scoreAxis } from '@xshieldai/hanumang-mandate';
+//   import { verifyApprovalToken } from '@xshieldai/aegis-guard';
 //
 // The `aegis` and `kavachos` CLIs ship as bin entries in those packages.
 // See README for the unified workflow.
 
-export const AEGIS_SUITE_VERSION = '0.2.1';
+export const AEGIS_SUITE_VERSION = '0.2.2';
 export const AEGIS_SUITE_BUNDLED_PACKAGES = [
-  '@rocketlang/aegis',
-  '@rocketlang/kavachos',
-  '@rocketlang/aegis-guard',
-  '@rocketlang/chitta-detect',
-  '@rocketlang/lakshmanrekha',
-  '@rocketlang/hanumang-mandate',
+  '@xshieldai/aegis',
+  '@xshieldai/agent-kernel',
+  '@xshieldai/aegis-guard',
+  '@xshieldai/chitta-detect',
+  '@xshieldai/lakshmanrekha',
+  '@xshieldai/hanumang-mandate',
 ] as const;
 
 export interface SuiteManifest {
@@ -37,7 +37,7 @@ export const SUITE_MANIFEST: SuiteManifest = {
   version: AEGIS_SUITE_VERSION,
   bundled_packages: AEGIS_SUITE_BUNDLED_PACKAGES,
   excluded: [
-    { package: '@rocketlang/n8n-nodes-kavachos', reason: 'n8n-specific integration — install separately if using n8n' },
+    { package: '@xshieldai/n8n-nodes', reason: 'n8n-specific integration — install separately if using n8n' },
     { package: '@rocketlang/kavachos-ee', reason: 'BSL-1.1 EE, not on npm — contact captain@ankr.in' },
   ],
 };

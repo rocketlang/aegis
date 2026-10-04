@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Copyright (c) 2026 Capt. Anil Sharma (rocketlang). All rights reserved.
 //
-// @rocketlang/chitta-detect — Memory poisoning detection primitives.
+// @xshieldai/chitta-detect — Memory poisoning detection primitives.
 //
 // Extracted from /root/chitta-guard (the full Fastify service with Prisma
 // persistence). This package contains ONLY the pure detection primitives —
@@ -10,7 +10,7 @@
 // Public surface:
 //   import { trust, imperative, toolOutput, capabilityExpansion,
 //            fingerprint, rateLimit, retrospective, scan }
-//   from '@rocketlang/chitta-detect';
+//   from '@xshieldai/chitta-detect';
 //
 //   trust.resolve(content, sourceMetadata)
 //   imperative.scan(content)

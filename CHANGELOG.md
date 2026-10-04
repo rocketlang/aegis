@@ -4,6 +4,36 @@ All notable changes to AEGIS will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [packages, README and import fixes] — 2026-10-05
+
+`@xshieldai/aegis-guard` 0.3.1 · `@xshieldai/aegis-suite` 0.2.2 · `@xshieldai/chitta-detect`
+0.2.3 · `@xshieldai/hanumang-mandate` 0.2.3 · `@xshieldai/lakshmanrekha` 0.3.1 ·
+`@xshieldai/n8n-nodes` 1.1.2
+
+### Fixed (AGPL-3.0)
+- **`@xshieldai/aegis-suite` can be imported.** `wireAllToBus()` imported its four
+  primitives under the pre-rename package names, which the package does not depend on, so
+  importing the suite failed. It now imports the `@xshieldai` packages it declares, and
+  `AEGIS_SUITE_BUNDLED_PACKAGES` lists them by their current names.
+- **aegis-suite depends on aegis-guard `^0.3.1` and lakshmanrekha `^0.3.1`** (was `^0.2.0`,
+  which did not admit the current versions).
+- **Each README names the package it ships in.** Titles, install lines and example imports
+  said `@rocketlang/...` (or `@ankr/...` for n8n-nodes) and now say `@xshieldai/...`.
+- README links to files that are in the repository and not in the npm package (quickstart
+  examples, PROOF-STACK, aegis-guard's tests) now point at the repository and say so.
+- Test counts in the READMEs match what the suites run: aegis-guard 70, lakshmanrekha 60.
+- chitta-detect README: three stated example outputs corrected to what the package returns
+  (confidence 0.95 and 0.65; `matched_patterns` includes `IDENTITY_CLAIM`). All 15 stated
+  outputs were run against this version.
+- n8n-nodes: the example workflow's node type and the "CLI not found" hint use the current
+  package names.
+- `homepage` links point at a branch that exists.
+
+### Added
+- The release workflow refuses a package whose README names another package or links to a
+  file that is not in the tarball (`scripts/check-readme.mjs`), and refuses one that cannot
+  be imported under its own name after being installed from its packed tarball.
+
 ## [python packages] — 2026-10-05
 
 `xshieldai-langchain` 1.0.1 · `xshieldai-crewai` 1.0.1 (PyPI)
