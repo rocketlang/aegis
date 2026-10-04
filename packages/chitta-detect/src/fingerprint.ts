@@ -10,6 +10,8 @@
 // via register(); persistence (if any) is the consumer's responsibility.
 // The DB-backed version lives in the internal chitta-guard service.
 
+import { variants } from './normalize.js';
+
 export type FingerprintCategory =
   | 'agent_role_instruction'
   | 'capability_expansion'
@@ -25,6 +27,23 @@ export interface FingerprintPattern {
   source: 'bootstrap' | 'analyst' | 'automated';
   description?: string;
   hit_count: number;
+  /**
+   * True when ordinary text uses the phrase as often as an attack does ("your role has
+   * changed in the HR system"). The orchestrator flags such a hit on its own and
+   * quarantines only when something else corroborates it.
+   */
+  ambiguous?: boolean;
+}
+
+export interface FingerprintHit {
+  id: string;
+  category: FingerprintCategory;
+  confidence: number;
+  ambiguous: boolean;
+  /** Identifies the pattern, so the same hit can be recognised in another view of the text. */
+  key: string;
+  start: number;
+  end: number;
 }
 
 export interface FingerprintScanResult {
@@ -45,19 +64,19 @@ const BOOTSTRAP_PATTERNS: FingerprintPattern[] = [
   // CAPABILITY_EXPANSION
   { id: 'FP-006', category: 'capability_expansion', pattern: /you\s+(now\s+)?have\s+(unrestricted|full|complete)\s+access/i, confidence: 0.93, detected_date: '2026-05-09', source: 'bootstrap', hit_count: 0 },
   { id: 'FP-007', category: 'capability_expansion', pattern: /your\s+new\s+(capabilities|permissions?|access\s+level)\s+include/i, confidence: 0.92, detected_date: '2026-05-09', source: 'bootstrap', hit_count: 0 },
-  { id: 'FP-008', category: 'capability_expansion', pattern: /you\s+are\s+now\s+(able|allowed|permitted|authoris[ez]d)\s+to/i, confidence: 0.88, detected_date: '2026-05-09', source: 'bootstrap', hit_count: 0 },
+  { id: 'FP-008', category: 'capability_expansion', pattern: /you\s+are\s+now\s+(able|allowed|permitted|authoris[ez]d)\s+to/i, confidence: 0.88, detected_date: '2026-05-09', source: 'bootstrap', hit_count: 0, ambiguous: true },
 
   // IDENTITY_OVERRIDE
   { id: 'FP-009', category: 'identity_override', pattern: /SYSTEM\s+OVERRIDE\s*:/i, confidence: 0.97, detected_date: '2026-05-09', source: 'bootstrap', hit_count: 0 },
   { id: 'FP-010', category: 'identity_override', pattern: /you\s+are\s+now\s+operating\s+in/i, confidence: 0.93, detected_date: '2026-05-09', source: 'bootstrap', hit_count: 0 },
   { id: 'FP-011', category: 'identity_override', pattern: /\[ROLE\s+CHANGE\]/i, confidence: 0.95, detected_date: '2026-05-09', source: 'bootstrap', hit_count: 0 },
-  { id: 'FP-012', category: 'identity_override', pattern: /your\s+role\s+has\s+(changed|been\s+(updated|reassigned))/i, confidence: 0.92, detected_date: '2026-05-09', source: 'bootstrap', hit_count: 0 },
+  { id: 'FP-012', category: 'identity_override', pattern: /your\s+role\s+has\s+(changed|been\s+(updated|reassigned))/i, confidence: 0.92, detected_date: '2026-05-09', source: 'bootstrap', hit_count: 0, ambiguous: true },
 
   // CONSTRAINT_BYPASS
   { id: 'FP-013', category: 'constraint_bypass', pattern: /DAN\s+(mode|prompt|jailbreak)/i, confidence: 0.97, detected_date: '2026-05-09', source: 'bootstrap', hit_count: 0 },
   { id: 'FP-014', category: 'constraint_bypass', pattern: /jailbreak\s+(mode|activated|enabled)/i, confidence: 0.97, detected_date: '2026-05-09', source: 'bootstrap', hit_count: 0 },
   { id: 'FP-015', category: 'constraint_bypass', pattern: /do\s+anything\s+now/i, confidence: 0.95, detected_date: '2026-05-09', source: 'bootstrap', hit_count: 0 },
-  { id: 'FP-016', category: 'constraint_bypass', pattern: /\bno\s+restrictions?\b.*\bmode\b/i, confidence: 0.90, detected_date: '2026-05-09', source: 'bootstrap', hit_count: 0 },
+  { id: 'FP-016', category: 'constraint_bypass', pattern: /\bno\s+restrictions?\b.*\bmode\b/i, confidence: 0.90, detected_date: '2026-05-09', source: 'bootstrap', hit_count: 0, ambiguous: true },
 ];
 
 let _db: FingerprintPattern[] = BOOTSTRAP_PATTERNS.map(p => ({ ...p }));
@@ -78,13 +97,27 @@ export function getCount(): number {
   return _db.length;
 }
 
+/** Every fingerprint hit in `text` as given — no normalisation, no hit counting. Used by the orchestrator. */
+export function scanText(text: string): FingerprintHit[] {
+  const hits: FingerprintHit[] = [];
+  for (const fp of _db) {
+    const m = text.match(fp.pattern);
+    if (m && m.index !== undefined) {
+      hits.push({ id: fp.id, category: fp.category, confidence: fp.confidence, ambiguous: fp.ambiguous === true, key: 'fp:' + fp.id, start: m.index, end: m.index + m[0].length });
+    }
+  }
+  return hits;
+}
+
 export function scan(content: string): FingerprintScanResult {
   const patterns_hit: string[] = [];
   const categories = new Set<string>();
   let maxConfidence = 0;
+  const views = variants(content);
 
   for (const fp of _db) {
-    if (fp.pattern.test(content)) {
+    // A pattern counts once per scan, on whichever view of the text it matches (see normalize.ts).
+    if (views.some((view) => fp.pattern.test(view))) {
       patterns_hit.push(fp.id);
       categories.add(fp.category);
       if (fp.confidence > maxConfidence) maxConfidence = fp.confidence;

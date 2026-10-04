@@ -8,6 +8,7 @@
 
 import type { SourceMetadata } from './trust.js';
 import { resolve as resolveTrust } from './trust.js';
+import { variants } from './normalize.js';
 
 export interface ToolOutputClassifyResult {
   classification: 'CLEAR' | 'POISONING_SUSPECTED';
@@ -36,8 +37,9 @@ export function classify(
   const matched: string[] = [];
   let maxConfidence = 0;
 
+  const views = variants(toolOutput); // see normalize.ts
   for (const { pattern, label, confidence } of IDENTITY_OVERRIDE_PATTERNS) {
-    if (pattern.test(toolOutput)) {
+    if (views.some((view) => pattern.test(view))) {
       matched.push(label);
       if (confidence > maxConfidence) maxConfidence = confidence;
     }

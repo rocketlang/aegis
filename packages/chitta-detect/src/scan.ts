@@ -8,9 +8,10 @@
 // Orchestrator that combines all four primitive detectors into a single
 // PASS / ADVISORY / INJECT_SUSPECT / BLOCK verdict. Pure — no service deps.
 
-import { scan as imperativeScan } from './imperative.js';
+import { scan as imperativeScan, scanText as imperativeHits, confidenceOf as imperativeConfidence } from './imperative.js';
 import { resolve as resolveTrust } from './trust.js';
-import { scan as fingerprintScan } from './fingerprint.js';
+import { scan as fingerprintScan, scanText as fingerprintHits } from './fingerprint.js';
+import { views } from './normalize.js';
 import { classify as classifyToolOutput } from './tool-output.js';
 import type { SourceMetadata } from './trust.js';
 import { emitAccReceipt } from './acc-bus.js';
@@ -70,6 +71,83 @@ function clampThresholds(config: ThresholdConfig, posture: string): Required<Thr
   return { inject_suspect_threshold: injectThreshold, block_threshold: blockThreshold, advisory_floor: advisoryFloor };
 }
 
+// @rule:CG-015 — an ambiguous phrase alone is flagged; it is quarantined only when corroborated
+//
+// "You can now download the invoice" and "you are now listed as Senior Engineer" match the
+// same patterns as an attack. Quarantining them makes the guard unusable on ordinary text,
+// and a guard that is switched off protects nothing. So:
+//   - any UNAMBIGUOUS hit decides as before (the heaviest signal wins);
+//   - ambiguous hits only: AMBIGUOUS_ALONE (an ADVISORY at default thresholds), unless two
+//     of them sit in different places AND are about different things, which is
+//     AMBIGUOUS_CORROBORATED (an INJECT_SUSPECT at default thresholds).
+// An untrusted source still multiplies the result, and ELEVATED_SCRUTINY still turns an
+// ADVISORY into an INJECT_SUSPECT, so a caller who wants the strict behaviour has it.
+const AMBIGUOUS_ALONE = 0.70;
+const AMBIGUOUS_CORROBORATED = 0.80;
+
+const FAMILY: Record<string, string> = {
+  identity_claim: 'identity', identity_override: 'identity',
+  capability_expansion: 'capability',
+  constraint_override: 'constraint', constraint_bypass: 'constraint',
+  role_instruction: 'role', agent_role_instruction: 'role',
+};
+
+interface Signal { family: string; start: number; end: number }
+
+// Two ambiguous signals corroborate each other when they do not overlap in the text and
+// have no family in common. "You are now allowed to" matches an identity pattern and a
+// capability pattern on the same words: that is one signal, not two.
+function corroborated(signals: Signal[]): boolean {
+  const groups: { start: number; end: number; families: Set<string> }[] = [];
+  for (const s of [...signals].sort((a, b) => a.start - b.start)) {
+    const last = groups[groups.length - 1];
+    if (last && s.start < last.end) {
+      last.end = Math.max(last.end, s.end);
+      last.families.add(s.family);
+    } else {
+      groups.push({ start: s.start, end: s.end, families: new Set([s.family]) });
+    }
+  }
+  for (let i = 0; i < groups.length; i++) {
+    for (let j = i + 1; j < groups.length; j++) {
+      if (![...groups[i].families].some((f) => groups[j].families.has(f))) return true;
+    }
+  }
+  return false;
+}
+
+// The combined confidence for one view of the text.
+//
+// `onlyBecauseCollapsed` holds the keys of hits that exist in this view and not in the
+// view it was collapsed from — matches made by turning `ignore_previous` or
+// `system-override` into two words. Code, flags and manuals write those every day, so
+// such a hit is ambiguous whatever its pattern says (CG-014).
+function combineView(view: string, trustMultiplier: number, parentView?: string): number {
+  let fps = fingerprintHits(view);
+  let imps = imperativeHits(view);
+  if (parentView !== undefined) {
+    const inParent = new Set<string>([...fingerprintHits(parentView), ...imperativeHits(parentView)].map((h) => h.key));
+    fps = fps.map((h) => (inParent.has(h.key) ? h : { ...h, ambiguous: true }));
+    imps = imps.map((h) => (inParent.has(h.key) ? h : { ...h, ambiguous: true }));
+  }
+  const clearFp = fps.filter((h) => !h.ambiguous);
+  const clearImp = imps.filter((h) => !h.ambiguous);
+  if (clearFp.length > 0 || clearImp.length > 0) {
+    let c = clearFp.reduce((m, h) => Math.max(m, h.confidence), 0);
+    if (clearImp.length > 0) c = Math.max(c, Math.min(0.99, imperativeConfidence(imps) * trustMultiplier));
+    return c;
+  }
+  if (fps.length === 0 && imps.length === 0) return 0;
+  const signals: Signal[] = [
+    ...fps.map((h) => ({ family: FAMILY[h.category] ?? h.category, start: h.start, end: h.end })),
+    ...imps.map((h) => ({ family: FAMILY[h.category] ?? h.category, start: h.start, end: h.end })),
+  ];
+  const base = corroborated(signals)
+    ? AMBIGUOUS_CORROBORATED
+    : Math.min(AMBIGUOUS_ALONE, Math.max(imperativeConfidence(imps), fps.length > 0 ? AMBIGUOUS_ALONE : 0));
+  return Math.min(0.99, base * trustMultiplier);
+}
+
 let _scanCounter = 0;
 
 function generateScanId(): string {
@@ -120,13 +198,13 @@ export function evaluate(
     }
   }
 
+  // The strongest result over the views of the text (normalize.ts), each combined under CG-015.
+  const trustMultiplier = trust.classification === 'UNTRUSTED' ? 1.15 : 1.0;
   let combinedConfidence = 0;
-  if (fp.matched) {
-    combinedConfidence = Math.max(combinedConfidence, fp.max_confidence);
-  }
-  if (imp.confidence > 0) {
-    const trustMultiplier = trust.classification === 'UNTRUSTED' ? 1.15 : 1.0;
-    combinedConfidence = Math.max(combinedConfidence, Math.min(0.99, imp.confidence * trustMultiplier));
+  const all = views(content);
+  for (const view of all) {
+    const parent = view.parent === undefined ? undefined : all[view.parent].text;
+    combinedConfidence = Math.max(combinedConfidence, combineView(view.text, trustMultiplier, parent));
   }
 
   let verdict: ScanVerdict;
@@ -134,6 +212,12 @@ export function evaluate(
     verdict = 'BLOCK';
   } else if (combinedConfidence >= thresholds.inject_suspect_threshold) {
     verdict = 'INJECT_SUSPECT';
+    // CG-YK-006: the verdict is INJECT_SUSPECT only because ELEVATED_SCRUTINY lowered the
+    // threshold. The rule id used to be pushed in the branch below, which the lowered
+    // threshold made unreachable (CD-049b); it is recorded here, where the promotion happens.
+    if (posture === 'ELEVATED_SCRUTINY' && combinedConfidence < clampThresholds(thresholdConfig, 'NORMAL').inject_suspect_threshold) {
+      rules_fired.push('CG-YK-006');
+    }
   } else if (combinedConfidence >= thresholds.advisory_floor) {
     verdict = posture === 'ELEVATED_SCRUTINY' ? 'INJECT_SUSPECT' : 'ADVISORY';
     if (posture === 'ELEVATED_SCRUTINY') rules_fired.push('CG-YK-006');

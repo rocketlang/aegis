@@ -1,12 +1,13 @@
 # @xshieldai/chitta-detect
 
-> **🔍 Verification status (2026-10-05 IST — v0.2.3)**
-> - **Tests:** ✅ **60/60 passing** ([tests/chitta-detect.test.ts](tests/chitta-detect.test.ts) — `bun test`). Covers §1 trust, §2 imperative, §3 toolOutput, §4 capabilityExpansion, §5 fingerprint, §6 rateLimit, §7 retrospective, §8 scan.evaluate orchestrator, §9 ACC bus.
+> **🔍 Verification status (2026-10-05 IST — v0.3.0)**
+> - **Tests:** ✅ **108/108 passing** — 61 in [tests/chitta-detect.test.ts](tests/chitta-detect.test.ts) and 47 in [tests/evasion.test.ts](tests/evasion.test.ts), which covers disguised attacks, ordinary text that must be kept, and the stated limits (`bun test`). Covers §1 trust, §2 imperative, §3 toolOutput, §4 capabilityExpansion, §5 fingerprint, §6 rateLimit, §7 retrospective, §8 scan.evaluate orchestrator, §9 ACC bus.
 > - **Examples:** ✅ runnable quickstart, in the repository (not in the npm package): [examples/quickstart.ts](https://github.com/rocketlang/aegis/blob/master/packages/chitta-detect/examples/quickstart.ts) — `bun run examples/quickstart.ts` scans 4 attacks + ELEVATED_SCRUTINY threshold demo with live receipts
 > - **Live demo:** ⚠️ planned (Tier 3)
 > - **Phase-1 limits:** documented in the "Honest discipline" + v0.2.0 ACC sections below
-> - **Stated outputs:** the `// result…` comments in the examples below were run against this version; all 15 hold. Three were wrong before v0.2.3 and are corrected here: the `imperative.scan` example returns 0.65 (two patterns match, multiMatchBoost adds 0.05), the orchestrator headline example returns confidence 0.95, and the tool output example matches both `SYSTEM_OVERRIDE` and `IDENTITY_CLAIM`.
-> - **Test-found code bug (CD-049b):** `CG-YK-006` rule is unreachable under `ELEVATED_SCRUTINY` posture due to threshold clamping (both inject and advisory floors collapse to 0.60). Documented in test; regression-targeted for a future fix.
+> - **Known misses:** the same intent in other words, other languages, a keyword split by a space, rot13 and reversed text are NOT caught. See "Disguised attacks and ordinary text" below; each is pinned by a test.
+> - **Stated outputs:** the `// result…` comments in the examples below were run against this version; all 15 hold. Three were wrong before v0.2.3 and were corrected then: the `imperative.scan` example returns 0.65 (two patterns match, multiMatchBoost adds 0.05), the orchestrator headline example returns confidence 0.95, and the tool output example matches both `SYSTEM_OVERRIDE` and `IDENTITY_CLAIM`.
+> - **Fixed in v0.3.0 (CD-049b):** the `CG-YK-006` rule id was never recorded under `ELEVATED_SCRUTINY`, because the lowered threshold made the branch that recorded it unreachable. The verdict was right; the reason for it was missing. It is recorded now when that posture is what promoted the verdict.
 
 Memory poisoning detection primitives for AI agents — pure pattern matchers extracted from the internal **chitta-guard** service.
 
@@ -156,6 +157,51 @@ const allowed = rateLimit.check('agent-001');
 const status = rateLimit.getStatus('agent-001');
 // status.remaining === 199
 ```
+
+## Disguised attacks and ordinary text (v0.3.0)
+
+Every detector here is a pattern. Two things follow, and v0.3.0 addresses both.
+
+**A disguise should not defeat a pattern.** Before matching, the text is read the way a
+person would see it. These are undone:
+
+| Disguise | Example |
+|---|---|
+| invisible characters inside a word | a zero-width space or soft hyphen in `jailbreak` |
+| look-alike letters | Cyrillic or Greek letters drawn like Latin ones; fullwidth and mathematical letters |
+| accents and combining marks | `Ignóre` |
+| tags, markdown emphasis, line breaks between words | `Ignore <b>all</b> previous` |
+| letters spelled out with one separator | `S.Y.S.T.E.M`, `j|a|i|l|b|r|e|a|k` |
+| digits for letters | `1gn0re` |
+| base64, hex, HTML entities, URL-encoding | decoded and scanned |
+
+The original text is never changed. The folded forms exist only to be matched against.
+
+**Ordinary text should not be withheld.** "You can now download the invoice" and "your
+role has changed in the HR system" use the same words as an attack. A guard that
+quarantines those gets switched off. So some phrases are treated as *ambiguous*:
+
+- an ambiguous phrase on its own → `ADVISORY` (kept, with a flag);
+- two ambiguous phrases in different places about different things → `INJECT_SUSPECT`;
+- an ambiguous phrase from an untrusted source, or under `ELEVATED_SCRUTINY` → `INJECT_SUSPECT`;
+- an unambiguous one ("ignore all previous instructions", "jailbreak mode") decides as before.
+
+A match that exists only because punctuation between words was collapsed
+(`ignore_previous`, `--ignore-previous`, `system-override`) is ambiguous too: code, flags
+and manuals write those every day.
+
+**What is still not caught.** Each of these is pinned by a test in `tests/evasion.test.ts`,
+so this list cannot drift from the code without a test failing:
+
+- the same intent in other words ("the earlier guidance no longer applies")
+- other languages
+- a keyword split by a space (`Ig nore`)
+- rot13, reversed text, and any encoding not in the table above
+
+A pattern matcher cannot see these. Use this package as one layer, not as the only one.
+
+**Cost.** A scan of a 2 KB document takes about 0.8 ms on the machine this was measured on,
+up from about 0.02 ms in v0.2.x, because the text is matched in up to five forms.
 
 ## What this package does NOT do
 

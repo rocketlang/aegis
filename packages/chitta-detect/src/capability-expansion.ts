@@ -6,6 +6,8 @@
 // @rule:CG-YK-003 — cross-session capability expansion → QUARANTINE
 // CG-T-023: capability expansion pattern library, separate namespace from injection fingerprints
 
+import { variants } from './normalize.js';
+
 export interface CapabilityExpansionMatch {
   pattern_id: string;
   matched_text: string;
@@ -27,10 +29,14 @@ const CAPABILITY_EXPANSION_PATTERNS: { id: string; pattern: RegExp; confidence: 
 
 export function scan(content: string): CapabilityExpansionMatch[] {
   const matches: CapabilityExpansionMatch[] = [];
+  const views = variants(content); // see normalize.ts
   for (const { id, pattern, confidence } of CAPABILITY_EXPANSION_PATTERNS) {
-    const m = content.match(pattern);
-    if (m) {
-      matches.push({ pattern_id: id, matched_text: m[0].trim(), confidence });
+    for (const view of views) {
+      const m = view.match(pattern);
+      if (m) {
+        matches.push({ pattern_id: id, matched_text: m[0].trim(), confidence });
+        break;
+      }
     }
   }
   return matches;

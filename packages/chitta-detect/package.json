@@ -1,6 +1,6 @@
 {
   "name": "@xshieldai/chitta-detect",
-  "version": "0.2.3",
+  "version": "0.3.0",
   "description": "Memory poisoning detection primitives for AI agents — pure pattern matchers (RAG trust, agent-role imperatives, tool-output poisoning, capability expansion, injection fingerprints) + opt-in Agentic Control Center event bus. Extracted from chitta-guard.",
   "license": "AGPL-3.0-only",
   "type": "module",

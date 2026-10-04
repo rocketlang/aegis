@@ -5,6 +5,8 @@
 // @rule:CG-003 — imperative language directed at agent role is suspect
 // @rule:CG-YK-001 — agent-directed retrieval chunk → INJECT_SUSPECT
 
+import { variants } from './normalize.js';
+
 export interface ImperativeScanResult {
   confidence: number;
   categories: string[];
@@ -64,32 +66,74 @@ const PATTERN_GROUPS: { category: string; patterns: RegExp[]; weight: number }[]
   },
 ];
 
-export function scan(content: string): ImperativeScanResult {
-  const matched_patterns: string[] = [];
-  const categories = new Set<string>();
-  let maxWeight = 0;
-  let matchCount = 0;
+// A phrase is AMBIGUOUS when ordinary text uses it as often as an attack does: "you can
+// now download the invoice", "you are now listed as Senior Engineer", "always include
+// your order number". On its own such a phrase is worth a flag, not a quarantine. The
+// orchestrator (scan.evaluate) applies that; this scanner reports the raw weight as before.
+const AMBIGUOUS_CATEGORIES = new Set(['capability_expansion', 'role_instruction']);
+const AMBIGUOUS_PATTERNS = new Set([
+  String(/\byou\s+are\s+now\b/i),
+  String(/\byou\s+(have\s+been\s+)?(assigned|given|changed\s+to|switched\s+to)\b/i),
+  String(/\byour\s+role\s+has\s+(changed|been\s+updated)\b/i),
+]);
 
+export interface ImperativeHit {
+  category: string;
+  weight: number;
+  ambiguous: boolean;
+  /** Identifies the pattern, so the same hit can be recognised in another view of the text. */
+  key: string;
+  text: string;
+  start: number;
+  end: number;
+}
+
+/** Every pattern hit in `text` as given — no normalisation. Used by the orchestrator. */
+export function scanText(text: string): ImperativeHit[] {
+  const hits: ImperativeHit[] = [];
   for (const group of PATTERN_GROUPS) {
     for (const pattern of group.patterns) {
-      const m = content.match(pattern);
-      if (m) {
-        matched_patterns.push(m[0].trim());
-        categories.add(group.category);
-        if (group.weight > maxWeight) maxWeight = group.weight;
-        matchCount++;
+      const m = text.match(pattern);
+      if (m && m.index !== undefined) {
+        hits.push({
+          category: group.category,
+          weight: group.weight,
+          ambiguous: AMBIGUOUS_CATEGORIES.has(group.category) || AMBIGUOUS_PATTERNS.has(String(pattern)),
+          key: 'imp:' + String(pattern),
+          text: m[0].trim(),
+          start: m.index,
+          end: m.index + m[0].length,
+        });
       }
     }
   }
+  return hits;
+}
 
-  if (matchCount === 0) return { confidence: 0, categories: [], matched_patterns: [] };
+/** The scanner's own confidence for a set of hits: the heaviest category plus a small boost per extra hit. */
+export function confidenceOf(hits: ImperativeHit[]): number {
+  if (hits.length === 0) return 0;
+  const maxWeight = hits.reduce((m, h) => Math.max(m, h.weight), 0);
+  const multiMatchBoost = Math.min((hits.length - 1) * 0.05, 0.09);
+  return Math.round(Math.min(maxWeight + multiMatchBoost, 0.99) * 100) / 100;
+}
 
-  const multiMatchBoost = Math.min((matchCount - 1) * 0.05, 0.09);
-  const confidence = Math.min(maxWeight + multiMatchBoost, 0.99);
-
+export function scan(content: string): ImperativeScanResult {
+  // The strongest result over the views of the text (see normalize.ts).
+  let best: ImperativeHit[] = [];
+  let bestConfidence = 0;
+  for (const view of variants(content)) {
+    const hits = scanText(view);
+    const c = confidenceOf(hits);
+    if (c > bestConfidence) {
+      best = hits;
+      bestConfidence = c;
+    }
+  }
+  if (best.length === 0) return { confidence: 0, categories: [], matched_patterns: [] };
   return {
-    confidence: Math.round(confidence * 100) / 100,
-    categories: [...categories],
-    matched_patterns: [...new Set(matched_patterns)].slice(0, 10),
+    confidence: bestConfidence,
+    categories: [...new Set(best.map((h) => h.category))],
+    matched_patterns: [...new Set(best.map((h) => h.text))].slice(0, 10),
   };
 }

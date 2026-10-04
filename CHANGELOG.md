@@ -4,6 +4,40 @@ All notable changes to AEGIS will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [chitta-detect 0.3.0] — 2026-10-05
+
+`@xshieldai/chitta-detect`. Verdicts change in this version; read "Changed" before upgrading.
+
+### Added (AGPL-3.0)
+- **Disguised attacks are matched.** Before matching, text is read as a person would see
+  it: invisible characters, look-alike letters, accents, tags, markdown emphasis and line
+  breaks between words, letters spelled out with a separator, digits for letters, base64,
+  hex, HTML entities and URL-encoding are undone (`src/normalize.ts`, rule CG-014). The
+  original text is never changed.
+- `tests/evasion.test.ts`: 47 tests for disguised attacks, ordinary text, and the stated
+  limits. 108 tests in the package.
+
+### Changed
+- **Ambiguous phrases are flagged, not withheld (rule CG-015).** "You can now …", "you now
+  have access to …", "you are now …", "your role has changed" and the role-instruction
+  phrases return `ADVISORY` on their own, where 0.2.x returned `INJECT_SUSPECT` for most of
+  them. They return `INJECT_SUSPECT` when two of them sit in different places and are about
+  different things, when the source is untrusted, or under `ELEVATED_SCRUTINY`.
+  Unambiguous phrases decide as before. The single-detector scanners (`imperative.scan`,
+  `fingerprint.scan`) report the same weights as before.
+- A match that exists only because punctuation between words was collapsed
+  (`ignore_previous`, `system-override`) is treated as ambiguous.
+- A scan costs more: about 0.8 ms for a 2 KB document, up from about 0.02 ms.
+
+### Fixed
+- **CG-YK-006 is recorded** when `ELEVATED_SCRUTINY` is what promoted a verdict to
+  `INJECT_SUSPECT`. The branch that recorded it was unreachable (CD-049b); the verdict was
+  right and its reason was missing.
+
+### Not caught, and pinned by tests
+- The same intent in other words, other languages, a keyword split by a space, rot13 and
+  reversed text.
+
 ## [packages, README and import fixes] — 2026-10-05
 
 `@xshieldai/aegis-guard` 0.3.1 · `@xshieldai/aegis-suite` 0.2.2 · `@xshieldai/chitta-detect`
