@@ -89,7 +89,7 @@ export default async function init(args: string[]): Promise<void> {
     writeFileSync(hookScript, `#!/bin/bash
 # AEGIS PreToolUse hook for Claude Code
 # Three gates: budget + spawn + LakshmanRekha shield
-# Requires: aegis CLI in PATH (installed via: npm install -g @rocketlang/aegis)
+# Requires: aegis CLI in PATH (installed via: npm install -g @xshieldai/aegis)
 
 INPUT=$(cat)
 TOOL_NAME=$(echo "$INPUT" | python3 -c "import sys,json; d=json.loads(sys.stdin.read()); print(d.get('tool_name',''))" 2>/dev/null || echo "")

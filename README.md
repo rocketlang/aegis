@@ -55,9 +55,9 @@ Old packages are **deprecated on npm** with redirect messages. Existing installs
 
 ## 🔍 Verification status (2026-05-17 IST)
 
-Security tooling without proof is just marketing. The honest current state of `@xshieldai/aegis` v2.2.0:
+Security tooling without proof is just marketing. The honest current state of `@xshieldai/aegis` v2.4.0:
 
-- **Tests:** 📄 23 passing shield unit tests ([`src/shield/shield.test.ts`](src/shield/shield.test.ts) — `bun test`). Covers CA-006 sanitisation, injection / persistence / credential / exfil detection, and HanumanG spawn check. Broader coverage (DAN gate, budget engine, dashboard routes, ACC bus integration) lands in v2.3.
+- **Tests:** 📄 963 passing in the repository (`bun test src/ tests/`). For the shield hook: 23 in [`src/shield/shield.test.ts`](src/shield/shield.test.ts) and 165 in [`src/shield/hardening.test.ts`](src/shield/hardening.test.ts) — path rules, credential reads and persistence writes through a shell command, the shield's own files, network tools, phrase variants, answer time, and the stated limits. What the shield does not see is listed under "What the shield stops, and what it does not" below.
 - **Examples:** 📄 `examples/agents/` — Claude Code + OpenAI Codex hooks. Plus the README "Verify it yourself" `grep` commands in the **Trust** section below are runnable proof of zero phone-home.
 - **Live demo:** ✅ **PUBLIC at https://xshieldai.com/demo** — paste text → pick primitive → see verdict + live receipt in the stream below. 4 primitives invokable, SSE streaming through Cloudflare, per-visitor rate-limited (30 req/min). Also available locally at `http://localhost:4850/demo` when `ankr-aegis-dashboard` runs.
 - **Forja receipt stream:** ⚠️ planned (Tier 4 — "binary truth, not interpretation" answer).
@@ -344,9 +344,38 @@ The hook runs before every tool call:
 - Agent spawn → `aegis check-spawn` (HanumanG delegation check, loop detection, depth limit)
 - All other tools → `aegis check-shield` (LakshmanRekha injection, credential, exfil detection)
 
+#### What the shield stops, and what it does not
+
+`aegis check-shield` reads the JSON the harness sends before a tool call and exits 0 (go ahead) or 2 (stop).
+
+| It stops, in the default configuration | How |
+|---|---|
+| A read of a credential file — `.env` and its variants, ssh private keys, anything in `~/.ssh` `~/.gnupg` `~/.aws` that is not public, `credentials.json`, `.netrc`, `.npmrc`, data files in a `secrets/` folder | by the Read tool, **or named in a shell command that would show or copy its content** (`cat`, `grep`, `cp`, `tar`, `scp`, `curl -F @…`, `< file`) |
+| A write to a persistence target — shell start-up files, cron, systemd units, `authorized_keys`, `ld.so.preload` | by Write / Edit / MultiEdit / NotebookEdit, **or by a shell redirect, `tee`, `cp`, `mv`, `ln`, `sed -i`, `dd`, `curl -o`, `crontab`** |
+| A write to the shield's own files — everything in `~/.aegis/`, and `~/.claude/settings.json` / `settings.local.json` | the same ways, plus `rm`, `chmod`, `truncate`. **No rules file switches this off.** |
+| Known instruction-override phrases in text a tool returns | a list of patterns, matched after folding full-width letters and removing invisible characters |
+
+Paths are resolved first (`~`, relative paths, `/./`, `/../`, symlinks) and matched on whole segments: `.env.example`, `docs/secrets-management.md` and `docs/.bashrc-explained.md` are not stopped. Ordinary uses are let through: `ssh -i key`, `ssh-add`, `source .env`, `docker compose --env-file .env`, `cp .env.example .env`, `chmod 600`.
+
+In `enforcement.mode: "enforce"` it also stops an upload or fetch that names a paste, file-drop or request-catcher site, and a network tool run within a few calls of a credential read or a large read. The network tool is the program that runs, wherever it stands in the command (`/usr/bin/curl`, `;curl`, `sudo curl`, `bash -c "curl …"`, `$(curl …)`). **In the default mode, `alert`, these are warned about and allowed.**
+
+**What it does not do.** The first three, and the idiom, are pinned by tests in `src/shield/hardening.test.ts`, so they cannot change unnoticed.
+
+- **It reads the text of a call; it does not run a shell.** A path or program held in a variable, built at run time (`$(echo curl)`, `${IFS}`, base64 piped to `bash`), expanded by a glob (`cat .en*`), or inside a script file or an interpreter's own code (`python3 -c "open(…)"`) is not seen.
+- **The lists are lists.** A network tool that is not listed (`scp`, `rsync`), a sink that is not listed, a bare IP address, a persistence path that is not listed: not stopped.
+- **Phrases are wording.** A reworded instruction, look-alike letters from another alphabet, spaced-out letters, another language: not matched.
+- **It fails open.** Input that is not JSON, an error inside the shield, or the harness giving up on a slow hook: the call goes ahead. The first two say so on stderr.
+- **It sees a tool's reply only if you wire it to `PostToolUse` as well**, and by then the tool has run: the verdict can only tell the agent to distrust what came back. The output of a shell command is not read as a reply.
+- **One common idiom is stopped:** `export $(cat .env | xargs)`. Use `set -a; source .env; set +a`.
+- **It knows Claude Code's tool names** (`Bash`, `Read`, `Write`, `Edit`, `MultiEdit`, `NotebookEdit`, `WebFetch`). Another harness's names are not recognised.
+
+The shield is a net for the plain cases, which are the common ones. It is not a sandbox, and passing it is not proof that a call is safe. The kernel layer ([`@xshieldai/agent-kernel`](https://www.npmjs.com/package/@xshieldai/agent-kernel)) is the one that does not depend on the text of a command.
+
+To make an exemption, a person edits `~/.aegis/shield-rules.json` (lists: `credential_paths`, `persistence_targets`, `exfil_commands`, `drop_sites`, `injection_patterns`). A path rule is whole segments; end it with `/` for a folder and everything under it.
+
 `aegis init` generates the hook script automatically at `~/.aegis/pre-tool-use.sh`.
 
-Hook latency: ~30-50ms (Bun cold start + SQLite read).
+Hook latency: about 150 ms per call on a small server (Bun start + SQLite read), measured 2026-10-05.
 
 ### 3. Dashboard (your own, local-first)
 

@@ -40,14 +40,15 @@ describe("exfilVerdict (pure half, synthetic state)", () => {
 });
 
 describe("exfil face (AF-T-706)", () => {
-  it("live rules: full coverage, all scenarios match, clean — with the known .env.example over-flag REPORTED", () => {
+  it("live rules: full coverage, all scenarios match, clean — and .env.example is no longer over-flagged", () => {
     const r = runExfilFace(LIVE);
     expect(r.credential.misses).toEqual([]);
     expect(r.credential.variantGaps).toEqual([]);
     expect(r.exfil.mismatches).toEqual([]);
     expect(exfilFaceClean(r)).toBe(true);
-    // honesty check: the substring over-flag is surfaced, not hidden by the corpus
-    expect(r.credential.falsePositives.map((f) => f.path)).toContain("/root/project/.env.example");
+    // until 2.4.0 a substring rule over-flagged .env.example and this test pinned that as a
+    // reported false positive; rules now match whole segments (KAV-094), so it is gone
+    expect(r.credential.falsePositives).toEqual([]);
   });
 
   it("a gutted ruleset fails the face — misses on credentials, mismatches on scenarios", () => {

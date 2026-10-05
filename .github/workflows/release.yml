@@ -72,7 +72,7 @@ jobs:
           # listed: not listed yet is waited for; listed with no attestation is the alarm.
           PKG=$(node -p "require('./package.json').version")
           URL="https://registry.npmjs.org/-/npm/v1/attestations/@xshieldai%2faegis@$PKG"
-          for i in $(seq 1 30); do
+          for i in $(seq 1 90); do
             LISTED=$(curl -s -o /dev/null -w '%{http_code}' "https://registry.npmjs.org/@xshieldai%2faegis/$PKG")
             if [ "$LISTED" = "200" ]; then
               # The listing and the attestation do not appear at the same instant: aegis
@@ -88,4 +88,4 @@ jobs:
             fi
             echo "$PKG not listed yet (HTTP $LISTED), waiting"; sleep 10
           done
-          echo "COULD NOT CONFIRM — $PKG was not listed after 5 minutes. This is not a finding about provenance; look at the registry by hand."; exit 1
+          echo "COULD NOT CONFIRM — $PKG was not listed after 15 minutes. This is not a finding about provenance; look at the registry by hand."; exit 1

@@ -167,7 +167,7 @@ jobs:
           # time to appear and are waited for separately.
           ENC=$(printf '%s' "$NAME" | sed 's#/#%2f#')
           URL="https://registry.npmjs.org/-/npm/v1/attestations/$ENC@$PKG"
-          for i in $(seq 1 30); do
+          for i in $(seq 1 90); do
             LISTED=$(curl -s -o /dev/null -w '%{http_code}' "https://registry.npmjs.org/$ENC/$PKG")
             if [ "$LISTED" = "200" ]; then
               for j in $(seq 1 18); do
@@ -180,4 +180,4 @@ jobs:
             fi
             echo "$NAME $PKG not listed yet (HTTP $LISTED), waiting"; sleep 10
           done
-          echo "COULD NOT CONFIRM — $NAME $PKG was not listed after 5 minutes. This is not a finding about provenance; look at the registry by hand."; exit 1
+          echo "COULD NOT CONFIRM — $NAME $PKG was not listed after 15 minutes. This is not a finding about provenance; look at the registry by hand."; exit 1

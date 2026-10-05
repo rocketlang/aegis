@@ -3,8 +3,14 @@
 // See LICENSE for details.
 
 // AEGIS Shield — check-shield
-// PreToolUse hook for Bash, Read, Write, Edit, and any MCP tool call.
-// Exit 0 = allow. Exit 2 = block. Never fails open (always exits 0 on AEGIS errors).
+// PreToolUse hook for Bash, Read, Write, Edit, and any MCP tool call. It can also be wired
+// to PostToolUse, where it reads what a tool sent back (tool_response).
+// Exit 0 = allow. Exit 2 = block.
+//
+// THIS HOOK FAILS OPEN, by design: if the shield itself breaks (input that is not JSON, an
+// error inside a check) it exits 0 and the call goes ahead unchecked, so that a fault in
+// the guard cannot stop all work. When that happens it says so on stderr. It is the same
+// if the harness gives up waiting for the hook: the call goes ahead.
 //
 // @rule:KAV-014 LakshmanRekha injection detection
 // @rule:KAV-015 HanumanG is handled in check-spawn (Agent tool)
@@ -20,7 +26,9 @@ import {
   detectCredentialRead,
   detectExfilSequence,
   detectMCPInjection,
+  detectBashFiles,
 } from "../../shield/injection-detector";
+import type { PathContext } from "../../shield/paths";
 import { touchAgent, isStopRequested } from "../../core/db";
 import { checkMudrika } from "../../kavach/mudrika-validator";
 import { checkReachMask, checkBashReachMask } from "../../kavach/reach-mask";
@@ -61,6 +69,11 @@ export default async function checkShield(_args: string[]): Promise<void> {
     try {
       toolInput = JSON.parse(stdin);
     } catch {
+      process.stderr.write("[SHIELD] input was not JSON — this call was NOT checked\n");
+      process.exit(0);
+    }
+    if (toolInput === null || typeof toolInput !== "object" || Array.isArray(toolInput)) {
+      process.stderr.write("[SHIELD] input was not a JSON object — this call was NOT checked\n");
       process.exit(0);
     }
 
@@ -99,14 +112,22 @@ export default async function checkShield(_args: string[]): Promise<void> {
 
     // --- MCP injection check — runs on all tool calls (KAV-069) ---
     // Scans tool_result / content arrays in any PreToolUse payload
-    const mcpResult = detectMCPInjection(toolInput);
+    const mcpResult = detectMCPInjection(toolInput, rules);
     if (mcpResult.verdict === "QUARANTINE") {
       emitBlock("SHIELD", mcpResult.rule_id, mcpResult.reason, mcpResult.category, "QUARANTINED");
       process.exit(2);
     }
 
+    // A PostToolUse payload: the tool has already run. The reply was read above; the
+    // checks below are about a call that is still to be made.
+    if (toolInput.hook_event_name === "PostToolUse") process.exit(0);
+
     // Tool-specific checks
-    const toolInputData = (toolInput.tool_input as Record<string, unknown>) || {};
+    const rawInput = toolInput.tool_input;
+    const toolInputData = (rawInput && typeof rawInput === "object" && !Array.isArray(rawInput) ? rawInput : {}) as Record<string, unknown>;
+    // @rule:KAV-094 — relative paths are resolved against the directory the tool runs in
+    const pathCtx: PathContext = { cwd: typeof toolInput.cwd === "string" && toolInput.cwd ? toolInput.cwd : process.cwd() };
+    const str = (v: unknown): string => (typeof v === "string" ? v : "");
 
     if (toolName === "WebFetch") {
       // @rule:KAV-088 reach mask check for cross-service calls
@@ -122,9 +143,9 @@ export default async function checkShield(_args: string[]): Promise<void> {
       try { recordObservation(agentId, { tool_name: "WebFetch" }); } catch {}
 
     } else if (toolName === "Read") {
-      const filePath = (toolInputData.file_path as string) ?? "";
+      const filePath = str(toolInputData.file_path);
       if (!filePath) process.exit(0);
-      const credResult = detectCredentialRead(filePath, 0, rules);
+      const credResult = detectCredentialRead(filePath, 0, rules, pathCtx);
       if (credResult.verdict === "QUARANTINE") {
         emitBlock("SHIELD", credResult.rule_id, credResult.reason, credResult.category, "QUARANTINED");
         process.exit(2);
@@ -132,10 +153,10 @@ export default async function checkShield(_args: string[]): Promise<void> {
       // @rule:KAV-085 behavioral baseline — path prefix observation
       try { recordObservation(agentId, { tool_name: "Read", path_prefix: normalizePathPrefix(filePath) }); } catch {}
 
-    } else if (toolName === "Write" || toolName === "Edit") {
-      const filePath = (toolInputData.file_path as string) ?? "";
+    } else if (toolName === "Write" || toolName === "Edit" || toolName === "MultiEdit" || toolName === "NotebookEdit") {
+      const filePath = str(toolInputData.file_path) || str(toolInputData.notebook_path);
       if (!filePath) process.exit(0);
-      const persResult = detectPersistenceWrite(filePath, rules);
+      const persResult = detectPersistenceWrite(filePath, rules, pathCtx);
       if (persResult.verdict === "QUARANTINE") {
         emitBlock("SHIELD", persResult.rule_id, persResult.reason, persResult.category, "QUARANTINED");
         process.exit(2);
@@ -144,8 +165,17 @@ export default async function checkShield(_args: string[]): Promise<void> {
       try { recordObservation(agentId, { tool_name: toolName, path_prefix: normalizePathPrefix(filePath) }); } catch {}
 
     } else if (toolName === "Bash") {
-      const command = (toolInputData.command as string) ?? "";
+      const command = str(toolInputData.command);
       if (!command) process.exit(0);
+
+      // @rule:KAV-095 @rule:KAV-096 — the file rules, read off the shell command: a
+      // credential file it would read, a persistence target or one of the shield's own
+      // files it would write.
+      const fileResult = detectBashFiles(command, rules, pathCtx);
+      if (fileResult.verdict === "QUARANTINE") {
+        emitBlock("SHIELD", fileResult.rule_id, fileResult.reason, fileResult.category, "QUARANTINED");
+        process.exit(2);
+      }
 
       // Injection pattern scan
       const scanResult = detectInjection(command, rules);
@@ -197,8 +227,10 @@ export default async function checkShield(_args: string[]): Promise<void> {
     }
 
     process.exit(0);
-  } catch {
-    process.exit(0); // never block on SHIELD internal errors
+  } catch (err) {
+    // Fails OPEN (see the header). Say so: a guard that broke silently looks like a pass.
+    try { process.stderr.write(`[SHIELD] internal error — this call was NOT checked (${String((err as Error)?.message ?? err).slice(0, 120)})\n`); } catch {}
+    process.exit(0);
   }
 }
 

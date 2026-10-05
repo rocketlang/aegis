@@ -9,13 +9,26 @@
 // @rule:KAV-020 Generic rule set, no classified content in public build
 // @rule:KAV-069 MCP response injection — scan tool_result / content arrays for KAVACH-AGENT magic line
 // @rule:KAV-070 MCP sanitizeHistory — reframe injected assistant turns as quoted user text
+// @rule:KAV-094 path rules match the resolved path, on whole segments (paths.ts)
+// @rule:KAV-095 the file rules and the network-tool rule read shell commands too (bash-scan.ts)
+// @rule:KAV-096 the shield's own files are not writable through the tools it watches, and no
+//               rules file can switch that off
+// @rule:KAV-097 text is made comparable before it is matched, and every built-in pattern
+//               answers in bounded time
+//
+// WHAT THIS IS NOT (state it, never round up): these are lists and patterns over the text
+// of a tool call. A phrase reworded, a path held in a variable, a program run from a script
+// file, a sink that is not on the list — none of those are seen. The shield is a net for the
+// plain cases. It is not a sandbox, and passing it is not proof that a call is safe.
 
-import { existsSync, readFileSync, writeFileSync, mkdirSync } from "fs";
+import { existsSync, readFileSync, writeFileSync, statSync } from "fs";
 import { join } from "path";
-import { loadConfig, getAegisDir, ensureAegisDir } from "../core/config";
+import { getAegisDir, ensureAegisDir } from "../core/config";
 import { getFeedPatterns } from "./threat-feed";
 import { DROP_SITES, dropSitesNamed } from "./drop-sites";
 import { credentialMarkers, renderMarkers, redactSecrets } from "./credential-marker";
+import { candidatePaths, firstMatchingRule, credentialName, secretDir, type PathContext } from "./paths";
+import { parseCommand, contentReads, writeTargets, installsCrontab, networkTool } from "./bash-scan";
 
 export type DetectionVerdict = "PASS" | "WARN" | "BLOCK" | "QUARANTINE";
 
@@ -29,9 +42,9 @@ export interface DetectionResult {
 export interface ShieldRules {
   version: string;
   injection_patterns: Array<{ id: string; pattern: string; flags: string; severity: DetectionVerdict; reason: string }>;
-  persistence_targets: string[];        // path substrings — Write/Edit to these = QUARANTINE
-  credential_paths: string[];           // path substrings — Read of these = QUARANTINE
-  exfil_commands: string[];             // prefixes — Bash with these after large Read = BLOCK
+  persistence_targets: string[];        // path rules — Write/Edit to these = QUARANTINE
+  credential_paths: string[];           // path rules — Read of these = QUARANTINE
+  exfil_commands: string[];             // programs — Bash running these after large Read = BLOCK
   large_read_threshold_bytes: number;   // default: 100KB
   exfil_window_tool_calls: number;      // how many calls back to look for large read
   /** AF-T-709 — paste/file-drop/request-catcher hosts: network tool + named sink = BLOCK with no
@@ -39,37 +52,48 @@ export interface ShieldRules {
   drop_sites?: string[];
 }
 
+// Words that may stand between the verb and "previous" in an override phrase.
+const FILLER = "(?:(?:all|any|each|every|the|these|those|your|my|of)\\s+){0,4}";
+// `.*` is never used below: each gap is bounded, so no input makes a pattern backtrack long.
+const GAP = "[^\\n]{0,200}";
+
 const DEFAULT_RULES: ShieldRules = {
-  version: "1.0",
+  version: "1.1",
   injection_patterns: [
-    { id: "INJ-001", pattern: "ignore\\s+(all\\s+)?previous\\s+instructions", flags: "i", severity: "QUARANTINE", reason: "Direct prompt injection — instruction override attempt" },
-    { id: "INJ-002", pattern: "forget\\s+(all\\s+)?your\\s+instructions", flags: "i", severity: "QUARANTINE", reason: "Direct prompt injection — memory wipe attempt" },
-    { id: "INJ-003", pattern: "disregard\\s+(all\\s+)?previous", flags: "i", severity: "QUARANTINE", reason: "Direct prompt injection — override attempt" },
+    { id: "INJ-001", pattern: `ignore\\s+${FILLER}(?:previous|prior|above|earlier|preceding|foregoing)\\s+(?:instructions?|directions?|rules|prompts?|guidelines)`, flags: "i", severity: "QUARANTINE", reason: "Direct prompt injection — instruction override attempt" },
+    { id: "INJ-002", pattern: "forget\\s+(?:(?:all|any|of)\\s+){0,3}(?:your|the\\s+(?:previous|prior|above|earlier))\\s+(?:(?:previous|prior|earlier)\\s+)?instructions", flags: "i", severity: "QUARANTINE", reason: "Direct prompt injection — memory wipe attempt" },
+    { id: "INJ-003", pattern: `disregard\\s+${FILLER}(?:previous|(?:prior|above|earlier|preceding)\\s+(?:instructions?|directions?|rules|prompts?|guidelines))`, flags: "i", severity: "QUARANTINE", reason: "Direct prompt injection — override attempt" },
     { id: "INJ-004", pattern: "your\\s+new\\s+(system\\s+)?instructions?(\\s+are|\\s*[:.]|\\s*$)", flags: "i", severity: "QUARANTINE", reason: "System prompt replacement attempt (AF-T-301: matches 'are', a colon/period, or end-of-line — not only ' are')" },
     { id: "INJ-005", pattern: "override\\s+your\\s+(safety|security|instructions|rules)", flags: "i", severity: "QUARANTINE", reason: "Safety override attempt" },
-    { id: "INJ-010", pattern: "do\\s+anything\\s+now|DAN\\b.*\\bno\\s+longer\\s+bound", flags: "i", severity: "QUARANTINE", reason: "DAN jailbreak pattern" },
+    { id: "INJ-010", pattern: `do\\s+anything\\s+now|DAN\\b${GAP}\\bno\\s+longer\\s+bound`, flags: "i", severity: "QUARANTINE", reason: "DAN jailbreak pattern" },
     { id: "INJ-008", pattern: "\\[\\[\\s*SYSTEM\\s*\\]\\]|\\<\\<SYSTEM\\>\\>|\\{\\{SYSTEM\\}\\}", flags: "i", severity: "BLOCK", reason: "Synthetic system prompt tag injection" },
-    { id: "INJ-009", pattern: "jailbreak|dan\\s+mode|developer\\s+mode\\s+enabled|ChatGPT\\s+with\\s+Developer", flags: "i", severity: "BLOCK", reason: "Known jailbreak pattern" },
-    { id: "INJ-012", pattern: "summarize\\s+.*following.*instructions?.*then\\s+execute", flags: "i", severity: "BLOCK", reason: "Summarize-then-execute injection pattern" },
+    // The bare word "jailbreak" was here until 2.4.0; it stopped a commit message that mentioned it.
+    { id: "INJ-009", pattern: "jailbreak\\s+(?:mode|prompt)\\s+(?:enabled|activated|on)|you\\s+are\\s+(?:now\\s+)?jailbroken|dan\\s+mode|developer\\s+mode\\s+enabled|ChatGPT\\s+with\\s+Developer", flags: "i", severity: "BLOCK", reason: "Known jailbreak pattern" },
+    { id: "INJ-012", pattern: `summarize\\s+${GAP}following${GAP}instructions?${GAP}then\\s+execute`, flags: "i", severity: "BLOCK", reason: "Summarize-then-execute injection pattern" },
     { id: "INJ-006", pattern: "pretend\\s+(you\\s+are|to\\s+be)\\s+(?!a\\s+(?:senior|junior|software))", flags: "i", severity: "WARN", reason: "Persona hijack attempt" },
     { id: "INJ-007", pattern: "you\\s+are\\s+now\\s+(?!a\\s+(?:senior|junior|software|backend|frontend))", flags: "i", severity: "WARN", reason: "Persona reassignment attempt" },
-    { id: "INJ-011", pattern: "translate\\s+.*following.*instructions?", flags: "i", severity: "WARN", reason: "Indirect instruction injection via translation" },
-    { id: "PIV-001", pattern: "\\b(eval|exec|execSync)\\s*\\(.*\\breq\\.body\\b", flags: "i", severity: "QUARANTINE", reason: "Server-side injection pivot — eval on user input" },
+    { id: "INJ-011", pattern: `translate\\s+${GAP}following${GAP}instructions?`, flags: "i", severity: "WARN", reason: "Indirect instruction injection via translation" },
+    { id: "PIV-001", pattern: `\\b(eval|exec|execSync)\\s*\\(${GAP}\\breq\\.body\\b`, flags: "i", severity: "QUARANTINE", reason: "Server-side injection pivot — eval on user input" },
   ],
   persistence_targets: [
-    "/.bashrc", "/.bash_profile", "/.profile", "/.zshrc", "/.zprofile",
-    "/etc/cron", "/var/spool/cron",
-    "/etc/systemd/system/", "/lib/systemd/system/",
-    "/.claude/settings.json", "/.claude/CLAUDE.md",
-    "/etc/profile.d/",
-    "/.ssh/authorized_keys", "/.ssh/config",
+    "/.bashrc", "/.bash_profile", "/.bash_login", "/.bash_logout", "/.profile",
+    "/.zshrc", "/.zprofile", "/.zshenv", "/.zlogin",
+    "/etc/crontab", "/etc/cron.d/", "/etc/cron.hourly/", "/etc/cron.daily/", "/etc/cron.weekly/", "/etc/cron.monthly/",
+    "/var/spool/cron/",
+    "/etc/systemd/system/", "/lib/systemd/system/", "/usr/lib/systemd/system/", "/.config/systemd/user/",
+    "/.claude/settings.json", "/.claude/settings.local.json", "/.claude/CLAUDE.md",
+    "/etc/profile", "/etc/profile.d/", "/etc/environment", "/etc/ld.so.preload", "/etc/rc.local",
+    "/.ssh/authorized_keys", "/.ssh/config", "/.ssh/rc",
   ],
   credential_paths: [
+    // .env files, ssh private keys, credentials/secrets files and the dot credential files
+    // are also matched by NAME, built in (paths.ts), so emptying this list does not unlock
+    // them. The entries stay here so that a reason names the rule it named before.
     "/.ssh/id_rsa", "/.ssh/id_ed25519", "/.ssh/id_ecdsa", "/.ssh/id_dsa",
     "/.aws/credentials", "/.aws/config",
-    "/.env", "/credentials", "/secrets",
-    "/.npmrc", "/.pypirc",
+    "/.env", "/.npmrc", "/.pypirc",
     "/.claude/settings.json",
+    "/.docker/config.json", "/.kube/config",
     "/etc/passwd", "/etc/shadow", "/etc/sudoers",
   ],
   exfil_commands: [
@@ -92,13 +116,37 @@ interface ShieldState {
   tool_call_index: number;
 }
 
+const PASS: DetectionResult = { verdict: "PASS", rule_id: "clean", reason: "", category: "clean" };
+const isStrings = (v: unknown): v is string[] => Array.isArray(v) && v.every((x) => typeof x === "string");
+const VERDICTS = new Set(["PASS", "WARN", "BLOCK", "QUARANTINE"]);
+
+/**
+ * The shipped rules, with a `~/.aegis/shield-rules.json` laid over them field by field. A
+ * field of the wrong shape is ignored (the shipped value stays): a rules file that is
+ * half-written must not leave a list undefined. A file may replace or empty a list — that
+ * is how an exemption is made — but it cannot remove the built-in name rules or the guard
+ * on the shield's own files (KAV-096).
+ */
 export function loadShieldRules(): ShieldRules {
   const rulesPath = join(getAegisDir(), "shield-rules.json");
   if (!existsSync(rulesPath)) return DEFAULT_RULES;
   try {
-    const raw = readFileSync(rulesPath, "utf-8");
-    const parsed = JSON.parse(raw) as Partial<ShieldRules>;
-    return { ...DEFAULT_RULES, ...parsed };
+    const parsed = JSON.parse(readFileSync(rulesPath, "utf-8")) as Record<string, unknown>;
+    if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) return DEFAULT_RULES;
+    const out: ShieldRules = { ...DEFAULT_RULES };
+    if (typeof parsed.version === "string") out.version = parsed.version;
+    if (Array.isArray(parsed.injection_patterns)) {
+      out.injection_patterns = parsed.injection_patterns.filter((p): p is ShieldRules["injection_patterns"][number] =>
+        !!p && typeof p === "object" && typeof (p as any).id === "string" && typeof (p as any).pattern === "string" && VERDICTS.has((p as any).severity))
+        .map((p) => ({ ...p, flags: typeof p.flags === "string" ? p.flags : "i", reason: typeof p.reason === "string" ? p.reason : p.id }));
+    }
+    if (isStrings(parsed.persistence_targets)) out.persistence_targets = parsed.persistence_targets;
+    if (isStrings(parsed.credential_paths)) out.credential_paths = parsed.credential_paths;
+    if (isStrings(parsed.exfil_commands)) out.exfil_commands = parsed.exfil_commands;
+    if (isStrings(parsed.drop_sites)) out.drop_sites = parsed.drop_sites;
+    if (typeof parsed.large_read_threshold_bytes === "number" && Number.isFinite(parsed.large_read_threshold_bytes) && parsed.large_read_threshold_bytes > 0) out.large_read_threshold_bytes = parsed.large_read_threshold_bytes;
+    if (typeof parsed.exfil_window_tool_calls === "number" && Number.isInteger(parsed.exfil_window_tool_calls) && parsed.exfil_window_tool_calls > 0) out.exfil_window_tool_calls = parsed.exfil_window_tool_calls;
+    return out;
   } catch {
     return DEFAULT_RULES;
   }
@@ -111,9 +159,10 @@ function loadShieldState(): ShieldState {
     const state = JSON.parse(raw) as ShieldState;
     // Evict stale entries
     const now = Date.now();
-    state.recent_large_reads = (state.recent_large_reads || []).filter(
-      (r) => now - r.timestamp < EXFIL_STATE_TTL_MS
+    state.recent_large_reads = (Array.isArray(state.recent_large_reads) ? state.recent_large_reads : []).filter(
+      (r) => r && now - r.timestamp < EXFIL_STATE_TTL_MS
     );
+    if (typeof state.tool_call_index !== "number" || !Number.isFinite(state.tool_call_index)) state.tool_call_index = 0;
     return state;
   } catch {
     return { recent_large_reads: [], tool_call_index: 0 };
@@ -127,47 +176,108 @@ function saveShieldState(state: ShieldState): void {
   } catch { /* non-fatal */ }
 }
 
+function recordRead(path: string, size: number): void {
+  const state = loadShieldState();
+  state.recent_large_reads.push({ path, size, timestamp: Date.now(), tool_call_index: state.tool_call_index });
+  state.tool_call_index++;
+  saveShieldState(state);
+}
+
+// ── text ────────────────────────────────────────────────────────────────────
+
+// Every built-in pattern is bounded, so a long text costs time in proportion to its length
+// and is read whole. Past this size only the head and the tail are read.
+const SCAN_MAX = 8_000_000;
+// zero-width and direction marks: invisible in a terminal, and enough to split a word
+const INVISIBLE = /[­​-‏‪-‮⁠-⁤﻿]/g;
+
+/**
+ * The forms of a text the patterns are run over (KAV-097): as given, and made comparable —
+ * full-width and other compatibility letters folded (NFKC), invisible characters removed.
+ * A text longer than SCAN_MAX characters is read at its head and its tail.
+ */
+function scanForms(text: unknown): string[] {
+  if (typeof text !== "string" || text.length === 0) return [];
+  const capped = text.length > SCAN_MAX ? text.slice(0, SCAN_MAX * 0.6) + "\n" + text.slice(-SCAN_MAX * 0.4) : text;
+  let folded = capped;
+  try { folded = capped.normalize("NFKC").replace(INVISIBLE, ""); } catch { /* keep the given form */ }
+  return folded === capped ? [capped] : [capped, folded];
+}
+
+const compiled = new Map<string, RegExp | null>();
+function compile(pattern: string, flags: string): RegExp | null {
+  const key = flags + "\u0000" + pattern;
+  let re = compiled.get(key);
+  if (re === undefined) {
+    try { re = new RegExp(pattern, flags.replace(/[gy]/g, "")); } catch { re = null; }
+    compiled.set(key, re);
+  }
+  return re;
+}
+
 // Check text for injection patterns
 // @rule:KAV-082 Live threat feed patterns merged at check time from LakshmanRekha probe.failed events
 export function detectInjection(text: string, rules: ShieldRules): DetectionResult {
+  const forms = scanForms(text);
+  if (forms.length === 0) return PASS;
   for (const pat of rules.injection_patterns) {
-    try {
-      const regex = new RegExp(pat.pattern, pat.flags);
-      if (regex.test(text)) {
-        return {
-          verdict: pat.severity,
-          rule_id: pat.id,
-          reason: pat.reason,
-          category: "injection",
-        };
-      }
-    } catch { /* invalid regex in rules — skip */ }
+    const regex = compile(pat.pattern, pat.flags); // an invalid pattern in a rules file is skipped
+    if (!regex) continue;
+    if (forms.some((f) => regex.test(f))) {
+      return { verdict: pat.severity, rule_id: pat.id, reason: pat.reason, category: "injection" };
+    }
   }
 
   // @rule:KAV-082 Merge live threat feed patterns from LakshmanRekha at check time
-  const livePatterns = getFeedPatterns();
-  for (const rawPattern of livePatterns) {
-    try {
-      const regex = new RegExp(rawPattern, "i");
-      if (regex.test(text)) {
-        return {
-          verdict: "BLOCK",
-          rule_id: "KAV-082-live",
-          reason: `Live threat feed match (LakshmanRekha probe.failed): pattern '${rawPattern.slice(0, 60)}'`,
-          category: "injection",
-        };
-      }
-    } catch { /* invalid pattern in feed — skip */ }
+  for (const rawPattern of getFeedPatterns()) {
+    const regex = compile(rawPattern, "i");
+    if (regex && forms.some((f) => regex.test(f))) {
+      return {
+        verdict: "BLOCK",
+        rule_id: "KAV-082-live",
+        reason: `Live threat feed match (LakshmanRekha probe.failed): pattern '${rawPattern.slice(0, 60)}'`,
+        category: "injection",
+      };
+    }
   }
 
-  return { verdict: "PASS", rule_id: "clean", reason: "", category: "clean" };
+  return PASS;
 }
 
+// ── the shield's own files (KAV-096) ────────────────────────────────────────
+
+/**
+ * Is this resolved path one of the files the shield itself runs from? Its directory
+ * (rules, configuration, hook script, state, ledgers) and the harness settings that wire
+ * the hook. Built in: no rules file changes it.
+ */
+export function isShieldOwnFile(path: string, ctx?: PathContext): boolean {
+  const dir = getAegisDir();
+  if (path === dir || path.startsWith(dir + "/")) return true;
+  const home = ctx?.home || process.env.HOME || "/root";
+  return path === join(home, ".claude", "settings.json") || path === join(home, ".claude", "settings.local.json");
+}
+
+// Before 2.4.0 a rule was a substring, and "/etc/cron" was relied on to cover cron.d,
+// crontab and the cron.* folders. A rule is now whole segments, so that one legacy entry
+// is read as the list it stood for. Any other rule that leaned on substring matching must
+// be rewritten (a trailing "/" for a folder).
+const CRON_RULES = ["/etc/crontab", "/etc/cron.d/", "/etc/cron.hourly/", "/etc/cron.daily/", "/etc/cron.weekly/", "/etc/cron.monthly/"];
+const persistenceRules = (rules: ShieldRules): string[] => rules.persistence_targets.flatMap((r) => (r === "/etc/cron" ? CRON_RULES : [r]));
+
+const OWN_FILE: DetectionResult = {
+  verdict: "QUARANTINE",
+  rule_id: "KAV-096",
+  reason: "Write to the shield's own files (its rules, configuration, hook or the settings that wire it) — a person changes these, not a tool call",
+  category: "persistence",
+};
+
 // Check Write/Edit target path for persistence attack (INF-KAV-006)
-export function detectPersistenceWrite(targetPath: string, rules: ShieldRules): DetectionResult {
-  const normalized = targetPath.replace(/\/+/g, "/").replace(/\/\.\.\//g, "/");
-  for (const target of rules.persistence_targets) {
-    if (normalized.includes(target)) {
+export function detectPersistenceWrite(targetPath: string, rules: ShieldRules, ctx?: PathContext): DetectionResult {
+  for (const path of candidatePaths(targetPath, ctx)) {
+    if (isShieldOwnFile(path, ctx)) return OWN_FILE;
+    const target = firstMatchingRule(path, persistenceRules(rules));
+    if (target) {
       return {
         verdict: "QUARANTINE",
         rule_id: "INF-KAV-006",
@@ -176,7 +286,7 @@ export function detectPersistenceWrite(targetPath: string, rules: ShieldRules): 
       };
     }
   }
-  return { verdict: "PASS", rule_id: "clean", reason: "", category: "clean" };
+  return PASS;
 }
 
 // Check Read path for credential access (INF-KAV-001)
@@ -185,30 +295,34 @@ export function detectPersistenceWrite(targetPath: string, rules: ShieldRules): 
  * credential rule at all? Extracted so the red-team face judges with the SAME matching the
  * live hook runs, without touching the shared shield state (RT-002: the harness never
  * records). detectCredentialRead below keeps the state side effects.
+ *
+ * Three things make a path a credential: its file name (built in: .env, ssh private keys,
+ * credentials/secrets files, .netrc and friends), a secret directory it sits in (~/.ssh,
+ * ~/.gnupg, ~/.aws, except their public files), or a path rule from the rules.
  */
-export function classifyCredentialPath(targetPath: string, rules: ShieldRules): { credPath: string | null } {
-  const normalized = targetPath.replace(/\/+/g, "/");
-  for (const credPath of rules.credential_paths) {
-    if (normalized.includes(credPath)) return { credPath };
+export function classifyCredentialPath(targetPath: string, rules: ShieldRules, ctx?: PathContext): { credPath: string | null } {
+  for (const path of candidatePaths(targetPath, ctx)) {
+    const rule = firstMatchingRule(path, rules.credential_paths);
+    if (rule) return { credPath: rule };
+    const named = credentialName(path);
+    if (named) return { credPath: named };
+    const dir = secretDir(path);
+    if (dir) return { credPath: `${dir}/` };
   }
   return { credPath: null };
 }
 
-export function detectCredentialRead(targetPath: string, size: number, rules: ShieldRules): DetectionResult {
-  const normalized = targetPath.replace(/\/+/g, "/");
-  const { credPath } = classifyCredentialPath(targetPath, rules);
+/**
+ * `size` is the size of the file when the caller knows it. When it is 0 or missing and the
+ * file exists, the size is looked up here — the hook used to pass 0 for every read, so the
+ * "large read, then upload" sequence could never fire.
+ */
+export function detectCredentialRead(targetPath: string, size: number, rules: ShieldRules, ctx?: PathContext): DetectionResult {
+  const paths = candidatePaths(targetPath, ctx);
+  const normalized = paths[0] ?? String(targetPath).slice(0, 400);
+  const { credPath } = classifyCredentialPath(targetPath, rules, ctx);
   if (credPath) {
-    // Record for exfil sequence tracking
-    const state = loadShieldState();
-    state.recent_large_reads.push({
-      path: normalized,
-      size,
-      timestamp: Date.now(),
-      tool_call_index: state.tool_call_index,
-    });
-    state.tool_call_index++;
-    saveShieldState(state);
-
+    recordRead(normalized, size); // for exfil sequence tracking
     return {
       verdict: "QUARANTINE",
       rule_id: "INF-KAV-001",
@@ -217,64 +331,128 @@ export function detectCredentialRead(targetPath: string, size: number, rules: Sh
     };
   }
 
-  // Track large reads for exfil sequence detection
-  if (size >= rules.large_read_threshold_bytes) {
-    const state = loadShieldState();
-    state.recent_large_reads.push({ path: normalized, size, timestamp: Date.now(), tool_call_index: state.tool_call_index });
-    state.tool_call_index++;
-    saveShieldState(state);
+  let bytes = typeof size === "number" && Number.isFinite(size) ? size : 0;
+  if (bytes <= 0 && paths.length) { try { bytes = statSync(paths[0]).size; } catch { /* not there */ } }
+  if (bytes >= rules.large_read_threshold_bytes) recordRead(normalized, bytes); // for exfil sequence detection
+
+  return PASS;
+}
+
+// ── shell commands (KAV-095) ────────────────────────────────────────────────
+
+/**
+ * The file rules, applied to a shell command: a credential file whose content the command
+ * would read, a persistence target or one of the shield's own files it would write, a
+ * crontab it would install. PURE — records nothing; detectBashFiles below keeps the state.
+ */
+export function bashFileVerdict(command: string, rules: ShieldRules, ctx?: PathContext): DetectionResult {
+  const cmds = parseCommand(command);
+  if (cmds.length === 0) return PASS;
+
+  // /etc/passwd is world-readable and read by ordinary administration; the Read-tool rule
+  // keeps it, the shell rule does not.
+  const credRules = rules.credential_paths.filter((r) => r !== "/etc/passwd");
+  const base = ctx?.cwd || process.cwd();
+  // a command that follows `cd X` is looked at from X
+  const from = (cwd?: string): PathContext => (cwd === undefined ? { ...ctx, cwd: base } : { ...ctx, cwd: candidatePaths(cwd, { ...ctx, cwd: base })[0] ?? base });
+  const isSecret = (arg: string, cwd?: string): "key" | "env" | "other" | null => {
+    if (!arg || arg.length > 1024 || arg.includes("://")) return null;
+    for (const path of candidatePaths(arg, from(cwd))) {
+      const named = credentialName(path);
+      if (named) return named === "ssh private key" ? "key" : named === ".env" ? "env" : "other";
+      if (secretDir(path)) return "key";
+      if (firstMatchingRule(path, credRules)) return "other";
+    }
+    return null;
+  };
+  const reads = contentReads(cmds, isSecret);
+  if (reads.length > 0) {
+    const r = reads[0];
+    return {
+      verdict: "QUARANTINE",
+      rule_id: "INF-KAV-001",
+      reason: `Read of credential/key file through a shell command (${r.verb} ${redactSecrets(r.path).slice(0, 120)}) — possible data theft`,
+      category: "credential_read",
+    };
   }
 
-  return { verdict: "PASS", rule_id: "clean", reason: "", category: "clean" };
+  if (installsCrontab(cmds)) {
+    return { verdict: "QUARANTINE", rule_id: "INF-KAV-006", reason: "Shell command installs or edits a crontab — possible persistent execution implant", category: "persistence" };
+  }
+  for (const t of writeTargets(cmds)) {
+    for (const path of candidatePaths(t.path, from(t.cwd))) {
+      if (isShieldOwnFile(path, ctx)) return { ...OWN_FILE, reason: `${OWN_FILE.reason} (${t.verb})` };
+      if (t.kind !== "write") continue;
+      const target = firstMatchingRule(path, persistenceRules(rules));
+      if (target) {
+        return {
+          verdict: "QUARANTINE",
+          rule_id: "INF-KAV-006",
+          reason: `Shell command writes to persistence target: ${target} (${t.verb}) — possible persistent execution implant`,
+          category: "persistence",
+        };
+      }
+    }
+  }
+  return PASS;
+}
+
+export function detectBashFiles(command: string, rules: ShieldRules, ctx?: PathContext): DetectionResult {
+  const r = bashFileVerdict(command, rules, ctx);
+  if (r.category === "credential_read") recordRead("(shell command)", 0);
+  return r;
+}
+
+// ── MCP ─────────────────────────────────────────────────────────────────────
+
+const AUTHORING = new Set(["Write", "Edit", "NotebookEdit", "MultiEdit", "Bash"]);
+
+/** Every text inside a value, to a fixed depth and count. */
+function harvest(val: unknown, out: string[], depth = 0): void {
+  if (out.length >= 5000 || depth > 8) return;
+  if (typeof val === "string") { if (val.length > 0) out.push(val); return; }
+  if (Array.isArray(val)) { for (const item of val) harvest(item, out, depth + 1); return; }
+  if (val && typeof val === "object") for (const v of Object.values(val as Record<string, unknown>)) harvest(v, out, depth + 1);
 }
 
 // Check MCP tool response bodies for injected instructions (INF-KAV-013)
 // MCP servers return tool_result or content arrays that an attacker can poison.
 // If any text block in those arrays contains the KAVACH-AGENT magic line — that's an injection.
-// Also applies sanitizeHistory() reframe: injected assistant-role turns become quoted user text.
 // @rule:KAV-069 MCP response injection detection
 // @rule:KAV-070 MCP sanitizeHistory reframe pattern
-export function detectMCPInjection(stdinJson: unknown): DetectionResult {
-  if (!stdinJson || typeof stdinJson !== "object") {
-    return { verdict: "PASS", rule_id: "clean", reason: "", category: "clean" };
-  }
+//
+// Where a reply can be: `tool_result` and `content` (older shapes), and `tool_response`,
+// which is the field a harness sends AFTER a tool has run (a PostToolUse hook). All text
+// inside them is read, at any depth. For an authoring tool (Write, Edit, Bash…) nothing
+// under tool_input or tool_response is read here: that text is the agent's own.
+//
+// A PreToolUse hook does not see a reply at all. To have replies checked, wire
+// `aegis check-shield` to PostToolUse as well; by then the tool has run, so the verdict
+// can only tell the agent to distrust what came back.
+export function detectMCPInjection(stdinJson: unknown, rulesIn?: ShieldRules): DetectionResult {
+  if (!stdinJson || typeof stdinJson !== "object") return PASS;
 
-  // MCP payloads appear as tool_input.tool_result or as nested content[] arrays
   const raw = stdinJson as Record<string, unknown>;
   const candidates: string[] = [];
-
-  // Collect all text strings from tool_result and content arrays (1 level deep)
-  function harvest(val: unknown): void {
-    if (typeof val === "string") {
-      candidates.push(val);
-      return;
-    }
-    if (Array.isArray(val)) {
-      for (const item of val) {
-        if (typeof item === "string") candidates.push(item);
-        else if (item && typeof item === "object") {
-          const block = item as Record<string, unknown>;
-          if (typeof block.text === "string") candidates.push(block.text);
-          if (typeof block.content === "string") candidates.push(block.content);
-        }
-      }
+  harvest(raw.tool_result, candidates);
+  harvest(raw.content, candidates);
+  const authoring = AUTHORING.has(String(raw.tool_name ?? ""));
+  if (!authoring) {
+    harvest(raw.tool_response, candidates);
+    const toolInput = raw.tool_input;
+    if (toolInput && typeof toolInput === "object") {
+      // tool_input.content of an AUTHORING tool is the agent's own text (a Write's file body),
+      // not a response from any MCP server — scanning it flagged test fixtures as "MCP injection"
+      // and would QUARANTINE the write (stage-2 replay, 2026-09-29). Authored content is
+      // chitta's lane (check-chitta scans protected writes).
+      harvest((toolInput as Record<string, unknown>).tool_result, candidates);
+      harvest((toolInput as Record<string, unknown>).content, candidates);
+      harvest((toolInput as Record<string, unknown>).result, candidates);
     }
   }
+  if (candidates.length === 0) return PASS;
 
-  // Check common MCP envelope shapes
-  harvest(raw.tool_result);
-  harvest(raw.content);
-  const toolInput = raw.tool_input as Record<string, unknown> | undefined;
-  // tool_input.content of an AUTHORING tool is the agent's own text (a Write's file body),
-  // not a response from any MCP server — scanning it flagged test fixtures as "MCP injection"
-  // and would QUARANTINE the write (stage-2 replay, 2026-09-29). Authored content is
-  // chitta's lane (check-chitta scans protected writes).
-  const AUTHORING = new Set(["Write", "Edit", "NotebookEdit", "MultiEdit", "Bash"]);
-  if (toolInput && !AUTHORING.has(String(raw.tool_name ?? ""))) {
-    harvest(toolInput.tool_result);
-    harvest(toolInput.content);
-  }
-
+  const rules = rulesIn ?? loadShieldRules();
   const magicLineRe = /^#\s*KAVACH-AGENT:/m;
   for (const text of candidates) {
     if (magicLineRe.test(text)) {
@@ -286,7 +464,6 @@ export function detectMCPInjection(stdinJson: unknown): DetectionResult {
       };
     }
     // Also run standard injection patterns on MCP text (defence in depth)
-    const rules = loadShieldRules();
     const injResult = detectInjection(text, rules);
     if (injResult.verdict === "QUARANTINE" || injResult.verdict === "BLOCK") {
       return {
@@ -298,7 +475,7 @@ export function detectMCPInjection(stdinJson: unknown): DetectionResult {
     }
   }
 
-  return { verdict: "PASS", rule_id: "clean", reason: "", category: "clean" };
+  return PASS;
 }
 
 /**
@@ -333,26 +510,24 @@ export interface ShieldExfilState {
  * and an explicit clock. Extracted so the red-team face can drive the read→network
  * sequence (fresh read = BLOCK, stale window/TTL = WARN) with synthetic state, judging
  * with the SAME code the live hook runs. detectExfilSequence keeps the state IO.
+ *
+ * KAV-095 — the network tool is the PROGRAM a simple command runs, wherever it stands:
+ * `/usr/bin/curl`, `cd /tmp;curl`, `true&&curl`, `echo $(curl …)`, `sudo curl`,
+ * `bash -c "curl …"`. A program whose name merely begins like one (`ncdu`) is not it.
  */
 export function exfilVerdict(command: string, state: ShieldExfilState, nowMs: number, rules: ShieldRules): DetectionResult {
-  // Check if command contains an exfil tool — and remember WHICH, so the reason names it
-  // (it used to print the command's first token: `cat .env | curl …` reported "cat").
-  const trimmed = command.trimStart();
-  const matchedTool = rules.exfil_commands.find((cmd) => {
-    if (cmd.includes(".*")) {
-      try { return new RegExp(cmd, "i").test(trimmed); } catch { return false; }
-    }
-    return trimmed.startsWith(cmd) || trimmed.includes(` ${cmd} `) || trimmed.includes(` ${cmd}\n`);
-  });
+  if (typeof command !== "string" || command.length === 0) return PASS;
+  const matchedTool = networkTool(parseCommand(command), rules.exfil_commands);
 
-  if (!matchedTool) return { verdict: "PASS", rule_id: "clean", reason: "", category: "clean" };
+  if (!matchedTool) return PASS;
   const toolLabel = matchedTool.includes(".*") ? matchedTool.split(" ")[0] : matchedTool;
 
   // AF-T-709 — network tool + a named drop site = BLOCK with no prior read required. The
   // sink itself is the positive identification; typed credential markers ride in the reason.
-  const sinks = dropSitesNamed(command, rules.drop_sites ?? []);
+  const head = command.slice(0, 200_000);
+  const sinks = dropSitesNamed(head, rules.drop_sites ?? []);
   if (sinks.length > 0) {
-    const markers = credentialMarkers(command);
+    const markers = credentialMarkers(head);
     return {
       verdict: "BLOCK",
       rule_id: "INF-KAV-005-sink",
@@ -372,7 +547,7 @@ export function exfilVerdict(command: string, state: ShieldExfilState, nowMs: nu
     return {
       verdict: "BLOCK",
       rule_id: "INF-KAV-005",
-      reason: `Exfiltration sequence: network tool (${redactSecrets(command).slice(0, 40)}) within ${rules.exfil_window_tool_calls} calls of large/credential read (${recentLargeRead.path})`,
+      reason: `Exfiltration sequence: network tool (${redactSecrets(command.slice(0, 400)).slice(0, 40)}) within ${rules.exfil_window_tool_calls} calls of large/credential read (${recentLargeRead.path})`,
       category: "exfiltration",
     };
   }

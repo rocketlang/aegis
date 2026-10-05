@@ -4,6 +4,58 @@ All notable changes to AEGIS will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [2.4.0] — 2026-10-05
+
+`@xshieldai/aegis`. The shield hook (`aegis check-shield`) stops more and stops less: read
+"Changed" before upgrading, in particular if you keep a `~/.aegis/shield-rules.json`.
+
+### Changed (AGPL-3.0)
+- **Path rules match the resolved path, on whole segments (rule KAV-094).** `~`, relative
+  paths, `/./`, `/../` and symlinks are resolved first. A rule is its segments, ending at
+  the end of the path or at `/`; a rule ending in `/` is a folder and everything under it.
+  `.env.example`, `docs/secrets-management.md`, `docs/.bashrc-explained.md` and a folder
+  named `.profiles` are no longer stopped. **A rule in your own rules file that relied on
+  substring matching must be rewritten**; the one legacy entry `/etc/cron` is still read as
+  the cron files and folders.
+- **Credential files are recognised by name, built in:** `.env` and its variants (not the
+  `.example` / `.sample` / `.template` ones), ssh private keys, anything in `~/.ssh`,
+  `~/.gnupg`, `~/.aws` that is not one of their public files, `credentials.*` / `secrets.*`
+  data files, data files in a `secrets/` or `credentials/` folder, `.netrc`,
+  `.git-credentials`, `.pgpass`, `.npmrc`, `.pypirc`, service-account keys.
+- **The file rules read shell commands too (rule KAV-095).** A credential file whose content
+  a command would show or copy, a persistence target it would write, a crontab it would
+  install: stopped, as for the Read and Write tools. Ordinary uses are let through
+  (`ssh -i`, `ssh-add`, `source .env`, `--env-file`, `chmod`, `cp .env.example .env`).
+  `/etc/passwd` stays stopped for the Read tool and is not stopped in a shell command.
+- **A network tool is the program that runs, wherever it stands:** `/usr/bin/curl`, `;curl`,
+  `&&curl`, `$(curl …)`, `sudo curl`, `bash -c "curl …"`, after `then` or `do`. A program
+  whose name only begins like one (`ncdu`) is no longer taken for it.
+- **The shield's own files cannot be written through the tools it watches (rule KAV-096):**
+  everything in `~/.aegis/`, and `~/.claude/settings.json` / `settings.local.json`. A rules
+  file cannot switch this off, nor the built-in credential names.
+- **Text is made comparable before it is matched (rule KAV-097):** full-width letters are
+  folded and invisible characters removed. The override patterns accept "the", "prior",
+  "earlier", "any", "all of the". Every built-in pattern is bounded, so no input makes one
+  run for seconds. The bare word "jailbreak" is no longer a pattern.
+- **Replies are read at any depth**, and in `tool_response` (a PostToolUse payload).
+- **"Large read, then upload" can fire:** the size of a read is looked up (the hook passed 0).
+- `MultiEdit` and `NotebookEdit` are covered. A rules file with a field of the wrong shape
+  keeps the shipped value for that field.
+- When the shield lets a call through unchecked (input that is not JSON, an internal
+  error), it says so on stderr. It still fails open; the source no longer says otherwise.
+
+### Added
+- `src/shield/paths.ts`, `src/shield/bash-scan.ts`; `bashFileVerdict()`, `detectBashFiles()`,
+  `isShieldOwnFile()`.
+- `src/shield/hardening.test.ts`: 165 tests. 963 tests in the repository.
+- README: "What the shield stops, and what it does not".
+- Release workflows wait up to 15 minutes for the registry to list a new version (was 5).
+
+### Not covered, and pinned by tests
+- The shield reads the text of a call. A path or program in a variable, built at run time,
+  expanded by a glob, or inside a script or an interpreter's own code is not seen. The lists
+  are lists; the phrases are wording. It fails open.
+
 ## [aegis-suite 0.2.5] — 2026-10-05
 
 `@xshieldai/aegis-suite`.

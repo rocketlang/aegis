@@ -31,9 +31,9 @@ export const CREDENTIAL_MALICIOUS = [
   "/opt/app/secrets/api-keys.json",
 ];
 
-// — benign controls — ordinary reads that must NOT classify. `.env.example` is a KNOWN
-// substring over-flag ("/.env" matches it) — kept here so the face REPORTS it honestly
-// rather than the corpus hiding it (a guard is only as good as its vocabulary).
+// — benign controls — ordinary reads that must NOT classify. `.env.example` was a known
+// substring over-flag until 2.4.0; rules now match whole segments, and it stays here so the
+// face would report it again if that ever regressed.
 export const CREDENTIAL_BENIGN = [
   "/root/aegis/src/shield/injection-detector.ts",
   "/root/proposals/agent-firewall--logics--formal--2026-09-24.md",
