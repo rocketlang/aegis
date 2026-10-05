@@ -18,14 +18,14 @@ import {
   setEventBus as setChittaBus,
   scan as chittaScan,
   type AccReceipt as ChittaReceipt,
-} from "../../../packages/chitta-detect/src/index";
+} from "@xshieldai/chitta-detect";
 
 import {
   setEventBus as setLakshmanBus,
   classifyResponse,
   computeRefusalRate,
   type AccReceipt as LakshmanReceipt,
-} from "../../../packages/lakshmanrekha/src/index";
+} from "@xshieldai/lakshmanrekha";
 
 import {
   setEventBus as setHanumangBus,
@@ -33,7 +33,7 @@ import {
   scoreAxis,
   computePostureScore,
   type AccReceipt as HanumangReceipt,
-} from "../../../packages/hanumang-mandate/src/index";
+} from "@xshieldai/hanumang-mandate";
 
 import {
   setEventBus as setGuardBus,
@@ -41,7 +41,7 @@ import {
   verifyApprovalToken,
   digestApprovalToken,
   type AccReceipt as GuardReceipt,
-} from "../../../packages/aegis-guard/src/index";
+} from "@xshieldai/aegis-guard";
 
 // ─── shared writer — appends to the same SQLite as /control-center ────────────
 

@@ -4,7 +4,7 @@
 
 import { loadConfig } from "../../core/config";
 import { getBudgetState, listActiveSessions, getRecentAlerts, getWindowBudget } from "../../core/db";
-import { eeStatus } from "../../../ee/license";
+import { eeStatus } from "../../core/ee-gate";
 
 function bar(percent: number, width: number = 30): string {
   const filled = Math.round((percent / 100) * width);

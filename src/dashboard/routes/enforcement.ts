@@ -43,7 +43,7 @@ import {
 import {
   ensureSigningKeypair,
   APPROVAL_JWT_ALG,
-} from "../../../packages/aegis-guard/src/signing";
+} from "@xshieldai/aegis-guard";
 
 export function registerEnforcementRoutes(app: FastifyInstance): void {
   // @rule:KGT-002 — AEGIS is the approval-token minting authority (KGT-T1.1):

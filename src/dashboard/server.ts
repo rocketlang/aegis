@@ -30,7 +30,7 @@ import { registerFirewallRoutes } from "./routes/firewall";  // AF-T-802 founder
 import { classifyCommand, runKavachGate } from "../kavach/gate";
 import { isApprover, APPROVERS_FILE_PATH } from "./approvers";
 // [EE] Multi-tenant — graceful degradation when EE not licensed
-import { isEE, eeStatus } from "../../ee/license";
+import { isEE, eeStatus } from "../core/ee-gate";
 type _TenantMod = typeof import("../../ee/core/tenant");
 let _listTenants: _TenantMod["listTenants"] = () => [];
 let _getTenantConfig: _TenantMod["getTenantConfig"] | null = null;

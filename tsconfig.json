@@ -3,11 +3,30 @@
     "target": "ESNext",
     "module": "ESNext",
     "moduleResolution": "bundler",
-    "types": ["bun-types"],
+    "types": [
+      "bun-types"
+    ],
     "strict": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
-    "outDir": "dist"
+    "outDir": "dist",
+    "baseUrl": ".",
+    "paths": {
+      "@xshieldai/chitta-detect": [
+        "packages/chitta-detect/src/index.ts"
+      ],
+      "@xshieldai/lakshmanrekha": [
+        "packages/lakshmanrekha/src/index.ts"
+      ],
+      "@xshieldai/hanumang-mandate": [
+        "packages/hanumang-mandate/src/index.ts"
+      ],
+      "@xshieldai/aegis-guard": [
+        "packages/aegis-guard/src/index.ts"
+      ]
+    }
   },
-  "include": ["src/**/*.ts"]
+  "include": [
+    "src/**/*.ts"
+  ]
 }

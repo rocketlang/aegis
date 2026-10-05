@@ -4,6 +4,42 @@ All notable changes to AEGIS will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [2.7.0] — 2026-10-06
+
+`@xshieldai/aegis`. The dashboard and `aegis status` now start from a public install, and
+the session-cookie secret is no longer a value that is public in the source.
+
+### Fixed
+- **`aegis status` and the dashboard server would not start from an npm install.** Both
+  imported `isEE`/`eeStatus` from `ee/license` — the enterprise module, which is not in the
+  package's shipped files — as a static value import, so each threw "Cannot find module
+  ee/license" the moment it loaded. A shipped shim (`src/core/ee-gate.ts`) now provides
+  these (deferring to `ee/license` when an enterprise build has it); the two value imports
+  point at the shim.
+- **The dashboard imported the four primitive packages by a monorepo-relative path**
+  (`../../../packages/{chitta-detect,lakshmanrekha,hanumang-mandate,aegis-guard}`), which do
+  not exist in a single-package install, so the server could not boot even after the first
+  fix. They are now imported by name and declared as dependencies; `enforcement.ts` takes
+  the signing functions from the `@xshieldai/aegis-guard` index rather than a deep
+  `src/signing` path.
+
+### Changed (AGPL-3.0)
+- **The dashboard session-cookie secret, when `AEGIS_SESSION_SECRET` is unset, is now a
+  per-install random value** kept at `~/.aegis/session-secret` (mode 600) instead of the
+  fixed string `aegis-dashboard-session-v1` that was present in the public source. Where
+  dashboard auth is on but no secret was set, a cookie could previously be forged from that
+  constant; it no longer can. An explicit `AEGIS_SESSION_SECRET` still wins, and an
+  unwritable `~/.aegis` falls back to a per-process random secret, never the constant.
+
+### Added
+- `@xshieldai/chitta-detect`, `@xshieldai/lakshmanrekha`, `@xshieldai/hanumang-mandate`,
+  `@xshieldai/aegis-guard` as dependencies (the dashboard uses them).
+
+### Not changed (posture — unchanged here by intent)
+- Dashboard auth is still off by default, the shipped password is still `changeme`, and the
+  server still binds `0.0.0.0`. These are deployment choices, documented, not altered by
+  this release.
+
 ## [2.6.0] — 2026-10-05
 
 `@xshieldai/aegis`. The budget and spawn hooks (`aegis check-budget`, `aegis check-spawn`).

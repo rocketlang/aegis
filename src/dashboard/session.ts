@@ -3,14 +3,40 @@
 // Stateless — no session store needed. Valid for SESSION_TTL_MS.
 
 import { createHmac, randomBytes } from "crypto";
+import { readFileSync, writeFileSync, mkdirSync } from "fs";
+import { dirname } from "path";
+import { getAegisDir } from "../core/config";
 
 const SESSION_TTL_MS = 8 * 60 * 60 * 1000; // 8 hours
 const COOKIE_NAME = "aegis_sid";
 
+let _secret: string | null = null;
+
+// The secret the session cookie is signed with. An explicit AEGIS_SESSION_SECRET always
+// wins (so several processes can share one). Otherwise a per-install secret is generated
+// once and kept under ~/.aegis, so it is stable across restarts AND is not a value anyone
+// can read. Before 2.7.0 the fallback was the fixed string "aegis-dashboard-session-v1",
+// present in the public source, so where auth was on but no secret was set a cookie could
+// be forged from it.
 function getSecret(): string {
-  // Use dashboard.auth.secret if set, otherwise derive from password + a fixed pepper.
-  // Secret is stable across restarts so existing cookies stay valid.
-  return process.env.AEGIS_SESSION_SECRET ?? "aegis-dashboard-session-v1";
+  const env = process.env.AEGIS_SESSION_SECRET;
+  if (env && env.length > 0) return env;
+  if (_secret) return _secret;
+  const file = `${getAegisDir()}/session-secret`;
+  try {
+    const existing = readFileSync(file, "utf8").trim();
+    if (existing) { _secret = existing; return _secret; }
+  } catch { /* not yet written */ }
+  _secret = randomBytes(32).toString("base64url");
+  try {
+    mkdirSync(dirname(file), { recursive: true });
+    writeFileSync(file, _secret, { mode: 0o600 });
+  } catch {
+    // An unwritable ~/.aegis (read-only fs): keep the secret in memory for this process. It
+    // is still random and unforgeable; cookies just do not outlive a restart. Never fall
+    // back to a public constant.
+  }
+  return _secret;
 }
 
 function sign(payload: string): string {
