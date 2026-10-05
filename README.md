@@ -55,9 +55,9 @@ Old packages are **deprecated on npm** with redirect messages. Existing installs
 
 ## 🔍 Verification status (2026-05-17 IST)
 
-Security tooling without proof is just marketing. The honest current state of `@xshieldai/aegis` v2.5.0:
+Security tooling without proof is just marketing. The honest current state of `@xshieldai/aegis` v2.6.0:
 
-- **Tests:** 📄 1069 passing in the repository (`bun test src/ tests/`). For the destructive-command gate: 104 in [`tests/destructive-hardening.test.ts`](tests/destructive-hardening.test.ts). For the shield hook: 23 in [`src/shield/shield.test.ts`](src/shield/shield.test.ts) and 165 in [`src/shield/hardening.test.ts`](src/shield/hardening.test.ts) — path rules, credential reads and persistence writes through a shell command, the shield's own files, network tools, phrase variants, answer time, and the stated limits. What the shield does not see is listed under "What the shield stops, and what it does not" below.
+- **Tests:** 📄 1088 passing in the repository (`bun test src/ tests/`). For the budget and spawn hooks: 19 in [`tests/budget-spawn-hardening.test.ts`](tests/budget-spawn-hardening.test.ts), driven on a socket as a harness drives them. For the destructive-command gate: 104 in [`tests/destructive-hardening.test.ts`](tests/destructive-hardening.test.ts). For the shield hook: 23 in [`src/shield/shield.test.ts`](src/shield/shield.test.ts) and 165 in [`src/shield/hardening.test.ts`](src/shield/hardening.test.ts) — path rules, credential reads and persistence writes through a shell command, the shield's own files, network tools, phrase variants, answer time, and the stated limits. What the shield does not see is listed under "What the shield stops, and what it does not" below.
 - **Examples:** 📄 `examples/agents/` — Claude Code + OpenAI Codex hooks. Plus the README "Verify it yourself" `grep` commands in the **Trust** section below are runnable proof of zero phone-home.
 - **Live demo:** ✅ **PUBLIC at https://xshieldai.com/demo** — paste text → pick primitive → see verdict + live receipt in the stream below. 4 primitives invokable, SSE streaming through Cloudflare, per-visitor rate-limited (30 req/min). Also available locally at `http://localhost:4850/demo` when `ankr-aegis-dashboard` runs.
 - **Forja receipt stream:** ⚠️ planned (Tier 4 — "binary truth, not interpretation" answer).
@@ -344,6 +344,29 @@ The hook runs before every tool call:
 - Agent spawn → `aegis check-spawn` (HanumanG delegation check, loop detection, depth limit)
 - Shell commands → `aegis check-destructive` (the KAVACH gate, below)
 - All other tools → `aegis check-shield` (LakshmanRekha injection, credential, exfil detection)
+
+#### The budget and spawn hooks
+
+`aegis check-budget` runs before every tool call and `aegis check-spawn` before an agent is spawned. Both learn which session is calling from the `session_id` in the hook's payload.
+
+| | Default mode (`alert`) | `enforcement.mode: "enforce"` |
+|---|---|---|
+| The day's or the week's budget is spent | a warning | stopped |
+| This session's agent is at 80% of its own cap | a warning | a warning |
+| … at 95% | a warning | stopped, and the agent is told to stop |
+| The session is at its spawn limit, or too little of the day's budget is left | a warning | stopped |
+| A spawn with no description or no real prompt | a warning | stopped |
+| A spawn from a session the hook cannot identify | a warning | stopped |
+| An agent that has been told to stop | stopped | stopped |
+
+**What they do not do.**
+
+- **In the default mode they stop almost nothing.** The warnings are the product until you choose `enforce`.
+- **They fail open.** If the hook's own database cannot be read, the call goes ahead; the hook says so on stderr. If `config.json` cannot be read, the defaults are used, which means `alert`; the hook says that too.
+- **The hook does not count spawns or spend.** The monitor (`aegis-monitor`) does, from the session's transcript. With no monitor running, the limits never move.
+- **A limit of 0 means no limit**, and a mode spelled any other way than `enforce` is `alert`.
+- **The permission-mask check on spawning (Level 0) is off unless `kavach.perm_mask_levels` is `"live"`**, the same switch the destructive gate uses.
+- **A hook script written before 2.6.0 does not pass the payload to `check-budget`.** Add `printf '%s' "$INPUT" |` in front of it, or remove the script and run `aegis init` again.
 
 #### The destructive-command gate
 

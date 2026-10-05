@@ -7,24 +7,33 @@
 // Default mode (alert): NEVER blocks — only warns to stderr.
 // Enforce mode: blocks (exit 2) when budget is exhausted or agent soft-stop threshold hit.
 //
+// THIS HOOK FAILS OPEN, by design: if its own state cannot be read it exits 0, so that a
+// fault in the budget store cannot stop all work. When that happens it says so on stderr.
+//
+// @rule:KAV-100 — the session comes from the hook's payload (hook-input.ts). The per-agent
+// checks below are kept per session; until 2.6.0 they were looked up under "unknown".
+//
 // Phase 3: per-agent EWMA projection, 80% alert, 95% soft-stop (V2-064)
 // @rule:KAV-009 Projected cost alerts
 // @rule:KAV-016 L1 Soft Stop at 95% of agent cap
 // @rule:INF-KAV-008 80% alert threshold
 
-import { loadConfig } from "../../core/config";
+import { loadConfig, configFileProblem } from "../../core/config";
+import { readHookInput } from "../hook-input";
 import { getBudgetState, getAgentCostProjection, requestStop } from "../../core/db";
 import { loadEnvelopeBySessionId } from "../../core/ase";
 
 export default function checkBudget(_args: string[]): void {
   try {
+    const { agentId } = readHookInput();
     const config = loadConfig();
     const enforce = config.enforcement?.mode === "enforce";
+    const problem = configFileProblem();
+    if (problem) process.stderr.write(`[AEGIS] ${problem} — running on the DEFAULT settings (mode: ${config.enforcement?.mode ?? "alert"})\n`);
 
     // --- BMOS-T-016: Expiry gate — check agent session expiry before any tool use ---
     // @rule:BMOS-008 Expiry gate: expired credential blocks all further tool calls
     {
-      const agentId = process.env.CLAUDE_AGENT_ID || process.env.CLAUDE_SESSION_ID || "unknown";
       try {
         const envelope = loadEnvelopeBySessionId(agentId);
         if (envelope?.expires_at && envelope.expires_at !== "task_end" && envelope.expires_at !== "") {
@@ -58,14 +67,17 @@ export default function checkBudget(_args: string[]): void {
     }
 
     const weekly = getBudgetState("weekly", config.budget.weekly_limit_usd);
-    if (weekly.percent >= 100 && enforce) {
-      process.stderr.write(`AEGIS: Weekly budget exhausted — BLOCKED\n`);
-      process.exit(2);
+    if (weekly.percent >= 100) {
+      if (enforce) {
+        process.stderr.write(`AEGIS: Weekly budget exhausted — BLOCKED\n`);
+        process.exit(2);
+      }
+      // In alert mode the warning is the whole product; until 2.6.0 a spent week was silent.
+      process.stderr.write(`AEGIS: Weekly budget at ${weekly.percent.toFixed(0)}% ($${weekly.spent_usd.toFixed(2)}/$${weekly.limit_usd}) — WARNING (enforce mode off)\n`);
     }
 
     // --- V2-064: Per-agent EWMA projection ---
     // @rule:KAV-009 Projected cost, INF-KAV-008 80% alert, KAV-016 95% soft-stop
-    const agentId = process.env.CLAUDE_AGENT_ID || process.env.CLAUDE_SESSION_ID || "unknown";
     try {
       const proj = getAgentCostProjection(agentId);
       if (proj) {
@@ -87,7 +99,9 @@ export default function checkBudget(_args: string[]): void {
     } catch { /* DB may not have this agent — non-fatal */ }
 
     process.exit(0);
-  } catch {
-    process.exit(0); // never block on AEGIS internal errors
+  } catch (err) {
+    // Fails OPEN (see the header). Say so: a check that broke silently looks like a pass.
+    try { process.stderr.write(`[AEGIS] check-budget could not run its checks — this call was NOT checked (${String((err as Error)?.message ?? err).slice(0, 120)})\n`); } catch {}
+    process.exit(0);
   }
 }

@@ -15,9 +15,20 @@
 // @rule:KAV-067 Minimum Viable Toolset — warn when tools_allowed=[] (maximum surface)
 // @rule:KAV-068 Loop count runaway detection
 // @rule:GNT-001 child.trust_mask = parent.trust_mask & requested — never union
+// @rule:KAV-100 — the session comes from the hook's payload, and the input is read from
+//                 fd 0 (hook-input.ts). Until 2.6.0 this hook read "/dev/stdin", which is
+//                 unreadable when stdin is a socket, and took the session only from an
+//                 environment variable: the delegation check was skipped by a harness, and
+//                 every per-session check ran against "unknown".
+//
+// THIS HOOK FAILS OPEN on a fault of its own (it exits 0 and says so on stderr).
+//
+// The Level 0 valve check runs only when `kavach.perm_mask_levels` is "live" — the same
+// switch, with the same quiet default, that check-destructive uses for Levels 0 and 1. It
+// is a permission decision about a session, so it is switched on deliberately.
 
-import { readFileSync } from "fs";
-import { loadConfig } from "../../core/config";
+import { loadConfig, configFileProblem } from "../../core/config";
+import { readHookInput } from "../hook-input";
 import { getSessionSpawnCount, getBudgetState, recordBackgroundAgent } from "../../core/db";
 import { loadEnvelopeBySessionId } from "../../core/ase";
 import { computeChildMask, formatGnt001Log } from "../../kavach/genetic-trust";
@@ -30,24 +41,20 @@ import { loadPolicy } from "../../sandbox/policy-loader";
 import { isStopRequested } from "../../core/db";
 import { emitReceipt } from "../../kavach/pramana-emit";
 
-function readStdin(): string {
-  try {
-    return readFileSync("/dev/stdin", "utf-8");
-  } catch {
-    return "";
-  }
-}
-
 export default async function checkSpawn(_args: string[]): Promise<void> {
   try {
-    const stdin = readStdin().trim();
+    const input = readHookInput();
+    const stdin = input.raw;
     const config = loadConfig();
     const enforce = config.enforcement?.mode === "enforce";
-    const sessionId = process.env.CLAUDE_SESSION_ID || "unknown";
+    const sessionId = input.sessionId;
+    const callerId = input.agentId;
+    const problem = configFileProblem();
+    if (problem) process.stderr.write(`[AEGIS] ${problem} — running on the DEFAULT settings (mode: ${config.enforcement?.mode ?? "alert"})\n`);
 
     // --- Mudrika identity check (KOS-062) ---
     {
-      const agentId = process.env.CLAUDE_AGENT_ID || sessionId;
+      const agentId = callerId;
       const mudrika = checkMudrika(agentId);
       if (!mudrika.valid && mudrika.reason !== "no mudrika — agent not registered") {
         process.stderr.write(`\n[KAVACH:MUDRIKA] IDENTITY DENIED — ${agentId}: ${mudrika.reason}\n\n`);
@@ -57,7 +64,7 @@ export default async function checkSpawn(_args: string[]): Promise<void> {
 
     // --- V2-048: L1 Soft Stop check before any spawn ---
     {
-      const agentId = process.env.CLAUDE_AGENT_ID || sessionId;
+      const agentId = callerId;
       try {
         if (isStopRequested(agentId)) {
           process.stderr.write(`\n[KAVACH:stop] L1 SOFT STOP — ${agentId} has stop_requested. Spawn blocked.\n\n`);
@@ -66,9 +73,9 @@ export default async function checkSpawn(_args: string[]): Promise<void> {
       } catch {}
     }
 
-    // --- Level 0: perm_mask SPAWN_AGENTS bit check (KAV-061) ---
-    {
-      const agentId = process.env.CLAUDE_AGENT_ID || sessionId;
+    // --- Level 0: perm_mask SPAWN_AGENTS bit check (KAV-061) — only when switched on ---
+    if (((config.kavach ?? {}) as Record<string, unknown>).perm_mask_levels === "live") {
+      const agentId = callerId;
       const valveResult = checkValve(agentId, PERM.SPAWN_AGENTS, 0);
       if (!valveResult.allowed) {
         process.stderr.write(
@@ -83,7 +90,7 @@ export default async function checkSpawn(_args: string[]): Promise<void> {
     // Checked before HanumanG: a runaway agent is quarantined regardless of spawn intent validity.
     // @rule:KAV-068 — >30 tool calls without completing → warn; >50 → QUARANTINE immediately
     {
-      const agentId = process.env.CLAUDE_AGENT_ID || sessionId;
+      const agentId = callerId;
       const agentRecord = loadAgent(agentId);
       if (agentRecord) {
         const loopCount = agentRecord.loop_count ?? 0;
@@ -114,8 +121,8 @@ export default async function checkSpawn(_args: string[]): Promise<void> {
 
     // --- HanumanG 7-axis check (KAV-015) ---
     if (stdin) {
-      let toolInput: { tool_input?: { subagent_type?: string; prompt?: string; description?: string } } = {};
-      try { toolInput = JSON.parse(stdin); } catch { /* ignore */ }
+      // input that is not a JSON object is a spawn with nothing declared: the axes judge it
+      const toolInput = (input.payload ?? {}) as { tool_input?: { subagent_type?: string; prompt?: string; description?: string } };
 
       const { checkHanumanG } = await import("../../shield/hanumang");
       const spawns = getSessionSpawnCount(sessionId);
@@ -185,7 +192,7 @@ export default async function checkSpawn(_args: string[]): Promise<void> {
     // If the spawning agent belongs to a swarm, warn that the new agent should be enrolled
     // in the same swarm (or DAN Gate approval is required for a different swarm).
     {
-      const agentId = process.env.CLAUDE_AGENT_ID || sessionId;
+      const agentId = callerId;
       const spawnerSwarm = getAgentSwarm(agentId);
       if (spawnerSwarm) {
         process.stderr.write(
@@ -199,7 +206,7 @@ export default async function checkSpawn(_args: string[]): Promise<void> {
     // @rule:KAV-067 — warn when spawning agent has maximum tool surface (tools_allowed=[])
     // @rule:INF-KAV-012 — low identity + max surface → force violation_threshold=1
     {
-      const agentId = process.env.CLAUDE_AGENT_ID || sessionId;
+      const agentId = callerId;
       const policy = loadPolicy(agentId);
       if (policy && policy.tools_allowed.length === 0) {
         const allToolCount = 18; // Claude Code tool surface: ~18 registered tools
@@ -245,7 +252,7 @@ export default async function checkSpawn(_args: string[]): Promise<void> {
     // --- V2-052: Tree depth enforcement (KAV-008, INF-KAV-004) ---
     // Count delegation chain length for this agent; block all further spawns if >= max_depth
     {
-      const agentId = process.env.CLAUDE_AGENT_ID || sessionId;
+      const agentId = callerId;
       const agentRecord = loadAgent(agentId);
       const maxDepth = config.budget.max_depth ?? 5;
       if (agentRecord && agentRecord.depth >= maxDepth) {
@@ -262,7 +269,7 @@ export default async function checkSpawn(_args: string[]): Promise<void> {
     // --- BMOS-T-016: Expiry gate on spawner session ---
     // @rule:BMOS-008 Expiry gate: a spawner whose session has expired cannot issue new spawns
     {
-      const agentId = process.env.CLAUDE_AGENT_ID || sessionId;
+      const agentId = callerId;
       try {
         const spawnerEnvelope = loadEnvelopeBySessionId(agentId);
         if (spawnerEnvelope?.expires_at && spawnerEnvelope.expires_at !== "task_end" && spawnerEnvelope.expires_at !== "") {
@@ -285,7 +292,7 @@ export default async function checkSpawn(_args: string[]): Promise<void> {
     // This gives the child agent its delegation envelope before it starts executing.
     // Failure is non-fatal — the child can still run; it just won't carry an SDT.
     try {
-      const agentId = process.env.CLAUDE_AGENT_ID || sessionId;
+      const agentId = callerId;
       const agentDepth = (loadAgent(agentId)?.depth ?? 0) + 1;
       const parentId = agentId !== sessionId ? agentId : undefined;
 
@@ -322,7 +329,9 @@ export default async function checkSpawn(_args: string[]): Promise<void> {
     } catch { /* non-fatal */ }
 
     process.exit(0);
-  } catch {
-    process.exit(0); // never block on AEGIS internal errors
+  } catch (err) {
+    // Fails OPEN (see the header). Say so: a check that broke silently looks like a pass.
+    try { process.stderr.write(`[AEGIS] check-spawn could not run its checks — this call was NOT checked (${String((err as Error)?.message ?? err).slice(0, 120)})\n`); } catch {}
+    process.exit(0);
   }
 }

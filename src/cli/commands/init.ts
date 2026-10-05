@@ -96,7 +96,7 @@ INPUT=$(cat)
 TOOL_NAME=$(echo "$INPUT" | python3 -c "import sys,json; d=json.loads(sys.stdin.read()); print(d.get('tool_name',''))" 2>/dev/null || echo "")
 
 # Always check budget first (fastest gate)
-aegis check-budget
+printf '%s' "$INPUT" | aegis check-budget
 BUDGET_EXIT=$?
 [ $BUDGET_EXIT -ne 0 ] && exit $BUDGET_EXIT
 

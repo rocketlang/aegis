@@ -4,21 +4,23 @@
 // was blind 2026-09-25 → 2026-09-29 this way while pipe-fed tests stayed green.
 //
 // The files still on /dev/stdin are pinned EXACTLY. Each is held on purpose:
-//   check-spawn — founder ruling pending (perm_mask escalation would lock sessions: stage-2
-//     replay 2026-09-29); check-chitta — rides with it (content scan);
-//   session-start — another lane holds uncommitted edits.
+//   check-chitta — held (content scan); session-start — another lane holds uncommitted edits.
 // Re-arming one = remove it from HELD in the same commit. Adding a NEW /dev/stdin reader fails.
 //
 // check-destructive left this list on 2026-10-02: it reads fd 0, runs its pattern level
 // only (the perm_mask levels are a separate switch, off by default), and is tested on a
 // real socket in destructive-gate-armed.test.ts.
+//
+// check-spawn left it in 2.6.0, the same way: it reads fd 0 through cli/hook-input.ts, and
+// its Level 0 valve check — the perm_mask escalation it was held for (stage-2 replay
+// 2026-09-29) — runs only when kavach.perm_mask_levels is "live", off by default. It is
+// tested on a real socket in budget-spawn-hardening.test.ts.
 import { describe, it, expect } from "bun:test";
 import { readdirSync, readFileSync, statSync } from "fs";
 import { join } from "path";
 
 const HELD = [
   "src/cli/commands/check-chitta.ts",
-  "src/cli/commands/check-spawn.ts",
   "src/hooks/session-start.ts",
 ];
 

@@ -129,6 +129,22 @@ export function loadConfig(): AegisConfig {
   }
 }
 
+/**
+ * Why the configuration in use is NOT the one in the file, or null when it is. loadConfig()
+ * falls back to the defaults when config.json cannot be read; a user who had chosen
+ * enforce is then running in alert without having been told. A hook prints this.
+ */
+export function configFileProblem(): string | null {
+  try {
+    if (!existsSync(CONFIG_PATH)) return null;
+    const parsed: unknown = JSON.parse(readFileSync(CONFIG_PATH, "utf-8"));
+    if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) return `${CONFIG_PATH} is not a JSON object`;
+    return null;
+  } catch (e) {
+    return `${CONFIG_PATH} could not be read (${String((e as Error)?.message ?? e).slice(0, 80)})`;
+  }
+}
+
 export function saveConfig(config: AegisConfig): void {
   ensureAegisDir();
   writeFileSync(CONFIG_PATH, JSON.stringify(config, null, 2));

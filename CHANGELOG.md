@@ -4,6 +4,40 @@ All notable changes to AEGIS will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [2.6.0] — 2026-10-05
+
+`@xshieldai/aegis`. The budget and spawn hooks (`aegis check-budget`, `aegis check-spawn`).
+Checks that were written but did not run in a harness now run: read "Changed".
+
+### Changed (AGPL-3.0)
+- **Both hooks learn the session from the hook's payload (rule KAV-100):** `session_id`,
+  and `agent_id` for a subagent; then `CLAUDE_SESSION_ID`, `CLAUDE_CODE_SESSION_ID`, and
+  the transcript's file name. They read only `CLAUDE_SESSION_ID` before, which a harness
+  does not set, so the per-agent cap, the spawn limit, the stop request, the depth and the
+  expiry checks all ran against a session called "unknown".
+- **`check-spawn` reads its input from file descriptor 0.** It read the `/dev/stdin` path,
+  which cannot be opened when stdin is a socket, so under a harness the delegation check
+  was skipped. On a pipe it ran and, not knowing the session, refused every spawn in
+  enforce mode.
+- **The Level 0 valve check in `check-spawn` runs only when `kavach.perm_mask_levels` is
+  `"live"`**, as Levels 0 and 1 of `check-destructive` already do. It ran unconditionally in
+  the code and never in practice. Set the switch to have it.
+- **In the default mode a spent week is warned about** (it was silent).
+- **A hook that could not run its checks says so on stderr**, and so does one running on
+  the default settings because `config.json` could not be read. Both still let the call
+  through.
+- `aegis init`: the hook script passes the payload to `check-budget`.
+
+### Added
+- `src/cli/hook-input.ts`: `readHookInput()`, `whoIsCalling()`. `configFileProblem()`.
+- `tests/budget-spawn-hardening.test.ts`: 19 tests on a real socket. 1088 tests in the
+  repository.
+- README: "The budget and spawn hooks".
+
+### Not covered, and pinned by tests
+- The hooks do not count spawns or spend (the monitor does); a limit of 0 means no limit; a
+  mode spelled any other way than `enforce` is `alert`; both hooks fail open.
+
 ## [2.5.0] — 2026-10-05
 
 `@xshieldai/aegis`. The destructive-command gate (`aegis check-destructive`) and the
