@@ -13,7 +13,7 @@
 // The `aegis` and `kavachos` CLIs ship as bin entries in those packages.
 // See README for the unified workflow.
 
-export const AEGIS_SUITE_VERSION = '0.2.4';
+export const AEGIS_SUITE_VERSION = '0.2.5';
 export const AEGIS_SUITE_BUNDLED_PACKAGES = [
   '@xshieldai/aegis',
   '@xshieldai/agent-kernel',

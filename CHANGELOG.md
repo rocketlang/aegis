@@ -4,6 +4,14 @@ All notable changes to AEGIS will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [aegis-suite 0.2.5] — 2026-10-05
+
+`@xshieldai/aegis-suite`.
+
+### Changed (AGPL-3.0)
+- Depends on aegis-guard `^0.4.0` (was `^0.3.1`, which does not admit it). Some calls that
+  passed are now refused and minting no longer makes a key; see its entry below.
+
 ## [aegis-guard 0.4.0] — 2026-10-05
 
 `@xshieldai/aegis-guard`. Some calls that passed are now refused, and minting no longer
