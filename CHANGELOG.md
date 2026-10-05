@@ -4,7 +4,16 @@ All notable changes to AEGIS will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
-## [2.4.0] — 2026-10-05
+## [2.4.1] — 2026-10-05
+
+`@xshieldai/aegis`. The first published version of the 2.4 line; the code is that of 2.4.0.
+
+### Fixed
+- 2.4.0 was tagged and never published: the registry's front-end filter refused the publish
+  request because the README, which travels in it as plain text, quoted one shell idiom
+  literally. The README now describes it in words. Nothing else changed.
+
+## [2.4.0] — 2026-10-05 (tagged, not published — see 2.4.1)
 
 `@xshieldai/aegis`. The shield hook (`aegis check-shield`) stops more and stops less: read
 "Changed" before upgrading, in particular if you keep a `~/.aegis/shield-rules.json`.

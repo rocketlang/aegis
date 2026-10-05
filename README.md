@@ -361,7 +361,7 @@ In `enforcement.mode: "enforce"` it also stops an upload or fetch that names a p
 
 **What it does not do.** The first three, and the idiom, are pinned by tests in `src/shield/hardening.test.ts`, so they cannot change unnoticed.
 
-- **It reads the text of a call; it does not run a shell.** A path or program held in a variable, built at run time (`$(echo curl)`, `${IFS}`, base64 piped to `bash`), expanded by a glob (`cat .en*`), or inside a script file or an interpreter's own code (`python3 -c "open(…)"`) is not seen.
+- **It reads the text of a call; it does not run a shell.** A path or program held in a variable, built at run time (`$(echo curl)`, the shell's field-separator variable used in place of spaces, base64 piped to `bash`), expanded by a glob (`cat .en*`), or inside a script file or an interpreter's own code (`python3 -c "open(…)"`) is not seen.
 - **The lists are lists.** A network tool that is not listed (`scp`, `rsync`), a sink that is not listed, a bare IP address, a persistence path that is not listed: not stopped.
 - **Phrases are wording.** A reworded instruction, look-alike letters from another alphabet, spaced-out letters, another language: not matched.
 - **It fails open.** Input that is not JSON, an error inside the shield, or the harness giving up on a slow hook: the call goes ahead. The first two say so on stderr.
