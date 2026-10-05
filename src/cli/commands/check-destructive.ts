@@ -26,6 +26,8 @@
 // @rule:KAV-061 — Level 0 perm_mask enforcement
 // @rule:KAV-062 — Level 1 class_mask enforcement
 // @rule:KAV-YK-014 — three-level enforcement ordering
+// @rule:KAV-098 — nothing typed into the command overrides this gate; an override is a
+//                 one-time approval a person gives with `aegis approve-destructive <code>`
 
 import { readFileSync, existsSync } from "fs";
 import { join } from "path";
@@ -36,13 +38,21 @@ import { checkValve, incrementLoopCount } from "../../kavach/gate-valve";
 import { checkMudrika } from "../../kavach/mudrika-validator";
 import { destructiveVerdict, type DestructiveRule, type DestructiveRules } from "../../kavach/destructive-verdict";
 import { recordRefusal } from "../../core/refusal-ledger";
+import { consumeApproval, recordPending } from "../../kavach/destructive-approval";
 
 const AEGIS_DIR = join(process.env.HOME || "/root", ".aegis");
 const RULES_PATH = join(AEGIS_DIR, "destructive-rules.json");
 
-/** Deliberate duplicate of rules.allowed_override_token — the escape hatch must not depend
- *  on the file whose absence triggers it. @rule:ANU-004 */
-const FALLBACK_OVERRIDE_TOKEN = "HUMAN-DESTRUCTIVE-CONFIRMED-ANKR";
+/** How a person approves a refused command, spelled for the way this hook was started. */
+function approveHint(code: string): string {
+  const cli = process.argv[1] && process.argv[1].endsWith(".ts") ? `bun run ${process.argv[1]}` : "aegis";
+  return (
+    `  To approve THIS command once, a person runs, in their own terminal:\n` +
+    `      aegis approve-destructive ${code}\n` +
+    (cli === "aegis" ? "" : `      (or: ${cli} approve-destructive ${code})\n`) +
+    `  Then run the same command again, unchanged. Nothing added to the command overrides this gate.`
+  );
+}
 
 function loadRules(): DestructiveRules | null {
   try {
@@ -81,12 +91,20 @@ export default async function checkDestructive(_args: string[]): Promise<void> {
     try {
       toolInput = JSON.parse(stdin);
     } catch {
-      process.exit(0);
+      // @rule:ANU-004 — input this gate cannot read is a command it cannot judge. (Until
+      // 2.5.0 this case alone was allowed, the opposite of the gate's own rule.)
+      process.stderr.write(`\n[KAVACH] REFUSED — the hook input was not JSON, so this gate cannot judge the call (ANU-004).\n\n`);
+      process.exit(2);
+    }
+    if (toolInput === null || typeof toolInput !== "object" || Array.isArray(toolInput)) {
+      process.stderr.write(`\n[KAVACH] REFUSED — the hook input was not a JSON object, so this gate cannot judge the call (ANU-004).\n\n`);
+      process.exit(2);
     }
 
     const toolName = toolInput.tool_name ?? "";
     const agentId = toolInput.agent_id || toolInput.session_id || process.env.CLAUDE_SESSION_ID || "unknown";
-    const command = (toolInput.tool_input?.command as string) ?? "";
+    const rawCommand = (toolInput.tool_input as Record<string, unknown> | undefined)?.command;
+    const command = typeof rawCommand === "string" ? rawCommand : "";
     const settings = gateSettings();
 
     if (settings.permMaskLive) {
@@ -131,16 +149,11 @@ export default async function checkDestructive(_args: string[]): Promise<void> {
       // The override token is duplicated as a constant precisely so the escape hatch does
       // not itself depend on the file that just failed to load.
       if (!command) process.exit(0); // nothing to judge is not unknown state
-      if (command.includes(FALLBACK_OVERRIDE_TOKEN)) {
-        recordRefusal({ gate: "aegis-destructive", kind: "override", rule: "ANU-004" });
-        process.stderr.write(`[KAVACH] Rules unreadable, override token present — allowing (human confirmed)\n`);
-        process.exit(0);
-      }
       process.stderr.write(
         `\n[KAVACH] REFUSED — destructive-rules are unreadable, so this gate cannot judge the command.\n` +
           `[KAVACH] Expected: ${RULES_PATH}\n` +
           `[KAVACH] A gate that cannot read its own rules must refuse, not allow (ANU-004).\n` +
-          `[KAVACH] Restore the file, or add ${FALLBACK_OVERRIDE_TOKEN} to the command if the founder has ruled.\n\n`,
+          `[KAVACH] A person restores the file: \`aegis init\` puts the shipped rules there if none exist.\n\n`,
       );
       process.exit(2);
     }
@@ -151,11 +164,12 @@ export default async function checkDestructive(_args: string[]): Promise<void> {
     // everything below is the side effect of that decision.
     const verdict = destructiveVerdict(command, rules);
 
-    // Override token: human has already confirmed via explicit comment. Its use is recorded:
-    // an override nobody can count is indistinguishable from a gate that never fired.
-    if (verdict.kind === "override") {
-      recordRefusal({ gate: "aegis-destructive", kind: "override", rule: "KAV-052" });
-      process.stderr.write(`[KAVACH] Override token present — allowing (human confirmed)\n`);
+    // @rule:KAV-098 — a person approved this exact command with `aegis approve-destructive`.
+    // The approval is used up here, and its use is recorded: an override nobody can count
+    // is indistinguishable from a gate that never fired.
+    if (verdict.kind === "match" && consumeApproval(command)) {
+      recordRefusal({ gate: "aegis-destructive", kind: "override", rule: "KAV-098" });
+      process.stderr.write(`[KAVACH] One-time approval found for this exact command — allowing, once\n`);
       process.exit(0);
     }
 
@@ -194,7 +208,7 @@ export default async function checkDestructive(_args: string[]): Promise<void> {
 
           // STOP or TIMEOUT
           const reason = result.decision === "TIMEOUT" ? "TIMED OUT — default safe block" : "STOPPED by human";
-          const msg = buildBlockMessage(rule, result.approval_id, reason);
+          const msg = buildBlockMessage(rule, result.approval_id, reason, null);
           process.stderr.write(msg);
           process.exit(2);
 
@@ -206,7 +220,7 @@ export default async function checkDestructive(_args: string[]): Promise<void> {
 
       } else {
         // HIGH/MEDIUM, and CRITICAL unless the approval gate is switched on — immediate block.
-        const msg = buildBlockMessage(rule, null, rule.reason);
+        const msg = buildBlockMessage(rule, null, rule.reason, recordPending(command, rule.pattern));
         process.stderr.write(msg);
         process.exit(2);
       }
@@ -220,8 +234,7 @@ export default async function checkDestructive(_args: string[]): Promise<void> {
     // opposite, which meant any KAVACH bug silently disarmed the whole gate.
     process.stderr.write(
       `\n[KAVACH] REFUSED — gate failed internally: ${err?.message ?? "unknown error"}\n` +
-        `[KAVACH] A gate that cannot judge must refuse, not allow (ANU-004).\n` +
-        `[KAVACH] Add ${FALLBACK_OVERRIDE_TOKEN} to the command if the founder has ruled.\n\n`,
+        `[KAVACH] A gate that cannot judge must refuse, not allow (ANU-004).\n\n`,
     );
     process.exit(2);
   }
@@ -230,7 +243,8 @@ export default async function checkDestructive(_args: string[]): Promise<void> {
 function buildBlockMessage(
   rule: { severity: string; reason: string; pattern: string },
   approvalId: string | null,
-  reason: string
+  reason: string,
+  code: string | null,
 ): string {
   return [
     ``,
@@ -245,7 +259,7 @@ function buildBlockMessage(
     ``,
     approvalId
       ? `  To approve: reply ALLOW to WhatsApp or visit http://localhost:${DASHBOARD_PORT}`
-      : `  To override: add to command:  # AEGIS-DESTRUCTIVE-CONFIRMED`,
+      : code ? approveHint(code) : `  This command was refused.`,
     ``,
   ].join("\n");
 }

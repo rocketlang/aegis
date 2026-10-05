@@ -46,6 +46,8 @@ async function main() {
       return (await import("./commands/check-chitta")).default(args);
     case "check-anumati":
       return (await import("./commands/check-anumati")).default(args);
+    case "approve-destructive":
+      return (await import("./commands/approve-destructive")).default(args);
     case "anumati":
       return (await import("./commands/anumati")).default(args);
     case "pramana":
@@ -128,6 +130,7 @@ Commands:
   check-spawn         Hook: check spawn limit before Agent tool (exit 0=ok, 2=block)
   check-destructive   Hook: block destructive Bash commands (DROP/DELETE/TRUNCATE/rm-rf)
   check-shield        Hook: LakshmanRekha injection/exfil/credential detection on Bash/Read/Write/Edit
+  approve-destructive [code]  A PERSON approves one refused destructive command, once (no code: list)
   check-anumati       Hook: permissive layer — may the PLANT obey, in its current state? (exit 0=ok, 2=refuse)
   anumati [n]             Show last n refusals the permissive layer made (or would have, in shadow)
   anumati mode [m]        Show or set mode: shadow (report only) | enforce (refusals bite)

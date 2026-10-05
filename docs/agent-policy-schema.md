@@ -129,4 +129,4 @@ When violations exceed threshold or the watchdog detects anomalous behaviour, AE
 | L3 | Kill | SIGKILL to process group |
 | L4 | Quarantine | Kill + write quarantine state + resume manifest |
 
-Override token to bypass destructive gate (level 0): append `# AEGIS-DESTRUCTIVE-CONFIRMED` to the command.
+To let one refused command through the destructive gate, a person runs `aegis approve-destructive <code>` (the gate prints the code). Nothing appended to the command overrides it.

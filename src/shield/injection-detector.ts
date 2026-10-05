@@ -107,6 +107,11 @@ const DEFAULT_RULES: ShieldRules = {
   drop_sites: [...DROP_SITES],
 };
 
+/** The shipped rules, as a fresh copy. `rules/shield-rules.json` in the package is this, written out. */
+export function defaultShieldRules(): ShieldRules {
+  return JSON.parse(JSON.stringify(DEFAULT_RULES)) as ShieldRules;
+}
+
 // State file for cross-call exfil ring buffer
 const STATE_PATH = join(getAegisDir(), "shield-state.json");
 const EXFIL_STATE_TTL_MS = 5 * 60 * 1000; // 5 minutes
@@ -348,6 +353,19 @@ export function detectCredentialRead(targetPath: string, size: number, rules: Sh
 export function bashFileVerdict(command: string, rules: ShieldRules, ctx?: PathContext): DetectionResult {
   const cmds = parseCommand(command);
   if (cmds.length === 0) return PASS;
+
+  // @rule:KAV-098 — approving a refused destructive command is a person's act. Arriving as a
+  // tool call it would be the agent approving itself. (Showing or searching for the words
+  // is not running them.)
+  const SHOWS_ONLY = new Set(["echo", "printf", "grep", "egrep", "fgrep", "rg", "ag", "git", "man", "cat", "less", "head", "tail"]);
+  if (cmds.some((c) => !SHOWS_ONLY.has(c.verb) && [c.verb, ...c.args].includes("approve-destructive"))) {
+    return {
+      verdict: "QUARANTINE",
+      rule_id: "KAV-098",
+      reason: "`approve-destructive` is run by a person in their own terminal, not through a tool call — an agent may not approve a command the destructive gate refused",
+      category: "persistence",
+    };
+  }
 
   // /etc/passwd is world-readable and read by ordinary administration; the Read-tool rule
   // keeps it, the shell rule does not.

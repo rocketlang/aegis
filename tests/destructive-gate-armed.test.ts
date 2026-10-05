@@ -91,13 +91,39 @@ describe("check-destructive on a socket", () => {
     expect(r.ledger.length).toBe(0);
   });
 
-  it("passes the override token, and puts its use on the record", () => {
+  // Until 2.5.0 a token typed into the command overrode the gate (KAV-098 ended that).
+  it("a token typed into the command no longer overrides", () => {
     const h = home();
     const r = hook(h, bash(`psql -d scratch -c "DELETE FROM t" # ${TOKEN}`));
-    expect(r.exit).toBe(0);
-    expect(r.ledger.length).toBe(1);
-    expect(r.ledger[0].kind).toBe("override");
-    expect(r.ledger[0].gate).toBe("aegis-destructive");
+    expect(r.exit).toBe(2);
+    expect(r.stderr).not.toContain(TOKEN);
+    expect(r.stderr).toContain("approve-destructive");
+  });
+
+  it("a person's one-time approval lets that exact command through once, on the record", () => {
+    const h = home();
+    const cmd = `psql -d scratch -c "DELETE FROM t"`;
+    const refused = hook(h, bash(cmd));
+    expect(refused.exit).toBe(2);
+    const code = /approve-destructive ([0-9a-f]{8})/.exec(refused.stderr)?.[1] ?? "";
+    expect(code).toHaveLength(8);
+
+    const env = { ...process.env, HOME: h, AEGIS_HOME: "", AEGIS_REFUSAL_LEDGER: join(h, "refusals.jsonl") };
+    const approve = (c: string) => Bun.spawnSync(["bun", "run", join(ROOT, "src/cli/index.ts"), "approve-destructive", c], { env });
+    expect(approve("00000000").exitCode).toBe(1); // a code nobody was given
+    expect(approve(code).exitCode).toBe(0);
+
+    expect(hook(h, bash(cmd + " ")).exit).toBe(2); // not the same command
+    const allowed = hook(h, bash(cmd));
+    expect(allowed.exit).toBe(0);
+    expect(allowed.ledger.some((row) => row.kind === "override" && row.rule === "KAV-098")).toBe(true);
+    expect(hook(h, bash(cmd)).exit).toBe(2); // used up: a second run is a new refusal
+  });
+
+  it("input that is not JSON is refused, like any call the gate cannot judge", () => {
+    const h = home();
+    expect(hook(h, '{"tool_name":"Bash","tool_input":{"command":"ls"').exit).toBe(2);
+    expect(hook(h, "[1,2]").exit).toBe(2);
   });
 
   it("refuses when its rules cannot be read, and still passes an empty command", () => {

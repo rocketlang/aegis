@@ -29,7 +29,7 @@
 > "Oversight measures shall be commensurate with the risks, autonomy and operating context of the high-risk AI system."
 
 **AEGIS control:** Four-level DAN Gate (L1–L4) maps oversight intensity to risk level:
-- L1/L2: Operator can override with `# AEGIS-DESTRUCTIVE-CONFIRMED` token
+- L1/L2: An operator approves one refused command, once, with `aegis approve-destructive <code>` (no text in the command overrides the gate)
 - L3: Human approval required via notification channel
 - L4: Dual-control — two separate human approvals required
 

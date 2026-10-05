@@ -1,9 +1,8 @@
 {
   "_comment": "AEGIS Destructive Command Rules — append-only. Never remove entries. Add new ones as threats discovered.",
-  "_version": "1.2.0",
-  "_updated": "2026-10-02",
-  "_reason": "5 database wipes in production. This file defines what agents can NEVER do without human override. 2026-08-01: +2 Prisma shadow-database patterns — the wiper that wears the safety tool's name (see those entries' reason fields). 2026-10-02: two patterns narrowed, none removed — each still refuses every statement form in tests/shipped-ruleset.test.ts, and refuses nothing it did not refuse before.",
-
+  "_version": "1.3.0",
+  "_updated": "2026-10-05",
+  "_reason": "5 database wipes in production. This file defines what agents can NEVER do without human override. 2026-08-01: +2 Prisma shadow-database patterns — the wiper that wears the safety tool's name (see those entries' reason fields). 2026-10-02: two patterns narrowed, none removed — each still refuses every statement form in tests/shipped-ruleset.test.ts, and refuses nothing it did not refuse before. 2026-10-05: gaps in five patterns bounded and the compose rule made to name the subcommand, none removed; the override token is gone (KAV-098).",
   "bash_block_patterns": [
     {
       "pattern": "DROP\\s+DATABASE",
@@ -36,15 +35,15 @@
       "severity": "CRITICAL"
     },
     {
-      "pattern": "prisma\\s+(migrate\\s+reset|db\\s+push(?!.*--accept-data-loss\\s+false))",
+      "pattern": "prisma\\s+(migrate\\s+reset|db\\s+push(?![^\\n|;&]{0,400}--accept-data-loss\\s+false))",
       "flags": "i",
       "reason": "prisma migrate reset drops all tables; prisma db push can silently drop columns",
       "severity": "HIGH"
     },
     {
-      "pattern": "docker\\s+compose\\s+.*\\s+-v\\b",
+      "pattern": "docker[\\s-]+compose\\b[^\\n|;&]{0,400}\\b(?:down|rm)\\b[^\\n|;&]{0,400}\\s(?:-[A-Za-z]*v[A-Za-z]*\\b|--volumes\\b)",
       "flags": "i",
-      "reason": "docker compose down -v removes named volumes — wipes database data",
+      "reason": "compose down/rm with the volumes flag removes volumes — permanent data loss",
       "severity": "CRITICAL"
     },
     {
@@ -54,7 +53,7 @@
       "severity": "CRITICAL"
     },
     {
-      "pattern": "rm\\s+-rf?\\s+.*(pg-clusters|postgresql|pg_wal|ankr-data|mnt/storage|var/lib/postgresql)",
+      "pattern": "\\brm\\s+(?:-{1,2}[A-Za-z-]+\\s+)+[^\\n|;&]{0,400}(pg-clusters|postgresql|pg_wal|ankr-data|mnt/storage|var/lib/postgresql)",
       "flags": "i",
       "reason": "Deletes PostgreSQL data directories — unrecoverable",
       "severity": "CRITICAL"
@@ -78,13 +77,13 @@
       "severity": "HIGH"
     },
     {
-      "pattern": "ALTER\\s+TABLE\\s+.*\\s+DROP\\s+COLUMN",
+      "pattern": "ALTER\\s+TABLE\\s+[^;]{0,400}?\\s+DROP\\s+COLUMN",
       "flags": "i",
       "reason": "Drops column — schema change with data loss",
       "severity": "HIGH"
     },
     {
-      "pattern": "pg_dump.*--clean|pg_restore.*--clean",
+      "pattern": "pg_dump[^\\n|;&]{0,400}--clean|pg_restore[^\\n|;&]{0,400}--clean",
       "flags": "i",
       "reason": "pg_restore --clean drops objects before recreating — wipe risk",
       "severity": "HIGH"
@@ -120,7 +119,6 @@
       "severity": "HIGH"
     }
   ],
-
-  "allowed_override_token": "HUMAN-DESTRUCTIVE-CONFIRMED-ANKR",
-  "override_instructions": "To intentionally run a destructive command, include the token above in a comment within the command. Example: # HUMAN-DESTRUCTIVE-CONFIRMED-ANKR\ndropdb mydb_dev"
+  "override_instructions": "Nothing typed into a command overrides these rules. When a command is refused the gate prints a code; a person runs `aegis approve-destructive <code>` in their own terminal, and the same command then goes through once, within ten minutes.",
+  "_note": "No text in a command overrides these rules. A person approves one refused command, once: aegis approve-destructive <code> (KAV-098)."
 }

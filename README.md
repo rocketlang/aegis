@@ -55,9 +55,9 @@ Old packages are **deprecated on npm** with redirect messages. Existing installs
 
 ## 🔍 Verification status (2026-05-17 IST)
 
-Security tooling without proof is just marketing. The honest current state of `@xshieldai/aegis` v2.4.0:
+Security tooling without proof is just marketing. The honest current state of `@xshieldai/aegis` v2.5.0:
 
-- **Tests:** 📄 963 passing in the repository (`bun test src/ tests/`). For the shield hook: 23 in [`src/shield/shield.test.ts`](src/shield/shield.test.ts) and 165 in [`src/shield/hardening.test.ts`](src/shield/hardening.test.ts) — path rules, credential reads and persistence writes through a shell command, the shield's own files, network tools, phrase variants, answer time, and the stated limits. What the shield does not see is listed under "What the shield stops, and what it does not" below.
+- **Tests:** 📄 1069 passing in the repository (`bun test src/ tests/`). For the destructive-command gate: 104 in [`tests/destructive-hardening.test.ts`](tests/destructive-hardening.test.ts). For the shield hook: 23 in [`src/shield/shield.test.ts`](src/shield/shield.test.ts) and 165 in [`src/shield/hardening.test.ts`](src/shield/hardening.test.ts) — path rules, credential reads and persistence writes through a shell command, the shield's own files, network tools, phrase variants, answer time, and the stated limits. What the shield does not see is listed under "What the shield stops, and what it does not" below.
 - **Examples:** 📄 `examples/agents/` — Claude Code + OpenAI Codex hooks. Plus the README "Verify it yourself" `grep` commands in the **Trust** section below are runnable proof of zero phone-home.
 - **Live demo:** ✅ **PUBLIC at https://xshieldai.com/demo** — paste text → pick primitive → see verdict + live receipt in the stream below. 4 primitives invokable, SSE streaming through Cloudflare, per-visitor rate-limited (30 req/min). Also available locally at `http://localhost:4850/demo` when `ankr-aegis-dashboard` runs.
 - **Forja receipt stream:** ⚠️ planned (Tier 4 — "binary truth, not interpretation" answer).
@@ -189,7 +189,7 @@ Multiple surfaces (CLI + web + mobile + API) all consume from the same budget. N
 
 | # | Capability | What it does |
 |---|------------|--------------|
-| 1 | **KAVACH Gate** | PreToolUse hook intercepts destructive commands before execution — human approves via Telegram/WhatsApp or dashboard |
+| 1 | **KAVACH Gate** | PreToolUse hook intercepts destructive commands before execution. By default it refuses at once and a person approves one command with `aegis approve-destructive`; switched on, it asks a person over Telegram/WhatsApp or the dashboard and waits |
 | 2 | **Unified Usage Dashboard** | All surfaces, all sessions, all spend — one real-time view with KAVACH approvals panel |
 | 3 | **Hard Budget Caps** | Per session, per 5h window, per day/week — tiered warnings at 80%/90%/100% |
 | 4 | **Kill-Switch** | `aegis kill` sends SIGKILL/SIGSTOP to all agent processes in under 1 second |
@@ -342,7 +342,33 @@ Add to `~/.claude/settings.json`:
 The hook runs before every tool call:
 - Budget gate → `aegis check-budget` (warns at 80%, blocks at 100%)
 - Agent spawn → `aegis check-spawn` (HanumanG delegation check, loop detection, depth limit)
+- Shell commands → `aegis check-destructive` (the KAVACH gate, below)
 - All other tools → `aegis check-shield` (LakshmanRekha injection, credential, exfil detection)
+
+#### The destructive-command gate
+
+`aegis check-destructive` reads a shell command before it runs and exits 0 (go ahead) or 2 (stop). `aegis init` installs its rules at `~/.aegis/destructive-rules.json` and wires it into the hook script. (A hook script written by an earlier version does not call it; add the line, or remove the script and run `aegis init` again.)
+
+It stops, among others: dropping a database, table, schema or column; truncating a table; deleting rows; `dropdb`; a Prisma reset or push; removing Docker volumes; stopping PostgreSQL; removing its data directories; `chmod 777`; and a recursive removal of the root or the home directory however the flags are written. The full list is the rules file. A command that only shows such words (`echo`, `grep`, a commit or tag message, comment lines alone) is let through and says so.
+
+**Approving a refused command.** Nothing typed into a command overrides the gate. When it refuses, it prints a code. A person, in their own terminal, runs:
+
+```bash
+aegis approve-destructive            # list what was refused
+aegis approve-destructive <code>     # approve that one command
+```
+
+The same command, run again unchanged within ten minutes, then goes through once. The use is recorded. A different command, or a second run, is refused again. The shield stops `approve-destructive` when it arrives as a tool call.
+
+To have the gate ask a person over a channel outside the machine and wait for the answer, set `kavach.destructive_critical` to `"approve"` in `~/.aegis/config.json`.
+
+**What it does not do.**
+
+- **It reads the text of the command.** A statement inside a file the command names, a target held in a variable, a target that arrives through `xargs`: not seen.
+- **The list is a list.** Removing a system directory other than the root or home, wiping a disk, a forced push, an update with no filter: not on it.
+- **It over-stops in places.** A search for a destructive phrase that is piped onward is refused; so is a here-document whose text contains one.
+- **The approval is a file under the same user the agent runs as.** The shield stops a tool call from writing it or running the approve command, but code an agent runs through an interpreter of its own could write it. It is a deliberate, recorded act that an agent has to go out of its way to forge, not a boundary the operating system enforces. The outside-channel approval above is the stronger form.
+- **With no rules file it refuses every shell command.** A gate that cannot read its rules does not guess.
 
 #### What the shield stops, and what it does not
 

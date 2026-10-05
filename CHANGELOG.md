@@ -4,6 +4,49 @@ All notable changes to AEGIS will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [2.5.0] — 2026-10-05
+
+`@xshieldai/aegis`. The destructive-command gate (`aegis check-destructive`) and the
+installer. **The override token is gone**: read "Changed" before upgrading.
+
+### Changed (AGPL-3.0)
+- **Nothing typed into a command overrides the destructive gate (rule KAV-098).** The token
+  that did is no longer read, from the code or from a rules file, and no message prints one.
+  A person approves one refused command with `aegis approve-destructive <code>`; the same
+  command then goes through once, within ten minutes, and the use is recorded.
+- **A comment is display-only when every line is a comment.** A command that began with a
+  comment line used to pass whole.
+- **Recursive removal of the root or the home directory is recognised from the command's
+  structure (rule KAV-099):** any spelling of the flags, with `--no-preserve-root`, after
+  `sudo`, inside `bash -c`.
+- **Shipped patterns:** five gaps bounded (no pattern has an unbounded one); the compose
+  rule names the subcommand and reads the volumes flag in its long form, inside combined
+  flags, and for the hyphenated command; a version flag after `exec` is no longer a match.
+  Keywords with quotes or backslashes spliced in are matched. `rules/destructive-rules.json`
+  is version 1.3.0; a rules file already in `~/.aegis/` is left as it is.
+- **Display-only now also covers `grep` and a commit or tag message**, when the command has
+  no pipe, redirect, chain or substitution.
+- **Input the gate cannot read is refused** (it was allowed), as is a command over 512,000
+  characters.
+- **`aegis init`:** finds the rules inside the package (it looked one folder too high and
+  seeded nothing); wires `check-destructive` into the hook script it writes; leaves each
+  gate's message on stderr, where the harness shows it to the agent; starts only commands
+  that are on the PATH and no longer ends with an error when one is missing. It no longer
+  seeds a `shield-rules.json`: the shield's lists are built in.
+- `rules/shield-rules.json` is the shield's built-in lists, written out (it held the lists
+  of 2.3).
+
+### Added
+- `aegis approve-destructive [code]`; `src/kavach/destructive-approval.ts`;
+  `structuralMatch()`, `dequoteForMatch()`, `defaultShieldRules()`.
+- The shield stops `approve-destructive` arriving as a tool call.
+- `tests/destructive-hardening.test.ts`: 104 tests. 1069 tests in the repository.
+
+### Not covered, and pinned by tests
+- The gate reads the text of a command: a statement in a file, a target in a variable or
+  from `xargs`, and destructive commands not on the list are not seen. An approvals file
+  written by any other means is accepted as an approval.
+
 ## [2.4.1] — 2026-10-05
 
 `@xshieldai/aegis`. The first published version of the 2.4 line; the code is that of 2.4.0.

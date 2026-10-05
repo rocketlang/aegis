@@ -88,25 +88,33 @@ export default async function init(args: string[]): Promise<void> {
   if (!existsSync(hookScript)) {
     writeFileSync(hookScript, `#!/bin/bash
 # AEGIS PreToolUse hook for Claude Code
-# Three gates: budget + spawn + LakshmanRekha shield
+# Four gates: budget + spawn + destructive commands + LakshmanRekha shield
+# Each gate's own message is left on stderr: that is the stream the harness shows the agent.
 # Requires: aegis CLI in PATH (installed via: npm install -g @xshieldai/aegis)
 
 INPUT=$(cat)
 TOOL_NAME=$(echo "$INPUT" | python3 -c "import sys,json; d=json.loads(sys.stdin.read()); print(d.get('tool_name',''))" 2>/dev/null || echo "")
 
 # Always check budget first (fastest gate)
-aegis check-budget 2>&1
+aegis check-budget
 BUDGET_EXIT=$?
 [ $BUDGET_EXIT -ne 0 ] && exit $BUDGET_EXIT
 
 # Agent tool: check spawn limits + delegation depth
 if [ "$TOOL_NAME" = "Agent" ]; then
-  printf '%s' "$INPUT" | aegis check-spawn 2>&1
+  printf '%s' "$INPUT" | aegis check-spawn
   exit $?
 fi
 
+# Shell commands: the destructive-command gate (KAVACH). It reads ~/.aegis/destructive-rules.json.
+if [ "$TOOL_NAME" = "Bash" ]; then
+  printf '%s' "$INPUT" | aegis check-destructive
+  DESTRUCTIVE_EXIT=$?
+  [ $DESTRUCTIVE_EXIT -ne 0 ] && exit $DESTRUCTIVE_EXIT
+fi
+
 # All tools: LakshmanRekha injection/credential/exfil shield
-printf '%s' "$INPUT" | aegis check-shield 2>&1
+printf '%s' "$INPUT" | aegis check-shield
 exit $?
 `, { mode: 0o755 });
     console.log(`  [+] Hook script: ${hookScript}`);
@@ -160,8 +168,9 @@ exit $?
   if (!existsSync(rulesDir)) { require("fs").mkdirSync(rulesDir, { recursive: true }); }
   if (!existsSync(agentsDir)) { require("fs").mkdirSync(agentsDir, { recursive: true }); }
 
-  const defaultShieldRules = join(import.meta.dir, "../../../../rules/shield-rules.json");
-  const defaultDestructiveRules = join(import.meta.dir, "../../../../rules/destructive-rules.json");
+  // The package's rules/ folder: three levels up from src/cli/commands. (Until 2.5.0 this
+  // said four, which is outside the package, so nothing was ever seeded.)
+  const defaultDestructiveRules = join(import.meta.dir, "../../../rules/destructive-rules.json");
   // The loaders read these at the AEGIS-dir ROOT, not the rules/ subdir: check-destructive
   // reads <aegisDir>/destructive-rules.json and injection-detector reads
   // <aegisDir>/shield-rules.json. Seeding them into rules/ (as this did until 2026-09-24)
@@ -171,10 +180,11 @@ exit $?
   const targetShield = join(aegisDir, "shield-rules.json");
   const targetDestructive = join(aegisDir, "destructive-rules.json");
 
-  if (!existsSync(targetShield) && existsSync(defaultShieldRules)) {
-    require("fs").copyFileSync(defaultShieldRules, targetShield);
-    console.log(`  [+] Shield rules: ${targetShield}`);
-  }
+  // The shield's lists are built in, so no shield-rules.json is seeded: a copied file would
+  // freeze the lists at install time and replace later built-in ones. A person creates
+  // ${targetShield} only to change a list; rules/shield-rules.json in the package is the
+  // built-in set, to start from.
+  void targetShield;
   if (!existsSync(targetDestructive) && existsSync(defaultDestructiveRules)) {
     require("fs").copyFileSync(defaultDestructiveRules, targetDestructive);
     console.log(`  [+] Destructive rules: ${targetDestructive}`);
@@ -183,12 +193,17 @@ exit $?
   // @rule:KAV-002 — V2-090: auto-start watchdog + monitor as detached background processes
   const autoStarted: string[] = [];
   const tryAutoStart = (name: string, cmd: string, args: string[]): void => {
+    // Only a command that is on the PATH is started. spawn() reports a missing program by
+    // an 'error' event after it returns, which a try/catch does not see: until 2.5.0 that
+    // ended init with a stack trace and exit 1 after it had printed "Auto-started".
+    if (!Bun.which(cmd)) return;
     try {
       const child = spawn(cmd, args, {
         detached: true,
         stdio: "ignore",
         env: { ...process.env },
       });
+      child.on("error", () => { /* non-fatal — user can start manually */ });
       child.unref();
       autoStarted.push(name);
     } catch { /* non-fatal — user can start manually */ }
