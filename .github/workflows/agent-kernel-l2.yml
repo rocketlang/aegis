@@ -1,0 +1,51 @@
+name: agent-kernel L2 (cgroup-BPF egress, real kernel)
+
+# KavachOS L2 enforcement (cgroup-BPF egress firewall) loads BPF into the kernel and attaches to
+# the cgroup2 tree — it mutates shared kernel state, so it is tested only on a disposable host.
+# A GitHub-hosted runner is exactly that: a fresh x86_64 VM with root and a modern kernel, destroyed
+# after the job. It tests the PUBLISHED @xshieldai/agent-kernel, not the repo tree.
+#
+# Manual trigger: Actions -> "agent-kernel L2 ..." -> Run workflow (optionally pin a version).
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "npm version of @xshieldai/agent-kernel to test"
+        required: false
+        default: "latest"
+
+permissions:
+  contents: read
+
+jobs:
+  l2:
+    runs-on: ubuntu-latest   # ephemeral x86_64 VM, root via sudo, cgroup v2, destroyed after
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Toolchain (clang, bpftool)
+        run: |
+          set -euxo pipefail
+          sudo apt-get update
+          sudo apt-get install -y clang llvm libbpf-dev python3
+          sudo apt-get install -y "linux-tools-$(uname -r)" || sudo apt-get install -y linux-tools-generic || true
+          bpftool version || { echo "bpftool missing on this runner"; exit 3; }
+          uname -r; grep -q cgroup2 /proc/filesystems && echo "cgroup v2 ok"
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install the published @xshieldai/agent-kernel
+        run: |
+          set -euxo pipefail
+          mkdir -p "$RUNNER_TEMP/ak" && cd "$RUNNER_TEMP/ak"
+          echo '{ "name": "ak-l2", "private": true }' > package.json
+          npm i "@xshieldai/agent-kernel@${{ github.event.inputs.version }}" --no-audit --no-fund
+          echo "PKG=$RUNNER_TEMP/ak/node_modules/@xshieldai/agent-kernel" >> "$GITHUB_ENV"
+          ls -la "$RUNNER_TEMP/ak/node_modules/@xshieldai/agent-kernel/dist"
+
+      - name: L2 smoke test (arm + default-deny + Falco rules)
+        run: sudo -E KAVACH_L2_DISPOSABLE=1 bash packages/kavachos/ci/l2-test.sh "$PKG"
