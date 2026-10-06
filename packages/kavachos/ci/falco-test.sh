@@ -33,7 +33,7 @@ echo "[falco] rules: $(grep -c '^- rule:' "$RULES") from the published package"
 falco -o engine.kind=modern_ebpf \
       -o rules_files="[$RULES]" \
       -o json_output=true -o stdout_output.enabled=true \
-      -o load_plugins="[]" -o priority=informational \
+      -o priority=informational \
       >"$W/falco.out" 2>"$W/falco.err" &
 FPID=$!
 
