@@ -35,7 +35,8 @@ export class KavachRun implements INodeType {
     subtitle: "Kernel-enforced subprocess (Linux)",
     description:
       "Wraps a subprocess in kavachos kernel enforcement (seccomp-bpf + cgroup BPF egress). " +
-      "Linux only — gracefully degrades on macOS/Windows with a warning. " +
+      "Linux only — where enforcement is unavailable (non-Linux, or kavachos not installed) it " +
+      "FAILS CLOSED by default (configurable to warn or skip). " +
       "Use after KavachGate for defense in depth: policy gate + kernel enforcement.",
     defaults: { name: "Kavach Run" },
     inputs: ["main"],
@@ -93,13 +94,15 @@ export class KavachRun implements INodeType {
         name: "onNonLinux",
         type: "options",
         options: [
+          { name: "Throw Error (fail closed)", value: "throw" },
           { name: "Warn and run unwrapped", value: "warn" },
           { name: "Skip execution entirely", value: "skip" },
-          { name: "Throw error", value: "throw" },
         ],
-        default: "warn",
+        default: "throw",
         description:
-          "Behavior when running on macOS or Windows where kernel enforcement is unavailable.",
+          "Behavior when kernel enforcement is unavailable (non-Linux, or kavachos not installed). " +
+          "Default THROW = fail closed: a defense-in-depth node must not silently run a command " +
+          "unwrapped. Choose 'warn' to run unwrapped with an enforced:false flag, or 'skip' to not run it.",
       },
     ],
   };

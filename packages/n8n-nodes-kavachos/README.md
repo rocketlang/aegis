@@ -4,7 +4,7 @@
 > - **Tests:** ⚠️ none yet — n8n node test fixtures planned. See [PROOF-STACK.md](https://github.com/rocketlang/aegis/blob/master/PROOF-STACK.md).
 > - **Examples:** ✅ 1 importable workflow, in the repository (not in the npm package): [examples/n8n-governed-agent.json](https://github.com/rocketlang/aegis/blob/master/packages/n8n-nodes-kavachos/examples/n8n-governed-agent.json). Drag into n8n, wire the Aegis API credential pointing at `http://localhost:4850`, run.
 > - **Live demo:** ⚠️ planned (Tier 3)
-> - **Phase-1 limits:** KavachRun is Linux-only with graceful fallback (`warn`/`skip`/`throw` configurable) on macOS/Windows. KavachGate works on any OS — it's a thin HTTP relay to AEGIS.
+> - **Phase-1 limits:** KavachRun is Linux-only; where enforcement is unavailable (non-Linux, or `kavachos` not installed) it **fails closed by default** (`On Non-Linux` = `throw`; `warn`/`skip` are opt-in). KavachGate works on any OS — it's a thin HTTP relay to AEGIS.
 >
 > The KavachGate node's behaviour is end-to-end testable against a live AEGIS instance — start AEGIS, import the example workflow, fire a `rm -rf /` command, watch it block. Automated CI fixtures still to come.
 
@@ -31,7 +31,7 @@ Intercepts AI agent actions **before execution**. Calls the Aegis KAVACH HTTP ga
 
 Wraps a subprocess in kavachos **kernel enforcement** (seccomp-bpf + cgroup BPF egress firewall).
 
-- Linux only — gracefully degrades on macOS/Windows with a configurable fallback (warn / skip / throw)
+- Linux only — where enforcement is unavailable it **fails closed by default** (`On Non-Linux` = `throw`; set `warn` to run unwrapped, or `skip`)
 - Use **after** KavachGate for defense in depth: policy gate + kernel enforcement
 - `trust_mask` controls which syscall groups the process may call
 - `domain` selects the egress allowlist (maritime, logistics, OT, finance, general)
