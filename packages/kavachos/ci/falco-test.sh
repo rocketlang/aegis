@@ -30,7 +30,7 @@ RULES="$W/r.falco.yaml"
 echo "[falco] rules: $(grep -c '^- rule:' "$RULES") from the published package"
 
 # Start Falco on the modern eBPF probe, loading ONLY our rules, JSON events to a file.
-falco -o engine.kind=modern_bpf \
+falco -o engine.kind=modern_ebpf \
       -o rules_files="[$RULES]" \
       -o json_output=true -o stdout_output.enabled=true \
       -o load_plugins="[]" -o priority=informational \
