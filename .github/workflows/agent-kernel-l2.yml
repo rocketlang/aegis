@@ -30,12 +30,19 @@ jobs:
           set -euxo pipefail
           sudo apt-get update
           sudo apt-get install -y clang llvm libbpf-dev python3
+          # The azure cloud kernel's linux-tools package ships no bpftool binary, and /usr/sbin/bpftool
+          # is a wrapper that then fails. Use a real bpftool wherever one exists; if none, build it.
           sudo apt-get install -y "linux-tools-$(uname -r)" || sudo apt-get install -y linux-tools-generic || true
-          # Ubuntu's /usr/sbin/bpftool is a kernel-version wrapper that mis-resolves on cloud (azure)
-          # kernels even when the versioned package is installed — point it at the real binary.
-          REAL_BPFTOOL="$(ls -1 /usr/lib/linux-tools/*/bpftool /usr/lib/linux-tools-*/bpftool 2>/dev/null | sort -V | tail -1 || true)"
-          [ -n "$REAL_BPFTOOL" ] && sudo ln -sf "$REAL_BPFTOOL" /usr/sbin/bpftool
-          bpftool version || { echo "bpftool unavailable; looked for: ${REAL_BPFTOOL:-none}"; ls -la /usr/lib/linux-tools*/ 2>/dev/null || true; exit 3; }
+          REAL_BPFTOOL="$(find /usr/lib /usr/sbin /usr/bin -name bpftool -type f 2>/dev/null | head -1 || true)"
+          if [ -z "$REAL_BPFTOOL" ]; then
+            echo "bpftool not packaged for this kernel — building from source"
+            sudo apt-get install -y gcc make pkg-config libelf-dev libcap-dev binutils-dev git
+            git clone --depth 1 --recurse-submodules https://github.com/libbpf/bpftool /tmp/bpftool
+            make -C /tmp/bpftool/src
+            REAL_BPFTOOL=/tmp/bpftool/src/bpftool
+          fi
+          sudo ln -sf "$REAL_BPFTOOL" /usr/sbin/bpftool
+          bpftool version || { echo "bpftool unavailable (resolved: ${REAL_BPFTOOL:-none})"; exit 3; }
           uname -r; grep -q cgroup2 /proc/filesystems && echo "cgroup v2 ok"
 
       - uses: oven-sh/setup-bun@v2
