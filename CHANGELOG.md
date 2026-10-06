@@ -4,6 +4,19 @@ All notable changes to AEGIS will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [2.8.0] — 2026-10-06
+
+### Changed — dashboard posture (security)
+
+The dashboard now binds **`127.0.0.1` (loopback) by default** instead of `0.0.0.0`, and **refuses to start when exposed without real authentication**.
+
+- New `dashboard.host` (default `127.0.0.1`) — the dashboard is no longer reachable off the machine unless you set it explicitly.
+- If `dashboard.host` is non-loopback, the server **refuses to start** unless `dashboard.auth.enabled` is `true` with a real password. You can no longer run it reachable-and-open.
+- The shipped default password `changeme` is retired: the default config ships `dashboard.auth.password: ""`, and enabling auth with `""` or `"changeme"` refuses to start.
+- Localhost stays **auth-optional** (local-dev convenience; it is not network-reachable).
+
+Only the package default changed — an existing `~/.aegis/config.json` is untouched. Behind an nginx reverse proxy (e.g. `aegis.ankr.in`) nothing changes: nginx connects to loopback on the same host.
+
 ## [2.7.0] — 2026-10-06
 
 `@xshieldai/aegis`. The dashboard and `aegis status` now start from a public install, and

@@ -1494,7 +1494,31 @@ app.get("/commands", async (_req, reply) => {
   return reply.type("text/html").send(html);
 });
 
-app.listen({ port: config.dashboard.port, host: "0.0.0.0" }, (err, address) => {
+// @security dashboard posture — loopback by default; exposing it requires real auth (fail-closed).
+// A security dashboard that binds every interface with no password is an open governance console;
+// this refuses that combination at startup rather than serving it.
+const dashHost = config.dashboard.host ?? "127.0.0.1";
+const isLoopback = ["127.0.0.1", "::1", "localhost"].includes(dashHost);
+const authOn = config.dashboard.auth?.enabled === true;
+const dashPw = config.dashboard.auth?.password ?? "";
+const pwIsReal = dashPw !== "" && dashPw !== "changeme"; // placeholder/retired default == UNSET
+if (authOn && !pwIsReal) {
+  console.error(
+    "[aegis] REFUSING TO START: dashboard.auth.enabled is true but no real password is set " +
+    "(empty or the retired 'changeme'). Set dashboard.auth.password in ~/.aegis/config.json.",
+  );
+  process.exit(1);
+}
+if (!isLoopback && !(authOn && pwIsReal)) {
+  console.error(
+    `[aegis] REFUSING TO START: dashboard.host=${dashHost} is reachable off this machine but session ` +
+    "auth is not enabled with a real password. Bind 127.0.0.1 (the default), or set " +
+    "dashboard.auth.enabled=true with a real dashboard.auth.password in ~/.aegis/config.json.",
+  );
+  process.exit(1);
+}
+
+app.listen({ port: config.dashboard.port, host: dashHost }, (err, address) => {
   if (err) {
     console.error("Dashboard failed to start:", err);
     process.exit(1);

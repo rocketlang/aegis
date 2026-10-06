@@ -34,6 +34,7 @@ export interface AegisConfig {
   max_plan_discount: number; // multiplier, e.g. 0.2 means 20% of API price
   dashboard: {
     port: number;
+    host?: string; // bind address; defaults to 127.0.0.1 (loopback). Set to 0.0.0.0 to expose — which then REQUIRES auth with a real password (see server startup guard).
     auth: {
       enabled: boolean;
       username: string;

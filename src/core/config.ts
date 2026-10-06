@@ -57,10 +57,11 @@ const DEFAULT_CONFIG: AegisConfig = {
   max_plan_discount: 0.2,
   dashboard: {
     port: DASHBOARD_PORT,
+    host: "127.0.0.1", // loopback by default — not reachable off the box. Exposing (0.0.0.0) requires auth.
     auth: {
       enabled: false,
       username: "aegis",
-      password: "changeme",
+      password: "", // no default credential — enabling auth requires setting a real password.
     },
   },
   monitor: {
