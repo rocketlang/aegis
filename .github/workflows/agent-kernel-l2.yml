@@ -65,4 +65,7 @@ jobs:
           ls -la "$RUNNER_TEMP/ak/node_modules/@xshieldai/agent-kernel/dist"
 
       - name: L2 smoke test (arm + default-deny + Falco rules)
-        run: sudo -E KAVACH_L2_DISPOSABLE=1 bash packages/kavachos/ci/l2-test.sh "$PKG"
+        run: |
+          # bun is on the runner user's PATH but sudo's secure_path is not — expose it to root
+          sudo ln -sf "$(command -v bun)" /usr/local/bin/bun
+          sudo -E KAVACH_L2_DISPOSABLE=1 bash packages/kavachos/ci/l2-test.sh "$PKG"
