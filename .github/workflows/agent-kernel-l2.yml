@@ -69,3 +69,17 @@ jobs:
           # bun is on the runner user's PATH but sudo's secure_path is not — expose it to root
           sudo ln -sf "$(command -v bun)" /usr/local/bin/bun
           sudo -E KAVACH_L2_DISPOSABLE=1 bash packages/kavachos/ci/l2-test.sh "$PKG"
+
+      - name: Install Falco (modern eBPF probe, non-interactive)
+        run: |
+          set -euxo pipefail
+          curl -fsSL https://falco.org/repo/falcosecurity-packages.asc | sudo gpg --dearmor -o /usr/share/keyrings/falco-archive-keyring.gpg
+          echo "deb [signed-by=/usr/share/keyrings/falco-archive-keyring.gpg] https://download.falco.org/packages/deb stable main" | sudo tee /etc/apt/sources.list.d/falcosecurity.list
+          sudo apt-get update
+          # modern_bpf is embedded in the falco binary — no kernel module / driver build needed
+          echo "falco falco/driver_choice select Modern eBPF" | sudo debconf-set-selections
+          sudo DEBIAN_FRONTEND=noninteractive FALCO_FRONTEND=noninteractive FALCO_DRIVER_CHOICE=modern-bpf apt-get install -y falco
+          falco --version
+
+      - name: L2 Falco RUNTIME detection (load rules, trip one, confirm alert)
+        run: sudo -E KAVACH_L2_DISPOSABLE=1 bash packages/kavachos/ci/falco-test.sh "$PKG"
