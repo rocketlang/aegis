@@ -31,7 +31,11 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y clang llvm libbpf-dev python3
           sudo apt-get install -y "linux-tools-$(uname -r)" || sudo apt-get install -y linux-tools-generic || true
-          bpftool version || { echo "bpftool missing on this runner"; exit 3; }
+          # Ubuntu's /usr/sbin/bpftool is a kernel-version wrapper that mis-resolves on cloud (azure)
+          # kernels even when the versioned package is installed — point it at the real binary.
+          REAL_BPFTOOL="$(ls -1 /usr/lib/linux-tools/*/bpftool /usr/lib/linux-tools-*/bpftool 2>/dev/null | sort -V | tail -1 || true)"
+          [ -n "$REAL_BPFTOOL" ] && sudo ln -sf "$REAL_BPFTOOL" /usr/sbin/bpftool
+          bpftool version || { echo "bpftool unavailable; looked for: ${REAL_BPFTOOL:-none}"; ls -la /usr/lib/linux-tools*/ 2>/dev/null || true; exit 3; }
           uname -r; grep -q cgroup2 /proc/filesystems && echo "cgroup v2 ok"
 
       - uses: oven-sh/setup-bun@v2
