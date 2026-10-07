@@ -1,6 +1,6 @@
 {
   "name": "@ankr/nallasetu",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Nallasetu — Cross-org agent handshake protocol. TLS equivalent for agent authority negotiation.",
   "type": "module",
   "license": "AGPL-3.0-only",
