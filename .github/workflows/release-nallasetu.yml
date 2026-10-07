@@ -1,9 +1,9 @@
-# Publish @ankr/nallasetu to npm with provenance from the PUBLIC aegis repo (OIDC).
-#   tag nallasetu-v<ver>  ·  packages/nallasetu  ·  @ankr/nallasetu  (Bun service; ships source)
+# Publish @xshieldai/nallasetu to npm with provenance from the PUBLIC aegis repo (OIDC).
+#   tag nallasetu-v<ver>  ·  packages/nallasetu  ·  @xshieldai/nallasetu  (Bun service; ships source)
 # A tag publishes; a manual run rehearses. Tag version must equal packages/nallasetu/package.json.
 # Auth: NPM_TOKEN secret (first publish of a new name) OR a Trusted Publisher once configured.
 
-name: Release @ankr/nallasetu
+name: Release @xshieldai/nallasetu
 
 on:
   push:
@@ -34,11 +34,11 @@ jobs:
         if: github.ref_type == 'tag'
         run: |
           NAME=$(node -p "require('./package.json').name"); VER=$(node -p "require('./package.json').version")
-          [ "$NAME" = "@ankr/nallasetu" ] || { echo "named $NAME — refusing"; exit 1; }
+          [ "$NAME" = "@xshieldai/nallasetu" ] || { echo "named $NAME — refusing"; exit 1; }
           [ "${GITHUB_REF_NAME##*-v}" = "$VER" ] || { echo "tag ${GITHUB_REF_NAME} != $VER — refusing"; exit 1; }
           echo "$NAME $VER"
       - name: Refuse if the README does not name this package
-        run: head -1 README.md | grep -q '@ankr/nallasetu' || { echo "README mis-named — refusing"; exit 1; }
+        run: head -1 README.md | grep -q '@xshieldai/nallasetu' || { echo "README mis-named — refusing"; exit 1; }
       - name: Install deps (frozen) where a lockfile exists
         run: |
           if [ -f bun.lock ] || [ -f bun.lockb ]; then bun install --frozen-lockfile; else echo "no lockfile"; fi
@@ -55,4 +55,4 @@ jobs:
           npm stage publish --provenance --access public
       - name: Staged — awaiting human approval
         if: github.ref_type == 'tag'
-        run: echo "@ankr/nallasetu@$(node -p "require('./package.json').version") STAGED. Approve it with 2FA at npmjs.com → Staged Packages (or 'npm stage approve') to publish it with provenance."
+        run: echo "@xshieldai/nallasetu@$(node -p "require('./package.json').version") STAGED. Approve it with 2FA at npmjs.com → Staged Packages (or 'npm stage approve') to publish it with provenance."

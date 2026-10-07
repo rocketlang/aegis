@@ -1,4 +1,4 @@
-# @ankr/nallasetu
+# @xshieldai/nallasetu
 
 Cross-org agent handshake — a capability-negotiation protocol for autonomous agents from
 different trust domains. Before two agents work together, Nallasetu decides what their joint
@@ -17,8 +17,8 @@ a Node package.
 ## Run
 
 ```sh
-npm install @ankr/nallasetu   # or: bun add @ankr/nallasetu
-cd node_modules/@ankr/nallasetu
+npm install @xshieldai/nallasetu   # or: bun add @xshieldai/nallasetu
+cd node_modules/@xshieldai/nallasetu
 bun run start                 # serves POST /api/v2/nallasetu/handshake
 ```
 

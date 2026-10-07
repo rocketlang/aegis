@@ -1,5 +1,5 @@
 {
-  "name": "@ankr/nallasetu",
+  "name": "@xshieldai/nallasetu",
   "version": "0.1.1",
   "description": "Nallasetu — Cross-org agent handshake protocol. TLS equivalent for agent authority negotiation.",
   "type": "module",
