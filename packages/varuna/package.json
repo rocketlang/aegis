@@ -1,6 +1,6 @@
 {
   "name": "@xshieldai/varuna",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Varuna — maritime OT posture. IACS UR E26/E27 compliance scoring, vessel protocol (Modbus/NMEA/AIS) anomaly detection, runaway-diesel precursor detection.",
   "type": "module",
   "license": "AGPL-3.0-only",
