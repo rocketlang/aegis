@@ -117,6 +117,25 @@ actually blocked — is proved separately on a disposable real-kernel runner.)
 ./red-team/egress-fail-closed.battery.sh
 ```
 
+### `exec-race` — TOCTOU on the strict-exec allowlist (RED, open)
+The supervisor allowlists `execve` by reading the path from the agent's memory and, on ALLOW, answers
+`SECCOMP_USER_NOTIF_FLAG_CONTINUE` — which makes the **kernel re-read** the path pointer and run whatever
+is there now. Between the supervisor's check and the kernel's re-read, another agent thread can swap the
+pointer → a binary the supervisor never approved runs. The seccomp man page is explicit: `CONTINUE`
+"cannot be used to implement security policy" for pointer arguments. (Deny is safe — it's `EPERM`, the
+syscall never runs.) This probe proves the window deterministically against the real `_auto_decide_exec`,
+modelling the swap as two successive reads; the live race-win is inherently flaky and belongs on a
+disposable host.
+
+```
+./red-team/exec-race.battery.sh
+```
+
+Status: **RED, open.** There is no safe way to allow a pointer-argument syscall via `CONTINUE`; closure
+is architectural — enforce the exec allowlist with a mechanism that is not re-read (an LSM such as
+Landlock/AppArmor exec confinement, or a read-only bind-mount of only the allowlisted binaries), with
+`CONTINUE` kept as defence-in-depth, not the boundary. Measured on a disposable real-kernel host.
+
 ## Doctrine
 
 A finding is not closed because we understand it. It is closed when its red test refuses the exploit
