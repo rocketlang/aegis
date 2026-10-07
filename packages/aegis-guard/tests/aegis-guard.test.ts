@@ -38,6 +38,9 @@ import { __resetSigningCache, ensureSigningKeypair } from '../src/signing.js';
 // v0.4.0: minting no longer makes a key. v0.6.0: minting is an authority action — the suite plays
 // the authority, so it declares itself (AEGIS_MINT_AUTHORITY) and makes one.
 process.env.AEGIS_MINT_AUTHORITY = '1';
+// v0.6.0: action-binding is the enforced default. This legacy-mechanics suite uses label-only
+// tokens to test scope/expiry/nonce etc.; it opts in. The P4 strict default is pinned by its own test.
+process.env.AEGIS_ALLOW_LABEL_ONLY_APPROVAL = '1';
 ensureSigningKeypair();
 
 // ─── §1 errors ───────────────────────────────────────────────────────────────

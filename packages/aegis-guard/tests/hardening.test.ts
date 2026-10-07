@@ -33,6 +33,8 @@ import {
   signApprovalJwt,
   verifyApprovalJwt,
   mintApprovalToken,
+  mintActionApprovalToken,
+  verifyActionApprovalToken,
   verifyApprovalToken,
   verifyScopedApprovalToken,
   verifyAndConsumeNonce,
@@ -62,6 +64,9 @@ function on<T>(boxDir: string, fn: () => T, envPem?: string): T {
 
 // v0.6.0: minting/key-generation is an authority action; this suite is the authority.
 process.env.AEGIS_MINT_AUTHORITY = '1';
+// v0.6.0: action-binding is the enforced default; this legacy-mechanics suite uses label-only
+// tokens (orthogonal to point 4). The strict default is pinned by GH-109 below.
+process.env.AEGIS_ALLOW_LABEL_ONLY_APPROVAL = '1';
 const AUTH_PUB = on(AUTH, () => ensureSigningKeypair().publicKeyPem);
 const AUTH_KEY = readFileSync(join(AUTH, 'approval-signing.key'), 'utf8');
 const other = generateKeyPairSync('ed25519');
@@ -103,6 +108,23 @@ afterEach(() => {
 describe('§H1 which key a box trusts (AEG-HG-2B-007)', () => {
   it('GH-101: the authority mints and verifies', () => {
     expect(verify(on(AUTH, () => mintApprovalToken(base() as any))).service_id).toBe('svc');
+  });
+
+  it('GH-109: action-binding is the enforced default — a label-only token is refused (review point 4)', () => {
+    const saved = process.env.AEGIS_ALLOW_LABEL_ONLY_APPROVAL;
+    delete process.env.AEGIS_ALLOW_LABEL_ONLY_APPROVAL; // the strict default
+    try {
+      // a loose (label-only) approval is refused by the base verify — one slip cannot fit every act
+      expect(() => verify(on(AUTH, () => mintApprovalToken(base() as any)))).toThrow(/action_digest|concrete action/i);
+      // an action-bound approval for the exact act passes
+      const tok = on(AUTH, () => mintActionApprovalToken(base() as any, { table: 'users' }));
+      expect(on(AUTH, () => verifyActionApprovalToken(tok, 'svc', 'settle', 'record_settle', { table: 'users' })).service_id).toBe('svc');
+      // the same token for a DIFFERENT act is refused
+      expect(() => on(AUTH, () => verifyActionApprovalToken(tok, 'svc', 'settle', 'record_settle', { table: 'payments' }))).toThrow();
+    } finally {
+      if (saved === undefined) delete process.env.AEGIS_ALLOW_LABEL_ONLY_APPROVAL;
+      else process.env.AEGIS_ALLOW_LABEL_ONLY_APPROVAL = saved;
+    }
   });
 
   it('GH-101b: minting is an authority action — a non-authority process is refused (review point 1, key leg)', () => {

@@ -49,6 +49,7 @@ export {
   actionDigest,
   mintActionApprovalToken,
   verifyActionApprovalToken,
+  LABEL_ONLY_ENV,
 } from './approval-token.js';
 
 // @rule:KGT-002 — KGT-T1.1 (v0.3.0): approval tokens are AEGIS-signed EdDSA JWTs.

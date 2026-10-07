@@ -66,14 +66,12 @@ Installs the **published** `@xshieldai/aegis-guard` into a throwaway HOME and ru
   different uid the agent cannot read; this gate stops the lazy path, the OS stops the determined one. Pinned
   by repo test `GH-101b`. This published battery stays **GAP against 0.5.0** and flips when 0.6.0 is live.
 - **P4 label-not-act** — a token binds to a label (service/capability/operation), not the concrete
-  arguments, so one `drop_table` approval authorises dropping *any* table. **Partial** in
-  [`@xshieldai/aegis-guard` 0.5.0](https://www.npmjs.com/package/@xshieldai/aegis-guard/v/0.5.0)
-  (commit [`ed6dc4a`](https://github.com/rocketlang/aegis/commit/ed6dc4a877def0b1654568ce6e027357ab75295f)):
-  0.5.0 *adds* `mintActionApprovalToken` / `verifyActionApprovalToken`, which put a digest of the
-  concrete arguments in the signed payload — but the label-only `mintApprovalToken` / `verifyApprovalToken`
-  are unchanged and remain the default. So this check is **still GAP against 0.5.0** on the default path; it
-  flips to `safe` only when action-binding is the enforced default (a later release). We do not mark it
-  closed while our own test still reproduces it.
+  arguments, so one `drop_table` approval authorises dropping *any* table. **Fixed in 0.6.0 — enforced
+  default.** 0.5.0 *added* `mintActionApprovalToken` / `verifyActionApprovalToken` but left the label-only
+  path as the default (partial). 0.6.0 makes action-binding the **default**: the base verifier refuses a
+  token with no `action_digest`, so a label-only approval is rejected everywhere, unless a caller sets
+  `AEGIS_ALLOW_LABEL_ONLY_APPROVAL=1` (explicit opt-out). Pinned by repo test `GH-109`. This published
+  battery stays **GAP against 0.5.0** and flips to `safe` when 0.6.0 is live.
 
 ```
 ./red-team/aegis-guard-self-mint-and-label.battery.sh

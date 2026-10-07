@@ -32,6 +32,17 @@ const isText = (v: unknown): v is string => typeof v === 'string' && v.length > 
 const say = (v: unknown): string => (typeof v === 'string' ? v : typeof v).slice(0, 60);
 const own = (o: object, k: string): boolean => Object.prototype.hasOwnProperty.call(o, k);
 
+// @rule:AEG-E-016 — action-binding is the ENFORCED default (review point 4, 2026-10-07): a token
+// that does not name the concrete act (no action_digest) is refused, so one approval cannot stand
+// in for every instance. A caller that knowingly accepts the old label-only behaviour sets
+// AEGIS_ALLOW_LABEL_ONLY_APPROVAL=1. (The full match — digest equals the act in hand — is still the
+// job of verifyActionApprovalToken; this base check guarantees no loose token is accepted anywhere.)
+export const LABEL_ONLY_ENV = 'AEGIS_ALLOW_LABEL_ONLY_APPROVAL';
+const labelOnlyAllowed = (): boolean => {
+  const v = process.env[LABEL_ONLY_ENV];
+  return v === '1' || v === 'true' || v === 'yes';
+};
+
 // @rule:AEG-HG-2B-005 — SENSE stores proof reference, not proof secret.
 // Returns first 24 hex chars of SHA-256 (96 bits) — sufficient for correlation, not reconstruction.
 export function digestApprovalToken(token: string): string {
@@ -127,6 +138,16 @@ export function verifyApprovalToken(
     }
     if (payload.nonce !== undefined && !isText(payload.nonce)) {
       throw new IrrNoApprovalError(cap, 'AEG-E-016: token nonce is not text');
+    }
+    // Action-binding is the enforced default (point 4): a label-only approval authorises every
+    // instance of the operation, so refuse it unless the caller opted into the old loose behaviour.
+    if (!isText(payload.action_digest) && !labelOnlyAllowed()) {
+      throw new IrrNoApprovalError(
+        cap,
+        `AEG-E-016: approval is not bound to a concrete action (no action_digest) — a label-only ` +
+        `approval authorises every instance. Mint with mintActionApprovalToken()/verify with ` +
+        `verifyActionApprovalToken(), or set ${LABEL_ONLY_ENV}=1 to accept label-only approvals.`,
+      );
     }
 
     emitAccReceipt({
