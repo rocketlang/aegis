@@ -6,6 +6,9 @@
 
 export const PROTOCOL_VERSION = "nallasetu/0.1";
 export const ATTESTATION_FORMAT = "ankr-hmudrika-v1";
+// The bitmask dialect this build speaks. Two agents may only intersect masks written in the SAME
+// vocabulary (NLS-003): an AND is an intersection only if bit i means the same on both sides.
+export const MASK_VOCABULARY = "ankr-bitmask-v1";
 
 // ── Primitive 1: BRIDGE_HELLO ─────────────────────────────────────────────────
 
@@ -21,13 +24,15 @@ export interface BridgeHello {
 
 export interface AttestOffer {
   agent_id: string;
-  trust_mask: number;                // 32-bit capability bitmask
+  trust_mask: number;                // capability bitmask
+  mask_vocabulary: string;           // which bitmask dialect trust_mask is written in — NLS-003:
+                                     //   an AND is an intersection only if bit i means the same on both sides
   grade: "A" | "B" | "C" | "D";    // posture grade from HanumanG
   format: string;                    // attestation format version
   issued_at: string;                 // ISO8601
   expires_at: string;                // ISO8601 — NLS-006 mandatory TTL
   nonce: string;                     // from BRIDGE_HELLO, binds to session
-  signature: string;                 // HMAC-SHA256 of canonical payload, base64
+  signature: string;                 // Ed25519 over canonical payload, base64 — NLS-002 (was HMAC)
   public_key_id: string;             // key ID in registry — NLS-002
 }
 
@@ -124,10 +129,12 @@ export interface SessionRow {
 
 export interface KeyRegistryRow {
   agent_id: string;
-  hmac_secret: string;               // shared secret for HMAC-SHA256 attestation signing
+  public_key: string;                // Ed25519 PUBLIC key (SPKI PEM) — the only key material the
+                                     //   registry holds, so a registry read cannot forge an attestation
   public_key_id: string;
   trust_mask: number;                // capability ceiling — never auto-granted all-bits (Bit 10)
   registered_at: string;
   source: "self" | "sakshi" | "registry";
   revoked?: number;                  // 1 = revoked — NLS-YK-008 known-revoked partner → REJECT
+  hmac_secret?: string;              // LEGACY column, no longer used for signing (hard cutover 2026-10-08)
 }

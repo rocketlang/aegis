@@ -1,9 +1,12 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Nallasetu — Cryptographic primitives
-// @rule:NLS-002 signature verifiability — HMAC-SHA256 against registered shared secret
+// @rule:NLS-002 signature verifiability — ASYMMETRIC: each agent signs with its own Ed25519 private
+//   key; a verifier (or the registry) holds only the public key, so it cannot forge another agent's
+//   attestation, and the signer cannot repudiate its own. (Was HMAC-SHA256 over a shared secret,
+//   which let either party — and the registry — forge the other; closed 2026-10-08, hard cutover.)
 // @rule:NLS-005 no unknown format acceptance
 
-import { createHmac, createHash, randomBytes } from "crypto";
+import { createHash, randomBytes, generateKeyPairSync, createPrivateKey, createPublicKey, sign as edSign, verify as edVerify } from "crypto";
 import type { AttestOffer } from "./types";
 
 export function generateNonce(): string {
@@ -14,11 +17,22 @@ export function generateSessionId(): string {
   return "NLS-" + randomBytes(6).toString("hex").toUpperCase();
 }
 
-// Canonical payload: deterministic ordering for consistent HMAC input
+/** A new per-agent seal: the private key stays with the agent, the public key goes in the registry. */
+export function generateAgentKeypair(): { publicKey: string; privateKey: string } {
+  const { publicKey, privateKey } = generateKeyPairSync("ed25519");
+  return {
+    publicKey: publicKey.export({ type: "spki", format: "pem" }).toString(),
+    privateKey: privateKey.export({ type: "pkcs8", format: "pem" }).toString(),
+  };
+}
+
+// Canonical payload: deterministic ordering for a consistent signing input. mask_vocabulary is
+// signed too — the dialect a trust_mask is written in is part of what the signature commits to.
 function canonicalAttest(offer: Omit<AttestOffer, "signature">): string {
   return JSON.stringify({
     agent_id: offer.agent_id,
     trust_mask: offer.trust_mask,
+    mask_vocabulary: offer.mask_vocabulary,
     grade: offer.grade,
     format: offer.format,
     issued_at: offer.issued_at,
@@ -28,19 +42,21 @@ function canonicalAttest(offer: Omit<AttestOffer, "signature">): string {
   });
 }
 
-export function signAttest(offer: Omit<AttestOffer, "signature">, secret: string): string {
-  return createHmac("sha256", secret).update(canonicalAttest(offer)).digest("base64");
+/** Sign with the agent's OWN private key (Ed25519). Only the holder of the seal can produce this. */
+export function signAttest(offer: Omit<AttestOffer, "signature">, privateKeyPem: string): string {
+  const msg = Buffer.from(canonicalAttest(offer), "utf8");
+  return edSign(null, msg, createPrivateKey(privateKeyPem)).toString("base64");
 }
 
-export function verifyAttest(offer: AttestOffer, secret: string): boolean {
-  const expected = signAttest(offer, secret);
-  // Constant-time comparison
-  const a = Buffer.from(expected, "base64");
-  const b = Buffer.from(offer.signature, "base64");
-  if (a.length !== b.length) return false;
-  let diff = 0;
-  for (let i = 0; i < a.length; i++) diff |= a[i] ^ b[i];
-  return diff === 0;
+/** Verify against the agent's PUBLIC key from the registry. The verifier holds no secret to forge with. */
+export function verifyAttest(offer: AttestOffer, publicKeyPem: string): boolean {
+  try {
+    const { signature, ...base } = offer;
+    const msg = Buffer.from(canonicalAttest(base), "utf8");
+    return edVerify(null, msg, createPublicKey(publicKeyPem), Buffer.from(signature, "base64"));
+  } catch {
+    return false; // malformed key or signature → not verified, never throws into the gate
+  }
 }
 
 export function hashCredential(fields: {

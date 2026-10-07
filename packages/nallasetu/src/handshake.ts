@@ -34,15 +34,15 @@
 // @rule:INF-NLS-008 trivial intersection fast path — identical masks = skip negotiation round
 
 import {
-  generateNonce, generateSessionId, signAttest, verifyAttest,
+  generateNonce, generateSessionId, signAttest, verifyAttest, generateAgentKeypair,
   hashCredential, hashReceipt, pramanaWitness, policyHash,
 } from "./crypto";
 import {
-  lookupKey, registerKey, storeSession,
+  lookupKey, registerKey, storeSession, storePrivateKey, loadPrivateKey,
   getLastPramanaHash, appendPramanaChain,
 } from "./db";
 import {
-  PROTOCOL_VERSION, ATTESTATION_FORMAT,
+  PROTOCOL_VERSION, ATTESTATION_FORMAT, MASK_VOCABULARY,
   type HandshakeRequest, type HandshakeResult,
   type AttestOffer, type IntersectPropose,
   type SessionCredential, type SessionReceipt,
@@ -77,23 +77,27 @@ const SESSION_TTL: Record<string, number> = {
 
 // ── Responder self-registration (Customer Zero bootstrap) ─────────────────────
 
-export function ensureResponderKey(agentId: string): { secret: string; keyId: string } {
-  let row = lookupKey(agentId);
+// A self-managed agent: generate a keypair if unknown — the PUBLIC key goes in the registry, the
+// PRIVATE seal into the local keystore. Returns the private key to sign THIS agent's offer with, or
+// privateKey=null for an agent whose seal this deployment does not hold (remote-registered): such an
+// agent must supply its own signed attestation, the engine cannot sign on its behalf.
+export function ensureResponderKey(agentId: string): { privateKey: string | null; keyId: string } {
+  const row = lookupKey(agentId);
   if (!row) {
-    const { randomBytes } = require("crypto");
-    const secret = randomBytes(32).toString("hex");
+    const { publicKey, privateKey } = generateAgentKeypair();
     const keyId = `key-${agentId}-v0`;
     registerKey({
       agent_id: agentId,
-      hmac_secret: secret,
+      public_key: publicKey,
       public_key_id: keyId,
       trust_mask: 0xFFFF, // @rule:Bit10 — self-registered agents get limited default, not all-bits
       registered_at: new Date().toISOString(),
       source: "self",
     });
-    row = lookupKey(agentId)!;
+    storePrivateKey(agentId, privateKey);
+    return { privateKey, keyId };
   }
-  return { secret: row.hmac_secret, keyId: row.public_key_id };
+  return { privateKey: loadPrivateKey(agentId), keyId: row.public_key_id };
 }
 
 // ── Main handshake engine ─────────────────────────────────────────────────────
@@ -132,7 +136,7 @@ export async function conductHandshake(req: HandshakeRequest): Promise<Handshake
 
   // ── Primitive 2: ATTEST_OFFER — initiator ────────────────────────────────
   // Ensure initiator has a key (auto-register if unknown — Customer Zero allows this)
-  const { secret: initiatorSecret, keyId: initiatorKeyId } = ensureResponderKey(req.initiator.agent_id);
+  const { privateKey: initiatorPriv, keyId: initiatorKeyId } = ensureResponderKey(req.initiator.agent_id);
 
   // @rule:NLS-YK-008 known-revoked partner → REJECT immediately — symmetric: an initiator the
   // registry has marked revoked is refused too, not only a revoked responder. (A freshly
@@ -164,9 +168,23 @@ export async function conductHandshake(req: HandshakeRequest): Promise<Handshake
   const now = new Date();
   const expiresAt = new Date(now.getTime() + ttlSeconds * 1000).toISOString();
 
+  // The engine can only sign for an agent whose private seal it holds (NLS-002).
+  if (!initiatorPriv) {
+    const result = {
+      decision: "attestation_unverifiable" as const,
+      error: `No private key held locally for initiator '${req.initiator.agent_id}' — it must supply its own signed attestation (NLS-002)`,
+      policy_hash: ph, latency_ms: Math.round(performance.now() - t0), rule_ref: "NLS-002",
+    };
+    emitHandshakeSense("nallasetu.handshake.attestation_unverifiable", {
+      initiator_id: req.initiator.agent_id, responder_id: req.responder_id,
+      decision: result.decision, policy_hash: ph, latency_ms: result.latency_ms, rule_ref: result.rule_ref, error: result.error,
+    });
+    return result;
+  }
   const initiatorOfferBase: Omit<AttestOffer, "signature"> = {
     agent_id: req.initiator.agent_id,
     trust_mask: req.initiator.trust_mask,
+    mask_vocabulary: MASK_VOCABULARY,
     grade: req.initiator.grade ?? "B",
     format: ATTESTATION_FORMAT,
     issued_at: now.toISOString(),
@@ -176,7 +194,7 @@ export async function conductHandshake(req: HandshakeRequest): Promise<Handshake
   };
   const initiatorOffer: AttestOffer = {
     ...initiatorOfferBase,
-    signature: signAttest(initiatorOfferBase, initiatorSecret),
+    signature: signAttest(initiatorOfferBase, initiatorPriv),
   };
 
   // ── Primitive 2: ATTEST_OFFER — responder ────────────────────────────────
@@ -239,10 +257,26 @@ export async function conductHandshake(req: HandshakeRequest): Promise<Handshake
     }
   }
 
-  // Responder auto-generates its own attestation (self-attested, Customer Zero mode)
+  // The responder is signed with ITS OWN private seal, held in the local keystore (Customer-Zero /
+  // self-managed). A responder registered with a public key only (remote) cannot be signed here — it
+  // must supply its own signed attestation. NLS-002.
+  const responderPriv = loadPrivateKey(req.responder_id);
+  if (!responderPriv) {
+    const result = {
+      decision: "attestation_unverifiable" as const,
+      error: `No private key held locally for responder '${req.responder_id}' — it must supply its own signed attestation (NLS-002)`,
+      policy_hash: ph, latency_ms: Math.round(performance.now() - t0), rule_ref: "NLS-002",
+    };
+    emitHandshakeSense("nallasetu.handshake.attestation_unverifiable", {
+      initiator_id: req.initiator.agent_id, responder_id: req.responder_id,
+      decision: result.decision, policy_hash: ph, latency_ms: result.latency_ms, rule_ref: result.rule_ref, error: result.error,
+    });
+    return result;
+  }
   const responderOfferBase: Omit<AttestOffer, "signature"> = {
     agent_id: req.responder_id,
     trust_mask: responderKeyRow.trust_mask ?? 0xFFFF, // explicit registry value; default limited (not all-bits)
+    mask_vocabulary: MASK_VOCABULARY,
     grade: "B",
     format: ATTESTATION_FORMAT,
     issued_at: now.toISOString(),
@@ -252,11 +286,13 @@ export async function conductHandshake(req: HandshakeRequest): Promise<Handshake
   };
   const responderOffer: AttestOffer = {
     ...responderOfferBase,
-    signature: signAttest(responderOfferBase, responderKeyRow.hmac_secret),
+    signature: signAttest(responderOfferBase, responderPriv),
   };
 
-  // Verify both attestations — @rule:NLS-001 bilateral
-  if (!verifyAttest(initiatorOffer, initiatorSecret)) {
+  // Verify both attestations against the registry's PUBLIC keys — @rule:NLS-001 bilateral, NLS-002
+  // asymmetric. A row with no public_key (legacy HMAC-era) verifies false: there is no secret fallback.
+  const initiatorPub = lookupKey(req.initiator.agent_id)?.public_key ?? "";
+  if (!verifyAttest(initiatorOffer, initiatorPub)) {
     const result = {
       decision: "attestation_unverifiable" as const,
       error: "Initiator attestation signature invalid",
@@ -272,7 +308,7 @@ export async function conductHandshake(req: HandshakeRequest): Promise<Handshake
     });
     return result;
   }
-  if (!verifyAttest(responderOffer, responderKeyRow.hmac_secret)) {
+  if (!verifyAttest(responderOffer, responderKeyRow.public_key ?? "")) {
     const result = {
       decision: "attestation_unverifiable" as const,
       error: "Responder attestation signature invalid",
@@ -290,6 +326,20 @@ export async function conductHandshake(req: HandshakeRequest): Promise<Handshake
   }
 
   // ── Primitive 3: INTERSECT_PROPOSE ───────────────────────────────────────
+  // @rule:NLS-003 — an AND is an intersection only if bit i means the same on both sides. Refuse to
+  // intersect masks written in different vocabularies; the bits would not line up.
+  if (initiatorOffer.mask_vocabulary !== responderOffer.mask_vocabulary) {
+    const result = {
+      decision: "attestation_unverifiable" as const,
+      error: `Mask vocabulary mismatch: initiator='${initiatorOffer.mask_vocabulary}' responder='${responderOffer.mask_vocabulary}' — cannot intersect bitmasks across dialects (NLS-003)`,
+      policy_hash: ph, latency_ms: Math.round(performance.now() - t0), rule_ref: "NLS-003",
+    };
+    emitHandshakeSense("nallasetu.handshake.attestation_unverifiable", {
+      initiator_id: req.initiator.agent_id, responder_id: req.responder_id,
+      decision: result.decision, policy_hash: ph, latency_ms: result.latency_ms, rule_ref: result.rule_ref, error: result.error,
+    });
+    return result;
+  }
   // @rule:NLS-003 session_mask = A.mask AND B.mask AND scope.mask — never union
   const sessionMask = initiatorOffer.trust_mask & responderOffer.trust_mask & req.scope_mask;
 

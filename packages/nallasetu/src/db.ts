@@ -33,7 +33,8 @@ export function getDb(): Database {
   )`);
   _db.run(`CREATE TABLE IF NOT EXISTS key_registry (
     agent_id       TEXT PRIMARY KEY,
-    hmac_secret    TEXT NOT NULL,
+    hmac_secret    TEXT,
+    public_key     TEXT,
     public_key_id  TEXT NOT NULL,
     trust_mask     INTEGER NOT NULL DEFAULT 65535,
     registered_at  TEXT NOT NULL,
@@ -45,6 +46,15 @@ export function getDb(): Database {
   // @rule:NLS-YK-008 — revoked flag so a known-revoked partner can actually be rejected.
   // Additive migration for DBs created before this column existed (mirrors the trust_mask migration).
   try { _db.run(`ALTER TABLE key_registry ADD COLUMN revoked INTEGER NOT NULL DEFAULT 0`); } catch { /* column exists */ }
+  // @rule:NLS-002 asymmetric cutover (2026-10-08) — the registry now holds a PUBLIC key per agent.
+  // Additive, nullable: legacy rows (public_key NULL) are rejected at verify, not silently HMAC'd.
+  try { _db.run(`ALTER TABLE key_registry ADD COLUMN public_key TEXT`); } catch { /* column exists */ }
+  // Local keystore — the PRIVATE seals for agents THIS deployment operates. It is NOT the registry
+  // and is never returned by lookupKey(): a registry read exposes public keys only, so it cannot forge.
+  _db.run(`CREATE TABLE IF NOT EXISTS agent_private_keys (
+    agent_id    TEXT PRIMARY KEY,
+    private_key TEXT NOT NULL
+  )`);
   _db.run(`CREATE TABLE IF NOT EXISTS pramana_chain (
     id            INTEGER PRIMARY KEY AUTOINCREMENT,
     session_id    TEXT NOT NULL,
@@ -98,21 +108,36 @@ export function registerKey(row: KeyRegistryRow): void {
   // un-revoke by re-registering the same id (use reinstateKey for a deliberate, explicit reinstate).
   // A brand-new row starts revoked=0.
   db.run(
-    `INSERT INTO key_registry (agent_id, hmac_secret, public_key_id, trust_mask, registered_at, source, revoked)
-     VALUES (?, ?, ?, ?, ?, ?, 0)
+    `INSERT INTO key_registry (agent_id, public_key, hmac_secret, public_key_id, trust_mask, registered_at, source, revoked)
+     VALUES (?, ?, ?, ?, ?, ?, ?, 0)
      ON CONFLICT(agent_id) DO UPDATE SET
-       hmac_secret   = excluded.hmac_secret,
+       public_key    = excluded.public_key,
        public_key_id = excluded.public_key_id,
        trust_mask    = excluded.trust_mask,
        registered_at = excluded.registered_at,
        source        = excluded.source`,
-    [row.agent_id, row.hmac_secret, row.public_key_id, row.trust_mask ?? 65535, row.registered_at, row.source]
+    [row.agent_id, row.public_key ?? null, row.hmac_secret ?? null, row.public_key_id, row.trust_mask ?? 65535, row.registered_at, row.source]
   );
 }
 
 export function lookupKey(agentId: string): KeyRegistryRow | null {
-  // @rule:NLS-013 registry-mediated lookup — SELECT * surfaces `revoked` for the NLS-YK-008 check
+  // @rule:NLS-013 registry-mediated lookup — returns PUBLIC material only (no private key exists here).
+  // SELECT * surfaces `revoked` for the NLS-YK-008 check.
   return getDb().query("SELECT * FROM key_registry WHERE agent_id = ?").get(agentId) as KeyRegistryRow | null;
+}
+
+// ── Local keystore (private seals) — never exposed by the registry lookup ──────
+export function storePrivateKey(agentId: string, privateKeyPem: string): void {
+  getDb().run(
+    `INSERT INTO agent_private_keys (agent_id, private_key) VALUES (?, ?)
+     ON CONFLICT(agent_id) DO UPDATE SET private_key = excluded.private_key`,
+    [agentId, privateKeyPem],
+  );
+}
+
+export function loadPrivateKey(agentId: string): string | null {
+  const row = getDb().query("SELECT private_key FROM agent_private_keys WHERE agent_id = ?").get(agentId) as { private_key: string } | null;
+  return row ? row.private_key : null;
 }
 
 export function revokeKey(agentId: string): boolean {

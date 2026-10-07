@@ -89,6 +89,20 @@ security decisions and the real auth hook directly (no listener — hermetic).
 ./red-team/varuna-no-auth.battery.sh
 ```
 
+### `nallasetu-asymmetric` — shared HMAC → forgery + repudiation
+Cross-org attestations were signed with HMAC-SHA256 over a **shared secret** in the registry — so either
+party, or whoever held the registry, could forge the other's attestation, and neither could prove who
+signed. An `A & B` capability intersection is only sound if a signature proves A really is A. **Fixed in
+`@xshieldai/nallasetu` 0.2.0 — hard cutover to asymmetric:** each agent signs with its own Ed25519
+private key; the registry holds **public keys only**; private seals live in a local keystore the
+registry never returns. Plus a `mask_vocabulary` tag so an intersection only runs when bit *i* means the
+same on both sides. The full five-primitive battery (25 checks) stays green; this public probe proves
+the two crypto properties the review named (no forgery, no repudiation).
+
+```
+./red-team/nallasetu-asymmetric.battery.sh
+```
+
 ## Doctrine
 
 A finding is not closed because we understand it. It is closed when its red test refuses the exploit

@@ -1,15 +1,34 @@
 {
   "name": "@xshieldai/nallasetu",
-  "version": "0.1.2",
-  "description": "Nallasetu — Cross-org agent handshake protocol. TLS equivalent for agent authority negotiation.",
+  "version": "0.2.0",
+  "description": "Nallasetu \u2014 Cross-org agent handshake protocol. TLS equivalent for agent authority negotiation.",
   "type": "module",
   "license": "AGPL-3.0-only",
   "author": "Capt. Anil Sharma",
   "main": "src/server.ts",
-  "files": ["src", "README.md", "LICENSE"],
-  "keywords": ["agent", "agentic-security", "handshake", "capability", "trust", "bitmask", "ankr"],
-  "repository": { "type": "git", "url": "git+https://github.com/rocketlang/aegis.git", "directory": "packages/nallasetu" },
-  "publishConfig": { "access": "public", "provenance": true },
+  "files": [
+    "src",
+    "README.md",
+    "LICENSE"
+  ],
+  "keywords": [
+    "agent",
+    "agentic-security",
+    "handshake",
+    "capability",
+    "trust",
+    "bitmask",
+    "ankr"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/rocketlang/aegis.git",
+    "directory": "packages/nallasetu"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
   "scripts": {
     "start": "bun src/server.ts",
     "dev": "bun --watch src/server.ts",
