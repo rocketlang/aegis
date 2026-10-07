@@ -77,6 +77,18 @@ Installs the **published** `@xshieldai/aegis-guard` into a throwaway HOME and ru
 ./red-team/aegis-guard-self-mint-and-label.battery.sh
 ```
 
+### `varuna-no-auth` — open, cross-origin, unauthenticated ingest
+Varuna's listener bound `0.0.0.0`, set `CORS: '*'`, and had no auth on ingest — a *writer* anyone on
+the network could reach. **Fixed in `@xshieldai/varuna` 0.2.0 — safe by default:** loopback bind unless
+`HOST` is set, CORS off unless `CORS_ORIGIN` is set, and every route but `/health` requires
+`Authorization: Bearer <VARUNA_API_TOKEN>`. If it would be reachable off-box with no token the server
+**refuses to start**, unless an operator sets `VARUNA_ALLOW_OPEN=1` knowingly. The probe drives the real
+security decisions and the real auth hook directly (no listener — hermetic).
+
+```
+./red-team/varuna-no-auth.battery.sh
+```
+
 ## Doctrine
 
 A finding is not closed because we understand it. It is closed when its red test refuses the exploit

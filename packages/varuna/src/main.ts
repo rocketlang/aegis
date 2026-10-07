@@ -26,12 +26,19 @@ import { registerProtocolRoutes } from './protocol/routes.js';
 import { registerReportRoutes } from './report/routes.js';
 import { registerTAXIIRoutes } from './taxii/routes.js';
 import { registerTopologyRoutes } from './topology/routes.js';
+import { resolveHost, resolveCorsOrigin, resolveAuth, makeAuthHook } from './security.js';
 
 // ─── Port guard ───────────────────────────────────────────────────────────────
 const PORT = process.env['PORT'];
 if (!PORT) throw new Error('[xshieldai-varuna] PORT env not injected — use ankr-ctl to start');
 
-const HOST = process.env['HOST'] ?? '0.0.0.0';
+// ─── Listener security — safe by default (see security.ts) ─────────────────────
+const HOST = resolveHost(process.env);
+const auth = resolveAuth(process.env, HOST);
+if (auth.mode === 'refuse') {
+  // Fail LOUD: never start an off-box, unauthenticated ingest listener.
+  throw new Error(`[xshieldai-varuna] refusing to start — ${auth.reason}`);
+}
 
 // ─── Server ───────────────────────────────────────────────────────────────────
 const app = Fastify({
@@ -45,9 +52,21 @@ const app = Fastify({
 });
 
 await app.register(cors, {
-  origin: process.env['CORS_ORIGIN'] ?? '*',
+  origin: resolveCorsOrigin(process.env), // OFF by default; set CORS_ORIGIN to open it
   methods: ['GET', 'POST', 'OPTIONS'],
 });
+
+// @rule:VRN-006 — ingest is a writer; every route but /health requires a bearer token when one is
+// configured. With no token the server only reached here by being loopback-bound or explicitly
+// opened (resolveAuth), so there is nothing to enforce; it warns instead of waving a public writer through.
+if (auth.mode === 'token') {
+  app.addHook('onRequest', makeAuthHook(auth.token!));
+} else {
+  app.log.warn(
+    `[xshieldai-varuna] running WITHOUT API auth (${auth.reason ?? 'loopback-bound, local-dev convenience'}). ` +
+    `Set VARUNA_API_TOKEN to require a bearer token.`,
+  );
+}
 
 // @rule:VRN-006 Least-privilege applies to API surface too — tight rate limit
 await app.register(rateLimit, {
