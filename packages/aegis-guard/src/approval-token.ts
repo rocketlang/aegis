@@ -23,6 +23,7 @@ export interface ApprovalTokenPayload {
   issued_by?: string;
   nonce?: string;
   status?: 'approved' | 'revoked' | 'denied';
+  action_digest?: string; // @rule:AEG-E-016 — binds the token to the CONCRETE act, not just its label
   [key: string]: unknown;
 }
 
@@ -252,4 +253,45 @@ export function verifyScopedApprovalToken(
   }
 
   return payload;
+}
+
+// @rule:AEG-E-016 — bind an approval to the CONCRETE act, not just its label.
+// An independent review (Oct 2026) showed a token scoped only to service/capability/operation
+// approves ANY instance of that operation: one 'drop_table' approval drops any table. The fix is a
+// digest of the concrete action (which table, which amount, which recipient) carried in the signed
+// payload as action_digest; the gate recomputes it from the act in hand and refuses a mismatch.
+// This rides the existing, hardened verifyScopedApprovalToken (a field with no token value refuses),
+// so a token minted without an action_digest cannot pass the action-bound check at all.
+
+// Deterministic JSON: keys sorted, so {a,b} and {b,a} digest the same.
+function stableStringify(v: unknown): string {
+  if (v === null || typeof v !== 'object') return JSON.stringify(v) ?? 'null';
+  if (Array.isArray(v)) return '[' + v.map(stableStringify).join(',') + ']';
+  const o = v as Record<string, unknown>;
+  return '{' + Object.keys(o).sort().map((k) => JSON.stringify(k) + ':' + stableStringify(o[k])).join(',') + '}';
+}
+
+// SHA-256 of the canonical action. The caller owns what 'the action' is; the SDK never names domain concepts.
+export function actionDigest(action: unknown): string {
+  return createHash('sha256').update(stableStringify(action)).digest('hex');
+}
+
+// Mint an approval already bound to a concrete action (adds action_digest to the signed payload).
+export function mintActionApprovalToken(payload: ApprovalTokenPayload, action: unknown): string {
+  return mintApprovalToken({ ...payload, action_digest: actionDigest(action) });
+}
+
+// Verify an approval against the concrete action in hand. The token MUST carry a matching action_digest;
+// a label-only token (no action_digest) is refused here, closing "one approval fits every instance".
+export function verifyActionApprovalToken(
+  token: string,
+  expectedServiceId: string,
+  expectedCapability: string,
+  expectedOperation: string,
+  action: unknown,
+): ApprovalTokenPayload {
+  return verifyScopedApprovalToken(
+    token, expectedServiceId, expectedCapability, expectedOperation,
+    { action_digest: actionDigest(action) },
+  );
 }
