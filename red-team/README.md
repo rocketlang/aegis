@@ -103,6 +103,20 @@ the two crypto properties the review named (no forgery, no repudiation).
 ./red-team/nallasetu-asymmetric.battery.sh
 ```
 
+### `egress-fail-closed` — the egress firewall failed open when the cgroup join failed
+The kernel prepares an egress cgroup and attaches the BPF firewall, then the launcher joins the agent
+into that cgroup before exec. Before the fix, if that join failed the launcher logged a warning and
+**exec'd the agent anyway** — an unconstrained run that looked constrained. **Fixed in
+`@xshieldai/agent-kernel` 2.2.0 — fail closed:** a failed join now **refuses to exec**, unless the
+operator declared an unconstrained run (`--allow-unconstrained-egress`, propagated as
+`KAVACHOS_ALLOW_UNCONSTRAINED_EGRESS`). The probe drives the real `_join_egress_cgroup()` with a bad
+cgroup path — hermetic, no root/BPF. (The *full* BPF enforcement — that a non-allowlisted connection is
+actually blocked — is proved separately on a disposable real-kernel runner.)
+
+```
+./red-team/egress-fail-closed.battery.sh
+```
+
 ## Doctrine
 
 A finding is not closed because we understand it. It is closed when its red test refuses the exploit

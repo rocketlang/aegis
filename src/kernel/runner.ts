@@ -365,7 +365,14 @@ export async function runWithKernel(
   // @rule:KOS-051 zero agent code change: redirect all LLM API calls through kavachos-proxy
   // If KAVACHOS_PROXY_URL is set (proxy is running), inject base URL overrides so the agent
   // uses the proxy without any code changes. Falls back to direct API if proxy not set.
-  const egressEnv: NodeJS.ProcessEnv = egressCgroup ? { KAVACHOS_EGRESS_CGROUP: egressCgroup } : {};
+  const egressEnv: NodeJS.ProcessEnv = egressCgroup
+    ? {
+        KAVACHOS_EGRESS_CGROUP: egressCgroup,
+        // @rule:KOS-040 — the launcher fails CLOSED if it cannot join the cgroup; propagate the
+        // same deliberate opt-out the arm path honours so "unconstrained is acceptable" is one decision.
+        ...(opts.allowUnconstrainedEgress ? { KAVACHOS_ALLOW_UNCONSTRAINED_EGRESS: "1" } : {}),
+      }
+    : {};
   const proxyUrl = process.env.KAVACHOS_PROXY_URL ?? null;
   const proxyEnvOverrides: NodeJS.ProcessEnv = proxyUrl ? {
     ANTHROPIC_BASE_URL:    proxyUrl,

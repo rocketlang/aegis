@@ -745,9 +745,17 @@ def _join_egress_cgroup() -> None:
         with open(os.path.join(cg, "cgroup.procs"), "w") as f:
             f.write(str(os.getpid()))
     except Exception as e:
-        # Egress is defence in depth; failing to join must not stop the agent, but it
-        # must never pass silently either, or an unconstrained run looks constrained.
-        sys.stderr.write(f"[kavachos:egress] JOIN FAILED ({cg}): {e} — this agent is NOT egress-constrained\n")
+        # @rule:KOS-040 egress fail-CLOSED (2026-10-08, review finding). The cgroup was prepared and
+        # the BPF program attached, so this agent is MEANT to be egress-constrained. If it cannot
+        # join, it must NOT run unconstrained — that is the open door the review named (an
+        # unconstrained run that looked constrained). Refuse to exec, unless the operator declared an
+        # unconstrained run up front (the same flag the arm path honours, propagated by the runner).
+        allow = os.environ.get("KAVACHOS_ALLOW_UNCONSTRAINED_EGRESS", "") in ("1", "true", "yes")
+        if allow:
+            sys.stderr.write(f"[kavachos:egress] JOIN FAILED ({cg}): {e} — proceeding UNCONSTRAINED by --allow-unconstrained-egress\n")
+            return
+        sys.stderr.write(f"[kavachos:egress] JOIN FAILED ({cg}): {e} — REFUSING TO EXEC the agent (egress fail-closed). Pass --allow-unconstrained-egress to accept an unconstrained run.\n")
+        sys.exit(3)
 
 
 def main() -> None:
