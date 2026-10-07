@@ -43,26 +43,15 @@ jobs:
           test -f dist/main.js || { echo "dist/main.js missing after build — refusing"; exit 1; }
       - name: Show what would ship
         run: npm pack --dry-run
-      # One-time first publish: a granular NPM_TOKEN (non-bypass-2FA) authenticates, --provenance
-      # attests from this public repo. After the package exists, switch to tokenless trusted publishing.
-      - name: Publish to npm (token for first publish, with provenance)
+      # Staged publish: a stage-capable NPM_TOKEN submits the version to a staging area (never needs 2FA,
+      # creates the new package), with provenance. A human then approves it with 2FA (npm UI / npm stage approve).
+      - name: Stage publish to npm (provenance; approve with 2FA to go live)
         if: github.ref_type == 'tag'
         env:
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
           echo "//registry.npmjs.org/:_authToken=${NPM_TOKEN}" > "$HOME/.npmrc"
-          npm publish --provenance --access public
-      - name: Confirm the attestation is on the registry
+          npm stage publish --provenance --access public
+      - name: Staged — awaiting human approval
         if: github.ref_type == 'tag'
-        run: |
-          NAME="@xshieldai/varuna"; PKG=$(node -p "require('./package.json').version"); ENC=$(printf '%s' "$NAME" | sed 's#/#%2f#')
-          URL="https://registry.npmjs.org/-/npm/v1/attestations/$ENC@$PKG"
-          for i in $(seq 1 90); do
-            L=$(curl -s -o /dev/null -w '%{http_code}' "https://registry.npmjs.org/$ENC/$PKG")
-            if [ "$L" = "200" ]; then
-              for j in $(seq 1 18); do curl -sf "$URL" | grep -q 'slsa.dev/provenance' && { echo "provenance present"; exit 0; }; echo "listed; waiting"; sleep 10; done
-              echo "PUBLISHED WITHOUT PROVENANCE"; exit 1
-            fi
-            echo "not listed yet ($L)"; sleep 10
-          done
-          echo "COULD NOT CONFIRM"; exit 1
+        run: echo "@xshieldai/varuna@$(node -p "require('./package.json').version") STAGED. Approve it with 2FA at npmjs.com → Staged Packages (or 'npm stage approve') to publish it with provenance."
