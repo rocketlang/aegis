@@ -1,0 +1,56 @@
+# aegis red-team
+
+Runnable red tests that reproduce the findings of the independent security review (Andrey Lazarev,
+October 2026) as exploits against our own code. They are public on purpose: a security claim you cannot
+run is a claim you should not trust.
+
+**How to read a result.** Each battery prints one line per check:
+
+- `GAP` — the exploit **succeeded**. The battery exits non-zero. It stays RED until the code is fixed.
+- `safe` — the exploit was refused. When every check is `safe`, the battery exits `0`.
+
+A battery is written to go **green only when the fix lands** — not when the fix is described, and not
+when a commit is merged, but when the behaviour changes in the package you can install. A fix is always a
+URL: the version on the registry (with its provenance) and the commit that made it.
+
+Exit codes: `0` all closed · `1` gap(s) reproduced (RED until fixed) · `3` broke (could not run).
+
+## Batteries
+
+### `point1-self-approval` — the approval authority at the agent's own uid
+**Finding (deepest, review point 1).** The thing that approves an action and the agent whose action is
+approved run under the same uid, so the agent can approve itself. Reproduced against the destructive
+gate: a thread at the agent's own uid writes the one-time-approval file `~/.aegis/destructive-approvals.json`,
+and the gate honours it — no person, no signature. It drives the exact gate expression at
+`src/cli/commands/check-destructive.ts:170`.
+
+```
+bun red-team/point1-self-approval.probe.ts
+# or: ./red-team/point1-self-approval.battery.sh
+```
+
+Status: **RED.** Goes green when the approver moves off the agent's uid (a separate-uid supervisor) or
+the approval is signed by a key the agent cannot read (hardware-bound). Tracked in the public
+[Fixes landed](https://ankr.in/xshield-self-audit.html#fixes) list.
+
+### `aegis-guard-self-mint-and-label` — self-mint (point 1) and label-not-act (point 4)
+Installs the **published** `@xshieldai/aegis-guard` into a throwaway HOME and runs two exploits:
+
+- **P1 self-mint** — an agent at the signer's own uid reads `~/.aegis/approval-signing.key` and mints its
+  own approval; `verify` accepts it. **RED** until the signing authority moves off the agent's uid.
+- **P4 label-not-act** — a token binds to a label (service/capability/operation), not the concrete
+  arguments, so one `drop_table` approval authorises dropping *any* table. **Fixed** in
+  [`@xshieldai/aegis-guard` 0.5.0](https://www.npmjs.com/package/@xshieldai/aegis-guard/v/0.5.0)
+  (commit [`ed6dc4a`](https://github.com/rocketlang/aegis/commit/ed6dc4a877def0b1654568ce6e027357ab75295f)):
+  a digest of the concrete arguments now sits in the signed payload. This check flips to `safe` when the
+  battery is run against 0.5.0 or later.
+
+```
+./red-team/aegis-guard-self-mint-and-label.battery.sh
+```
+
+## Doctrine
+
+A finding is not closed because we understand it. It is closed when its red test refuses the exploit
+against an installed, versioned package — and the row in [Fixes landed](https://ankr.in/xshield-self-audit.html#fixes)
+links to that version and the commit. We do not adjust a test to make a release pass.
