@@ -43,15 +43,8 @@ jobs:
           test -f dist/main.js || { echo "dist/main.js missing after build — refusing"; exit 1; }
       - name: Show what would ship
         run: npm pack --dry-run
-      # Staged publish: a stage-capable NPM_TOKEN submits the version to a staging area (never needs 2FA,
-      # creates the new package), with provenance. A human then approves it with 2FA (npm UI / npm stage approve).
-      - name: Stage publish to npm (provenance; approve with 2FA to go live)
+      # Tokenless OIDC trusted publishing — requires a Trusted Publisher on npmjs.com for @xshieldai/varuna
+      # (GitHub Actions · rocketlang/aegis · release-varuna.yml). Publishes directly with provenance, no token.
+      - name: Publish to npm (OIDC trusted publishing, with provenance)
         if: github.ref_type == 'tag'
-        env:
-          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
-        run: |
-          echo "//registry.npmjs.org/:_authToken=${NPM_TOKEN}" > "$HOME/.npmrc"
-          npm stage publish --provenance --access public
-      - name: Staged — awaiting human approval
-        if: github.ref_type == 'tag'
-        run: echo "@xshieldai/varuna@$(node -p "require('./package.json').version") STAGED. Approve it with 2FA at npmjs.com → Staged Packages (or 'npm stage approve') to publish it with provenance."
+        run: npm publish --provenance --access public
