@@ -131,10 +131,26 @@ disposable host.
 ./red-team/exec-race.battery.sh
 ```
 
-Status: **RED, open.** There is no safe way to allow a pointer-argument syscall via `CONTINUE`; closure
-is architectural — enforce the exec allowlist with a mechanism that is not re-read (an LSM such as
-Landlock/AppArmor exec confinement, or a read-only bind-mount of only the allowlisted binaries), with
-`CONTINUE` kept as defence-in-depth, not the boundary. Measured on a disposable real-kernel host.
+Status: **closed in `@xshieldai/agent-kernel` 2.3.0 — Landlock.** There is no safe way to allow a
+pointer-argument syscall via `CONTINUE`, so the exec allowlist is now enforced with **Landlock**: before
+exec the launcher restricts `EXECUTE` to the allowlisted binaries (per-file rules) plus the runtime
+library/loader dirs (so dynamic linking works), inherited across exec and irrevocable. The kernel checks
+the *actual* file it opens, so a pointer swap buys nothing. `CONTINUE` stays as defence-in-depth. The
+seccomp-layer probe above remains RED by design (that layer alone cannot bind a pointer arg); the
+closure is proved by `exec-race-landlock` below.
+
+### `exec-race-landlock` — the closure: Landlock binds the real file
+A child applies the real `_apply_landlock_exec_confinement` (allowlisting one binary), then tries to
+exec a NON-allowlisted binary — the kernel denies it (`EACCES`), while the allowlisted one still runs.
+Landlock `restrict_self` is per-process, so each attempt is a `fork()`ed child and only that child is
+confined — safe on any host, no root.
+
+```
+./red-team/exec-race-landlock.battery.sh
+```
+
+Status: **green** against this Landlock kernel (6.8). On a host without Landlock the launcher keeps the
+seccomp exec gate and says so (`KAVACHOS_LANDLOCK_REQUIRE=1` makes a missing Landlock fail closed).
 
 ## Doctrine
 

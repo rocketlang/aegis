@@ -758,6 +758,81 @@ def _join_egress_cgroup() -> None:
         sys.exit(3)
 
 
+# ── Landlock exec confinement (KOS-046, 2026-10-08, review finding "exec-race") ──────────────────
+# seccomp CONTINUE cannot bind a pointer-argument syscall: the kernel RE-READS the execve path after
+# the supervisor's check, so a thread can swap it (TOCTOU). Landlock enforces EXECUTE on the ACTUAL
+# file the kernel opens, is inherited across exec and cannot be dropped — so a pointer swap buys
+# nothing. When strict_exec is active we apply it before exec: EXECUTE is allowed only on the
+# allowlisted binaries (per-FILE rules, so a non-allowlisted /usr/bin tool stays denied) plus the
+# runtime library/loader dirs (dir rules — shared libs load via mmap PROT_EXEC, which Landlock's
+# EXECUTE right also governs). Everything else — a dropped /tmp binary, a swapped-in tool — is denied
+# by the kernel. seccomp CONTINUE stays as defence-in-depth; Landlock is the boundary.
+_NR_LANDLOCK_CREATE   = 444
+_NR_LANDLOCK_ADD      = 445
+_NR_LANDLOCK_RESTRICT = 446
+LANDLOCK_ACCESS_FS_EXECUTE = 1 << 0
+LANDLOCK_RULE_PATH_BENEATH = 1
+PR_SET_NO_NEW_PRIVS = 38
+O_PATH_FLAG = 0o10000000
+# Runtime dirs whose contents must stay executable (shared libs via mmap, the loader, interpreter
+# helpers). NOT /usr/bin or /bin — those hold the tools the allowlist gates per-file.
+_LANDLOCK_LIB_DIRS = ["/lib", "/lib64", "/usr/lib", "/usr/lib64", "/usr/local/lib", "/usr/libexec"]
+
+def _apply_landlock_exec_confinement(agent_argv0: Optional[str] = None) -> None:
+    import shutil
+    if _EXEC_ALLOWLIST is None:
+        return  # strict_exec not active — nothing to confine
+    require = os.environ.get("KAVACHOS_LANDLOCK_REQUIRE", "") in ("1", "true", "yes")
+    _libc.syscall.restype = ctypes.c_long
+    _libc.prctl(PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0)  # required before restrict_self
+
+    attr = struct.pack("<Q", LANDLOCK_ACCESS_FS_EXECUTE)  # handled_access_fs only (FS-only ruleset)
+    abuf = ctypes.create_string_buffer(attr, len(attr))
+    rs_fd = _libc.syscall(ctypes.c_long(_NR_LANDLOCK_CREATE), abuf, ctypes.c_size_t(len(attr)), ctypes.c_uint(0))
+    if rs_fd < 0:
+        m = f"[kavachos:landlock] exec confinement unavailable (create_ruleset errno={ctypes.get_errno()})"
+        if require:
+            sys.stderr.write(m + " — KAVACHOS_LANDLOCK_REQUIRE set, refusing to exec\n"); sys.exit(3)
+        sys.stderr.write(m + " — seccomp exec gate only (TOCTOU residual on the allowlisted path)\n")
+        return
+
+    def allow_exec(path: str) -> None:
+        try:
+            fd = os.open(path, O_PATH_FLAG)
+        except OSError:
+            return  # a path that isn't present cannot be executed anyway
+        try:
+            pb = struct.pack("<Qi", LANDLOCK_ACCESS_FS_EXECUTE, fd)  # landlock_path_beneath_attr (packed)
+            pbuf = ctypes.create_string_buffer(pb, len(pb))
+            if _libc.syscall(ctypes.c_long(_NR_LANDLOCK_ADD), ctypes.c_int(rs_fd),
+                             ctypes.c_long(LANDLOCK_RULE_PATH_BENEATH), pbuf, ctypes.c_uint(0)) != 0:
+                sys.stderr.write(f"[kavachos:landlock] add_rule {path} errno={ctypes.get_errno()}\n")
+        finally:
+            os.close(fd)
+
+    bins = set(_EXEC_ALLOWLIST.get("_paths", set()))
+    a0 = shutil.which(agent_argv0) if agent_argv0 else None  # the agent's own command must be runnable
+    if a0:
+        bins.add(a0)
+    for b in bins:
+        allow_exec(b)
+    for p in _EXEC_ALLOWLIST.get("_prefixes", []):
+        allow_exec(p)
+    for d in _LANDLOCK_LIB_DIRS:
+        if os.path.isdir(d):
+            allow_exec(d)
+
+    if _libc.syscall(ctypes.c_long(_NR_LANDLOCK_RESTRICT), ctypes.c_int(rs_fd), ctypes.c_uint(0)) != 0:
+        m = f"[kavachos:landlock] restrict_self errno={ctypes.get_errno()}"
+        os.close(rs_fd)
+        if require:
+            sys.stderr.write(m + " — refusing to exec\n"); sys.exit(3)
+        sys.stderr.write(m + " — seccomp exec gate only\n")
+        return
+    os.close(rs_fd)
+    sys.stderr.write(f"[kavachos:landlock] exec confinement active — {len(bins)} binary rule(s) + runtime dirs\n")
+
+
 def main() -> None:
     args = sys.argv[1:]
 
@@ -818,6 +893,7 @@ def main() -> None:
             sys.exit(1)
         sys.stderr.write(f"[kavachos] seccomp active (no notify tier)\n")
         _join_egress_cgroup()
+        _apply_landlock_exec_confinement(exec_args[0])  # KOS-046 — non-TOCTOU exec boundary
         try:
             os.execvp(exec_args[0], exec_args)
         except FileNotFoundError:
@@ -853,6 +929,7 @@ def main() -> None:
             f"[kavachos] seccomp active (Phase 1D — notify tier live, supervisor pid={os.getppid()})\n"
         )
 
+        _apply_landlock_exec_confinement(exec_args[0])  # KOS-046 — non-TOCTOU exec boundary
         try:
             os.execvp(exec_args[0], exec_args)
         except FileNotFoundError:

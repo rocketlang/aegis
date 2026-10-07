@@ -19,7 +19,7 @@
 // Single source of truth for the version inside the bundle. The build refuses to run
 // if this disagrees with package.json — it silently drifted from 2.0.0 for five months,
 // so `kavachos version` reported a release that was no longer being shipped.
-const KAVACHOS_VERSION = "2.2.0";
+const KAVACHOS_VERSION = "2.3.0";
 const command = Bun.argv[2] || "help";
 const subCommand = Bun.argv[3];
 const args = Bun.argv.slice(3);

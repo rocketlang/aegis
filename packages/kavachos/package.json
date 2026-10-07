@@ -1,6 +1,6 @@
 {
   "name": "@xshieldai/agent-kernel",
-  "version": "2.2.0",
+  "version": "2.3.0",
   "description": "Agent Kernel (formerly KavachOS) \u2014 seccomp-bpf + Falco kernel enforcement for AI agents. Core kernel-enforcement primitive of the xShieldAI Posture Suite.",
   "license": "AGPL-3.0-only",
   "type": "module",
