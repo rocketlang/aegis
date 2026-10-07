@@ -43,12 +43,15 @@ jobs:
           test -f dist/main.js || { echo "dist/main.js missing after build — refusing"; exit 1; }
       - name: Show what would ship
         run: npm pack --dry-run
-      # OIDC trusted publishing — no token. Requires a Trusted Publisher configured on npmjs.com for
-      # @xshieldai/varuna (GitHub Actions · rocketlang/aegis · release-varuna.yml). Publishes directly
-      # with provenance, no staging.
-      - name: Publish to npm (OIDC trusted publishing, with provenance)
+      # One-time first publish: a granular NPM_TOKEN (non-bypass-2FA) authenticates, --provenance
+      # attests from this public repo. After the package exists, switch to tokenless trusted publishing.
+      - name: Publish to npm (token for first publish, with provenance)
         if: github.ref_type == 'tag'
-        run: npm publish --provenance --access public
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          echo "//registry.npmjs.org/:_authToken=${NPM_TOKEN}" > "$HOME/.npmrc"
+          npm publish --provenance --access public
       - name: Confirm the attestation is on the registry
         if: github.ref_type == 'tag'
         run: |
