@@ -61,8 +61,11 @@ try {
     ? `the verified token carries a concrete-argument field — bound to the act`
     : `the verified 'drop_table' token carries no concrete-argument field (${argFields.join('/')}) — one approval drops ANY table`;
 } catch (e) {
+  const msg = (e as Error).message;
   p4Worked = false;
-  p4Detail = `verify refused the label-only token — ${(e as Error).message.slice(0, 80)}… (action-binding is enforced)`;
+  p4Detail = /action_digest|concrete action/i.test(msg)
+    ? `verify refused the label-only token — action-binding is enforced (${msg.slice(0, 60)}…)`
+    : `the label-only exploit could not run — ${msg.slice(0, 80)}… (blocked before a loose token could be made; verify-side enforcement is pinned by repo test GH-109)`;
 }
 R('P4 label-not-act', p4Worked, p4Detail);
 
