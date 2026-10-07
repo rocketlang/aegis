@@ -58,7 +58,13 @@ sudo AEGIS_DISPOSABLE_HOST=1 ./red-team/point1-uid-boundary.disposable.sh
 Installs the **published** `@xshieldai/aegis-guard` into a throwaway HOME and runs two exploits:
 
 - **P1 self-mint** — an agent at the signer's own uid reads `~/.aegis/approval-signing.key` and mints its
-  own approval; `verify` accepts it. **RED** until the signing authority moves off the agent's uid.
+  own approval; `verify` accepts it. **Fixed in the repo, ships in 0.6.0** at the next weekly release:
+  minting is now an authority action — a non-authority process is refused (`AEGIS_MINT_AUTHORITY=1` declares
+  the authority; `AEGIS_ALLOW_INSECURE_LOCAL_MINT=1` is the explicit opt-out), and key generation is gated
+  the same way. Default-safe: an agent that merely calls the SDK cannot mint or make a key. *Honest ceiling:*
+  on one uid a determined agent can set the env itself — the real boundary is the key living under a
+  different uid the agent cannot read; this gate stops the lazy path, the OS stops the determined one. Pinned
+  by repo test `GH-101b`. This published battery stays **GAP against 0.5.0** and flips when 0.6.0 is live.
 - **P4 label-not-act** — a token binds to a label (service/capability/operation), not the concrete
   arguments, so one `drop_table` approval authorises dropping *any* table. **Partial** in
   [`@xshieldai/aegis-guard` 0.5.0](https://www.npmjs.com/package/@xshieldai/aegis-guard/v/0.5.0)

@@ -62,6 +62,9 @@ export {
   getPublicKeyPem,
   signApprovalJwt,
   verifyApprovalJwt,
+  mintAllowed,
+  MINT_AUTHORITY_ENV,
+  INSECURE_LOCAL_MINT_ENV,
 } from './signing.js';
 
 export {

@@ -60,6 +60,8 @@ function on<T>(boxDir: string, fn: () => T, envPem?: string): T {
   try { return fn(); } finally { process.env.AEGIS_DIR = AUTH; delete process.env.AEGIS_APPROVAL_PUBKEY_PEM; }
 }
 
+// v0.6.0: minting/key-generation is an authority action; this suite is the authority.
+process.env.AEGIS_MINT_AUTHORITY = '1';
 const AUTH_PUB = on(AUTH, () => ensureSigningKeypair().publicKeyPem);
 const AUTH_KEY = readFileSync(join(AUTH, 'approval-signing.key'), 'utf8');
 const other = generateKeyPairSync('ed25519');
@@ -101,6 +103,22 @@ afterEach(() => {
 describe('§H1 which key a box trusts (AEG-HG-2B-007)', () => {
   it('GH-101: the authority mints and verifies', () => {
     expect(verify(on(AUTH, () => mintApprovalToken(base() as any))).service_id).toBe('svc');
+  });
+
+  it('GH-101b: minting is an authority action — a non-authority process is refused (review point 1, key leg)', () => {
+    const saved = process.env.AEGIS_MINT_AUTHORITY;
+    delete process.env.AEGIS_MINT_AUTHORITY; // an ordinary agent, not the authority
+    try {
+      // the signing key is present on this box, yet a non-authority process still cannot mint
+      expect(() => on(AUTH, () => mintApprovalToken(base() as any))).toThrow(/authority/i);
+      // the explicit opt-out (AEGIS_ALLOW_INSECURE_LOCAL_MINT) restores single-process minting
+      process.env.AEGIS_ALLOW_INSECURE_LOCAL_MINT = '1';
+      try { expect(typeof on(AUTH, () => mintApprovalToken(base() as any))).toBe('string'); }
+      finally { delete process.env.AEGIS_ALLOW_INSECURE_LOCAL_MINT; }
+    } finally {
+      if (saved === undefined) delete process.env.AEGIS_MINT_AUTHORITY;
+      else process.env.AEGIS_MINT_AUTHORITY = saved;
+    }
   });
 
   it('GH-102: a box with the public file only verifies the authority\'s token', () => {

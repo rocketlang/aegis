@@ -27,6 +27,25 @@ export const APPROVAL_JWT_ALG = 'EdDSA';
 const KEY_FILE = 'approval-signing.key'; // PKCS8 PEM (private) — mode 600
 const PUB_FILE = 'approval-signing.pub'; // SPKI PEM (public) — mode 644
 
+// @rule:KGT-002 — minting is an AUTHORITY action; separation is the default (review point 1,
+// key leg, 2026-10-07). An ordinary agent process VERIFIES; it does not mint, and it does not
+// make a signing key. Only the designated authority (the AEGIS dashboard, ideally under its own
+// uid) mints — it declares itself with AEGIS_MINT_AUTHORITY=1. A single-process dev box that
+// knowingly accepts the risk sets AEGIS_ALLOW_INSECURE_LOCAL_MINT=1 (explicit opt-out).
+//
+// HONEST CEILING: on one uid a determined agent can set the env itself. The real boundary is the
+// private key living under a DIFFERENT uid the agent cannot read; this gate stops the lazy path
+// (an agent that mints just by calling the SDK), and the OS stops the determined one.
+export const MINT_AUTHORITY_ENV = 'AEGIS_MINT_AUTHORITY';
+export const INSECURE_LOCAL_MINT_ENV = 'AEGIS_ALLOW_INSECURE_LOCAL_MINT';
+const envTrue = (v?: string): boolean => v === '1' || v === 'true' || v === 'yes';
+export const mintAllowed = (): boolean =>
+  envTrue(process.env[MINT_AUTHORITY_ENV]) || envTrue(process.env[INSECURE_LOCAL_MINT_ENV]);
+const MINT_REFUSAL =
+  'KGT-002: minting is an authority action — this process is not the approval authority. Agents verify, ' +
+  'they do not mint. Run the authority (the AEGIS dashboard, ideally under its own uid) with ' +
+  'AEGIS_MINT_AUTHORITY=1, or set AEGIS_ALLOW_INSECURE_LOCAL_MINT=1 to accept single-process minting.';
+
 function aegisDir(): string {
   return process.env.AEGIS_DIR ?? join(process.env.HOME ?? homedir(), '.aegis');
 }
@@ -102,6 +121,8 @@ function loadKeys(): Keys {
 // replace the authority's key with the box's own, and the box would then accept approvals
 // it signed itself.
 export function ensureSigningKeypair(): { publicKeyPem: string } {
+  // Making a signing key is an authority action, not something an agent does by calling the SDK.
+  if (!mintAllowed()) throw new Error(MINT_REFUSAL);
   const dir = aegisDir();
   const keyPath = join(dir, KEY_FILE);
   const pubPath = join(dir, PUB_FILE);
@@ -145,6 +166,7 @@ function b64url(buf: Buffer | string): string {
 // It never makes a key: before v0.4.0 it did, on any box, at the first mint. The authority
 // calls ensureSigningKeypair() once, at boot.
 export function signApprovalJwt(payload: Record<string, unknown>): string {
+  if (!mintAllowed()) throw new Error(MINT_REFUSAL);
   const { priv, conflict } = loadKeys();
   if (!priv) {
     throw new Error(

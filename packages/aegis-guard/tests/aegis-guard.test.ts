@@ -35,7 +35,9 @@ import {
 } from '../src/index.js';
 import { __resetSigningCache, ensureSigningKeypair } from '../src/signing.js';
 
-// v0.4.0: minting no longer makes a key. The suite plays the authority, so it makes one.
+// v0.4.0: minting no longer makes a key. v0.6.0: minting is an authority action — the suite plays
+// the authority, so it declares itself (AEGIS_MINT_AUTHORITY) and makes one.
+process.env.AEGIS_MINT_AUTHORITY = '1';
 ensureSigningKeypair();
 
 // ─── §1 errors ───────────────────────────────────────────────────────────────
