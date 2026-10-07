@@ -4,6 +4,14 @@
       "publishes": ["@xshieldai/agent-kernel"],
       "reason": "open-core kernel package release — tag-triggered, npm --provenance; the pipeline's one sanctioned outward write (AFW-012 applied to CI)"
     },
+    "release-varuna.yml": {
+      "publishes": ["@xshieldai/varuna"],
+      "reason": "maritime OT posture service release — tag-triggered (varuna-v*), npm publish --provenance via trusted publishing; switched from staging to tokenless OIDC 2026-10-08"
+    },
+    "release-nallasetu.yml": {
+      "publishes": ["@xshieldai/nallasetu"],
+      "reason": "cross-org handshake service release — tag-triggered (nallasetu-v*), npm publish --provenance via trusted publishing; switched from staging to tokenless OIDC 2026-10-08"
+    },
     "release-package.yml": {
       "publishes": ["@xshieldai/aegis-guard", "@xshieldai/aegis-suite", "@xshieldai/chitta-detect", "@xshieldai/hanumang-mandate", "@xshieldai/lakshmanrekha", "@xshieldai/n8n-nodes"],
       "reason": "one tag-triggered release workflow for the six packages under packages/ — npm --provenance via trusted publishing; the package is resolved from the tag prefix against a fixed list; a manual run is a rehearsal and publishes nothing"
