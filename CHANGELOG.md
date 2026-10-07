@@ -4,6 +4,18 @@ All notable changes to AEGIS will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [2.9.0] — 2026-10-07
+
+### Changed — destructive-gate approvals: separation by default (security, KAV-098)
+
+Closes review finding "point 1" (self-approval) for the destructive gate. The one-time approval that lets a refused destructive command through is no longer a file the agent's own uid can write.
+
+- **Separation is the default.** With no approver configured, the gate honours **no** same-account override at all — an agent cannot approve its own command on any box. The worst case is "you cannot override until an approver is set up," the safe failure.
+- **Hardened mode** — a separate-uid approver daemon (`aegis approver-daemon`, run as a dedicated account) owns the store and signs over two unix sockets: a consume socket agents may ask on, and an approve socket only a person (in the approver group) can open. The gate asks the daemon, never the local file. In hardened mode, if the approver is unreachable the gate **refuses** (fail loud, ANU-004) — it never falls back to the writable file.
+- **Insecure single-box mode** is the explicit opt-out: the old forgeable file override returns only when `AEGIS_ALLOW_INSECURE_LOCAL_APPROVAL` is set.
+
+Breaking for anyone who relied on `aegis approve-destructive` on a single box with no flag: set up the approver, or set `AEGIS_ALLOW_INSECURE_LOCAL_APPROVAL=1`. Red tests: `red-team/point1-self-approval.probe.ts` (routing, any host) and `red-team/point1-uid-boundary.disposable.sh` (the uid boundary, disposable host). The aegis-guard signing-key leg (self-mint) is a separate, later increment.
+
 ## [2.8.0] — 2026-10-06
 
 ### Changed — dashboard posture (security)

@@ -11,14 +11,31 @@
 // @rule:KAV-098 — the shield stops this command when it arrives as a tool call: an agent
 // approving its own refused command is the thing this exists to prevent.
 
-import { approvePending, listPending, APPROVAL_TTL_MS } from "../../kavach/destructive-approval";
+import { APPROVAL_TTL_MS } from "../../kavach/destructive-approval";
+import {
+  approvePendingAuthority, listPendingAuthority, authorityMode, authorityHint,
+} from "../../kavach/approval-authority";
 import { recordRefusal } from "../../core/refusal-ledger";
 
 export default async function approveDestructive(args: string[]): Promise<void> {
   const code = (args[0] ?? "").trim().toLowerCase();
+  const mode = authorityMode();
+
+  // Separation is the default: with no approver configured, there is nothing to approve WITH,
+  // and that is deliberate — an agent must not be able to approve its own command.
+  if (mode === "none") {
+    process.stderr.write(authorityHint());
+    process.exit(1);
+  }
+  if (mode === "insecure-local") {
+    process.stderr.write(
+      "[KAVACH] Insecure single-box mode: this approval lives in a file your agent's own uid can " +
+      "write. Set up the separate-uid approver (`aegis init`) for a real boundary.\n",
+    );
+  }
 
   if (!code) {
-    const pending = listPending();
+    const pending = await listPendingAuthority();
     if (pending.length === 0) {
       console.log("Nothing is waiting for approval.");
       process.exit(0);
@@ -33,7 +50,7 @@ export default async function approveDestructive(args: string[]): Promise<void> 
     process.exit(0);
   }
 
-  const done = approvePending(code);
+  const done = await approvePendingAuthority(code);
   if (!done) {
     console.error(`No refused command is waiting under the code '${code}'. It may have expired (30 minutes) or been approved already.`);
     console.error("Run `aegis approve-destructive` with no code to see what is waiting.");

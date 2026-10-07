@@ -38,7 +38,9 @@ import { checkValve, incrementLoopCount } from "../../kavach/gate-valve";
 import { checkMudrika } from "../../kavach/mudrika-validator";
 import { destructiveVerdict, type DestructiveRule, type DestructiveRules } from "../../kavach/destructive-verdict";
 import { recordRefusal } from "../../core/refusal-ledger";
-import { consumeApproval, recordPending } from "../../kavach/destructive-approval";
+import {
+  consumeApprovalAuthority, recordPendingAuthority, authorityMode, authorityHint,
+} from "../../kavach/approval-authority";
 
 const AEGIS_DIR = join(process.env.HOME || "/root", ".aegis");
 const RULES_PATH = join(AEGIS_DIR, "destructive-rules.json");
@@ -167,7 +169,9 @@ export default async function checkDestructive(_args: string[]): Promise<void> {
     // @rule:KAV-098 — a person approved this exact command with `aegis approve-destructive`.
     // The approval is used up here, and its use is recorded: an override nobody can count
     // is indistinguishable from a gate that never fired.
-    if (verdict.kind === "match" && consumeApproval(command)) {
+    // In hardened mode this asks the separate-uid approver; if it is unreachable it THROWS and
+    // the outer handler (ANU-004) refuses — it never falls back to the writable local file.
+    if (verdict.kind === "match" && await consumeApprovalAuthority(command)) {
       recordRefusal({ gate: "aegis-destructive", kind: "override", rule: "KAV-098" });
       process.stderr.write(`[KAVACH] One-time approval found for this exact command — allowing, once\n`);
       process.exit(0);
@@ -220,8 +224,10 @@ export default async function checkDestructive(_args: string[]): Promise<void> {
 
       } else {
         // HIGH/MEDIUM, and CRITICAL unless the approval gate is switched on — immediate block.
-        const msg = buildBlockMessage(rule, null, rule.reason, recordPending(command, rule.pattern));
+        const msg = buildBlockMessage(rule, null, rule.reason, await recordPendingAuthority(command, rule.pattern));
         process.stderr.write(msg);
+        // Say how to override — and, by default, that overrides are off until the approver is set up.
+        if (authorityMode() === "none") process.stderr.write(authorityHint());
         process.exit(2);
       }
     }

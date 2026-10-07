@@ -29,9 +29,30 @@ bun red-team/point1-self-approval.probe.ts
 # or: ./red-team/point1-self-approval.battery.sh
 ```
 
-Status: **RED.** Goes green when the approver moves off the agent's uid (a separate-uid supervisor) or
-the approval is signed by a key the agent cannot read (hardware-bound). Tracked in the public
+Status: **green** for the destructive gate (default + hardened). Separation is now the default (founder
+ruling, 2026-10-07):
+
+- **default (no approver configured)** — the gate honours *no* same-account override at all, so an agent
+  cannot approve its own command on any box. The forged approval is ignored.
+- **hardened** — a separate-uid approver daemon owns the store; the gate asks it, not the agent-writable
+  file. A person approves over a socket the agent's uid cannot open.
+- **insecure-local** — the old forgeable single-box file override returns only if someone sets
+  `AEGIS_ALLOW_INSECURE_LOCAL_APPROVAL` explicitly.
+
+The same-process probe proves the gate no longer trusts the agent-writable file. The other half — that the
+agent's uid genuinely *cannot* write the approver's store or open the approve socket — is OS-enforced and
+proven by `point1-uid-boundary.disposable.sh`, **on a disposable host with a real second uid** (it creates
+and deletes system users; never run it on a live box). The aegis-guard signing-key leg (self-mint) is a
+separate increment, still RED. Tracked in the public
 [Fixes landed](https://ankr.in/xshield-self-audit.html#fixes) list.
+
+### `point1-uid-boundary` (disposable host) — the uid boundary itself
+Creates a real `aegis-approver` account and a separate `agent` account, starts the daemon as the approver,
+and proves the agent's uid cannot write the store or open the approve socket while it can still *ask*.
+
+```
+sudo AEGIS_DISPOSABLE_HOST=1 ./red-team/point1-uid-boundary.disposable.sh
+```
 
 ### `aegis-guard-self-mint-and-label` — self-mint (point 1) and label-not-act (point 4)
 Installs the **published** `@xshieldai/aegis-guard` into a throwaway HOME and runs two exploits:

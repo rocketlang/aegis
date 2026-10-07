@@ -100,7 +100,10 @@ describe("check-destructive on a socket", () => {
     expect(r.stderr).toContain("approve-destructive");
   });
 
-  it("a person's one-time approval lets that exact command through once, on the record", () => {
+  // Since 2026-10-07 separation is the default (KAV-098): with NO approver configured, the gate
+  // honours no same-account override at all, so an agent cannot approve its own command. The
+  // single-box local-file override is the EXPLICIT opt-out (AEGIS_ALLOW_INSECURE_LOCAL_APPROVAL).
+  it("by default (no approver) a refused command cannot be approved — self-approval is off", () => {
     const h = home();
     const cmd = `psql -d scratch -c "DELETE FROM t"`;
     const refused = hook(h, bash(cmd));
@@ -108,16 +111,41 @@ describe("check-destructive on a socket", () => {
     const code = /approve-destructive ([0-9a-f]{8})/.exec(refused.stderr)?.[1] ?? "";
     expect(code).toHaveLength(8);
 
+    // approve-destructive refuses in the default (none) mode and points the person at `aegis init`.
     const env = { ...process.env, HOME: h, AEGIS_HOME: "", AEGIS_REFUSAL_LEDGER: join(h, "refusals.jsonl") };
     const approve = (c: string) => Bun.spawnSync(["bun", "run", join(ROOT, "src/cli/index.ts"), "approve-destructive", c], { env });
-    expect(approve("00000000").exitCode).toBe(1); // a code nobody was given
-    expect(approve(code).exitCode).toBe(0);
+    expect(approve(code).exitCode).toBe(1);
+    // and even a forged local approval file does not open the gate, because the gate ignores it
+    writeFileSync(join(h, ".aegis/destructive-approvals.json"),
+      JSON.stringify([{ code, hash: "", approved_at: Date.now(), expires_at: Date.now() + 600000 }]));
+    expect(hook(h, bash(cmd)).exit).toBe(2);
+  });
 
-    expect(hook(h, bash(cmd + " ")).exit).toBe(2); // not the same command
-    const allowed = hook(h, bash(cmd));
-    expect(allowed.exit).toBe(0);
-    expect(allowed.ledger.some((row) => row.kind === "override" && row.rule === "KAV-098")).toBe(true);
-    expect(hook(h, bash(cmd)).exit).toBe(2); // used up: a second run is a new refusal
+  it("insecure-local opt-out: a person's one-time approval lets that exact command through once, on the record", () => {
+    const prev = process.env.AEGIS_ALLOW_INSECURE_LOCAL_APPROVAL;
+    process.env.AEGIS_ALLOW_INSECURE_LOCAL_APPROVAL = "1"; // explicitly accept the single-box file override
+    try {
+      const h = home();
+      const cmd = `psql -d scratch -c "DELETE FROM t"`;
+      const refused = hook(h, bash(cmd));
+      expect(refused.exit).toBe(2);
+      const code = /approve-destructive ([0-9a-f]{8})/.exec(refused.stderr)?.[1] ?? "";
+      expect(code).toHaveLength(8);
+
+      const env = { ...process.env, HOME: h, AEGIS_HOME: "", AEGIS_REFUSAL_LEDGER: join(h, "refusals.jsonl") };
+      const approve = (c: string) => Bun.spawnSync(["bun", "run", join(ROOT, "src/cli/index.ts"), "approve-destructive", c], { env });
+      expect(approve("00000000").exitCode).toBe(1); // a code nobody was given
+      expect(approve(code).exitCode).toBe(0);
+
+      expect(hook(h, bash(cmd + " ")).exit).toBe(2); // not the same command
+      const allowed = hook(h, bash(cmd));
+      expect(allowed.exit).toBe(0);
+      expect(allowed.ledger.some((row) => row.kind === "override" && row.rule === "KAV-098")).toBe(true);
+      expect(hook(h, bash(cmd)).exit).toBe(2); // used up: a second run is a new refusal
+    } finally {
+      if (prev === undefined) delete process.env.AEGIS_ALLOW_INSECURE_LOCAL_APPROVAL;
+      else process.env.AEGIS_ALLOW_INSECURE_LOCAL_APPROVAL = prev;
+    }
   });
 
   it("input that is not JSON is refused, like any call the gate cannot judge", () => {

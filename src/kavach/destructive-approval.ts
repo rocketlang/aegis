@@ -35,7 +35,9 @@ const KEEP = 20;
 export interface PendingRefusal { code: string; hash: string; shown: string; rule: string; at: number }
 export interface Approval { code: string; hash: string; approved_at: number; expires_at: number }
 
-const dir = (): string => join(process.env.HOME || "/root", ".aegis");
+// AEGIS_DIR lets a separate-uid approver daemon own its store under a directory the agent's
+// uid cannot write (KAV-098 hardened mode). Absent, the single-uid default is unchanged.
+const dir = (): string => process.env.AEGIS_DIR || join(process.env.HOME || "/root", ".aegis");
 const pendingPath = (): string => join(dir(), "destructive-pending.json");
 const approvalPath = (): string => join(dir(), "destructive-approvals.json");
 

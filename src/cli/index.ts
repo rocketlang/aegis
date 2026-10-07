@@ -48,6 +48,8 @@ async function main() {
       return (await import("./commands/check-anumati")).default(args);
     case "approve-destructive":
       return (await import("./commands/approve-destructive")).default(args);
+    case "approver-daemon":
+      return (await import("./commands/approver-daemon")).default(args);
     case "anumati":
       return (await import("./commands/anumati")).default(args);
     case "pramana":
