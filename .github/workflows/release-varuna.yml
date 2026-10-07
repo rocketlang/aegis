@@ -1,0 +1,66 @@
+# Publish @xshieldai/varuna to npm with provenance from the PUBLIC aegis repo (OIDC).
+#   tag varuna-v<ver>  ·  packages/varuna  ·  @xshieldai/varuna
+# A tag publishes; a manual run rehearses. Tag version must equal packages/varuna/package.json.
+# Auth: NPM_TOKEN secret (first publish of a new name) OR a Trusted Publisher once configured.
+
+name: Release @xshieldai/varuna
+
+on:
+  push:
+    tags:
+      - 'varuna-v*'
+  workflow_dispatch: {}
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    defaults:
+      run:
+        working-directory: packages/varuna
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Upgrade npm for OIDC + provenance
+        run: npm install -g npm@latest && npm --version
+      - name: Refuse a tag that disagrees with package.json
+        if: github.ref_type == 'tag'
+        run: |
+          NAME=$(node -p "require('./package.json').name"); VER=$(node -p "require('./package.json').version")
+          [ "$NAME" = "@xshieldai/varuna" ] || { echo "named $NAME — refusing"; exit 1; }
+          [ "${GITHUB_REF_NAME##*-v}" = "$VER" ] || { echo "tag ${GITHUB_REF_NAME} != $VER — refusing"; exit 1; }
+          echo "$NAME $VER"
+      - name: Refuse if the README does not name this package
+        run: head -1 README.md | grep -q '@xshieldai/varuna' || { echo "README mis-named — refusing"; exit 1; }
+      - name: Install and build
+        run: |
+          if [ -f package-lock.json ]; then npm ci --ignore-scripts; else npm install --ignore-scripts --no-audit --no-fund; fi
+          npm run build
+          test -f dist/main.js || { echo "dist/main.js missing after build — refusing"; exit 1; }
+      - name: Show what would ship
+        run: npm pack --dry-run
+      - name: Publish (NPM_TOKEN for the first publish, else OIDC; with provenance)
+        if: github.ref_type == 'tag'
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          if [ -n "$NPM_TOKEN" ]; then echo "//registry.npmjs.org/:_authToken=${NPM_TOKEN}" > "$HOME/.npmrc"; echo "auth: NPM_TOKEN"; else echo "auth: OIDC"; fi
+          npm publish --provenance --access public
+      - name: Confirm the attestation is on the registry
+        if: github.ref_type == 'tag'
+        run: |
+          NAME="@xshieldai/varuna"; PKG=$(node -p "require('./package.json').version"); ENC=$(printf '%s' "$NAME" | sed 's#/#%2f#')
+          URL="https://registry.npmjs.org/-/npm/v1/attestations/$ENC@$PKG"
+          for i in $(seq 1 90); do
+            L=$(curl -s -o /dev/null -w '%{http_code}' "https://registry.npmjs.org/$ENC/$PKG")
+            if [ "$L" = "200" ]; then
+              for j in $(seq 1 18); do curl -sf "$URL" | grep -q 'slsa.dev/provenance' && { echo "provenance present"; exit 0; }; echo "listed; waiting"; sleep 10; done
+              echo "PUBLISHED WITHOUT PROVENANCE"; exit 1
+            fi
+            echo "not listed yet ($L)"; sleep 10
+          done
+          echo "COULD NOT CONFIRM"; exit 1

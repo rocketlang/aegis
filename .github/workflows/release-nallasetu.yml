@@ -1,0 +1,67 @@
+# Publish @ankr/nallasetu to npm with provenance from the PUBLIC aegis repo (OIDC).
+#   tag nallasetu-v<ver>  ·  packages/nallasetu  ·  @ankr/nallasetu  (Bun service; ships source)
+# A tag publishes; a manual run rehearses. Tag version must equal packages/nallasetu/package.json.
+# Auth: NPM_TOKEN secret (first publish of a new name) OR a Trusted Publisher once configured.
+
+name: Release @ankr/nallasetu
+
+on:
+  push:
+    tags:
+      - 'nallasetu-v*'
+  workflow_dispatch: {}
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    defaults:
+      run:
+        working-directory: packages/nallasetu
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Upgrade npm for OIDC + provenance
+        run: npm install -g npm@latest && npm --version
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.9
+      - name: Refuse a tag that disagrees with package.json
+        if: github.ref_type == 'tag'
+        run: |
+          NAME=$(node -p "require('./package.json').name"); VER=$(node -p "require('./package.json').version")
+          [ "$NAME" = "@ankr/nallasetu" ] || { echo "named $NAME — refusing"; exit 1; }
+          [ "${GITHUB_REF_NAME##*-v}" = "$VER" ] || { echo "tag ${GITHUB_REF_NAME} != $VER — refusing"; exit 1; }
+          echo "$NAME $VER"
+      - name: Refuse if the README does not name this package
+        run: head -1 README.md | grep -q '@ankr/nallasetu' || { echo "README mis-named — refusing"; exit 1; }
+      - name: Install deps (frozen) where a lockfile exists
+        run: |
+          if [ -f bun.lock ] || [ -f bun.lockb ]; then bun install --frozen-lockfile; else echo "no lockfile"; fi
+      - name: Show what would ship
+        run: npm pack --dry-run
+      - name: Publish (NPM_TOKEN for the first publish, else OIDC; with provenance)
+        if: github.ref_type == 'tag'
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          if [ -n "$NPM_TOKEN" ]; then echo "//registry.npmjs.org/:_authToken=${NPM_TOKEN}" > "$HOME/.npmrc"; echo "auth: NPM_TOKEN"; else echo "auth: OIDC"; fi
+          npm publish --provenance --access public
+      - name: Confirm the attestation is on the registry
+        if: github.ref_type == 'tag'
+        run: |
+          NAME="@ankr/nallasetu"; PKG=$(node -p "require('./package.json').version"); ENC=$(printf '%s' "$NAME" | sed 's#/#%2f#')
+          URL="https://registry.npmjs.org/-/npm/v1/attestations/$ENC@$PKG"
+          for i in $(seq 1 90); do
+            L=$(curl -s -o /dev/null -w '%{http_code}' "https://registry.npmjs.org/$ENC/$PKG")
+            if [ "$L" = "200" ]; then
+              for j in $(seq 1 18); do curl -sf "$URL" | grep -q 'slsa.dev/provenance' && { echo "provenance present"; exit 0; }; echo "listed; waiting"; sleep 10; done
+              echo "PUBLISHED WITHOUT PROVENANCE"; exit 1
+            fi
+            echo "not listed yet ($L)"; sleep 10
+          done
+          echo "COULD NOT CONFIRM"; exit 1

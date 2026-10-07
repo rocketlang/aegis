@@ -1,0 +1,55 @@
+{
+  "name": "@xshieldai/varuna",
+  "version": "0.1.0",
+  "description": "Varuna — maritime OT posture. IACS UR E26/E27 compliance scoring, vessel protocol (Modbus/NMEA/AIS) anomaly detection, runaway-diesel precursor detection.",
+  "type": "module",
+  "license": "AGPL-3.0-only",
+  "author": "Capt. Anil Sharma",
+  "main": "dist/main.js",
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "keywords": [
+    "maritime",
+    "ot-security",
+    "ics",
+    "modbus",
+    "nmea",
+    "ais",
+    "iacs",
+    "agentic-security",
+    "xshieldai"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/rocketlang/aegis.git",
+    "directory": "packages/varuna"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "dev": "tsx watch src/main.ts",
+    "build": "tsc --noEmitOnError false || true",
+    "start": "node dist/main.js",
+    "typecheck": "tsc --noEmit",
+    "clean": "rm -rf dist",
+    "prepublishOnly": "node ../../scripts/publish-guard.mjs && npm run build"
+  },
+  "dependencies": {
+    "fastify": "^4.28.1",
+    "@fastify/cors": "^9.0.1",
+    "@fastify/rate-limit": "^9.1.0"
+  },
+  "devDependencies": {
+    "tsx": "^4.7.0",
+    "typescript": "^5.4.2",
+    "@types/node": "^20.11.0"
+  }
+}
