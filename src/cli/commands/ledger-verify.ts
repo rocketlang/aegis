@@ -34,6 +34,11 @@ export default async function ledgerVerify(args: string[]): Promise<void> {
   const witnessUrl = flag("--witness") || process.env.AEGIS_WITNESS_URL;
   const source = flag("--source") || process.env.AEGIS_LEDGER_SOURCE || hostname();
   const pub = loadPublicKey();
+  // No file is not an empty ledger. "0 rows, OK" for a path that does not exist would read as clean.
+  if (!existsSync(path)) {
+    process.stderr.write(`[ledger-verify] UNVERIFIABLE — no ledger file at ${path}. Nothing was checked.\n`);
+    process.exit(2);
+  }
   let v;
   try {
     v = verifyLedgerFile(path, pub);

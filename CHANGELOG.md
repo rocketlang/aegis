@@ -11,6 +11,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - **Pointer file for the ledger authority.** With neither `AEGIS_LEDGER_SOCKET` nor the approver's consume socket set, a gate reads the socket path from the first line of `ledger-socket` in the aegis home (`~/.aegis/ledger-socket`). An operator can switch every running session over, or back by deleting the file, without restarting them. Like the env var, it is writable by the gate's own uid: it says where to ask and proves nothing.
 - **`aegis witness --host <addr>`** (or `AEGIS_WITNESS_HOST`) — bind address. Absent, it listens on every interface as before. On one box, `127.0.0.1` keeps it off the network.
 
+- **`aegis ledger-verify` on a path that does not exist** now exits 2 (UNVERIFIABLE, "nothing was checked"). It used to print "OK — 0 row(s)", which read as clean.
+
 A witness on the same host as the authority is a second copy, not a second trust domain.
 
 ## [2.14.0] — 2026-10-08
