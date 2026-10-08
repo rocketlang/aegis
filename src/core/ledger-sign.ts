@@ -58,6 +58,15 @@ export function signLedgerRow(payload: LedgerPayload, seq: number, prevHash: str
   return { ...payload, seq, prev_hash: prevHash, sig };
 }
 
+/** Verify one row's Ed25519 signature over its canonical (seq, prev_hash, payload). */
+export function verifyRowSig(row: SignedRow, publicKeyPem: string): boolean {
+  try {
+    return edVerify(null, Buffer.from(canonical(row.seq, row.prev_hash, row), "utf8"), createPublicKey(publicKeyPem), Buffer.from(row.sig, "base64"));
+  } catch {
+    return false;
+  }
+}
+
 export type LedgerVerdict =
   | { ok: true; rows: number; maxSeq: number }
   | { ok: false; kind: "gap" | "chain" | "signature" | "unverifiable"; seq: number | null; detail: string };

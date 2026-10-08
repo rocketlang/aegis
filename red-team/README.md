@@ -166,6 +166,21 @@ Rung 2 of the concealment ladder — **tail truncation** needs the off-box witne
 ./red-team/ledger-concealment.battery.sh
 ```
 
+### `witness-offbox` — the independent collector catches what the box can't
+**Credit: Shyan-Ming Perng (JieGou).** Rung 2 can't catch tail truncation or a silent agent — the on-box
+record is the only record. The witness (`aegis witness`, **`@xshieldai/aegis` 2.11.0**) is an independent
+collector in a trust domain the agent can't write as: it holds its own per-source high-water-mark and
+alarms on a suppressed row (`gap`), a reorder/forgery (`chain`/`signature`), a source gone silent
+(`stall` — *silence is the alarm*), and **tail truncation** (`reconcile` against its high-water-mark —
+the gap rung 2 missed). The probe drives the real `Witness`; hermetic (crypto + a clock).
+
+```
+./red-team/witness-offbox.battery.sh
+```
+
+Status: **green.** Rung 3 of the concealment ladder. Honest ceiling: a compromised agent can stop
+sending (caught as `stall`); full non-equivocation needs the witness itself attested/replicated.
+
 ## Doctrine
 
 A finding is not closed because we understand it. It is closed when its red test refuses the exploit

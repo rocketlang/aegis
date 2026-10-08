@@ -4,6 +4,18 @@ All notable changes to AEGIS will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [2.11.0] — 2026-10-08
+
+### Added — off-box witness (concealment rung 3)
+
+Rung 2 makes an edited or deleted middle row detectable on-box, but it cannot catch **tail truncation** (chopping off the latest rows) or an agent that goes **silent** — the on-box record is the only record. The witness is an independent collector, meant to run in a trust domain the agent can't write as.
+
+- **`aegis witness`** — receives the governor's signed, sequenced rows, keeps its own append-only copy + a per-source high-water-mark, and raises an **alarm** on: `gap` (a suppressed row), `chain`/`signature` (reorder/tamper/forgery), `stall` (a source silent past the heartbeat window — *silence is the alarm*), and `truncation` (an on-box ledger that now shows fewer rows than the witness holds). Holds only the authority **public** key — it verifies, never forges; refuses to start without it.
+- **`sendToWitness`** (`src/core/witness-client.ts`) — the governor streams each signed refusal and a periodic heartbeat; fire-and-forget with a short timeout, because a dropped send surfaces as the witness's own `stall`, not a swallowed error.
+- **Honest ceiling:** a fully compromised agent can stop sending — which trips `stall`, so going quiet is loud. The witness can't be made to accept a forged row or lose a row it holds; full non-equivocation needs the witness itself attested/replicated. Red test `red-team/witness-offbox` proves gap/silence/forgery/truncation all alarm.
+
+Credit: Shyan-Ming Perng (JieGou).
+
 ## [2.10.0] — 2026-10-08
 
 ### Added — sequenced, signed, hash-chained refusal ledger (concealment rung 2)
