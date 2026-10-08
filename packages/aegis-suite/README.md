@@ -282,3 +282,20 @@ CREATE TABLE acc_events (
 Schema is forward-compatible-additive only (ACC-YK-006) — fields added,
 never removed or renamed. Direct SQL queries from external tools
 (Grafana, datadog-agent, custom scripts) are supported and stable.
+
+## One-shot CLI (v0.3.0)
+
+`@xshieldai/aegis-suite` is the front door to the whole xShield posture suite — one install pulls every
+primitive, and each stays usable standalone (the suite is a convenience bundle, never a runtime coupling).
+
+```
+npm i -g @xshieldai/aegis-suite
+aegis-suite status          # what's installed, versions, whether provisioned, where the cockpit is
+aegis-suite init            # provision the authority keys (ledger signing + agent attestation)
+aegis-suite control-center  # the cockpit URL + how to start it (aegis-dashboard)
+```
+
+`init` writes the Ed25519 authority keys used by `aegis ledger-verify` (tamper-evident refusal log) and
+`aegis attest` (agent identity). In production move the private keys off the agent's uid — a single-box
+dev start keeps them in `~/.aegis`, mode 600. The control center (`aegis-dashboard` → `/control-center`)
+renders every primitive's events — refusals, gate decisions, ledger integrity, witness alarms — in one view.

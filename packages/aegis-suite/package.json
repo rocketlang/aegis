@@ -1,7 +1,7 @@
 {
   "name": "@xshieldai/aegis-suite",
-  "version": "0.2.5",
-  "description": "Meta-package — installs the full xShieldAI Posture Suite (AEGIS + Agent Kernel + 4 primitives) in one shot + wireAllToBus() helper that connects all 4 primitives to a single SQLite event bus for the Agentic Control Center. Open-source counter to Fin Operator's hosted governance plane.",
+  "version": "0.3.0",
+  "description": "Meta-package \u2014 installs the full xShieldAI Posture Suite (AEGIS + Agent Kernel + 4 primitives) in one shot + wireAllToBus() helper that connects all 4 primitives to a single SQLite event bus for the Agentic Control Center. Open-source counter to Fin Operator's hosted governance plane.",
   "license": "AGPL-3.0-only",
   "type": "module",
   "author": "Capt. Anil Sharma <capt.anil.sharma@powerpbox.org>",
@@ -37,6 +37,7 @@
   },
   "main": "./src/index.ts",
   "files": [
+    "bin/",
     "src/",
     "README.md",
     "LICENSE"
@@ -71,7 +72,10 @@
       "@xshieldai/n8n-nodes (n8n-specific integration, install separately if using n8n)"
     ],
     "not_bundled_because_ee": [
-      "@xshieldai/agent-kernel-ee (BSL-1.1, not on npm — contact captain@ankr.in)"
+      "@xshieldai/agent-kernel-ee (BSL-1.1, not on npm \u2014 contact captain@ankr.in)"
     ]
+  },
+  "bin": {
+    "aegis-suite": "bin/aegis-suite.js"
   }
 }
