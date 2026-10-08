@@ -4,6 +4,18 @@ All notable changes to AEGIS will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [2.10.0] — 2026-10-08
+
+### Added — sequenced, signed, hash-chained refusal ledger (concealment rung 2)
+
+A refusal row the agent itself can write is evidence against accidents, not against concealment (the point Shyan-Ming Perng of JieGou made in "The Log Only Keeps the Yes"). The refusal ledger can now be made tamper-evident:
+
+- Each row carries a monotonic `seq`, the `prev_hash` of the previous row, and an Ed25519 `sig` by an authority key held **off the agent's uid** (`src/core/ledger-sign.ts`, `appendSignedRefusal`).
+- **`aegis ledger-verify [path]`** reports the first break: a **sequence gap** (a suppressed refusal), a **chain break** or **bad signature** (an edited/forged row), or **UNVERIFIABLE** (an unsigned/legacy ledger — which never reads as "OK"). Exit `0` clean · `1` tamper/concealment · `2` unverifiable · `3` broke.
+- **Honest limit:** this detects edits, deletions and forgeries of a row, but not **tail truncation** (removing the most recent rows); the verifier returns `maxSeq` so an off-box witness that knows the true high-water-mark catches that (rung 3). The signed path is opt-in (an authority key must be provisioned and new rows signed through it); the legacy best-effort `recordRefusal` stays, and `ledger-verify` reports it UNVERIFIABLE rather than clean.
+
+Credit: Shyan-Ming Perng (JieGou), and Andrey Lazarev (point 1 — authority off the agent's uid), which this builds on.
+
 ## [2.9.0] — 2026-10-07
 
 ### Changed — destructive-gate approvals: separation by default (security, KAV-098)

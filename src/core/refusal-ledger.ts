@@ -23,9 +23,13 @@
 //
 // Ledger: $AEGIS_REFUSAL_LEDGER, else $AEGIS_HOME/refusals.jsonl, else ~/.aegis/refusals.jsonl.
 
-import { appendFileSync, mkdirSync } from "fs";
+import { appendFileSync, mkdirSync, existsSync, readFileSync } from "fs";
 import { homedir } from "os";
 import { dirname, join } from "path";
+import {
+  signLedgerRow, rowHash, verifyLedgerRows,
+  type LedgerPayload, type SignedRow, type LedgerVerdict,
+} from "./ledger-sign";
 
 export function refusalLedgerPath(): string {
   return (
@@ -61,6 +65,46 @@ export function recordRefusal(r: { gate: string; rule?: string | null; kind?: "r
   } catch {
     return false;
   }
+}
+
+// ── Signed, sequenced, hash-chained ledger (concealment rung 2 — JieGou/Perng) ─────────────────
+// The AUTHORITY appends (it holds the signing key, off the agent's uid). seq and prev_hash are read
+// from the tail, so the chain continues. Unlike recordRefusal this is NOT best-effort: a signer that
+// cannot sign must fail loudly, never silently drop to an unsigned row that would read as clean.
+
+function readLedgerRows(path: string): unknown[] {
+  if (!existsSync(path)) return [];
+  return readFileSync(path, "utf-8").split("\n").filter(Boolean).map((l) => {
+    try { return JSON.parse(l); } catch { return { __malformed: true }; }
+  });
+}
+
+/** Append a refusal row signed by the authority key, chained to the tail. Returns the new row. */
+export function appendSignedRefusal(
+  r: { gate: string; rule?: string | null; kind?: "refused" | "override" },
+  authorityPrivateKeyPem: string,
+  path = refusalLedgerPath(),
+): SignedRow {
+  const rows = readLedgerRows(path) as SignedRow[];
+  const last = rows.length ? rows[rows.length - 1] : null;
+  const seq = last && typeof last.seq === "number" ? last.seq + 1 : 1;
+  const prev = last && typeof last.seq === "number" ? rowHash(last) : "";
+  const payload: LedgerPayload = {
+    ts: new Date().toISOString(),
+    kind: r.kind || "refused",
+    gate: r.gate,
+    rule: r.rule ?? null,
+    session: process.env.CLAUDE_CODE_SESSION_ID || process.env.CLAUDE_SESSION_ID || process.env.CLAUDE_AGENT_ID || null,
+  };
+  const row = signLedgerRow(payload, seq, prev, authorityPrivateKeyPem);
+  mkdirSync(dirname(path), { recursive: true });
+  appendFileSync(path, JSON.stringify(row) + "\n");
+  return row;
+}
+
+/** Verify a ledger file against the authority public key. An unsigned/legacy file reads UNVERIFIABLE. */
+export function verifyLedgerFile(path: string, authorityPublicKeyPem: string | null): LedgerVerdict {
+  return verifyLedgerRows(readLedgerRows(path), authorityPublicKeyPem);
 }
 
 /** Arm the ledger for this gate process: every exit 2 is recorded. Never throws. */

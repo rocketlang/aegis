@@ -152,6 +152,20 @@ confined — safe on any host, no root.
 Status: **green** against this Landlock kernel (6.8). On a host without Landlock the launcher keeps the
 seccomp exec gate and says so (`KAVACHOS_LANDLOCK_REQUIRE=1` makes a missing Landlock fail closed).
 
+### `ledger-concealment` — the refusal log catches tampering, not just accidents
+**Credit: Shyan-Ming Perng (JieGou)**, *"The Log Only Keeps the Yes"* — a row the refused identity can
+write is evidence against accidents, not against concealment. **Shipped in `@xshieldai/aegis` 2.10.0:**
+the refusal ledger can be sequenced + hash-chained + Ed25519-signed by an authority key held off the
+agent's uid. `aegis ledger-verify` reports a **sequence gap** (a suppressed refusal), a **chain break**
+or **bad signature** (an edited/forged row), or **UNVERIFIABLE** (an unsigned/legacy ledger — never
+"OK"). The probe proves each is caught, against the real verifier; hermetic (crypto, no root/files).
+Rung 2 of the concealment ladder — **tail truncation** needs the off-box witness that knows the true
+`maxSeq` (rung 3), stated honestly.
+
+```
+./red-team/ledger-concealment.battery.sh
+```
+
 ## Doctrine
 
 A finding is not closed because we understand it. It is closed when its red test refuses the exploit
