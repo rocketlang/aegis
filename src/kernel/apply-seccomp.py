@@ -833,8 +833,69 @@ def _apply_landlock_exec_confinement(agent_argv0: Optional[str] = None) -> None:
     sys.stderr.write(f"[kavachos:landlock] exec confinement active — {len(bins)} binary rule(s) + runtime dirs\n")
 
 
+# ── Launcher-measured attestation (KOS-048, 2026-10-08) ──────────────────────────────────────────
+# The LAUNCHER measures the agent's code/config before exec and refuses on a mismatch — so a
+# compromised agent cannot self-report a baseline-matching digest while running tampered code (the
+# self-measurement gap in aegis attest). The digest format MATCHES src/core/attest.ts exactly
+# (sha256 over JSON.stringify of a sorted [{path, sha256}] manifest), so one pinned baseline works for
+# both the pin tool (`aegis attest`) and this enforcer.
+#
+# HONEST CEILING: this closes "the agent lies about itself" — but the launcher and its baseline must
+# themselves be trusted; a compromised launcher or host root can still fake it. Hardware/remote
+# attestation (TPM/measured boot) is the root. Opt-in: set KAVACHOS_ATTEST_MANIFEST + _BASELINE.
+def _attest_measure_digest(paths, relative=None) -> str:
+    import hashlib, json as _json, os as _os
+    manifest = []
+    for p in sorted(set(paths)):
+        try:
+            h = hashlib.sha256(open(p, "rb").read()).hexdigest()
+        except OSError:
+            h = "MISSING"
+        rel = p[len(relative):].lstrip("/") if (relative and p.startswith(relative)) else p
+        manifest.append({"path": rel, "sha256": h})
+    s = _json.dumps(manifest, separators=(",", ":"), ensure_ascii=False)  # matches JSON.stringify
+    return hashlib.sha256(s.encode("utf-8")).hexdigest()
+
+def _read_manifest(path):
+    # one path per line, or a JSON array of paths
+    import json as _json
+    raw = open(path, "r", encoding="utf-8").read().strip()
+    if raw.startswith("["):
+        try: return [str(x) for x in _json.loads(raw)]
+        except Exception: pass
+    return [l.strip() for l in raw.splitlines() if l.strip() and not l.strip().startswith("#")]
+
+def _attest_before_exec() -> None:
+    manifest_path = os.environ.get("KAVACHOS_ATTEST_MANIFEST")
+    baseline = os.environ.get("KAVACHOS_ATTEST_BASELINE")
+    if not manifest_path and not baseline:
+        return  # attestation not configured — opt-in
+    allow = os.environ.get("KAVACHOS_ATTEST_ALLOW_MISMATCH", "") in ("1", "true", "yes")
+    if not manifest_path or not baseline:
+        sys.stderr.write("[kavachos:attest] REFUSING — attestation half-configured (need both KAVACHOS_ATTEST_MANIFEST and _BASELINE)\n")
+        if not allow: sys.exit(3)
+        return
+    try:
+        rel = os.environ.get("KAVACHOS_ATTEST_RELATIVE")
+        measured = _attest_measure_digest(_read_manifest(manifest_path), rel)
+    except Exception as e:
+        sys.stderr.write(f"[kavachos:attest] REFUSING — could not measure the agent: {e}\n")
+        if not allow: sys.exit(3)
+        return
+    if measured != baseline:
+        sys.stderr.write(f"[kavachos:attest] ATTESTATION FAILED — measured {measured[:12]}… != baseline {baseline[:12]}… — tampered code/config or a different build. Refusing to exec.\n")
+        if not allow: sys.exit(3)
+        return
+    sys.stderr.write(f"[kavachos:attest] attested — code/config matches the pinned baseline ({baseline[:12]}…)\n")
+
+
 def main() -> None:
     args = sys.argv[1:]
+    # measure mode: print the digest for pinning (same format the enforcer checks), then exit
+    if args and args[0] == "--attest-measure":
+        rel = os.environ.get("KAVACHOS_ATTEST_RELATIVE")
+        print(_attest_measure_digest(args[1:], rel))
+        return
 
     try:
         sep_idx = args.index("--")
@@ -894,6 +955,7 @@ def main() -> None:
         sys.stderr.write(f"[kavachos] seccomp active (no notify tier)\n")
         _join_egress_cgroup()
         _apply_landlock_exec_confinement(exec_args[0])  # KOS-046 — non-TOCTOU exec boundary
+        _attest_before_exec()  # KOS-048 — measure the agent before exec; refuse on mismatch
         try:
             os.execvp(exec_args[0], exec_args)
         except FileNotFoundError:
@@ -930,6 +992,7 @@ def main() -> None:
         )
 
         _apply_landlock_exec_confinement(exec_args[0])  # KOS-046 — non-TOCTOU exec boundary
+        _attest_before_exec()  # KOS-048 — measure the agent before exec; refuse on mismatch
         try:
             os.execvp(exec_args[0], exec_args)
         except FileNotFoundError:

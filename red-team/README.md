@@ -197,6 +197,22 @@ self-measurement can lie, so the launcher must measure the agent before exec, an
 attestation (TPM/measured boot) is the ceiling. This is the measurer + boundary check; launcher-measured
 integration is the next rung.
 
+### `attestation-launcher` — the launcher measures the agent (closes the self-measurement gap)
+`attestation` (above) is the check; its honest gap was that an agent measuring itself can lie. **Closed
+in `@xshieldai/agent-kernel` 2.4.0:** the launcher (`apply-seccomp.py`) measures the agent's declared
+code/config files **before exec** against a pinned baseline and **refuses to exec on a mismatch** — so
+a compromised agent can't self-report a clean digest. The measure matches the TS `aegis attest` digest
+byte-for-byte, so one baseline is portable across the pin tool and the enforcer. Opt-in
+(`KAVACHOS_ATTEST_MANIFEST` + `_BASELINE`); half-configured refuses. The battery proves the cross-language
+match and that a tampered agent is refused (exit 3) before it runs; hermetic.
+
+```
+./red-team/attestation-launcher.battery.sh
+```
+
+Status: **green.** Ceiling: the launcher and its baseline must themselves be trusted — a compromised
+launcher or host root can still fake it; hardware/remote attestation (TPM/measured boot) is the root.
+
 ## Doctrine
 
 A finding is not closed because we understand it. It is closed when its red test refuses the exploit
