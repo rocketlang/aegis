@@ -18,6 +18,8 @@ import { join } from "path";
 import { SqliteEventWriter, defaultAccEventsDbPath } from "../../acc/bus";
 import { listCheckpoints } from "../../kernel/merkle-ledger";
 import type { AccReceipt } from "../../acc/types";
+import { verifyLedgerFile, refusalLedgerPath } from "../../core/refusal-ledger";
+import { homedir } from "os";
 
 // ── Inventory (Day 1, unchanged) ─────────────────────────────────────────────
 
@@ -448,6 +450,63 @@ function renderEEPramanaPanel(): string {
     </section>`;
 }
 
+// @rule:ACC-002 honest empty states — the concealment + attestation integrity signals this session added:
+// refusal-ledger tamper-evidence (verify), off-box witness alarms, and whether attestation is provisioned.
+function renderIntegrityPanel(): string {
+  const home = process.env.AEGIS_HOME || join(homedir(), ".aegis");
+  const rows: string[] = [];
+
+  // Ledger integrity — verify the refusal ledger against the pinned authority public key
+  let ledger = '<span class="badge badge-neutral">no authority key — run <code>aegis-suite init</code></span>';
+  try {
+    const pubPath = join(home, "ledger-signing.pub");
+    const pub = existsSync(pubPath) ? readFileSync(pubPath, "utf-8") : null;
+    if (pub) {
+      const v = verifyLedgerFile(refusalLedgerPath(), pub);
+      ledger = v.ok
+        ? `<span class="badge badge-pass">whole</span> ${v.rows} row(s), seq 1..${v.maxSeq}`
+        : v.kind === "unverifiable"
+          ? `<span class="badge badge-neutral">unverifiable</span> ${escapeHtml(v.detail)}`
+          : `<span class="badge badge-fail">${escapeHtml(v.kind)} at seq ${v.seq ?? "?"}</span> concealment/tamper detected`;
+    }
+  } catch { /* honest empty state above */ }
+  rows.push(`<dt>Refusal ledger</dt><dd>${ledger}</dd>`);
+
+  // Off-box witness — alarms it has raised (silence/gap/truncation/forgery)
+  let witness = '<span class="badge badge-neutral">no witness configured</span>';
+  try {
+    const alarmFile = join(home, "witness", "witness-alarms.jsonl");
+    if (existsSync(alarmFile)) {
+      const lines = readFileSync(alarmFile, "utf-8").split("\n").filter(Boolean);
+      const last = lines.length ? JSON.parse(lines[lines.length - 1]) : null;
+      witness = lines.length === 0
+        ? '<span class="badge badge-pass">no alarms</span>'
+        : `<span class="badge badge-fail">${lines.length} alarm(s)</span> last: ${escapeHtml(String(last?.kind ?? "?"))} on <code>${escapeHtml(String(last?.source ?? "?"))}</code>`;
+    }
+  } catch { /* honest empty state above */ }
+  rows.push(`<dt>Off-box witness</dt><dd>${witness}</dd>`);
+
+  // Attestation — identity provisioned? baseline pinned?
+  let attest = '<span class="badge badge-neutral">not configured</span>';
+  try {
+    const idPub = existsSync(join(home, "attest-identity.pub"));
+    const baseline = Boolean(process.env.KAVACHOS_ATTEST_BASELINE) || existsSync(join(home, "attest-baseline.txt"));
+    attest = idPub && baseline ? '<span class="badge badge-pass">identity + baseline pinned</span>'
+      : idPub ? '<span class="badge badge-neutral">identity provisioned, no baseline pinned</span>'
+      : '<span class="badge badge-neutral">not configured — <code>aegis-suite init</code></span>';
+  } catch { /* honest empty state above */ }
+  rows.push(`<dt>Attestation</dt><dd>${attest}</dd>`);
+
+  return `
+    <section class="aos-panel integrity-panel">
+      <header class="aos-header">
+        <h3>Integrity</h3>
+        <span class="aos-subtitle">concealment + attestation — is the record whole, is the agent what it claims</span>
+      </header>
+      <div class="aos-body"><dl class="health-dl">${rows.join("")}</dl></div>
+    </section>`;
+}
+
 function renderControlCenterPage(writer: SqliteEventWriter | null, headerNote: string): string {
   const zones = ZONES.map((z) => renderZone(z, writer)).join('\n');
   const pramanaOss = renderPramanaPanel();
@@ -455,6 +514,7 @@ function renderControlCenterPage(writer: SqliteEventWriter | null, headerNote: s
   const bootPanel = renderBootPanel();
   const procListPanel = renderPrimitiveProcessList(writer);
   const healthPanel = renderHealthPanel(writer);
+  const integrityPanel = renderIntegrityPanel();
   const totalCount = writer ? (() => { try { return writer.totalCount(); } catch { return 0; } })() : 0;
   return `<!DOCTYPE html>
 <html lang="en">
@@ -476,6 +536,7 @@ function renderControlCenterPage(writer: SqliteEventWriter | null, headerNote: s
     ${bootPanel}
     ${procListPanel}
     ${healthPanel}
+    ${integrityPanel}
   </div>
   <div class="grid">
     ${zones}

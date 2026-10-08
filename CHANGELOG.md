@@ -4,6 +4,18 @@ All notable changes to AEGIS will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [2.13.0] — 2026-10-08
+
+### Added — control center shows integrity (concealment + attestation in one view)
+
+The Agentic Control Center (`aegis-dashboard` → `/control-center`) gains an **Integrity** panel surfacing the session's new security state at a glance:
+
+- **Refusal ledger** — tamper-evidence via the signed ledger (`whole · N rows` / a **gap/chain/signature** break = concealment detected / **unverifiable** when no authority key).
+- **Off-box witness** — alarms it has raised (silence / gap / truncation / forgery), or "no witness configured".
+- **Attestation** — whether an agent identity and a pinned baseline are provisioned.
+
+Read-only, honest empty states (ACC-002). With `@xshieldai/aegis-suite` 0.3.0's one-shot CLI, this completes the "one install, one cockpit" shape — and every package stays standalone (the suite and cockpit are a convenience front door, never a runtime coupling).
+
 ## [2.12.0] — 2026-10-08
 
 ### Added — attestation: identify a malformed or impostor agent
