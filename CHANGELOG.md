@@ -4,6 +4,19 @@ All notable changes to AEGIS will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [2.12.0] — 2026-10-08
+
+### Added — attestation: identify a malformed or impostor agent
+
+Prove WHO an agent is and WHAT it is running, and refuse what doesn't match:
+
+- **WHO** — the attestation is signed by the agent's own Ed25519 identity key (the Nallasetu model); a verifier holds only the public key and cannot be impersonated.
+- **WHAT** — a deterministic **measurement** (`measureFiles`, sha256 over a sorted manifest of code+config files) compared to a pinned **baseline**. Tampered code, a swapped config, or a different build → a different digest → refused.
+- **`aegis attest <path...> [--baseline <hex>]`** — measures a build and prints the digest to pin, or compares against a baseline and exits non-zero on a mismatch. `verifyAttestation` refuses on a bad identity, a measurement mismatch, or **no baseline at all** (unknown is refused, not trusted).
+- **Honest ceiling:** a measurement is only as trustworthy as the thing that took it — self-measurement can lie, so the launcher must measure the agent's files before exec, and the real root of trust is hardware/remote attestation (TPM/measured boot). This ships the measurer + the boundary check; launcher-measured integration is the next rung. Red test `red-team/attestation` proves tampered/impostor/unpinned are all refused.
+
+Credit: Andrey Lazarev (identity/attestation direction, point 1's "evidence about the governor") and the Nallasetu asymmetric-identity model.
+
 ## [2.11.0] — 2026-10-08
 
 ### Added — off-box witness (concealment rung 3)

@@ -52,6 +52,8 @@ async function main() {
       return (await import("./commands/ledger-verify")).default(args);
     case "witness":
       return (await import("./commands/witness")).default(args);
+    case "attest":
+      return (await import("./commands/attest")).default(args);
     case "approver-daemon":
       return (await import("./commands/approver-daemon")).default(args);
     case "anumati":

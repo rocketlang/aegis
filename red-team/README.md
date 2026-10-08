@@ -181,6 +181,22 @@ the gap rung 2 missed). The probe drives the real `Witness`; hermetic (crypto + 
 Status: **green.** Rung 3 of the concealment ladder. Honest ceiling: a compromised agent can stop
 sending (caught as `stall`); full non-equivocation needs the witness itself attested/replicated.
 
+### `attestation` — identify a malformed / impostor agent
+Prove WHO an agent is (signed by its own Ed25519 identity key — the Nallasetu model) and WHAT it runs
+(a measurement of its code+config vs a pinned baseline). **Shipped in `@xshieldai/aegis` 2.12.0:**
+`aegis attest` measures a build and compares it to a baseline; `verifyAttestation` refuses a bad
+identity (impostor), a measurement mismatch (tampered/wrong build), or **no baseline** (unknown is
+refused, not trusted). The probe proves all three refusals against the real measurer; hermetic.
+
+```
+./red-team/attestation.battery.sh
+```
+
+Status: **green — the check.** Honest ceiling: a measurement is only as trustworthy as the measurer;
+self-measurement can lie, so the launcher must measure the agent before exec, and hardware/remote
+attestation (TPM/measured boot) is the ceiling. This is the measurer + boundary check; launcher-measured
+integration is the next rung.
+
 ## Doctrine
 
 A finding is not closed because we understand it. It is closed when its red test refuses the exploit
