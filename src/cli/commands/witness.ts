@@ -12,7 +12,7 @@
 //   GET  /health                                                 → { status, sources }
 //
 // Alarms are written to the witness store dir (witness-alarms.jsonl) and stderr; a stall sweep runs
-// on the heartbeat interval. Env: PORT (or AEGIS_WITNESS_PORT), AEGIS_LEDGER_PUBKEY_FILE,
+// on the heartbeat interval. Env: PORT (or AEGIS_WITNESS_PORT), AEGIS_WITNESS_HOST (bind address), AEGIS_LEDGER_PUBKEY_FILE,
 // AEGIS_WITNESS_STORE (default ~/.aegis/witness), AEGIS_WITNESS_HEARTBEAT_MS (default 60000).
 
 import { createServer } from "http";
@@ -27,6 +27,8 @@ export default async function witness(args: string[]): Promise<void> {
   const port = parseInt(flag("--port") || process.env.AEGIS_WITNESS_PORT || process.env.PORT || "4870", 10);
   const store = flag("--store") || process.env.AEGIS_WITNESS_STORE || join(process.env.AEGIS_HOME || join(homedir(), ".aegis"), "witness");
   const heartbeatMs = parseInt(process.env.AEGIS_WITNESS_HEARTBEAT_MS || "60000", 10);
+  // Absent = every interface, as before. On one box, bind it to 127.0.0.1 so it is not on the network.
+  const host = flag("--host") || process.env.AEGIS_WITNESS_HOST || undefined;
   const pubFile = process.env.AEGIS_LEDGER_PUBKEY_FILE || join(process.env.AEGIS_HOME || join(homedir(), ".aegis"), "ledger-signing.pub");
   if (!existsSync(pubFile)) {
     process.stderr.write(`[aegis:witness] refusing to start — no authority public key at ${pubFile} (AEGIS_LEDGER_PUBKEY_FILE). A witness that cannot verify is not a witness.\n`);
@@ -107,6 +109,6 @@ export default async function witness(args: string[]): Promise<void> {
 
   const sweep = setInterval(() => { for (const a of w.stale()) raise(a); }, heartbeatMs);
   srv.on("close", () => clearInterval(sweep));
-  srv.listen(port, () => process.stderr.write(`[aegis:witness] collecting on :${port}, store=${store}, heartbeat=${heartbeatMs}ms, authority key pinned\n`));
+  srv.listen(port, host, () => process.stderr.write(`[aegis:witness] collecting on ${host ?? "*"}:${port}, store=${store}, heartbeat=${heartbeatMs}ms, authority key pinned\n`));
   await new Promise<void>(() => { /* until killed */ });
 }

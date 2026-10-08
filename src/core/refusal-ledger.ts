@@ -85,8 +85,21 @@ process.stdin.on("data", (d) => { input += d; }).on("end", () => {
   s.on("end", () => out({ ok: false, error: "authority closed without a reply" }));
 });`;
 
-export const ledgerSocket = (): string | null =>
-  process.env.AEGIS_LEDGER_SOCKET || process.env.AEGIS_APPROVER_CONSUME_SOCKET || null;
+// Where the authority is, in order: AEGIS_LEDGER_SOCKET, the approver's consume socket, then a
+// pointer file `ledger-socket` in the aegis home whose first line is the socket path. The file
+// lets an operator switch every running session over (or back: delete it) without restarting them.
+// Like the env var it is writable by the gate's own uid — it says where to ask, it proves nothing.
+export const ledgerSocket = (): string | null => {
+  const env = process.env.AEGIS_LEDGER_SOCKET || process.env.AEGIS_APPROVER_CONSUME_SOCKET;
+  if (env) return env;
+  try {
+    const pointer = join(process.env.AEGIS_HOME || join(homedir(), ".aegis"), "ledger-socket");
+    if (!existsSync(pointer)) return null;
+    return readFileSync(pointer, "utf-8").split("\n")[0].trim() || null;
+  } catch {
+    return null;
+  }
+};
 
 /** Ask the authority to record a refusal. undefined = no authority configured. Never throws. */
 export function askAuthority(r: { gate: string; rule?: string | null; kind?: "refused" | "override" }): { seq: number } | { error: string } | undefined {

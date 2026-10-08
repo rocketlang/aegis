@@ -5,6 +5,7 @@
 //   a real refusal (check-budget)        → exit 2, a signed row at the authority, seq in the local row
 //   five refusals at once                → five different numbers, the chain still verifies
 //   the authority unreachable            → STILL exit 2, the local row and stderr say it was not signed
+//   a pointer file, no env               → the gate still finds the authority
 //   the witness restarted                → it still holds what it held (its own copy, on disk)
 //   the on-box ledger cut short          → the witness alarms `truncation`; ledger-verify --witness exits 1
 //   the authority gone quiet             → the witness alarms `stall`
@@ -78,7 +79,7 @@ function startDaemon() {
   });
 }
 async function startWitness() {
-  witness = Bun.spawn(["bun", "src/cli/index.ts", "witness", "--port", String(port), "--store", witnessStore], {
+  witness = Bun.spawn(["bun", "src/cli/index.ts", "witness", "--host", "127.0.0.1", "--port", String(port), "--store", witnessStore], {
     cwd: ROOT, stdout: "ignore", stderr: "ignore",
     env: { ...process.env, AEGIS_LEDGER_PUBKEY_FILE: pub, AEGIS_WITNESS_HEARTBEAT_MS: "1200" },
   });
@@ -154,11 +155,25 @@ describe("signed refusal ledger, wired through the authority", () => {
     } finally { h.cleanup(); }
   }, 30000);
 
+  it("a pointer file in the aegis home points the gate at the authority, with no env set", async () => {
+    const h = overBudget("ledger-authority-pointer");
+    try {
+      writeFileSync(join(h.home, ".aegis", "ledger-socket"), consume + "\n");
+      const r = await h.callHook("check-budget", {}, { CLAUDE_SESSION_ID: "wired-pointer", CLAUDE_CODE_SESSION_ID: "", AEGIS_LEDGER_SOCKET: "", AEGIS_APPROVER_CONSUME_SOCKET: "", AEGIS_HOME: "", AEGIS_REFUSAL_LEDGER: local });
+      expect(r.exitCode).toBe(2);
+      const last = lines(local).pop();
+      expect(last.session).toBe("wired-pointer");
+      expect(last.authority_seq).toBe(7);
+      expect(lines(signed).length).toBe(7);
+      expect(await until(async () => (await held()) === 7)).toBe(true);
+    } finally { h.cleanup(); }
+  }, 30000);
+
   it("a restarted witness still holds what it held", async () => {
     witness!.kill();
     await witness!.exited;
     await startWitness();
-    expect(await held()).toBe(6);
+    expect(await held()).toBe(7);
     expect(alarms("gap").length).toBe(0);
     expect(alarms("chain").length).toBe(0);
   }, 30000);
