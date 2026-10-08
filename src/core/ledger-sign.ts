@@ -67,6 +67,38 @@ export function verifyRowSig(row: SignedRow, publicKeyPem: string): boolean {
   }
 }
 
+// ── Heartbeat (rung 3) ────────────────────────────────────────────────────────────────────────
+// A signed statement by the authority of where its ledger stands: "my last seq is N, its hash is H".
+// It is NOT a ledger row (the ledger would grow with nothing refused); it carries the tail so the
+// witness can compare what the authority holds against what the witness received. The canonical
+// bytes start with "hb" where a row's start with "seq", so one can never be passed off as the other.
+
+export interface Heartbeat {
+  source: string;
+  max_seq: number;
+  tail_hash: string;
+  ts: string;
+  sig: string;
+}
+
+function heartbeatCanonical(h: Omit<Heartbeat, "sig">): string {
+  return JSON.stringify({ hb: 1, source: h.source, max_seq: h.max_seq, tail_hash: h.tail_hash, ts: h.ts });
+}
+
+export function signHeartbeat(h: Omit<Heartbeat, "sig">, privateKeyPem: string | KeyObject): Heartbeat {
+  const key = typeof privateKeyPem === "string" ? createPrivateKey(privateKeyPem) : privateKeyPem;
+  return { ...h, sig: edSign(null, Buffer.from(heartbeatCanonical(h), "utf8"), key).toString("base64") };
+}
+
+export function verifyHeartbeat(h: Heartbeat, publicKeyPem: string): boolean {
+  try {
+    if (!h || typeof h.source !== "string" || typeof h.max_seq !== "number" || typeof h.tail_hash !== "string" || typeof h.ts !== "string" || typeof h.sig !== "string") return false;
+    return edVerify(null, Buffer.from(heartbeatCanonical(h), "utf8"), createPublicKey(publicKeyPem), Buffer.from(h.sig, "base64"));
+  } catch {
+    return false;
+  }
+}
+
 export type LedgerVerdict =
   | { ok: true; rows: number; maxSeq: number }
   | { ok: false; kind: "gap" | "chain" | "signature" | "unverifiable"; seq: number | null; detail: string };

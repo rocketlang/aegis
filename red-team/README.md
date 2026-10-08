@@ -181,6 +181,23 @@ the gap rung 2 missed). The probe drives the real `Witness`; hermetic (crypto + 
 Status: **green.** Rung 3 of the concealment ladder. Honest ceiling: a compromised agent can stop
 sending (caught as `stall`); full non-equivocation needs the witness itself attested/replicated.
 
+### `ledger-authority-wired` — the two rungs above, actually connected
+The two probes above drive the signing functions and the `Witness` class directly. Until
+**`@xshieldai/aegis` 2.14.0** no gate called them: nothing signed a refusal, nothing sent one to a
+witness, and the running witness kept nothing on disk. This battery runs the whole path with real
+processes — a gate refuses, the separate-uid authority numbers and signs the row, a witness process
+keeps its own copy — and forces the failures: authority unreachable (still refused, row marked
+unsigned), witness restarted (still holds its rows), on-box ledger cut short (`truncation`, and
+`ledger-verify --witness` exits 1), authority silent (`stall`), a row never delivered (`gap`).
+
+```
+./red-team/ledger-authority-wired.battery.sh
+```
+
+Status: **green.** What it does not show: the uid boundary (one user here — that is
+`point1-uid-boundary.disposable.sh`), and a gate that refuses without asking the authority, which
+leaves no row and no gap. That last one is open.
+
 ### `attestation` — identify a malformed / impostor agent
 Prove WHO an agent is (signed by its own Ed25519 identity key — the Nallasetu model) and WHAT it runs
 (a measurement of its code+config vs a pinned baseline). **Shipped in `@xshieldai/aegis` 2.12.0:**

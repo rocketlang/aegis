@@ -4,6 +4,28 @@ All notable changes to AEGIS will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [2.14.0] — 2026-10-08
+
+### Changed — the signed ledger and the witness are wired in, and two claims are corrected
+
+2.10.0 and 2.11.0 shipped the signing functions, the verifier and the witness, but **nothing called them**: no gate signed a row, nothing sent a row to a witness, the witness kept its high-water-mark in memory only, and the running `aegis witness` had no route that could raise a truncation alarm. The entries below for those versions said more than the code did ("streams each signed refusal", "keeps its own append-only copy"). This release makes those sentences true.
+
+- **One writer, off the agent's uid.** The separate-uid approver daemon is now also the ledger authority (`src/core/ledger-authority.ts`). It makes and holds the signing key in its own store, and it alone numbers, times, chains and signs each row into `refusals.signed.jsonl`. One process numbers the rows, so two gates refusing together cannot take the same number.
+- **The gates ask; they do not sign.** With `AEGIS_LEDGER_SOCKET` (or the approver's consume socket) set, every recorded refusal is sent to the authority (new socket op `refusal`). The gate's own plain row stays as the copy its uid can read, and now carries `authority_seq`, or `authority_error` when the authority could not be reached. A refusal that could not be signed says so on stderr. The verdict never changes either way.
+- **The witness keeps a copy.** `aegis witness` appends every accepted row to `rows-<source>.jsonl` and reads it back at start; a restart no longer forgets what it held.
+- **A signed heartbeat that carries the tail.** The authority sends `{source, max_seq, tail_hash, ts}` signed (new `POST /heartbeat/<source>`). The authority ahead of the witness is a `gap` (a row that never arrived is not quiet); behind it is a `truncation`; a different tail is a `chain` alarm; a replayed heartbeat does not keep a source alive. Rows are sent in order and resent until held.
+- **`aegis ledger-verify <path> --witness <url> --source <name>`** compares the file's last number with what the witness holds: a cut-off tail exits 1.
+- **New `ledger-status` socket op** — row count, last number, public key, and what the witness is known to hold.
+
+**Where the trust sits now, and what is still open:**
+- The row's content is what the gate said. The authority attests order and time, not that the gate told the truth.
+- **A gate that refuses and never asks leaves no row and no gap.** The heartbeat carries on. This is not closed.
+- The boundary is the operating system's: it holds only when the daemon runs as an account the agent cannot use. On one uid the agent can read the key.
+- A witness on the same host is a second copy, not a second trust domain. It is one machine and not attested.
+- Not configured means not signed: with no socket set, behaviour is exactly as before and `ledger-verify` reads UNVERIFIABLE.
+
+Tests: `tests/ledger-authority.test.ts` — a real gate refusal through a real authority and a real witness process; five refusals at once; authority unreachable; witness restart; on-box truncation; silence; heartbeat cases. Battery `red-team/ledger-authority-wired`. From the exchange with Shyan-Ming Perng (JieGou).
+
 ## [2.13.0] — 2026-10-08
 
 ### Added — control center shows integrity (concealment + attestation in one view)

@@ -23,20 +23,29 @@ import { chmodSync, existsSync, mkdirSync, unlinkSync } from "fs";
 import { dirname } from "path";
 import { recordPending, listPending, approvePending, consumeApproval } from "./destructive-approval";
 import type { ApproverOp, ApproverRequest, ApproverResponse } from "./approver-client";
+import { LedgerAuthority } from "../core/ledger-authority";
 
 export interface DaemonOptions {
   consumeSocketPath: string;
   approveSocketPath: string;
   /** The store directory this daemon owns; exported as AEGIS_DIR for the store functions. */
   storeDir: string;
+  /** Off-box witness for the signed refusal ledger. Absent = signed and chained here only. */
+  witnessUrl?: string;
+  /** The name this ledger is known by at the witness. */
+  ledgerSource?: string;
+  ledgerHeartbeatMs?: number;
+  /** Also write the ledger public key here, for a verifier outside the store. */
+  ledgerPublicKeyOut?: string;
   /** Called with human-readable lines for audit/logging. Defaults to stderr. */
   log?: (line: string) => void;
 }
 
-const CONSUME_OPS = new Set<ApproverOp>(["pending", "consume", "list"]);
+// A gate may ASK for a refusal to be recorded; the number, the time and the signature are ours.
+const CONSUME_OPS = new Set<ApproverOp>(["pending", "consume", "list", "refusal", "ledger-status"]);
 const APPROVE_OPS = new Set<ApproverOp>(["approve", "list"]);
 
-function handle(req: ApproverRequest): ApproverResponse {
+function handle(req: ApproverRequest, ledger: LedgerAuthority): ApproverResponse {
   try {
     switch (req.op) {
       case "pending":
@@ -47,6 +56,13 @@ function handle(req: ApproverRequest): ApproverResponse {
         return { ok: true, value: consumeApproval(req.command) };
       case "list":
         return { ok: true, value: listPending() };
+      case "refusal": {
+        if (typeof req.gate !== "string" || !req.gate) return { ok: false, error: "refusal needs a gate" };
+        const row = ledger.record(req);
+        return { ok: true, value: { seq: row.seq } };
+      }
+      case "ledger-status":
+        return { ok: true, value: ledger.status() };
       case "approve":
         if (typeof req.code !== "string") return { ok: false, error: "approve needs a code" };
         return { ok: true, value: approvePending(req.code) };
@@ -58,7 +74,7 @@ function handle(req: ApproverRequest): ApproverResponse {
   }
 }
 
-function serve(path: string, allowed: Set<ApproverOp>, log: (s: string) => void): Server {
+function serve(path: string, allowed: Set<ApproverOp>, ledger: LedgerAuthority, log: (s: string) => void): Server {
   if (existsSync(path)) { try { unlinkSync(path); } catch { /* stale socket */ } }
   const dir = dirname(path);
   if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
@@ -78,7 +94,7 @@ function serve(path: string, allowed: Set<ApproverOp>, log: (s: string) => void)
           log(`REFUSED op '${req.op}' on ${allowed.has("approve") ? "approve" : "consume"} socket`);
           reply = { ok: false, error: `op '${req.op}' is not allowed on this socket` };
         } else {
-          reply = handle(req);
+          reply = handle(req, ledger);
           log(`${req.op} → ${reply.ok ? "ok" : "error:" + reply.error}`);
         }
       } catch {
@@ -94,22 +110,29 @@ function serve(path: string, allowed: Set<ApproverOp>, log: (s: string) => void)
 }
 
 /** Start the daemon. Returns a stop() that unlinks both sockets. */
-export function startApproverDaemon(opts: DaemonOptions): { stop: () => void } {
+export function startApproverDaemon(opts: DaemonOptions): { stop: () => void; ledger: LedgerAuthority } {
   const log = opts.log ?? ((s: string) => process.stderr.write(`[aegis-approver] ${s}\n`));
   // The store must be ours and ours alone. 0o700: the agent's uid cannot read or write it.
   if (!existsSync(opts.storeDir)) mkdirSync(opts.storeDir, { recursive: true, mode: 0o700 });
   process.env.AEGIS_DIR = opts.storeDir;
 
-  const consumeServer = serve(opts.consumeSocketPath, CONSUME_OPS, log);
-  const approveServer = serve(opts.approveSocketPath, APPROVE_OPS, log);
+  const ledger = new LedgerAuthority({
+    storeDir: opts.storeDir, witnessUrl: opts.witnessUrl, source: opts.ledgerSource,
+    heartbeatMs: opts.ledgerHeartbeatMs, publicKeyOut: opts.ledgerPublicKeyOut, log,
+  });
+  ledger.start();
+
+  const consumeServer = serve(opts.consumeSocketPath, CONSUME_OPS, ledger, log);
+  const approveServer = serve(opts.approveSocketPath, APPROVE_OPS, ledger, log);
   log(`listening — consume=${opts.consumeSocketPath} approve=${opts.approveSocketPath} store=${opts.storeDir}`);
 
   const stop = () => {
+    ledger.stop();
     for (const s of [consumeServer, approveServer]) { try { s.close(); } catch { /* */ } }
     for (const p of [opts.consumeSocketPath, opts.approveSocketPath]) {
       if (existsSync(p)) { try { unlinkSync(p); } catch { /* */ } }
     }
     log("stopped");
   };
-  return { stop };
+  return { stop, ledger };
 }

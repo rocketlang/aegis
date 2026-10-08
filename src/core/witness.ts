@@ -20,7 +20,7 @@
 // agent sent EVERYTHING it should have in real time; it proves no row it received was later hidden,
 // and that silence is surfaced. Full non-equivocation needs the witness itself attested/replicated.
 
-import { verifyRowSig, rowHash, type SignedRow } from "./ledger-sign";
+import { verifyRowSig, verifyHeartbeat, rowHash, type SignedRow, type Heartbeat } from "./ledger-sign";
 
 export type AlarmKind = "gap" | "chain" | "signature" | "stall" | "truncation";
 export interface Alarm { source: string; kind: AlarmKind; seq: number | null; detail: string }
@@ -29,6 +29,7 @@ interface SourceState { maxSeq: number; tailHash: string; lastSeenMs: number }
 
 export class Witness {
   private sources = new Map<string, SourceState>();
+  private lastHeartbeatTs = new Map<string, number>();
   constructor(private publicKeyPem: string, private heartbeatTimeoutMs = 60_000) {}
 
   /** Ingest one signed row from a source. Returns an Alarm if it does not follow cleanly, else null. */
@@ -49,6 +50,36 @@ export class Witness {
     }
     s.maxSeq = row.seq; s.tailHash = rowHash(row); s.lastSeenMs = now;
     this.sources.set(source, s);
+    return null;
+  }
+
+  /**
+   * A signed heartbeat from the authority: "my ledger stands at max_seq, tail_hash". It keeps the
+   * source alive, and it is where a quiet failure becomes loud — the authority holding MORE than
+   * the witness received is a row that never arrived; holding FEWER is a ledger cut short on-box.
+   * A heartbeat that is unsigned, for another source, or not newer than the last one is ignored:
+   * it does not keep the source alive, so a replayed heartbeat ends in `stall`.
+   */
+  heartbeat(source: string, hb: Heartbeat, now: number = Date.now()): Alarm | null {
+    if (!verifyHeartbeat(hb, this.publicKeyPem) || hb.source !== source) {
+      return { source, kind: "signature", seq: null, detail: `heartbeat not signed by the authority key for '${source}'` };
+    }
+    const at = Date.parse(hb.ts);
+    const last = this.lastHeartbeatTs.get(source) ?? -Infinity;
+    if (Number.isNaN(at) || at <= last) return null;
+    this.lastHeartbeatTs.set(source, at);
+    const s = this.sources.get(source) ?? { maxSeq: 0, tailHash: "", lastSeenMs: now };
+    s.lastSeenMs = now;
+    this.sources.set(source, s);
+    if (hb.max_seq < s.maxSeq) {
+      return { source, kind: "truncation", seq: hb.max_seq, detail: `the authority for '${source}' reports seq ${hb.max_seq}, the witness holds ${s.maxSeq} — ${s.maxSeq - hb.max_seq} row(s) gone from the on-box ledger` };
+    }
+    if (hb.max_seq > s.maxSeq) {
+      return { source, kind: "gap", seq: s.maxSeq + 1, detail: `the authority for '${source}' reports seq ${hb.max_seq}, the witness holds ${s.maxSeq} — ${hb.max_seq - s.maxSeq} row(s) never delivered` };
+    }
+    if (hb.tail_hash !== s.tailHash) {
+      return { source, kind: "chain", seq: hb.max_seq, detail: `the authority's tail at seq ${hb.max_seq} is not the row the witness holds` };
+    }
     return null;
   }
 

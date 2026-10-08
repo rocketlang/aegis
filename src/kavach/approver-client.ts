@@ -29,8 +29,13 @@ export const APPROVE_SOCK_ENV = "AEGIS_APPROVER_APPROVE_SOCKET";
 /** Hardened mode is on when the gate has been told where the approver's consume socket is. */
 export const isHardened = (): boolean => Boolean(process.env[CONSUME_SOCK_ENV]);
 
-export type ApproverOp = "pending" | "consume" | "approve" | "list";
-export interface ApproverRequest { op: ApproverOp; command?: string; rule?: string; code?: string }
+// "refusal" and "ledger-status" are the signed refusal ledger (core/ledger-authority.ts): a gate asks
+// the authority to record a refusal; it cannot sign one itself.
+export type ApproverOp = "pending" | "consume" | "approve" | "list" | "refusal" | "ledger-status";
+export interface ApproverRequest {
+  op: ApproverOp; command?: string; rule?: string | null; code?: string;
+  gate?: string; kind?: string; session?: string | null;
+}
 export interface ApproverResponse<T = unknown> { ok: boolean; value?: T; error?: string }
 
 const CONNECT_TIMEOUT_MS = 3000;
@@ -86,6 +91,12 @@ export async function remoteListPending(): Promise<PendingRefusal[]> {
   const r = await ask<PendingRefusal[]>(consumeSock(), { op: "list" });
   if (!r.ok) throw new Error(`approver list failed: ${r.error ?? "unknown"}`);
   return Array.isArray(r.value) ? r.value : [];
+}
+
+/** Where the authority's signed refusal ledger stands. Null when it cannot be asked. */
+export async function remoteLedgerStatus(socketPath = process.env.AEGIS_LEDGER_SOCKET || consumeSock()): Promise<Record<string, unknown> | null> {
+  const r = await ask<Record<string, unknown>>(socketPath, { op: "ledger-status" });
+  return r.ok && r.value ? r.value : null;
 }
 
 /** A PERSON approves one pending command over the restricted approve socket. */

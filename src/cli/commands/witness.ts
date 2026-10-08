@@ -7,6 +7,7 @@
 // truncation. It holds only the authority PUBLIC key — it can verify, never forge.
 //
 //   POST /ingest/<source>   body = one signed row (JSON)         → ingests; 202, or 409 + the alarm
+//   POST /heartbeat/<source> body = a signed heartbeat (JSON)     → 202, or 409 + the alarm
 //   GET  /hwm/<source>                                           → { source, maxSeq }  (for reconcile)
 //   GET  /health                                                 → { status, sources }
 //
@@ -15,11 +16,11 @@
 // AEGIS_WITNESS_STORE (default ~/.aegis/witness), AEGIS_WITNESS_HEARTBEAT_MS (default 60000).
 
 import { createServer } from "http";
-import { existsSync, readFileSync, appendFileSync, mkdirSync } from "fs";
+import { existsSync, readFileSync, appendFileSync, mkdirSync, readdirSync } from "fs";
 import { homedir } from "os";
 import { join } from "path";
 import { Witness, type Alarm } from "../../core/witness";
-import type { SignedRow } from "../../core/ledger-sign";
+import { verifyRowSig, type SignedRow, type Heartbeat } from "../../core/ledger-sign";
 
 export default async function witness(args: string[]): Promise<void> {
   const flag = (n: string) => { const i = args.indexOf(n); return i >= 0 ? args[i + 1] : undefined; };
@@ -41,6 +42,22 @@ export default async function witness(args: string[]): Promise<void> {
     process.stderr.write(`[aegis:witness] ALARM ${a.kind.toUpperCase()} source=${a.source} seq=${a.seq ?? "?"} — ${a.detail}\n`);
   };
 
+  // The witness's own copy: every accepted row is appended to rows-<source>.jsonl in the store,
+  // and read back at start, so a restart does not forget what it held. A copy that no longer
+  // follows cleanly is an alarm, not a silent reset to zero.
+  const rowsFile = (source: string) => join(store, `rows-${encodeURIComponent(source)}.jsonl`);
+  for (const f of readdirSync(store)) {
+    const m = f.match(/^rows-(.+)\.jsonl$/);
+    if (!m) continue;
+    const source = decodeURIComponent(m[1]);
+    for (const line of readFileSync(join(store, f), "utf-8").split("\n").filter(Boolean)) {
+      let alarm: Alarm | null;
+      try { alarm = w.ingest(source, JSON.parse(line) as SignedRow); }
+      catch { alarm = { source, kind: "chain", seq: null, detail: "the witness's own copy has an unreadable line" }; }
+      if (alarm) { raise({ ...alarm, detail: `witness's own copy: ${alarm.detail}` }); break; }
+    }
+  }
+
   const srv = createServer((req, res) => {
     const url = req.url || "";
     if (req.method === "GET" && url === "/health") {
@@ -59,9 +76,29 @@ export default async function witness(args: string[]): Promise<void> {
       req.on("end", () => {
         let row: SignedRow;
         try { row = JSON.parse(body); } catch { return res.writeHead(400).end('{"error":"bad json"}'); }
+        // A row the witness already holds, sent again after a lost reply, is not an alarm.
+        if (typeof row?.seq === "number" && row.seq <= w.highWaterMark(source) && verifyRowSig(row, pub)) {
+          return res.writeHead(200, { "content-type": "application/json" }).end(JSON.stringify({ accepted: false, held: true, maxSeq: w.highWaterMark(source) }));
+        }
         const alarm = w.ingest(source, row);
         if (alarm) { raise(alarm); return res.writeHead(409, { "content-type": "application/json" }).end(JSON.stringify(alarm)); }
+        try { appendFileSync(rowsFile(source), JSON.stringify(row) + "\n"); }
+        catch (e) { raise({ source, kind: "chain", seq: row.seq, detail: `row accepted but the witness could not keep its copy: ${(e as Error).message}` }); }
         return res.writeHead(202, { "content-type": "application/json" }).end(JSON.stringify({ accepted: true, maxSeq: w.highWaterMark(source) }));
+      });
+      return;
+    }
+    const beat = url.match(/^\/heartbeat\/(.+)$/);
+    if (req.method === "POST" && beat) {
+      const source = decodeURIComponent(beat[1]);
+      let body = "";
+      req.on("data", (d) => { body += d; if (body.length > 100_000) req.destroy(); });
+      req.on("end", () => {
+        let hb: Heartbeat;
+        try { hb = JSON.parse(body); } catch { return res.writeHead(400).end('{"error":"bad json"}'); }
+        const alarm = w.heartbeat(source, hb);
+        if (alarm) { raise(alarm); return res.writeHead(409, { "content-type": "application/json" }).end(JSON.stringify(alarm)); }
+        return res.writeHead(202, { "content-type": "application/json" }).end(JSON.stringify({ heard: true, maxSeq: w.highWaterMark(source) }));
       });
       return;
     }

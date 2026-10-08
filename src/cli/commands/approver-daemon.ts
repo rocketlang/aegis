@@ -12,10 +12,17 @@
 //   --consume <path>       consume socket (agents may ask). Default $AEGIS_APPROVER_CONSUME_SOCKET.
 //   --approve <path>       approve socket (people only).     Default $AEGIS_APPROVER_APPROVE_SOCKET.
 //
+//   --witness <url>        off-box witness for the signed refusal ledger ($AEGIS_WITNESS_URL).
+//   --source <name>        this ledger's name at the witness ($AEGIS_LEDGER_SOURCE, default host name).
+//   --ledger-pub <path>    also write the ledger public key here ($AEGIS_LEDGER_PUBKEY_OUT).
+//
+// The daemon is also the one writer of the signed refusal ledger (core/ledger-authority.ts): the
+// gates ask it to record each refusal; the key never leaves this account's store.
+//
 // The agent processes are then pointed at the SAME socket paths via those env vars, which flips
 // the gate into hardened mode.
 
-import { homedir } from "os";
+import { homedir, hostname } from "os";
 import { join } from "path";
 import { startApproverDaemon } from "../../kavach/approver-daemon";
 
@@ -35,7 +42,14 @@ export default async function approverDaemon(args: string[]): Promise<void> {
   // the store and socket perms). We say it loudly so a misconfiguration is visible.
   const warnSameUser = !process.env.AEGIS_APPROVER_SUPPRESS_UID_WARN;
 
-  const { stop } = startApproverDaemon({ storeDir: store, consumeSocketPath, approveSocketPath });
+  const hb = parseInt(process.env.AEGIS_LEDGER_HEARTBEAT_MS || "", 10);
+  const { stop } = startApproverDaemon({
+    storeDir: store, consumeSocketPath, approveSocketPath,
+    witnessUrl: flag(args, "--witness") || process.env.AEGIS_WITNESS_URL || undefined,
+    ledgerSource: flag(args, "--source") || process.env.AEGIS_LEDGER_SOURCE || hostname(),
+    ledgerPublicKeyOut: flag(args, "--ledger-pub") || process.env.AEGIS_LEDGER_PUBKEY_OUT || undefined,
+    ledgerHeartbeatMs: Number.isFinite(hb) && hb > 0 ? hb : undefined,
+  });
   if (warnSameUser) {
     process.stderr.write(
       "[aegis-approver] Running. This daemon MUST run as a dedicated account the agent cannot use. " +
