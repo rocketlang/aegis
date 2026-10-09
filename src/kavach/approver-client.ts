@@ -31,7 +31,7 @@ export const isHardened = (): boolean => Boolean(process.env[CONSUME_SOCK_ENV]);
 
 // "refusal" and "ledger-status" are the signed refusal ledger (core/ledger-authority.ts): a gate asks
 // the authority to record a refusal; it cannot sign one itself.
-export type ApproverOp = "pending" | "consume" | "approve" | "list" | "refusal" | "ledger-status";
+export type ApproverOp = "pending" | "consume" | "approve" | "list" | "refusal" | "ledger-status" | "anchor";
 export interface ApproverRequest {
   op: ApproverOp; command?: string; rule?: string | null; code?: string;
   gate?: string; kind?: string; session?: string | null;
@@ -61,6 +61,11 @@ function ask<T>(socketPath: string, req: ApproverRequest): Promise<ApproverRespo
     });
     sock.on("end", () => { if (!settled) done({ ok: false, error: "approver closed without a reply" }); });
   });
+}
+
+/** Ask the ledger authority at socketPath one question (ledger-status, anchor). Never throws. */
+export function askLedgerAuthority<T>(socketPath: string, op: "ledger-status" | "anchor"): Promise<ApproverResponse<T>> {
+  return ask<T>(socketPath, { op });
 }
 
 const consumeSock = (): string => {

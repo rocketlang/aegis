@@ -198,6 +198,20 @@ Status: **green.** What it does not show: the uid boundary (one user here — th
 `point1-uid-boundary.disposable.sh`), and a gate that refuses without asking the authority, which
 leaves no row and no gap. That last one is open.
 
+
+### `ledger-anchor` — the ledger's tail, in somebody else's log
+A witness on the same host is a second copy, not a second trust domain. Since **`@xshieldai/aegis`
+2.15.0** the authority signs a statement of where its ledger stands, `aegis ledger-anchor` submits it
+to a public Sigsum log, and `aegis ledger-verify --anchor-log` reads the log back: an anchor in the log
+that the file cannot produce is a cut or rewritten ledger (exit 1). The battery forces a file cut back
+below an anchor, a rewritten ledger of the same length, a wrong log key, a log that swaps a leaf it
+shows, no anchor at all, and a log that refuses for want of a token. It does not check the log's
+cosigning witnesses, and rows after the last anchor are not covered until the next one.
+
+```
+./red-team/ledger-anchor.battery.sh
+```
+
 ### `attestation` — identify a malformed / impostor agent
 Prove WHO an agent is (signed by its own Ed25519 identity key — the Nallasetu model) and WHAT it runs
 (a measurement of its code+config vs a pinned baseline). **Shipped in `@xshieldai/aegis` 2.12.0:**

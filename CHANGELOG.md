@@ -4,6 +4,26 @@ All notable changes to AEGIS will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [2.15.0] — 2026-10-10
+
+### Added — the signed refusal ledger, anchored in a public transparency log
+
+A witness on the same box is a second copy. Whoever can cut the ledger's tail there can cut the witness's copy too. A public append-only log is somebody else's machine. This release puts a statement of where the ledger stands into a Sigsum log, signed with the ledger's own key, and teaches the verifier to read the log back.
+
+- **The authority signs an anchor; it submits nothing.** New socket op `anchor` (`src/core/ledger-anchor.ts`, `LedgerAuthority.anchor()`): a Sigsum leaf whose message is the hash of `{"anchor":1,"source":S,"max_seq":N,"tail_hash":H}`. The asker supplies nothing, so the key signs no bytes of anybody else's choosing. The authority needs no network and holds no log token. An empty ledger has nothing to anchor and the op says so.
+- **`aegis ledger-anchor --log <url> --log-key <hex> [--token-file <path>]`** asks for the anchor, rebuilds and checks it, submits it with the log's rate-limit token, and does not report "anchored" until an inclusion proof verifies against a tree head the log's own key signed. The proof is kept as a line in `ledger-anchors.jsonl`. The statement carries no time, so a ledger that has not grown yields the same leaf and nothing is sent again. `--dry-run` sends nothing. The token is read from a file and never printed. Exit 0 anchored / already anchored / empty; 1 the log refused or did not prove it; 2 could not ask; 3 broke.
+- **`aegis ledger-verify <path> --anchor-log <url> --anchor-log-key <hex>`** works out the leaf each row of the file would have produced, reads the log for leaves under the ledger's key, and checks every genuine one is a state the file contains. One that it cannot produce is `TRUNCATION OR REWRITE`, exit 1. By default the whole log is read and its root rebuilt against the signed tree head, so the log cannot have left a leaf out; `--anchor-from <index>` reads part of it, faster, and says that omission is then not ruled out. No anchor found is UNVERIFIABLE (exit 2), not clean. The finding is combined with `--witness`: a break from either is exit 1.
+
+**Rehearsed on 10 October 2026 against the public test log** (`test.sigsum.org/barreleye`) with a throwaway ledger: two anchors logged and proven, the same tail not sent twice, a file cut back below an anchor caught (exit 1), the whole log (234,228 leaves) read and its root rebuilt in 18 seconds.
+
+**Where the trust sits now, and what is still open:**
+- **The log's cosigning witnesses are not checked.** The tree head is checked against the log's own key only. A log that shows different trees to different readers is not caught by this code.
+- Rows added after the last anchor are not covered until the next one. A file cut back only to its last anchor reads clean, and there is a test that says so.
+- A ledger cut back before its first anchor leaves nothing in the log to contradict it.
+- A partial read (`--anchor-from`) cannot rule out a leaf the log did not show.
+- On a box where the agent can read the ledger key, the agent can sign an anchor for a state that never existed and raise a false alarm. It cannot use an anchor to hide a cut.
+- Nothing here runs the anchor on a schedule. That is the operator's to set up, as an account that can read the token.
+
 ## [2.14.1] — 2026-10-09
 
 ### Added — two things a one-box install needs

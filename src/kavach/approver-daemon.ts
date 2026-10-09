@@ -42,7 +42,9 @@ export interface DaemonOptions {
 }
 
 // A gate may ASK for a refusal to be recorded; the number, the time and the signature are ours.
-const CONSUME_OPS = new Set<ApproverOp>(["pending", "consume", "list", "refusal", "ledger-status"]);
+// "anchor" hands out the authority's signed statement of its own tail; submitting it to a public log is
+// the asker's business (the authority needs no network and holds no log token).
+const CONSUME_OPS = new Set<ApproverOp>(["pending", "consume", "list", "refusal", "ledger-status", "anchor"]);
 const APPROVE_OPS = new Set<ApproverOp>(["approve", "list"]);
 
 function handle(req: ApproverRequest, ledger: LedgerAuthority): ApproverResponse {
@@ -63,6 +65,8 @@ function handle(req: ApproverRequest, ledger: LedgerAuthority): ApproverResponse
       }
       case "ledger-status":
         return { ok: true, value: ledger.status() };
+      case "anchor":
+        return { ok: true, value: ledger.anchor() };
       case "approve":
         if (typeof req.code !== "string") return { ok: false, error: "approve needs a code" };
         return { ok: true, value: approvePending(req.code) };

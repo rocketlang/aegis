@@ -50,6 +50,8 @@ async function main() {
       return (await import("./commands/approve-destructive")).default(args);
     case "ledger-verify":
       return (await import("./commands/ledger-verify")).default(args);
+    case "ledger-anchor":
+      return (await import("./commands/ledger-anchor")).default(args);
     case "witness":
       return (await import("./commands/witness")).default(args);
     case "attest":

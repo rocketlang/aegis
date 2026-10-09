@@ -26,6 +26,7 @@ import {
   type LedgerPayload, type SignedRow, type LedgerVerdict,
 } from "./ledger-sign";
 import { sendToWitness, sendHeartbeat, witnessHighWaterMark } from "./witness-client";
+import { signAnchor, type Anchor } from "./ledger-anchor";
 
 export interface LedgerAuthorityOptions {
   /** The store this authority owns. Key, public key and ledger live here. */
@@ -128,6 +129,17 @@ export class LedgerAuthority {
     this.rows.push(row);
     void this.pump();
     return row;
+  }
+
+  /**
+   * A signed statement of where this ledger stands, in the leaf format of a public transparency log
+   * (core/ledger-anchor.ts). The asker supplies nothing: the statement is this ledger's own tail, so
+   * the key signs no bytes of anybody else's choosing. An empty ledger has nothing to anchor.
+   */
+  anchor(): Anchor {
+    const t = this.tail();
+    if (t.seq === 0) throw new Error("the ledger is empty — there is no row to anchor");
+    return signAnchor(this.source, t.seq, t.hash, this.privateKey, this.publicKey);
   }
 
   status(): {
