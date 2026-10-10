@@ -4,6 +4,17 @@ All notable changes to AEGIS will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [2.16.2] — 2026-10-10
+
+### Fixed — two answers that said the wrong thing
+
+Both were listed as open under 2.16.1.
+
+- **`aegis ledger-verify --anchor-log` given the wrong `--source` no longer cries truncation without saying why.** An anchor commits to the ledger's name as well as its row and hash, and the log holds only a hash, so under a wrong name every genuine anchor looks like a state the file does not contain. Now, when NO anchor matches, the names in this box's own anchor receipts (`--receipts`, default `<aegis home>/ledger-anchors.jsonl`) are tried. A receipt is not believed: the anchors are recomputed under that name, and only a full match counts. If one matches, the answer is `UNVERIFIABLE under the name '…'` with the name to use, exit 2. If none does, it is still `TRUNCATION OR REWRITE`, exit 1, and the message now says that a wrong name would look the same. When some anchors match and others do not, nothing changes: that is a cut or rewritten ledger whatever the receipts say.
+- **`aegis ledger-anchor` answers `COULD NOT ANCHOR`, exit 2, for a log that cannot be reached, is slow, or does not answer as the log it was named as.** It said `BROKE`, exit 3. Nothing is wrong on this side in those cases, and the command can be run again without sending a second leaf.
+
+Still open: the request limit on the authority's socket bounds one connection, not the number of connections.
+
 ## [2.16.1] — 2026-10-10
 
 ### Fixed — three faults found by running the package the way a user gets it, and by breaking things under it

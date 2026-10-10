@@ -15,7 +15,9 @@
 // transparency log holds under this ledger's key (core/ledger-anchor.ts). The log is read from index
 // 0 and its root rebuilt, unless --anchor-from <index> asks for a partial read, which is faster and
 // cannot rule out a leaf the log did not show. An anchor in the log that this file cannot produce is
-// a cut or rewritten ledger. No anchor found is UNVERIFIABLE for truncation, not clean.
+// a cut or rewritten ledger. No anchor found is UNVERIFIABLE for truncation, not clean. An anchor commits to
+// the ledger's name: if NO anchor matches under --source but all match under a name found in this box's anchor
+// receipts (--receipts, default <aegis home>/ledger-anchors.jsonl), that is said and the exit is 2, not 1.
 // With --anchor-policy <name|file> the tree head that was read must also be cosigned by the policy's
 // quorum of witnesses; a head without the quorum is UNVERIFIABLE (exit 2). Without a policy only the
 // log's own signature is checked, and a note says so.
@@ -79,8 +81,25 @@ export default async function ledgerVerify(args: string[]): Promise<void> {
           ? `the whole log (${scan.head.size} leaves) was read and its root rebuilt against the signed tree head`
           : `the log was read from index ${scan.from} of ${scan.head.size} only: a leaf the log did not show is not ruled out`;
         if (j.kind === "contradicted") {
-          process.stderr.write(`[ledger-verify] TRUNCATION OR REWRITE — the public log ${anchorLog} holds ${j.unmatched.length} anchor(s) signed by this ledger's key for a state this file does not contain (leaf index ${j.unmatched.map((l) => l.index).join(", ")}). The ledger once stood where this file does not.\n`);
-          anchorCode = 1;
+          // An anchor commits to the ledger's NAME as well as its row and hash, and the log holds only a hash. So
+          // under a wrong --source every genuine anchor looks like a state this file does not contain. Before
+          // crying truncation, try the names this box's own receipts say the ledger was anchored under. A receipt
+          // is not believed: the anchors are recomputed under that name, and only a full match counts.
+          let otherName: string | null = null;
+          if (j.matched === 0) {
+            const receiptsPath = flag("--receipts") || join(process.env.AEGIS_HOME || join(homedir(), ".aegis"), "ledger-anchors.jsonl");
+            const names = new Set<string>();
+            try { for (const l of readFileSync(receiptsPath, "utf-8").split("\n")) { if (!l.trim()) continue; try { const s = JSON.parse(l).source; if (typeof s === "string" && s && s !== source) names.add(s); } catch { /* not a receipt line */ } } } catch { /* no receipts here */ }
+            for (const name of names) { if (judgeAnchors(rows, name, pub, scan).kind === "anchored") { otherName = name; break; } }
+          }
+          if (otherName) {
+            process.stderr.write(`[ledger-verify] UNVERIFIABLE under the name '${source}' — the public log's ${j.anchors} anchor(s) for this ledger's key match this file under the name '${otherName}' (the name in this box's anchor receipts), and none match under '${source}'. An anchor commits to the ledger's name. Run again with --source ${otherName}. Nothing was found wrong; nothing was checked under the right name.\n`);
+            anchorCode = 2;
+          } else {
+            const nameNote = j.matched === 0 ? ` None of the ${j.anchors} anchor(s) matches this file under the name '${source}': if that is not the name the authority uses (--source, by default the host name), this is the name and not the ledger. If it is the right name, the ledger was rewritten from before its first anchor.` : "";
+            process.stderr.write(`[ledger-verify] TRUNCATION OR REWRITE — the public log ${anchorLog} holds ${j.unmatched.length} anchor(s) signed by this ledger's key for a state this file does not contain (leaf index ${j.unmatched.map((l) => l.index).join(", ")}). The ledger once stood where this file does not.${nameNote}\n`);
+            anchorCode = 1;
+          }
         } else if (j.kind === "none") {
           process.stderr.write(`[ledger-verify] UNVERIFIABLE — no anchor signed by this ledger's key for '${source}' was found in ${anchorLog}; ${reach}. Truncation is not ruled out.\n`);
           anchorCode = 2;

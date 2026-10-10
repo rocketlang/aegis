@@ -283,7 +283,7 @@ export async function scanForKey(log: AnchorLog, keyHashHex: string, from = 0, s
 
 export type AnchorVerdict =
   | { kind: "anchored"; upTo: number; maxSeq: number; anchors: number; leafIndex: number; wholeLog: boolean; cosignatures: number }
-  | { kind: "contradicted"; unmatched: LoggedLeaf[]; anchors: number; wholeLog: boolean }
+  | { kind: "contradicted"; unmatched: LoggedLeaf[]; anchors: number; matched: number; wholeLog: boolean }
   | { kind: "none"; wholeLog: boolean; from: number; treeSize: number };
 
 /**
@@ -296,7 +296,7 @@ export function judgeAnchors(rows: SignedRow[], source: string, publicKeyPem: st
   const genuine = scan.leaves.filter((l) => verifyLeafSignature(l.checksum, l.signature, publicKeyPem));
   if (genuine.length === 0) return { kind: "none", wholeLog: scan.whole_log_checked, from: scan.from, treeSize: scan.head.size };
   const unmatched = genuine.filter((l) => !mine.includes(l.checksum));
-  if (unmatched.length) return { kind: "contradicted", unmatched, anchors: genuine.length, wholeLog: scan.whole_log_checked };
+  if (unmatched.length) return { kind: "contradicted", unmatched, anchors: genuine.length, matched: genuine.length - unmatched.length, wholeLog: scan.whole_log_checked };
   let upTo = 0, leafIndex = -1;
   for (const l of genuine) { const seq = mine.indexOf(l.checksum) + 1; if (seq > upTo) { upTo = seq; leafIndex = l.index; } }
   return { kind: "anchored", upTo, maxSeq: rows.length ? rows[rows.length - 1].seq : 0, anchors: genuine.length, leafIndex, wholeLog: scan.whole_log_checked, cosignatures: scan.head.cosignatures };

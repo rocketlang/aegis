@@ -258,6 +258,27 @@ describe("ledger anchor, wired: authority signs, command submits, verifier reads
     } finally { gated.stop(); }
   });
 
+  it("an unreachable log is 'could not' (exit 2), not 'broke', and no receipt is written", async () => {
+    const rc2 = join(dir, "unreachable-receipts.jsonl");
+    const r = await cli(["ledger-anchor", "--log", "http://127.0.0.1:1", "--log-key", log.key, "--socket", sock, "--receipts", rc2]);
+    expect(r.out).toContain("COULD NOT ANCHOR"); expect(r.out).toContain("could not be reached"); expect(r.code).toBe(2); expect(existsSync(rc2)).toBe(false);
+  });
+
+  it("a wrong --source: with this box's receipts it says which name the anchors match (exit 2); without them it is still an alarm that names the name", async () => {
+    // the receipts file written by the anchor runs above names the real source
+    const withReceipts = await cli(["ledger-verify", ledgerFile, "--source", "not-the-name", "--anchor-log", log.url, "--anchor-log-key", log.key, "--receipts", receipts]);
+    expect(withReceipts.out).toContain("UNVERIFIABLE under the name 'not-the-name'"); expect(withReceipts.out).toContain(`--source ${SOURCE}`); expect(withReceipts.code).toBe(2);
+    const noReceipts = await cli(["ledger-verify", ledgerFile, "--source", "not-the-name", "--anchor-log", log.url, "--anchor-log-key", log.key, "--receipts", join(dir, "no-such-receipts.jsonl")]);
+    expect(noReceipts.out).toContain("TRUNCATION OR REWRITE"); expect(noReceipts.out).toContain("if that is not the name the authority uses"); expect(noReceipts.code).toBe(1);
+    // a receipt is a hint, never believed: one that names a source under which the anchors do NOT match changes nothing
+    const lying = join(dir, "lying-receipts.jsonl"); writeFileSync(lying, JSON.stringify({ source: "some-other-name", log: log.url }) + "\n");
+    const lied = await cli(["ledger-verify", ledgerFile, "--source", "not-the-name", "--anchor-log", log.url, "--anchor-log-key", log.key, "--receipts", lying]);
+    expect(lied.out).toContain("TRUNCATION OR REWRITE"); expect(lied.code).toBe(1);
+    // and a real cut under the RIGHT name is still a truncation, whatever the receipts say
+    const cut = await cli(["ledger-verify", cutTo(2), "--source", SOURCE, "--anchor-log", log.url, "--anchor-log-key", log.key, "--receipts", receipts]);
+    expect(cut.out).toContain("TRUNCATION OR REWRITE"); expect(cut.out).not.toContain("if that is not the name"); expect(cut.code).toBe(1);
+  });
+
   it("no authority, or no log named, is 'could not ask' (exit 2), never a silent pass", async () => {
     const noLog = await cli(["ledger-anchor", "--socket", sock]); expect(noLog.code).toBe(2);
     const noAuth = await cli(["ledger-anchor", "--log", log.url, "--log-key", log.key, "--socket", join(dir, "nobody.sock")]); expect(noAuth.code).toBe(2);

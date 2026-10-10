@@ -29,7 +29,8 @@
 // A ledger that has not grown since its last anchor in this log is not sent again.
 //
 // Exit: 0 anchored, or already anchored, or the ledger is empty · 1 the log refused or did not prove it
-//       2 could not ask (no authority, no log given, token unreadable) · 3 broke.
+//       2 could not ask (no authority, no log given, token unreadable, or the log could not be reached or did
+//         not answer as the log it was named as) · 3 broke (something wrong on this side).
 
 import { appendFileSync, existsSync, mkdirSync, readFileSync } from "fs";
 import { homedir } from "os";
@@ -102,7 +103,12 @@ export default async function ledgerAnchor(args: string[]): Promise<void> {
     } else say("no token file given — submitting without a rate-limit token (a public log is expected to refuse this).");
 
     const wait = parseInt(process.env.AEGIS_ANCHOR_WAIT_MS || "", 10);   // between tries while the log commits (default 3 s)
-    const out = await submitAnchor(log, a, token, { say: (s) => say(s), policy, ...(Number.isFinite(wait) && wait > 0 ? { waitMs: wait } : {}) });
+    // A log that cannot be reached, is slow, or answers with something that is not its signed tree head is
+    // "could not", not "broke": nothing is wrong on this side, and the same command can simply be run again
+    // (the leaf is the same, so a request that did get through is not sent twice).
+    let out: Awaited<ReturnType<typeof submitAnchor>>;
+    try { out = await submitAnchor(log, a, token, { say: (s) => say(s), policy, ...(Number.isFinite(wait) && wait > 0 ? { waitMs: wait } : {}) }); }
+    catch (e) { fail(2, `COULD NOT ANCHOR — the log at ${log.url} could not be reached or did not answer as that log: ${(e as Error).message}. Nothing is recorded as anchored; if a request did get through, running this again finishes the job without a second leaf.`); return; }
     if (!out.ok) fail(1, `NOT ANCHORED (${out.kind}) — ${out.detail}`);
     const receipt = (out as { receipt: AnchorReceipt }).receipt;
     mkdirSync(dirname(receiptsPath), { recursive: true });
