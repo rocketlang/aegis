@@ -37,8 +37,8 @@ import {
 
 import {
   setEventBus as setGuardBus,
-  mintApprovalToken,
-  verifyApprovalToken,
+  mintActionApprovalToken,
+  verifyActionApprovalToken,
   digestApprovalToken,
   type AccReceipt as GuardReceipt,
 } from "@xshieldai/aegis-guard";
@@ -128,8 +128,10 @@ async function runDemo(req: DemoRunRequest): Promise<unknown> {
       return verifyMudrika(parsed, agentId);
     }
     case "aegis-guard": {
-      // Demo flow: mint a token, then verify it. Receipts emit on verify.
-      const token = mintApprovalToken({
+      // Demo flow: mint a token bound to ONE concrete action, then verify it against that same action.
+      // (A label-only approval fits every instance, and the package refuses it since aegis-guard 0.6.0.)
+      const action = { service: "demo-svc", capability: "settle", operation: "demo_op", content_sha_prefix: req.content.slice(0, 12) };
+      const token = mintActionApprovalToken({
         service_id: "demo-svc",
         capability: "settle",
         operation: "demo_op",
@@ -137,10 +139,11 @@ async function runDemo(req: DemoRunRequest): Promise<unknown> {
         scope: { content_sha_prefix: req.content.slice(0, 12) },
         issued_at: Date.now(),
         expires_at: Date.now() + 60_000,
-      });
-      const payload = verifyApprovalToken(token, "demo-svc", "settle", "demo_op");
+      }, action);
+      const payload = verifyActionApprovalToken(token, "demo-svc", "settle", "demo_op", action);
       return {
         mode: "mint-and-verify",
+        bound_to_action: true,
         token_digest: digestApprovalToken(token),
         capability: payload.capability,
         operation: payload.operation,
