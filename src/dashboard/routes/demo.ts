@@ -199,7 +199,7 @@ function renderDemoPage(): string {
     <div class="links">
       <a href="/control-center">Control Center →</a>
       <a href="/suite">Suite Inventory</a>
-      <a href="https://github.com/rocketlang/aegis/blob/main/PROOF-STACK.md" target="_blank" rel="noopener">Proof Stack</a>
+      <a href="https://github.com/rocketlang/aegis/blob/master/PROOF-STACK.md" target="_blank" rel="noopener">Proof Stack</a>
     </div>
   </header>
 
@@ -237,7 +237,7 @@ function renderDemoPage(): string {
   <div class="footer-note">
     <strong>How this works.</strong> Each primitive is the actual published <code>@xshieldai/*</code> package source from this monorepo. When you click <em>Run scan</em>, the dashboard calls the primitive in-process. The primitive emits an ACC receipt that lands in <code>~/.aegis/acc-events.db</code> (same SQLite that <code>wireAllToBus()</code> writes to in real consumer apps). The Live receipt stream above is the same SSE feed that <a href="/control-center">/control-center</a> uses — your demo runs appear there too, tagged <code>_demo: true</code>.
     <br /><br />
-    <strong>What this is not.</strong> The <code>lakshmanrekha</code> demo button is classifier-only — it does NOT call live LLM endpoints (which would need your API key). For real probing see <a href="https://github.com/rocketlang/aegis/blob/main/packages/lakshmanrekha/README.md" target="_blank" rel="noopener">the runner docs</a>. The <code>hanumang-mandate</code> button accepts JSON mudrika payloads; non-JSON content shows a sample 7-axis posture score instead.
+    <strong>What this is not.</strong> The <code>lakshmanrekha</code> demo button is classifier-only — it does NOT call live LLM endpoints (which would need your API key). For real probing see <a href="https://github.com/rocketlang/aegis/blob/master/packages/lakshmanrekha/README.md" target="_blank" rel="noopener">the runner docs</a>. The <code>hanumang-mandate</code> button accepts JSON mudrika payloads; non-JSON content shows a sample 7-axis posture score instead.
   </div>
 
   <script>
