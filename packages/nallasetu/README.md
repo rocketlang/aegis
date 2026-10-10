@@ -30,8 +30,9 @@ The store is a local SQLite file at `$HOME/.ankr/nallasetu/nallasetu.db`.
 BRIDGE_HELLO → ATTEST_OFFER → INTERSECT_PROPOSE → SESSION_CREDENTIAL → SESSION_RECEIPT
 ```
 
-Each party attests with an HMAC-SHA256 signature over a canonical payload (`src/crypto.ts`), keyed by
-a secret held in a local registry (`src/db.ts`). The session mask is computed in `src/handshake.ts`:
+Each party attests with an Ed25519 signature over a canonical payload (`src/crypto.ts`), made with its
+own private key; the registry (`src/db.ts`) holds only public keys, so reading it does not let anyone
+sign as another agent. The session mask is computed in `src/handshake.ts`:
 
 ```js
 session_mask = initiator.trust_mask & responder.trust_mask & scope_mask;   // NLS-003, no escalation
