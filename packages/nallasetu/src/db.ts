@@ -101,6 +101,21 @@ export function expireStale(): number {
 
 // ── Key registry ──────────────────────────────────────────────────────────────
 
+// A registry table created BEFORE the asymmetric cutover (2026-10-08) declares `hmac_secret TEXT NOT NULL`.
+// `CREATE TABLE IF NOT EXISTS` leaves such a table as it is, and SQLite cannot relax a column without
+// rebuilding the table (a DROP — not done here: additive only). So on such a table a new row carries a fixed
+// marker in that column. The marker is not a secret and nothing reads the column: signing and verifying use
+// the Ed25519 keys only. On a table created since the cutover the column is nullable and stays NULL.
+export const RETIRED_SECRET_MARKER = "retired:no-shared-secret";
+let _secretColumnRequired: boolean | null = null;
+function secretColumnRequired(): boolean {
+  if (_secretColumnRequired === null) {
+    const cols = getDb().query("PRAGMA table_info(key_registry)").all() as Array<{ name: string; notnull: number }>;
+    _secretColumnRequired = cols.some((c) => c.name === "hmac_secret" && c.notnull === 1);
+  }
+  return _secretColumnRequired;
+}
+
 export function registerKey(row: KeyRegistryRow): void {
   const db = getDb();
   // UPSERT (not INSERT OR REPLACE): re-registering an existing agent_id updates its material but
@@ -116,8 +131,24 @@ export function registerKey(row: KeyRegistryRow): void {
        trust_mask    = excluded.trust_mask,
        registered_at = excluded.registered_at,
        source        = excluded.source`,
-    [row.agent_id, row.public_key ?? null, row.hmac_secret ?? null, row.public_key_id, row.trust_mask ?? 65535, row.registered_at, row.source]
+    [row.agent_id, row.public_key ?? null, row.hmac_secret ?? (secretColumnRequired() ? RETIRED_SECRET_MARKER : null), row.public_key_id, row.trust_mask ?? 65535, row.registered_at, row.source]
   );
+}
+
+/**
+ * Give a key pair's PUBLIC half to a registration made before the cutover, which has none. The WHERE clause
+ * is the guard, enforced by the database and not by the caller: only a row this deployment manages itself
+ * (source 'self'), that is not revoked, and that has NO public key yet. A row that already has a public key
+ * is never touched, so this cannot be used to replace anybody's key. trust_mask, registered_at, source and
+ * revoked are left exactly as they were. Returns true if the row was re-keyed.
+ */
+export function rekeyLegacySelfAgent(agentId: string, publicKeyPem: string, publicKeyId: string): boolean {
+  const result = getDb().run(
+    `UPDATE key_registry SET public_key = ?, public_key_id = ?
+     WHERE agent_id = ? AND source = 'self' AND revoked = 0 AND public_key IS NULL`,
+    [publicKeyPem, publicKeyId, agentId],
+  );
+  return result.changes > 0;
 }
 
 export function lookupKey(agentId: string): KeyRegistryRow | null {

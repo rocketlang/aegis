@@ -40,10 +40,28 @@ session_mask = initiator.trust_mask & responder.trust_mask & scope_mask;   // NL
 Sessions carry a mandatory TTL, a PRAMANA-witnessed receipt, and revocation (`revokeKey` /
 `reinstateKey`, sticky). A revoked partner is refused as either initiator or responder.
 
+## Upgrading a registry created before 0.2.0
+
+0.2.0 moved attestations from a shared secret to each agent's own Ed25519 key. A registry database created
+before it kept working until the service was restarted on the new code, and then could not issue a session:
+its registrations had no key pair, and its table still required the old secret column for every new row.
+
+0.2.1 closes that without dropping or rebuilding any table:
+
+- A registration this deployment made itself (`source = 'self'`), that is not revoked and has no public key,
+  gets its key pair once, the first time it is needed. The condition is in the UPDATE statement's WHERE clause,
+  so an existing public key is never replaced. A revoked agent and an agent registered from outside are left
+  exactly as they were: such an agent must be registered again with its own public key.
+- On a table that still declares the old secret column `NOT NULL`, a new row carries the fixed marker
+  `retired:no-shared-secret` there. It is not a secret and nothing reads the column.
+
+The re-keying is written once to the service's log as `nallasetu.registry.legacy_agent_rekeyed`.
+
 ## Scope and limits
 
-- Trust is a **shared-secret registry** (HMAC), not asymmetric PKI — cross-org trust is as strong as
-  that registry's provisioning.
+- Trust rests on a **registry of public keys**: since 0.2.0 an attestation is signed with the agent's
+  own Ed25519 key (before that, a shared secret). Cross-org trust is as strong as that registry's
+  provisioning; there is no certificate chain behind a key.
 - An initiator's `trust_mask` is **self-asserted** in the request; the real ceiling is the responder's
   **registered** mask ∧ the requested scope.
 - A service, not a drop-in library; proven over crafted handshakes, not a live two-org deployment.

@@ -1,6 +1,6 @@
 {
   "name": "@xshieldai/nallasetu",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Nallasetu \u2014 Cross-org agent handshake protocol. TLS equivalent for agent authority negotiation.",
   "type": "module",
   "license": "AGPL-3.0-only",

@@ -38,7 +38,7 @@ import {
   hashCredential, hashReceipt, pramanaWitness, policyHash,
 } from "./crypto";
 import {
-  lookupKey, registerKey, storeSession, storePrivateKey, loadPrivateKey,
+  lookupKey, registerKey, rekeyLegacySelfAgent, storeSession, storePrivateKey, loadPrivateKey,
   getLastPramanaHash, appendPramanaChain,
 } from "./db";
 import {
@@ -96,6 +96,24 @@ export function ensureResponderKey(agentId: string): { privateKey: string | null
     });
     storePrivateKey(agentId, privateKey);
     return { privateKey, keyId };
+  }
+  // A registration from before the asymmetric cutover (2026-10-08): this deployment made it itself
+  // (source 'self'), under the shared-secret scheme, so it has no public key and no private seal. It is the
+  // same agent the engine would have self-registered had it been unknown, so it gets its key pair now, once.
+  // Not for a revoked agent, not for one registered from outside, and never over an existing public key
+  // (rekeyLegacySelfAgent's WHERE clause refuses all three). The private seal is stored only if the row took
+  // the public half, so two requests at once cannot leave a seal that does not match the registry.
+  if (!row.public_key && row.source === "self" && row.revoked !== 1 && !loadPrivateKey(agentId)) {
+    const { publicKey, privateKey } = generateAgentKeypair();
+    const keyId = `key-${agentId}-ed25519-v1`;
+    if (rekeyLegacySelfAgent(agentId, publicKey, keyId)) {
+      storePrivateKey(agentId, privateKey);
+      // Said once, on the service's own log: an operator should be able to see when an identity got its key.
+      console.warn(JSON.stringify({ event: "nallasetu.registry.legacy_agent_rekeyed", agent_id: agentId, public_key_id: keyId, at: new Date().toISOString(), reason: "registered before the asymmetric cutover; had no key pair" }));
+      return { privateKey, keyId };
+    }
+    const again = lookupKey(agentId);
+    return { privateKey: loadPrivateKey(agentId), keyId: again?.public_key_id ?? row.public_key_id };
   }
   return { privateKey: loadPrivateKey(agentId), keyId: row.public_key_id };
 }
