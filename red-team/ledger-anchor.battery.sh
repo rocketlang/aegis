@@ -4,8 +4,9 @@
 # it, `aegis ledger-verify --anchor-log` reads the log back; and the failures are forced: a file cut back
 # below an anchor, a rewritten ledger, a wrong log key, a log that swaps a leaf it shows, no anchor at all,
 # a log that refuses for want of a token. The log is a stand-in written from the protocol; the dated
-# rehearsal against the public test log is in the changelog. It does NOT check the log's cosigning
-# witnesses, and it does NOT prove the uid boundary (one user here).
+# rehearsal against the public test log is in the changelog. Since 2.16.0 the cosigning witnesses are
+# checked under a trust policy (a missing quorum, a bad cosignature, a policy for another log are forced).
+# It does NOT prove the uid boundary (one user here).
 set -u
 HERE="$(cd "$(dirname "$0")" && pwd)"
 BUN="$(command -v bun || echo /root/.bun/bin/bun)"

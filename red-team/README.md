@@ -205,8 +205,10 @@ A witness on the same host is a second copy, not a second trust domain. Since **
 to a public Sigsum log, and `aegis ledger-verify --anchor-log` reads the log back: an anchor in the log
 that the file cannot produce is a cut or rewritten ledger (exit 1). The battery forces a file cut back
 below an anchor, a rewritten ledger of the same length, a wrong log key, a log that swaps a leaf it
-shows, no anchor at all, and a log that refuses for want of a token. It does not check the log's
-cosigning witnesses, and rows after the last anchor are not covered until the next one.
+shows, no anchor at all, and a log that refuses for want of a token. Since **2.16.0** it also checks the
+log's cosigning witnesses under a Sigsum trust policy and forces a missing quorum, a witness that signs
+something else, and a policy that does not name the log. Rows after the last anchor are not covered
+until the next one.
 
 ```
 ./red-team/ledger-anchor.battery.sh

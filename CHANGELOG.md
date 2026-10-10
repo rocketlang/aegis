@@ -4,6 +4,26 @@ All notable changes to AEGIS will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [2.16.0] — 2026-10-10
+
+### Added — the anchor now checks the log's cosigning witnesses
+
+2.15.0 checked a tree head against the log's own key and said, in its output and here, that the witnesses were not checked. A log that showed one tree to us and another to somebody else would have passed. A witness cosigns a tree head only when it is consistent with every head it has seen, so a quorum of independent witnesses is what closes that.
+
+- **Trust policies** in Sigsum's own policy-file format (`parsePolicy`, `src/core/ledger-anchor.ts`): logs and witnesses by key, groups (`all`, `any`, `k` of n, nested), one quorum line. Parsed strictly: an unknown line, a name used before it is defined, a name or key listed twice, a count the members cannot meet, or a missing quorum line is an error, never a guess.
+- **Cosignatures verified** (`checkCosignatures`): each `cosignature` line of the tree head is checked against the named witness's key over `cosignature/v1`, the time, and the checkpoint the log signed. Lines by keys the policy does not name are ignored; a named witness whose signature does not verify is not counted; the same witness twice is one witness.
+- **`aegis ledger-anchor --policy <name|file>`**: the anchor is not reported done until the inclusion proof is against a tree head cosigned by the policy's quorum. The receipt records which witnesses verified. Without the quorum: exit 1, no receipt; running it again once the quorum is there finishes the job without a second leaf.
+- **`aegis ledger-verify --anchor-policy <name|file>`**: the tree head that was read must carry the quorum, or the result is UNVERIFIABLE (exit 2). A cut or rewritten ledger is still exit 1 when the quorum is also missing.
+- **Two published policies ship unchanged** from the Sigsum project (`src/core/anchor-policies/`, fetched 10 October 2026) and can be given by name: `sigsum-generic-2025-1` (production logs; 2 of 3 witnesses) and `sigsum-test-2025-3` (test logs; 4 of 6). A policy that does not name the log's key is refused.
+
+**Checked on 10 October 2026 against the real logs, read-only:** the current tree head of `seasalp` verified under `sigsum-generic-2025-1` with all three named witnesses, and the test log `barreleye` under `sigsum-test-2025-3` with all eight; no cosignature by a named witness failed to verify.
+
+**Where the trust sits now, and what is still open:**
+- The trust is in the policy's choice of witnesses. Two of three witnesses that agreed to lie together, with the log, would not be caught.
+- Without `--policy` / `--anchor-policy` nothing above applies and the output says the cosignatures were not checked.
+- A cosignature's time is reported in the code but no age limit is enforced: an old, valid cosignature on the head that was read still counts.
+- Rows after the last anchor, a cut before the first anchor, and a partial read (`--anchor-from`) are as before.
+
 ## [2.15.0] — 2026-10-10
 
 ### Added — the signed refusal ledger, anchored in a public transparency log

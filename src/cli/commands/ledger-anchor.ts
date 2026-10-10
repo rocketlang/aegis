@@ -18,6 +18,10 @@
 //                          a text file whose first line is "<domain> <hex signature>" (with or without
 //                          a leading "sigsum-token:"), or a JSON file {"tokens": {"<name>": {"url", "header"}}}
 //                          from which the entry for this log's URL is taken. Never printed.
+//   --policy <name|file>   a Sigsum trust policy ($AEGIS_ANCHOR_POLICY): the anchor is not called done until the proof is
+//                          against a tree head cosigned by the policy's quorum of witnesses. A name is one of the
+//                          published policies in src/core/anchor-policies (sigsum-generic-2025-1 for seasalp).
+//                          Without one, only the log's own signature is checked, and the output says so.
 //   --socket <path>        the authority's socket (default: where the gates find it)
 //   --receipts <path>      where proofs are kept (default <aegis home>/ledger-anchors.jsonl)
 //   --dry-run              ask, check and show the statement; send nothing
@@ -32,7 +36,7 @@ import { homedir } from "os";
 import { dirname, join } from "path";
 import { askLedgerAuthority } from "../../kavach/approver-client";
 import { ledgerSocket } from "../../core/refusal-ledger";
-import { submitAnchor, verifyAnchor, type Anchor, type AnchorReceipt } from "../../core/ledger-anchor";
+import { loadPolicy, submitAnchor, verifyAnchor, type Anchor, type AnchorReceipt, type TrustPolicy } from "../../core/ledger-anchor";
 
 const norm = (u: string) => u.replace(/\/+$/, "");
 
@@ -64,6 +68,14 @@ export default async function ledgerAnchor(args: string[]): Promise<void> {
     const home = process.env.AEGIS_HOME || join(homedir(), ".aegis");
     const receiptsPath = flag("--receipts") || join(home, "ledger-anchors.jsonl");
     const dry = args.includes("--dry-run");
+    let policy: TrustPolicy | null = null;
+    const policyRef = flag("--policy") || process.env.AEGIS_ANCHOR_POLICY;
+    if (policyRef) {
+      try {
+        const got = loadPolicy(policyRef); policy = got.policy;
+        if (!policy.logs.some((l) => l.key === log.publicKey)) throw new Error("it does not name this log's key");
+      } catch (e) { fail(2, `COULD NOT ANCHOR — the trust policy could not be used: ${(e as Error).message}. Nothing was sent.`); }
+    }
 
     const st = await askLedgerAuthority<{ max_seq: number; public_key: string; source: string }>(socket as string, "ledger-status");
     if (!st.ok || !st.value) fail(2, `COULD NOT ANCHOR — the authority did not answer: ${st.error ?? "no reply"}`);
@@ -90,12 +102,12 @@ export default async function ledgerAnchor(args: string[]): Promise<void> {
     } else say("no token file given — submitting without a rate-limit token (a public log is expected to refuse this).");
 
     const wait = parseInt(process.env.AEGIS_ANCHOR_WAIT_MS || "", 10);   // between tries while the log commits (default 3 s)
-    const out = await submitAnchor(log, a, token, { say: (s) => say(s), ...(Number.isFinite(wait) && wait > 0 ? { waitMs: wait } : {}) });
+    const out = await submitAnchor(log, a, token, { say: (s) => say(s), policy, ...(Number.isFinite(wait) && wait > 0 ? { waitMs: wait } : {}) });
     if (!out.ok) fail(1, `NOT ANCHORED (${out.kind}) — ${out.detail}`);
     const receipt = (out as { receipt: AnchorReceipt }).receipt;
     mkdirSync(dirname(receiptsPath), { recursive: true });
     appendFileSync(receiptsPath, JSON.stringify(receipt) + "\n");
-    say(`ANCHORED — seq ${receipt.max_seq} is leaf ${receipt.leaf_index} in a tree of ${receipt.tree_size}, root ${receipt.root_hash.slice(0, 16)}…, ${receipt.cosignatures} cosignature(s) seen (not checked).`);
+    say(`ANCHORED — seq ${receipt.max_seq} is leaf ${receipt.leaf_index} in a tree of ${receipt.tree_size}, root ${receipt.root_hash.slice(0, 16)}…, ${receipt.witnessed_by ? `cosigned by ${receipt.witnessed_by.join(", ")} (the policy's quorum '${receipt.quorum}' is met)` : `${receipt.cosignatures} cosignature(s) seen (not checked: no trust policy given)`}.`);
     say(`proof kept in ${receiptsPath}. The receipt is a convenience: \`aegis ledger-verify --anchor-log\` reads the log itself.`);
     process.exit(0);
   } catch (e) {

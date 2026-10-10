@@ -16,6 +16,9 @@
 // 0 and its root rebuilt, unless --anchor-from <index> asks for a partial read, which is faster and
 // cannot rule out a leaf the log did not show. An anchor in the log that this file cannot produce is
 // a cut or rewritten ledger. No anchor found is UNVERIFIABLE for truncation, not clean.
+// With --anchor-policy <name|file> the tree head that was read must also be cosigned by the policy's
+// quorum of witnesses; a head without the quorum is UNVERIFIABLE (exit 2). Without a policy only the
+// log's own signature is checked, and a note says so.
 //
 // Exit: 0 clean · 1 a gap/break (concealment or tamper) · 2 unverifiable · 3 broke.
 
@@ -25,7 +28,7 @@ import { join } from "path";
 import { hostname } from "os";
 import { verifyLedgerFile, refusalLedgerPath } from "../../core/refusal-ledger";
 import { witnessHighWaterMark } from "../../core/witness-client";
-import { judgeAnchors, rawPublicKey, scanForKey } from "../../core/ledger-anchor";
+import { judgeAnchors, loadPolicy, rawPublicKey, scanForKey } from "../../core/ledger-anchor";
 import type { SignedRow } from "../../core/ledger-sign";
 import { createHash } from "crypto";
 
@@ -68,7 +71,9 @@ export default async function ledgerVerify(args: string[]): Promise<void> {
         const rows = readFileSync(path, "utf-8").split("\n").filter(Boolean).map((l) => JSON.parse(l) as SignedRow);
         const from = parseInt(flag("--anchor-from") || "0", 10) || 0;
         const keyHash = createHash("sha256").update(rawPublicKey(pub)).digest("hex");
-        const scan = await scanForKey({ url: anchorLog.replace(/\/+$/, ""), publicKey: anchorKey.toLowerCase() }, keyHash, from);
+        const policyRef = flag("--anchor-policy") || process.env.AEGIS_ANCHOR_POLICY;
+        const policy = policyRef ? loadPolicy(policyRef).policy : null;
+        const scan = await scanForKey({ url: anchorLog.replace(/\/+$/, ""), publicKey: anchorKey.toLowerCase() }, keyHash, from, () => {}, policy);
         const j = judgeAnchors(rows, source, pub, scan);
         const reach = scan.whole_log_checked
           ? `the whole log (${scan.head.size} leaves) was read and its root rebuilt against the signed tree head`
@@ -82,7 +87,13 @@ export default async function ledgerVerify(args: string[]): Promise<void> {
         } else {
           process.stdout.write(`[ledger-verify] the public log ${anchorLog} holds ${j.anchors} anchor(s) for '${source}', every one a state this file contains; the latest is seq ${j.upTo} (leaf ${j.leafIndex}); ${reach}.\n`);
           if (j.upTo < j.maxSeq) process.stdout.write(`[ledger-verify] note: ${j.maxSeq - j.upTo} row(s) after seq ${j.upTo} are not anchored yet.\n`);
-          process.stdout.write(`[ledger-verify] note: the tree head carries ${j.cosignatures} cosignature(s); they were not checked, only the log's own signature.\n`);
+        }
+        // the witnesses: said for every outcome, and a head without the quorum cannot be called clean
+        if (!scan.cosign) process.stdout.write(`[ledger-verify] note: the tree head carries ${scan.head.cosignatures} cosignature(s); they were not checked (no --anchor-policy), only the log's own signature.\n`);
+        else if (scan.cosign.met) process.stdout.write(`[ledger-verify] the tree head is cosigned by ${scan.cosign.witnessed.join(", ") || "no witness (the policy asks for none)"}: the policy's quorum '${scan.cosign.quorum}' is met.\n`);
+        else {
+          process.stderr.write(`[ledger-verify] UNVERIFIABLE — the tree head is NOT cosigned by the policy's quorum '${scan.cosign.quorum}' (verified: ${scan.cosign.witnessed.join(", ") || "none"}; ${scan.cosign.invalid} did not verify; ${scan.cosign.unknown} by keys the policy does not name). What the log showed is not vouched for by its witnesses.\n`);
+          if (anchorCode === 0) anchorCode = 2;
         }
       } catch (e) {
         process.stderr.write(`[ledger-verify] UNVERIFIABLE — the public log could not be read: ${(e as Error).message}. Truncation is not ruled out.\n`);
