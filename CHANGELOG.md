@@ -4,6 +4,30 @@ All notable changes to AEGIS will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [2.16.1] — 2026-10-10
+
+### Fixed — three faults found by running the package the way a user gets it, and by breaking things under it
+
+All three came out of one afternoon's trial (10 October 2026): the published 2.16.0 was installed from npm into an empty folder and driven with throwaway daemons, a filling disk, a misbehaving log and a hostile local asker.
+
+- **The 2.16.0 dashboard did not start from an npm install.** `package.json` still asked for `@xshieldai/aegis-guard ^0.4.0`. The repository maps that name to its own folder (0.6.0), so every test and CI run used 0.6.0, while npm installed 0.4.0, which lacks two functions the dashboard's demo route began using in 2.16.0: `SyntaxError: Export named 'verifyActionApprovalToken' not found`. The range is now `^0.6.0`. **2.16.0's dashboard is broken for anyone who installed it from npm; 2.15.0 and earlier loaded.**
+- **Underneath that, and older:** every npm install of aegis up to 2.16.0 ran aegis-guard 0.4.0. The protections added in 0.5.0 and 0.6.0 (minting an approval is an authority action; an approval is bound to one action) were in the repository and on the registry, and not in what an aegis install pulled in.
+- **A full disk left half a row in the signed ledger.** The asker was told the refusal had not been recorded, which was true. The fragment stayed, the next row was written onto the same line, and so a refusal that HAD been acknowledged could not be read and `ledger-verify` reported UNVERIFIABLE from then on. Three runs of three. A row is now written whole or not at all (`appendWholeLine`: the file's length is noted first and the file is cut back to it if the write fails). If even that fails the error says so, and the next row starts on a new line. A partial last line left by an older version is not removed (the authority removes nothing from this file); the next row is no longer glued to it, and such a ledger still reads UNVERIFIABLE, as it should.
+- **The authority kept an unfinished request without limit.** 69 MB sent with no newline took the daemon from 55 MB to 125 MB, and the memory did not come back. A request is now refused past 64 KB and the connection closed; a connection that says nothing is closed after 10 seconds (`AEGIS_APPROVER_IDLE_MS`).
+
+### Upgrading from an npm install
+
+With aegis-guard 0.6.0 the dashboard **refuses to start unless it is told it is the minting authority**: set `AEGIS_MINT_AUTHORITY=1` for the dashboard process (and only for it). The refusal names the setting. This is 0.6.0's design, and it reaches npm installs of aegis for the first time with this release.
+
+### Added — so these cannot come back unseen
+
+- `tests/dependency-ranges.test.ts` fails when a declared `@xshieldai/*` range does not admit the version in `packages/`.
+- `red-team/installed-package.battery.sh` packs the tree, installs the tarball into an empty folder with its dependencies from the registry, and starts the dashboard from it.
+- `red-team/ledger-disk-full.battery.sh` runs a real authority on a 160 KB filesystem in a private mount namespace, fills it, and checks nothing but the unwritten row is lost. RED on 2.16.0 (five gaps), green here.
+- `tests/ledger-hardening.test.ts` forces the half-written row, the fragment that cannot be removed, the oversized request, the silent connection and a request sent in two pieces.
+
+**Still open:** `ledger-verify` given a `--source` name other than the authority's reports every genuine anchor as TRUNCATION OR REWRITE, and the message does not mention the name. `ledger-anchor` exits 3 for an unreachable log where 2 would be the honest code. The request limit bounds one connection; it does not bound the number of connections.
+
 ## [2.16.0] — 2026-10-10
 
 ### Added — the anchor now checks the log's cosigning witnesses

@@ -251,3 +251,25 @@ launcher or host root can still fake it; hardware/remote attestation (TPM/measur
 A finding is not closed because we understand it. It is closed when its red test refuses the exploit
 against an installed, versioned package — and the row in [Fixes landed](https://ankr.in/xshield-self-audit.html#fixes)
 links to that version and the commit. We do not adjust a test to make a release pass.
+
+### `installed-package` — what npm installs, not what the repository runs
+Every test here uses the repository's own copy of the `@xshieldai/*` packages. **`@xshieldai/aegis` 2.16.0**
+shipped a dashboard that could not start from an install, because `package.json` asked for an older
+aegis-guard than the code needed. This battery packs the tree, installs the tarball into an empty folder
+with its dependencies from the registry (it needs the network), starts the dashboard from the install,
+and checks it refuses to start without `AEGIS_MINT_AUTHORITY=1` and says why.
+
+```
+./red-team/installed-package.battery.sh
+```
+
+### `ledger-disk-full` — a full disk loses the row it could not write, and nothing else
+Before **2.16.1** a full disk left half a row in the signed ledger and the next row was written onto the
+same line: an acknowledged refusal became unreadable and the ledger never verified again. This battery
+runs a real authority on a 160 KB filesystem in a private mount namespace, fills it, asks, frees it, asks
+again and verifies. It needs the right to make a mount namespace; without it the result is "could not
+run" (exit 3), not a pass.
+
+```
+./red-team/ledger-disk-full.battery.sh
+```

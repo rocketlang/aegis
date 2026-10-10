@@ -78,6 +78,12 @@ function handle(req: ApproverRequest, ledger: LedgerAuthority): ApproverResponse
   }
 }
 
+// A request is one short line of JSON. Without a limit, bytes sent with no newline were kept for as long as the
+// connection stayed open: 69 MB sent took the daemon from 55 to 125 MB (10 October 2026). Any local process
+// that can reach the consume socket could grow the authority until the system killed it.
+export const MAX_REQUEST_BYTES = 64 * 1024;
+const idleMs = (): number => { const n = parseInt(process.env.AEGIS_APPROVER_IDLE_MS || "", 10); return Number.isFinite(n) && n > 0 ? n : 10_000; };
+
 function serve(path: string, allowed: Set<ApproverOp>, ledger: LedgerAuthority, log: (s: string) => void): Server {
   if (existsSync(path)) { try { unlinkSync(path); } catch { /* stale socket */ } }
   const dir = dirname(path);
@@ -86,9 +92,18 @@ function serve(path: string, allowed: Set<ApproverOp>, ledger: LedgerAuthority, 
   const server = createServer((sock: Socket) => {
     sock.setEncoding("utf8");
     let buf = "";
+    // A connection that says nothing is closed: an asker sends one line and reads one line.
+    sock.setTimeout(idleMs(), () => { sock.destroy(); });
     sock.on("data", (d) => {
       buf += d;
       const nl = buf.indexOf("\n");
+      if ((nl === -1 ? buf.length : nl) > MAX_REQUEST_BYTES) {
+        log(`REFUSED a request larger than ${MAX_REQUEST_BYTES} bytes on the ${allowed.has("approve") ? "approve" : "consume"} socket`);
+        buf = "";
+        sock.write(JSON.stringify({ ok: false, error: `request too large (limit ${MAX_REQUEST_BYTES} bytes)` }) + "\n");
+        sock.destroy();
+        return;
+      }
       if (nl === -1) return;
       let reply: ApproverResponse;
       try {

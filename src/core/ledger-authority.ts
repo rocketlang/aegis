@@ -19,7 +19,8 @@
 //     agent cannot use. On one uid this is a signature the agent could make itself.
 //   - A witness on the same host is a second copy, not a second trust domain.
 
-import { appendFileSync, chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "fs";
+import * as nodeFs from "fs";
+import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "fs";
 import { join } from "path";
 import {
   generateLedgerKeypair, signLedgerRow, signHeartbeat, rowHash, verifyLedgerRows,
@@ -39,7 +40,46 @@ export interface LedgerAuthorityOptions {
   heartbeatMs?: number;
   /** Also write the public key here, where a verifier outside the store can read it. */
   publicKeyOut?: string;
+  /** File calls used to append a row. Only a test replaces them. */
+  appendIo?: AppendIo;
   log?: (line: string) => void;
+}
+
+/** The five file calls an append needs. A test hands in ones that fail part-way, as a full disk does. */
+export type AppendIo = Pick<typeof nodeFs, "openSync" | "fstatSync" | "writeSync" | "ftruncateSync" | "closeSync">;
+
+/**
+ * Append one whole line to a file, or leave the file exactly as it was.
+ *
+ * `appendFileSync` on a full disk can write part of the line and then fail. The asker is told the row was not
+ * recorded, which is true, but the fragment stays, and the next row is written straight after it on the same
+ * line: that row, which WAS acknowledged, can no longer be read, and the ledger no longer verifies (found
+ * 10 October 2026 by filling a disk under the authority, three runs of three). So: note the length first, and
+ * on any failure cut the file back to it. If even that fails, the error says so and the caller must start the
+ * next row on a new line (see LedgerAuthority.record).
+ */
+export function appendWholeLine(path: string, line: string, io: AppendIo = nodeFs): void {
+  const data = Buffer.from(line, "utf8");
+  const fd = io.openSync(path, "a", 0o600);
+  let before = -1;
+  try {
+    before = io.fstatSync(fd).size;
+    let off = 0;
+    while (off < data.length) {
+      const n = io.writeSync(fd, data, off, data.length - off);
+      if (!(n > 0)) throw new Error("the write stopped short");
+      off += n;
+    }
+  } catch (e) {
+    const err = e as Error & { fragmentLeft?: boolean };
+    if (before >= 0) {
+      try { io.ftruncateSync(fd, before); }
+      catch (t) { err.fragmentLeft = true; err.message += ` — and the half-written row could not be removed (${(t as Error).message})`; }
+    }
+    throw err;
+  } finally {
+    try { io.closeSync(fd); } catch { /* nothing more to do */ }
+  }
 }
 
 export interface RefusalAsk {
@@ -66,12 +106,16 @@ export class LedgerAuthority {
   private timer: ReturnType<typeof setInterval> | null = null;
   private log: (line: string) => void;
   private heartbeatMs: number;
+  private appendIo: AppendIo;
+  /** false when the ledger file does not end on a whole line: the next row must start on a new one. */
+  private tailClean = true;
 
   constructor(opts: LedgerAuthorityOptions) {
     this.log = opts.log ?? ((s) => process.stderr.write(`[aegis-ledger] ${s}\n`));
     this.source = opts.source || "aegis";
     this.witnessUrl = opts.witnessUrl || null;
     this.heartbeatMs = opts.heartbeatMs ?? 20_000;
+    this.appendIo = opts.appendIo ?? nodeFs;
     if (!existsSync(opts.storeDir)) mkdirSync(opts.storeDir, { recursive: true, mode: 0o700 });
 
     const keyPath = join(opts.storeDir, "ledger-signing.key");
@@ -95,8 +139,15 @@ export class LedgerAuthority {
       catch (e) { this.log(`could not write the public key to ${opts.publicKeyOut}: ${(e as Error).message}`); }
     }
 
-    const raw: unknown[] = existsSync(this.ledgerPath)
-      ? readFileSync(this.ledgerPath, "utf-8").split("\n").filter(Boolean).map((l) => {
+    const onDisk = existsSync(this.ledgerPath) ? readFileSync(this.ledgerPath, "utf-8") : "";
+    if (onDisk && !onDisk.endsWith("\n")) {
+      // A partial last line, left by a version before 2.16.1 on a full disk or by a kill during a write. It is
+      // not removed (nothing in this file is ever removed by the authority); the next row starts on a new line.
+      this.tailClean = false;
+      this.log("the ledger file ends in a partial line — it is left as it is, and the next row will start on a new line");
+    }
+    const raw: unknown[] = onDisk
+      ? onDisk.split("\n").filter(Boolean).map((l) => {
           try { return JSON.parse(l); } catch { return { __malformed: true }; }
         })
       : [];
@@ -125,7 +176,14 @@ export class LedgerAuthority {
       session: clip(ask.session, 80),
     };
     const row = signLedgerRow(payload, t.seq + 1, t.hash, this.privateKey);
-    appendFileSync(this.ledgerPath, JSON.stringify(row) + "\n", { mode: 0o600 });
+    // One whole row or nothing (appendWholeLine). After a partial line that could not be removed, start on a new line.
+    try {
+      appendWholeLine(this.ledgerPath, (this.tailClean ? "" : "\n") + JSON.stringify(row) + "\n", this.appendIo);
+      this.tailClean = true;
+    } catch (e) {
+      if ((e as { fragmentLeft?: boolean }).fragmentLeft) this.tailClean = false;
+      throw e;
+    }
     this.rows.push(row);
     void this.pump();
     return row;
