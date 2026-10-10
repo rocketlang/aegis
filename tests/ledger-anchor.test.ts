@@ -116,12 +116,18 @@ const ours = (l = log) => { const kh = sha(rawPub(createPublicKey(readFileSync(p
 const refuse = (rule: string) => daemon.ledger.record({ gate: "test-gate", rule });
 const cutTo = (n: number) => { const f = join(dir, `cut-${n}.jsonl`); writeFileSync(f, readFileSync(ledgerFile, "utf-8").split("\n").filter(Boolean).slice(0, n).join("\n") + "\n"); return f; };
 
+// startApproverDaemon points AEGIS_DIR at its store for the whole process. Every test file runs in ONE process, so the
+// value is put back afterwards: left behind, it sent the destructive-gate tests to a folder this file had deleted.
+const aegisDirBefore = process.env.AEGIS_DIR;
 beforeAll(async () => {
   daemon = startApproverDaemon({ storeDir: store, consumeSocketPath: sock, approveSocketPath: join(dir, "approve.sock"), ledgerSource: SOURCE, log: () => {} });
   log = standInLog();
   for (let i = 0; i < 50 && !existsSync(sock); i++) await new Promise((r) => setTimeout(r, 50));
 });
-afterAll(() => { daemon.stop(); log.stop(); rmSync(dir, { recursive: true, force: true }); });
+afterAll(() => {
+  daemon.stop(); log.stop(); rmSync(dir, { recursive: true, force: true });
+  if (aegisDirBefore === undefined) delete process.env.AEGIS_DIR; else process.env.AEGIS_DIR = aegisDirBefore;
+});
 
 describe("ledger anchor, wired: authority signs, command submits, verifier reads the log", () => {
   it("an empty ledger sends nothing, and the authority will not sign an anchor for it", async () => {
