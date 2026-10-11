@@ -9,6 +9,7 @@
 import cors from '@fastify/cors';
 import rateLimit from '@fastify/rate-limit';
 import Fastify from 'fastify';
+import { createRequire } from 'node:module';
 
 import { registerAISRoutes } from './ais/routes.js';
 import { registerCrewRoutes } from './crew/routes.js';
@@ -27,6 +28,7 @@ import { registerReportRoutes } from './report/routes.js';
 import { registerTAXIIRoutes } from './taxii/routes.js';
 import { registerTopologyRoutes } from './topology/routes.js';
 import { resolveHost, resolveCorsOrigin, resolveAuth, makeAuthHook } from './security.js';
+import { VERSION } from './version.js';
 
 // ─── Port guard ───────────────────────────────────────────────────────────────
 const PORT = process.env['PORT'];
@@ -40,14 +42,19 @@ if (auth.mode === 'refuse') {
   throw new Error(`[xshieldai-varuna] refusing to start — ${auth.reason}`);
 }
 
+// Readable logs are a convenience for a developer who has pino-pretty installed. It is not a dependency of
+// this package, and through 0.2.0 the server asked for it whenever NODE_ENV was not "production", so a plain
+// `npm start` after an install stopped with "unable to determine transport target". Now: used if present.
+function prettyLogs(): boolean {
+  if (process.env['NODE_ENV'] === 'production') return false;
+  try { createRequire(import.meta.url).resolve('pino-pretty'); return true; } catch { return false; }
+}
+
 // ─── Server ───────────────────────────────────────────────────────────────────
 const app = Fastify({
   logger: {
     level: process.env['LOG_LEVEL'] ?? 'info',
-    transport:
-      process.env['NODE_ENV'] !== 'production'
-        ? { target: 'pino-pretty', options: { colorize: true } }
-        : undefined,
+    transport: prettyLogs() ? { target: 'pino-pretty', options: { colorize: true } } : undefined,
   },
 });
 
@@ -85,7 +92,7 @@ await app.register(rateLimit, {
 app.get('/health', async () => ({
   status: 'ok',
   service: 'xshieldai-varuna',
-  version: '0.1.0',
+  version: VERSION,
   port: PORT,
   phase: 'phase-4-pentest-vapt',
   timestamp: new Date().toISOString(),

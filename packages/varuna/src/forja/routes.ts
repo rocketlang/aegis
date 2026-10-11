@@ -13,6 +13,7 @@
 import type { FastifyInstance } from 'fastify';
 
 import { scanProof } from './proof.js';
+import { VERSION } from '../version.js';
 
 // ─── Capability constants (synced with codex.json) ───────────────────────────
 
@@ -115,7 +116,7 @@ export async function registerForjaRoutes(app: FastifyInstance): Promise<void> {
     const _start = Date.now();
     return {
       service_key: 'xshieldai-varuna',
-      version: '0.1.0',
+      version: VERSION,
       forja_version: '2.0',
       product_family: 'xShieldAI Maritime',
       can_answer: CAN_ANSWER,

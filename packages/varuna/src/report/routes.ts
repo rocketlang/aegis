@@ -5,7 +5,7 @@
  * @rule:CA-004 _meta on every resolver
  */
 
-import { execSync } from 'child_process';
+import { execFileSync } from 'child_process';
 import { readFileSync, unlinkSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
@@ -50,7 +50,8 @@ export async function registerReportRoutes(app: FastifyInstance): Promise<void> 
 
       try {
         writeFileSync(htmlPath, html, 'utf8');
-        execSync(`wkhtmltopdf --quiet --page-size A4 "${htmlPath}" "${pdfPath}"`, {
+        // Arguments are passed as a list, never through a shell.
+        execFileSync('wkhtmltopdf', ['--quiet', '--page-size', 'A4', htmlPath, pdfPath], {
           timeout: 30000,
         });
         const pdfBuf = readFileSync(pdfPath);
