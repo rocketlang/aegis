@@ -50,7 +50,7 @@ aegis-guard README before upgrading a service that mints its own tokens.
 
 | Package | Why excluded |
 |---|---|
-| `@xshieldai/n8n-nodes` | n8n-specific integration — `npm install @xshieldai/n8n-nodes` separately if you use n8n. Excluded so non-n8n users don't pull n8n-shaped deps. |
+| `@xshieldai/n8n-nodes-kavachos` | n8n-specific integration — `npm install @xshieldai/n8n-nodes-kavachos` separately if you use n8n. Excluded so non-n8n users don't pull n8n-shaped deps. |
 | `@rocketlang/kavachos-ee` | BSL-1.1 Enterprise Edition (PRAMANA Merkle ledger, HanumanG EE posture registry, dual-control approvals, multi-tenant isolation). Not published to npm. Contact [captain@ankr.in](mailto:captain@ankr.in) for design partner access. |
 
 ## Why a meta-package and not a fused single package?
@@ -273,7 +273,7 @@ aegis-dashboard (separate process, v2.2.0+)
 - **WAL files (`-wal`, `-shm`) accompany `acc-events.db`.** If you
   move/copy the SQLite file, take all three together or call
   `checkpoint()` first to consolidate into the main file.
-- **`@xshieldai/n8n-nodes` is NOT wired.** It's an n8n
+- **`@xshieldai/n8n-nodes-kavachos` is NOT wired.** It's an n8n
   integration, not a primitive — its event-bus story is the consumer's
   n8n workflow, not `wireAllToBus`.
 

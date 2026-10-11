@@ -1,4 +1,4 @@
-// aegis red-team probe — @xshieldai/n8n-nodes, the Kavach Run node, driven outside n8n with a stand-in
+// aegis red-team probe — @xshieldai/n8n-nodes-kavachos, the Kavach Run node, driven outside n8n with a stand-in
 // `kavachos` on PATH. The stand-in records the words it was started with and then behaves as the file
 // mode.txt says. Run by n8n-kavach-run.battery.sh.
 const fs = require("fs"), path = require("path");

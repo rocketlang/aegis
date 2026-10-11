@@ -37,7 +37,7 @@ export const SUITE_MANIFEST: SuiteManifest = {
   version: AEGIS_SUITE_VERSION,
   bundled_packages: AEGIS_SUITE_BUNDLED_PACKAGES,
   excluded: [
-    { package: '@xshieldai/n8n-nodes', reason: 'n8n-specific integration — install separately if using n8n' },
+    { package: '@xshieldai/n8n-nodes-kavachos', reason: 'n8n-specific integration — install separately if using n8n' },
     { package: '@rocketlang/kavachos-ee', reason: 'BSL-1.1 EE, not on npm — contact captain@ankr.in' },
   ],
 };

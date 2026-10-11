@@ -13,8 +13,8 @@
       "reason": "cross-org handshake service release — tag-triggered (nallasetu-v*), npm publish --provenance via trusted publishing; switched from staging to tokenless OIDC 2026-10-08"
     },
     "release-package.yml": {
-      "publishes": ["@xshieldai/aegis-guard", "@xshieldai/aegis-suite", "@xshieldai/chitta-detect", "@xshieldai/hanumang-mandate", "@xshieldai/lakshmanrekha", "@xshieldai/n8n-nodes"],
-      "reason": "one tag-triggered release workflow for the six packages under packages/ — npm --provenance via trusted publishing; the package is resolved from the tag prefix against a fixed list; a manual run is a rehearsal and publishes nothing"
+      "publishes": ["@xshieldai/aegis-guard", "@xshieldai/aegis-suite", "@xshieldai/chitta-detect", "@xshieldai/hanumang-mandate", "@xshieldai/lakshmanrekha", "@xshieldai/n8n-nodes-kavachos"],
+      "reason": "one tag-triggered release workflow for the six packages under packages/ — npm --provenance via trusted publishing; the package is resolved from the tag prefix against a fixed list; a manual run is a rehearsal and publishes nothing; a name not yet on the registry has its first version STAGED with the NPM_TOKEN secret and goes live only on a person's 2FA approval (n8n package renamed from @xshieldai/n8n-nodes at 1.5.0, 2026-10-12)"
     },
     "release-pypi.yml": {
       "publishes": ["xshieldai-langchain", "xshieldai-crewai"],

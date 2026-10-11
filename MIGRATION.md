@@ -20,7 +20,7 @@ npm install   @xshieldai/agent-kernel
 
 # n8n community nodes
 npm uninstall @rocketlang/n8n-nodes-kavachos
-npm install   @xshieldai/n8n-nodes
+npm install   @xshieldai/n8n-nodes-kavachos
 
 # Five Locks SDK
 npm uninstall @rocketlang/aegis-guard
@@ -87,6 +87,7 @@ Versions match exactly. Internal code is identical at the rename moment — pure
 **Two cosmetic name changes within the suite (not just scope swap):**
 - `@rocketlang/kavachos` → `@xshieldai/agent-kernel` (kept the `kavachos` binary name for CLI users — `npx kavachos run` still works as a command)
 - `@rocketlang/n8n-nodes-kavachos` → `@xshieldai/n8n-nodes` (n8n node class names unchanged so existing n8n workflows continue to work)
+- `@xshieldai/n8n-nodes` → `@xshieldai/n8n-nodes-kavachos` at 1.5.0 (12 October 2026): n8n only installs a community package whose name starts with `n8n-nodes-` after the scope. A saved workflow names its nodes by the package, so change the prefix `@xshieldai/n8n-nodes.` to `@xshieldai/n8n-nodes-kavachos.` in it, or re-add the nodes.
 
 **PyPI-side:**
 - New `xshieldai-langchain` + `xshieldai-crewai` published at v1.0.0 (matching old version).

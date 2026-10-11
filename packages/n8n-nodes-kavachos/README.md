@@ -1,4 +1,4 @@
-# @xshieldai/n8n-nodes
+# @xshieldai/n8n-nodes-kavachos
 
 > **🔍 Verification status (2026-10-05 IST — v1.1.2)**
 > - **Tests:** ⚠️ none yet — n8n node test fixtures planned. See [PROOF-STACK.md](https://github.com/rocketlang/aegis/blob/master/PROOF-STACK.md).
@@ -7,6 +7,12 @@
 > - **Phase-1 limits:** KavachRun is Linux-only; where enforcement is unavailable (non-Linux, or `kavachos` not installed) it **fails closed by default** (`On Non-Linux` = `throw`; `warn`/`skip` are opt-in). KavachGate works on any OS — it's a thin HTTP relay to AEGIS.
 >
 > The KavachGate node's behaviour is end-to-end testable against a live AEGIS instance — start AEGIS, import the example workflow, fire a `rm -rf /` command, watch it block. Automated CI fixtures still to come.
+
+> **Renamed at 1.5.0.** This package was `@xshieldai/n8n-nodes` through 1.4.1. n8n's community-nodes screen
+> only installs a package whose name starts with `n8n-nodes-` after the scope, and refused the old name. The
+> nodes are the same. A workflow saved with the old package names its nodes `@xshieldai/n8n-nodes.kavachGate`
+> and so on: after installing this package, change that prefix to `@xshieldai/n8n-nodes-kavachos.` in the
+> workflow (or re-add the nodes), and remove the old package.
 
 **KavachOS n8n community nodes** — pre-execution DAN gate and kernel enforcement for AI agents.
 
@@ -54,7 +60,7 @@ program there, as n8n's own Execute Command node can. Install it only where that
 
 ```bash
 # In your n8n data directory
-npm install @xshieldai/n8n-nodes
+npm install @xshieldai/n8n-nodes-kavachos
 ```
 
 Then restart n8n and add the **Aegis API** credential pointing to your Aegis dashboard (`http://localhost:4850` by default).

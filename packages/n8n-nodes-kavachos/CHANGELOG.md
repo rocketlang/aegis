@@ -1,4 +1,18 @@
-# Changelog — @xshieldai/n8n-nodes
+# Changelog — @xshieldai/n8n-nodes-kavachos
+
+## 1.5.0 (2026-10-12)
+
+### Renamed — `@xshieldai/n8n-nodes` is now `@xshieldai/n8n-nodes-kavachos`
+
+n8n's community-nodes screen only installs a package whose name, after the scope, starts with `n8n-nodes-`.
+`@xshieldai/n8n-nodes` did not, so that screen refused it ("Package name must start with n8n-nodes-"). The
+code is the same as 1.4.1.
+
+- Install `@xshieldai/n8n-nodes-kavachos` (from n8n's community-nodes screen, or by hand) and remove the old one.
+- **A saved workflow names each node by its package.** Change `@xshieldai/n8n-nodes.` to
+  `@xshieldai/n8n-nodes-kavachos.` in the workflow's node types, or delete and re-add the four nodes. The
+  node names (`kavachGate`, `kavachRun`, `kavachBudget`, `kavachAudit`) and the credential (`aegisApi`) are unchanged.
+- `@xshieldai/n8n-nodes` stops at 1.4.1 and points here.
 
 ## 1.4.1 (2026-10-12)
 

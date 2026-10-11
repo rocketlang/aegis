@@ -40,7 +40,7 @@ Same code, new home. As of v2.2.0 the AEGIS / Agent Kernel / primitive packages 
 |---|---|
 | `@rocketlang/aegis` | `@xshieldai/aegis` |
 | `@rocketlang/kavachos` | `@xshieldai/agent-kernel` |
-| `@rocketlang/n8n-nodes-kavachos` | `@xshieldai/n8n-nodes` |
+| `@rocketlang/n8n-nodes-kavachos` | `@xshieldai/n8n-nodes-kavachos` (it was `@xshieldai/n8n-nodes` from 1.1.0 to 1.4.1) |
 | `@rocketlang/aegis-guard` | `@xshieldai/aegis-guard` |
 | `@rocketlang/chitta-detect` | `@xshieldai/chitta-detect` |
 | `@rocketlang/lakshmanrekha` | `@xshieldai/lakshmanrekha` |
@@ -706,7 +706,7 @@ KavachOS ships in two tiers. The kernel enforcement layer — the part that actu
 | `perm_mask` / `class_mask` bitmask policy | KAVACH orchestrator | **AGPL-3.0** | `@xshieldai/aegis` |
 | Gate valve (throttle → crack → close) | KAVACH orchestrator | **AGPL-3.0** | `@xshieldai/aegis` |
 | HTTP Gate API (`/api/v1/kavach/gate`) | KAVACH orchestrator | **AGPL-3.0** | `@xshieldai/aegis` |
-| n8n community nodes (4 nodes) | KAVACH adapters | **AGPL-3.0** | `@xshieldai/n8n-nodes` |
+| n8n community nodes (4 nodes) | KAVACH adapters | **AGPL-3.0** | `@xshieldai/n8n-nodes-kavachos` (was `@xshieldai/n8n-nodes` through 1.4.1) |
 | LangChain callback adapter | KAVACH adapters | **AGPL-3.0** | `xshieldai-langchain` |
 | CA-006 LLM injection detection | KAVACH-POSTURE | **AGPL-3.0** | `@xshieldai/aegis` |
 | Basic HanumanG (7 delegation axes) | KAVACH-POSTURE | **AGPL-3.0** | `@xshieldai/aegis` |

@@ -1,4 +1,4 @@
-// aegis red-team probe — @xshieldai/n8n-nodes, the Kavach Gate node, driven outside n8n against a stand-in
+// aegis red-team probe — @xshieldai/n8n-nodes-kavachos, the Kavach Gate node, driven outside n8n against a stand-in
 // gate on 127.0.0.1 that answers as each case says. Run by n8n-kavach-run.battery.sh.
 const http = require("http"), path = require("path");
 const [pkgDir] = process.argv.slice(2);
