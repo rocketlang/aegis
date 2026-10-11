@@ -12,7 +12,7 @@
 #
 # Exit: 0 every answer is the pinned one · 1 an answer changed · 3 broke.
 set -u
-[ -n "${RAN_INNER:-}" ] || exec "$(cd "$(dirname "$0")" && pwd)/lib/ran.sh" 37 "$0" "$@"   # green only if the cases ran
+[ -n "${RAN_INNER:-}" ] || exec "$(cd "$(dirname "$0")" && pwd)/lib/ran.sh" 45 "$0" "$@"   # green only if the cases ran
 HERE="$(cd "$(dirname "$0")" && pwd)"; REPO="$(cd "$HERE/.." && pwd)"
 BUN="$(command -v bun || echo /root/.bun/bin/bun)"; PORT="${TEST_PORT:-48995}"
 T="$(mktemp -d /tmp/aegis-http-behaviour-XXXXXX)"; chmod 700 "$T"; pid=""
@@ -21,8 +21,8 @@ echo "=== aegis red-team · what the dashboard answers over HTTP ==="
 [ -x "$BUN" ] && command -v curl >/dev/null || { echo "BROKE — bun or curl not found"; exit 3; }
 ss -ltn 2>/dev/null | grep -q ":$PORT " && { echo "BROKE — port $PORT is in use (set TEST_PORT)"; exit 3; }
 echo "framework: fastify $(node -p "require('$REPO/node_modules/fastify/package.json').version" 2>/dev/null || echo '?'), @fastify/static $(node -p "require('$REPO/node_modules/@fastify/static/package.json').version" 2>/dev/null || echo '?')"
-mkdir -p "$T/home/.aegis"; PW="red-team-$(head -c 9 /dev/urandom | od -An -tx1 | tr -d ' \n')"
-HOME="$T/home" "$BUN" -e 'import { loadConfig } from "'"$REPO"'/src/core/config.ts"; import { writeFileSync } from "fs"; const c = loadConfig(); c.dashboard = { ...c.dashboard, port: '"$PORT"', host: "127.0.0.1", auth: { enabled: true, username: "captain", password: "'"$PW"'" } }; writeFileSync(process.env.HOME + "/.aegis/config.json", JSON.stringify(c));' >/dev/null 2>&1 || { echo "BROKE — could not write the temporary configuration"; exit 3; }
+mkdir -p "$T/home/.aegis"; PW="red-team-$(head -c 9 /dev/urandom | od -An -tx1 | tr -d ' \n')"; TOK="$(head -c 24 /dev/urandom | od -An -tx1 | tr -d ' \n')"
+HOME="$T/home" "$BUN" -e 'import { loadConfig } from "'"$REPO"'/src/core/config.ts"; import { writeFileSync } from "fs"; const c = loadConfig(); c.dashboard = { ...c.dashboard, port: '"$PORT"', host: "127.0.0.1", auth: { enabled: true, username: "captain", password: "'"$PW"'", api_token: "'"$TOK"'" } }; writeFileSync(process.env.HOME + "/.aegis/config.json", JSON.stringify(c));' >/dev/null 2>&1 || { echo "BROKE — could not write the temporary configuration"; exit 3; }
 ( cd "$REPO" && exec env HOME="$T/home" AEGIS_MINT_AUTHORITY=1 timeout 90 "$BUN" src/dashboard/server.ts >"$T/dash.log" 2>&1 ) & pid=$!
 up=""; for _ in $(seq 1 60); do curl -s -m 2 -o /dev/null "http://127.0.0.1:$PORT/health" && { up=1; break; }; kill -0 "$pid" 2>/dev/null || break; sleep 0.25; done
 [ -n "$up" ] || { echo "BROKE — the dashboard did not start: $(sed 's/\x1b\[[0-9;]*m//g' "$T/dash.log" | grep -m1 -i -E 'error|refus' | cut -c1-170)"; exit 3; }
@@ -64,6 +64,16 @@ ask -H "$C" "$B/index.html";                      pin "with a session /index.htm
 ask -H "$C" "$B/api/status";                      pin "with a session an API route answers JSON" "$S $(hdr content-type | cut -d';' -f1)" '200 application/json'
 ask -H "$C" "$B/no/such/route";                   pin "with a session an address that matches nothing is 404" "$S" '404'
 ask -H "Cookie: aegis_sid=${cookie#aegis_sid=}x" "$B/api/status"; pin "a cookie with one character added is refused" "$S" '401'
+
+# ── the gate audit: a session, or the adapters' token, and nothing else (2.19.0) ──────────────────────────────
+ask "$B/api/v1/kavach/audit?limit=1";             pin "the gate audit without a session or token is refused" "$S" '401'
+ask -H "$C" "$B/api/v1/kavach/audit?limit=1";     pin "the gate audit with a session answers" "$S" '200'
+ask -H "Authorization: Bearer $TOK" "$B/api/v1/kavach/audit?limit=1"; pin "the gate audit with the adapters' token answers" "$S" '200'
+ask -H "Authorization: Bearer ${TOK}0" "$B/api/v1/kavach/audit?limit=1"; pin "a token with one character added is refused" "$S" '401'
+ask -H "Authorization: Bearer $PW" "$B/api/v1/kavach/audit?limit=1";  pin "the login password is not a token" "$S" '401'
+ask -H "Authorization: Bearer $TOK" "$B/api/status";                 pin "the token opens the audit only: /api/status stays refused" "$S" '401'
+ask -H "Authorization: Bearer $TOK" "$B/api/v2/enforcement/audit";   pin "the token does not open the other audit" "$S" '401'
+ask "$B/api/v1/kavach/state";                     pin "the budget state stays open to adapters" "$S" '200'
 
 # ── static files ──────────────────────────────────────────────────────────────────────────────────────────────
 ask "$B/aegis.css";                               pin "the style sheet is public and served as CSS" "$S $(hdr content-type | cut -d';' -f1)" '200 text/css'

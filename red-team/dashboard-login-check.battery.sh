@@ -14,7 +14,7 @@
 #
 # Exit: 0 every protected route refuses and every public route answers · 1 a gap · 3 broke.
 set -u
-[ -n "${RAN_INNER:-}" ] || exec "$(cd "$(dirname "$0")" && pwd)/lib/ran.sh" 53 "$0" "$@"   # green only if the cases ran
+[ -n "${RAN_INNER:-}" ] || exec "$(cd "$(dirname "$0")" && pwd)/lib/ran.sh" 56 "$0" "$@"   # green only if the cases ran
 HERE="$(cd "$(dirname "$0")" && pwd)"; REPO="$(cd "$HERE/.." && pwd)"
 BUN="$(command -v bun || echo /root/.bun/bin/bun)"; PORT="${TEST_PORT:-48997}"
 T="$(mktemp -d /tmp/aegis-login-check-XXXXXX)"; chmod 700 "$T"; pid=""
@@ -46,6 +46,7 @@ for p in \
   '/api/v1/tenants?x=.js' '/api/v1/tenants/a.js' '/api/v1/cost-tree?x=.js' '/api/v2/valves?x=.js' '/api/v2/valve/a.js' \
   '/api/v2/enforcement/audit?x=.js' '/api/v2/enforcement/approvals/pending?x=.js' '/api/v2/forja/state?x=.js' \
   '/api/firewall/overview?x=.js' '/agent/a.js' '/firewall?x=.js' '/suite?x=.js' \
+  '/api/v1/kavach/audit' '/api/v1/kavach/audit?limit=1' '/api/v1/kavach/audit?x=.js' \
   '/?x=.js' '/index.html?x=.js' '/index.html;.js' '/index.html' '/' ; do
   c="$(code "$B$p")"
   if [ "$c" = 401 ] || [ "$c" = 302 ]; then echo "  [ok]   refused ($c): $p"; else echo "  [GAP]  not refused ($c): $p"; fail=1; fi
@@ -54,7 +55,7 @@ done
 # Public pages and files, as they are really asked for. Each must answer 200 without a session.
 for p in '/health' '/health?x=1' '/login' '/demo' '/demo?utm_source=linkedin&utm_medium=post' '/demo/' '/demo/?utm_source=linkedin' \
   '/control-center?x=1' '/api/demo/health' '/api/demo/health?x=1' '/api/acc/health' '/aegis.css' '/aegis.js' '/aegis.js?v=2' \
-  '/api/approvals' '/api/approvals?x=1' '/api/v1/kavach/audit?limit=1' '/api/v1/kavach/health' '/api/v2/enforcement/signing-key' ; do
+  '/api/approvals' '/api/approvals?x=1' '/api/v1/kavach/state' '/api/v1/kavach/health' '/api/v2/enforcement/signing-key' ; do
   c="$(code "$B$p")"
   if [ "$c" = 200 ]; then echo "  [ok]   public (200): $p"; else echo "  [GAP]  a public address did not answer ($c): $p"; fail=1; fi
 done

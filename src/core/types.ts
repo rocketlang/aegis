@@ -39,6 +39,7 @@ export interface AegisConfig {
       enabled: boolean;
       username: string;
       password: string; // plaintext in local config — hosted only, not committed
+      api_token?: string; // optional, 24+ characters: lets an adapter read the gate audit without a login session (2.19.0)
     };
   };
   monitor: {

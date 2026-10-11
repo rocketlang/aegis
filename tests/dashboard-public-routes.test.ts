@@ -3,8 +3,15 @@
 // The end-to-end proof against a running dashboard is red-team/dashboard-login-check.battery.sh.
 import { describe, expect, test } from "bun:test";
 import { isPublicRoute } from "../src/dashboard/public-routes";
+import { apiTokenMatches, apiTokenUsable } from "../src/dashboard/api-token";
 
 describe("dashboard public routes", () => {
+  test("the gate audit is not public (2.19.0): it holds the text of every gated command", () => {
+    expect(isPublicRoute("GET", "/api/v1/kavach/audit", "/api/v1/kavach/audit?limit=1")).toBe(false);
+    expect(isPublicRoute("GET", "/api/v1/kavach/state", "/api/v1/kavach/state")).toBe(true);
+    expect(isPublicRoute("POST", "/api/v1/kavach/gate", "/api/v1/kavach/gate")).toBe(true);
+  });
+
   test("a protected route is not public however the address is dressed", () => {
     for (const url of ["/api/status", "/api/status?x=.js", "/api/status;x=.css", "/api/status?.png"]) {
       expect(isPublicRoute("GET", "/api/status", url)).toBe(false);
@@ -41,5 +48,23 @@ describe("dashboard public routes", () => {
   test("a CORS preflight is answered; the wildcard route is public to nothing else", () => {
     expect(isPublicRoute("OPTIONS", "*", "/api/demo/run")).toBe(true);
     expect(isPublicRoute("GET", "*", "/api/status")).toBe(false);
+  });
+});
+
+describe("the adapters' token", () => {
+  const T = "a".repeat(24) + "Z9";
+  test("only the exact bearer token matches", () => {
+    expect(apiTokenMatches(`Bearer ${T}`, T)).toBe(true);
+    for (const h of [undefined, "", T, `bearer ${T}`, `Bearer ${T}x`, `Bearer ${T.slice(0, -1)}`, `Bearer  ${T}`, `Basic ${T}`]) {
+      expect(apiTokenMatches(h, T)).toBe(false);
+    }
+  });
+  test("a short, empty, spaced or missing configured token matches nothing", () => {
+    for (const c of [undefined, "", "short", "x".repeat(23), "has a space in it, long enough though", 12345678901234567890123456]) {
+      expect(apiTokenUsable(c)).toBe(false);
+      expect(apiTokenMatches(`Bearer ${String(c)}`, c)).toBe(false);
+    }
+    expect(apiTokenMatches("Bearer ", "")).toBe(false);
+    expect(apiTokenMatches("Bearer undefined", undefined)).toBe(false);
   });
 });

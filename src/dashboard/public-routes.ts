@@ -8,7 +8,9 @@
 // ways (query, ";", percent-encoding, a trailing slash); the matched route is the one thing the guard
 // and the handler cannot disagree about.
 //
-// WHICH routes are public is unchanged from 2.16.2. Adding one here is an authorization decision.
+// WHICH routes are public: unchanged from 2.16.2 except that the gate audit (/api/v1/kavach/audit) left
+// the list in 2.19.0. It returns the text of every command that reached the gate; it now needs a session or
+// the adapters' token (api-token.ts). Adding a route here is an authorization decision.
 
 const EXACT = new Set([
   "/health",
@@ -34,7 +36,6 @@ const EXACT = new Set([
 const PREFIX = [
   "/api/demo/",                      // /api/demo/run + /api/demo/health
   "/api/acc/",
-  "/api/v1/kavach/audit",
   "/api/v2/authorize",
   "/api/v1/aegis/authorize",
   "/api/v1/aegis/sdt",

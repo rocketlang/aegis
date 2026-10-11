@@ -12,6 +12,7 @@ import { join } from "path";
 import { loadConfig, saveConfig } from "../core/config";
 import { issueSessionCookie, clearSessionCookie, verifySession } from "./session";
 import { verifyTrustToken } from "./trust-token";
+import { apiTokenMatches, apiTokenUsable, API_TOKEN_ROUTE, API_TOKEN_MIN } from "./api-token";
 import { loginPage } from "./login-page";
 import { getDb, getBudgetState, listActiveSessions, getRecentAlerts, setSessionStatus, addAlert, getWindowBudget, getPendingApprovals, decideKavachApproval, getRecentApprovals, queryKavachAudit, recordAgentUsage, getCostTree, listAgentRows, recordDashboardAccess, getAllBgAgents, acknowledgeAllBgAgents } from "../core/db";
 import { verifyReceiptChain, listCheckpoints } from "../kernel/merkle-ledger";
@@ -82,6 +83,10 @@ app.register(fastifyFormbody);
 // All other routes require a valid aegis_sid session cookie.
 if (config.dashboard.auth?.enabled) {
   const { username, password } = config.dashboard.auth;
+  const configuredToken = config.dashboard.auth.api_token;
+  if (configuredToken !== undefined && configuredToken !== "" && !apiTokenUsable(configuredToken)) {
+    console.error(`[aegis] dashboard.auth.api_token is IGNORED: it must be at least ${API_TOKEN_MIN} characters with no spaces (try: openssl rand -hex 24). The gate audit needs a login session until it is.`);
+  }
 
   // Login page
   app.get("/login", async (_req, reply) => {
@@ -126,6 +131,9 @@ if (config.dashboard.auth?.enabled) {
     // Machine access to the Forja faces via a Keeper-signed trust token — safety-gated (replaces the
     // old open bypass for machine endpoints; an agent without a signed token cannot reach proof).
     if (route?.startsWith("/api/v2/forja/") && verifyTrustToken(req.headers["authorization"] as string | undefined).valid) return;
+
+    // The adapters' token opens the gate audit and nothing else (2.19.0). See api-token.ts.
+    if (route === API_TOKEN_ROUTE && apiTokenMatches(req.headers["authorization"] as string | undefined, config.dashboard.auth?.api_token)) return;
 
     const { valid } = verifySession(req.headers["cookie"] as string | undefined);
     if (!valid) {

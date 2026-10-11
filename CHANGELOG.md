@@ -18,6 +18,15 @@ Our own review, continued. Nothing here was reported from outside.
 - A `kavachos run` line without `--` now says it will be refused from agent-kernel 3.0.
 - The same code ships as `@xshieldai/agent-kernel` 2.6.0. New battery `red-team/kavachos-proxy-trust.battery.sh` (10 cases; 9 gaps on agent-kernel 2.5.0).
 
+### Changed — the gate audit is no longer open to anyone (behaviour change)
+
+- **`GET /api/v1/kavach/audit` answered without a login, even on a dashboard exposed with a password set.** It returns the text of every command that reached the gate, and commands carry paths, host names and sometimes credentials.
+- On a dashboard with a password set it now needs a login session, or `Authorization: Bearer <token>` where the token is `dashboard.auth.api_token` in `~/.aegis/config.json` (24 characters or more; `openssl rand -hex 24`). The token opens this one route and nothing else. A shorter token is ignored, and the dashboard says so at start.
+- **If you use the n8n audit node or the LangChain adapter's `audit()` against a dashboard with a password:** set `api_token` in the config and give the same value to the adapter (the n8n credential's "API Token"; `AEGIS_TOKEN` for the Python adapter). Both have always sent it; until now nothing read it.
+- A dashboard on loopback with no password is unchanged: nothing there needs a session.
+- The gate itself (`POST /api/v1/kavach/gate`), the budget state and the health probe stay open to adapters.
+- `red-team/dashboard-login-check.battery.sh` grows to 56 cases (3 gaps on 2.18.1), `dashboard-http-behaviour.battery.sh` to 45.
+
 ## [2.18.1] — 2026-10-12
 
 Our own review of the kernel launcher. Nothing here was reported from outside.
