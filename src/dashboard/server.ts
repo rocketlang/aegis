@@ -20,6 +20,7 @@ import { registerSystemRoutes } from "./routes/system";
 import { registerForjaRoutes, emitSense } from "./routes/forja";
 import { registerBitMaskOSRoutes } from "./routes/bitmaskos";
 import { registerAuthRoutes } from "../auth/routes";
+import { isPublicRoute } from "./public-routes";
 import { registerEnforcementRoutes } from "./routes/enforcement";
 import { registerAseRoutes } from "./routes/ase";
 import { registerMachineLawRoutes } from "./routes/machine-law";
@@ -69,7 +70,9 @@ try {
 } catch { /* EE not available */ }
 
 const config = loadConfig();
-const app = Fastify({ logger: false });
+// A trailing slash reaches the same route ("/demo/" is "/demo"); the session guard decides on the
+// matched route, so this cannot open anything the route itself does not.
+const app = Fastify({ logger: false, ignoreTrailingSlash: true });
 
 app.register(fastifyCors, { origin: true });
 app.register(fastifyFormbody);
@@ -116,50 +119,13 @@ if (config.dashboard.auth?.enabled) {
   // Session guard — all other routes
   app.addHook("onRequest", async (req, reply) => {
     const url = req.url ?? "";
-    // Public pass-through
-    if (
-      url === "/health" ||
-      url === "/metrics" ||
-      url === "/login" ||
-      url === "/logout" ||
-      url === "/kavachos" ||    // public landing page (KOS-093)
-      url === "/commands" ||
-      url === "/demo" ||         // Tier 3 public playground
-      url === "/mcp" ||          // AF-T-703 external honeypot manifest — bait only, founder-directed public (AGT-018)
-      url === "/early-access" ||       // AEGIS waitlist page (public, GTM Phase 0)
-      url === "/api/early-access" ||   // waitlist signup POST
-      url.startsWith("/api/demo/") ||  // /api/demo/run + /api/demo/health
-      url === "/control-center" ||    // Tier 3: public read-only cockpit (already SSE)
-      url === "/api/acc/events/stream" ||
-      url.startsWith("/api/acc/") ||
-      url.endsWith(".css") ||
-      url.endsWith(".js") ||
-      url.endsWith(".ico") ||
-      url.endsWith(".png") ||
-      url === "/api/approvals/webhook" ||
-      url === "/api/v1/kavach/health" ||
-      url === "/api/v1/kavach/state" ||
-      url === "/api/v1/kavach/gate" ||
-      url.startsWith("/api/v1/kavach/audit") ||
-      url.startsWith("/api/v2/authorize") ||
-      url.startsWith("/api/v1/aegis/authorize") ||
-      url.startsWith("/api/v1/aegis/sdt") ||
-      // ASE endpoints: called from hooks, AI Proxy, and agent frameworks — no browser session
-      // @rule:ASE-001 @rule:ASE-011
-      url.startsWith("/api/v1/aegis/session") ||
-      url.startsWith("/api/v1/aegis/sessions") ||
-      url.startsWith("/api/bg-agents") ||
-      // Machine-law: called from agent frameworks before planning — no browser session
-      url.startsWith("/api/v2/machine-law/") ||
-      // @rule:KGT-002 — PUBLIC key for approval-JWT verification (KGT-T1.1); key material
-      // here is the public half only, verifier services fetch it without a browser session
-      url === "/api/v2/enforcement/signing-key" ||
-      (url === "/api/approvals" && req.method === "GET")
-    ) return;
+    // Decided on the route that matched, not on the address: see public-routes.ts.
+    const route = req.routeOptions?.url;
+    if (isPublicRoute(req.method, route, url)) return;
 
     // Machine access to the Forja faces via a Keeper-signed trust token — safety-gated (replaces the
     // old open bypass for machine endpoints; an agent without a signed token cannot reach proof).
-    if (url.startsWith("/api/v2/forja/") && verifyTrustToken(req.headers["authorization"] as string | undefined).valid) return;
+    if (route?.startsWith("/api/v2/forja/") && verifyTrustToken(req.headers["authorization"] as string | undefined).valid) return;
 
     const { valid } = verifySession(req.headers["cookie"] as string | undefined);
     if (!valid) {
