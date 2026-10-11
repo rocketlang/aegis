@@ -4,6 +4,17 @@ All notable changes to AEGIS will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [2.19.1] — 2026-10-12
+
+Our own review, the last items. Nothing here was reported from outside.
+
+- **`@xshieldai/agent-kernel` left out two things its own code reaches for** (2.6.1 ships them):
+  - `dns-proxy.py`, which the egress supervisor loads from beside itself. Without it the supervisor leaves name lookups denied, so an agent under egress enforcement from that package could resolve nothing. This is read from the code; we did not launch an agent under enforcement to watch it.
+  - the AppArmor profile and its install script.
+- **The launcher's warning about the path jail named `src/kernel/apparmor/install.sh`**, a path an installed package does not have. It now names the script beside the module that prints it, in this package and in agent-kernel alike.
+- The AppArmor profile is written for a root home (`/root/.aegis/…`). On another account, edit the paths before loading it.
+- New battery `red-team/kavachos-bundle-files.battery.sh` (5 cases; 5 gaps on agent-kernel 2.6.0). `@xshieldai/n8n-nodes` 1.4.1 ships its four icons.
+
 ## [2.19.0] — 2026-10-12
 
 Our own review, continued. Nothing here was reported from outside.

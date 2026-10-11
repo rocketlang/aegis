@@ -145,6 +145,17 @@ a request through when it cannot reach the budget service; that is its stated de
 Found in our own review, not reported from outside. Checked by `red-team/kavachos-proxy-trust.battery.sh`
 (10 cases, no launch under enforcement): 9 gaps on 2.5.0, none on 2.6.0.
 
+### The package holds the files its code reaches for (2.6.1)
+
+Through 2.6.0 this package left out `dns-proxy.py`, which the egress supervisor loads from beside itself, and
+the AppArmor profile with its install script. Without the first, the supervisor leaves name lookups denied:
+an agent under egress enforcement could resolve nothing (read from the code, not watched in a run). The
+launcher's warning about the path jail named a path that exists only in the source repository.
+
+2.6.1 ships all three under `dist/`, and the warning names the script where it is installed
+(`…/node_modules/@xshieldai/agent-kernel/dist/apparmor/install.sh`, run as root). The profile is written for a
+root home; on another account edit its paths first.
+
 
 ---
 

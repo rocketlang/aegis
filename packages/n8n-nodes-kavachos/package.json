@@ -1,6 +1,6 @@
 {
   "name": "@xshieldai/n8n-nodes",
-  "version": "1.4.0",
+  "version": "1.4.1",
   "description": "xShieldAI n8n community nodes — DAN gate, kernel enforcement, budget check, and audit log for AI agents.",
   "license": "AGPL-3.0-only",
   "author": "Capt. Anil Sharma <capt.anil.sharma@powerpbox.org>",
@@ -38,7 +38,7 @@
     ]
   },
   "scripts": {
-    "build": "tsc",
+    "build": "tsc && node -e \"const fs=require('fs'),p=require('path');for(const d of fs.readdirSync('nodes',{withFileTypes:true})){if(!d.isDirectory())continue;for(const f of fs.readdirSync(p.join('nodes',d.name))){if(f.endsWith('.svg'))fs.copyFileSync(p.join('nodes',d.name,f),p.join('dist','nodes',d.name,f))}}\"",
     "dev": "tsc --watch",
     "prepublishOnly": "node ../../scripts/publish-guard.mjs && npm run build"
   },

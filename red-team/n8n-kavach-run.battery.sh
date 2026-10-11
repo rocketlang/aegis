@@ -13,7 +13,7 @@
 #
 # Red on 1.2.0 and 1.3.0, green from 1.4.0. Exit: 0 no gap · 1 a gap · 3 broke, or the probe did not run all its cases.
 set -u
-EXPECT_CASES=28
+EXPECT_CASES=32
 HERE="$(cd "$(dirname "$0")" && pwd)"; REPO="$(cd "$HERE/.." && pwd)"
 echo "=== aegis red-team · n8n Kavach Run and Kavach Gate: say what happened, and do not hang ==="
 command -v node >/dev/null && command -v npm >/dev/null || { echo "BROKE — node or npm not found"; exit 3; }
@@ -48,6 +48,17 @@ STANDIN
 chmod +x "$T/bin/kavachos"
 OUT="$( cd "$T/app" && PATH="$T/bin:$PATH" node "$HERE/n8n-kavach-run.probe.cjs" "$PKG" "$T/work" 2>&1 )"; rc=$?
 echo "$OUT"
+echo "--- what ships ---"
+OUT3="$( cd "$T/app" && node -e '
+const path=require("path"),fs=require("fs"),pkg=process.argv[1],m=require(path.join(pkg,"package.json"));let c=0,g=0;
+for(const rel of m.n8n.nodes){const js=path.join(pkg,rel),cls=Object.values(require(js))[0],icon=String(new cls().description.icon||"");
+  const f=icon.startsWith("file:")?path.join(path.dirname(js),icon.slice(5)):null,ok=!!f&&fs.existsSync(f)&&/<svg[\s>]/.test(fs.readFileSync(f,"utf8"));
+  c++;if(!ok)g++;console.log("  ["+(ok?"safe":"GAP")+"] the icon "+path.basename(rel,".node.js")+" names is in the package — "+icon+(ok?"":" (missing)"));}
+console.log("\nRESULT cases="+c+" gaps="+g);process.exit(g?1:0)' "$PKG" 2>&1 )"; rc3=$?
+echo "$OUT3"
+[ "$rc3" -gt "$rc" ] && rc=$rc3
+OUT="$OUT
+$OUT3"
 echo "--- the gate node ---"
 OUT2="$( cd "$T/app" && node "$HERE/n8n-kavach-gate.probe.cjs" "$PKG" 2>&1 )"; rc2=$?
 echo "$OUT2"

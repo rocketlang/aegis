@@ -1,5 +1,14 @@
 # Changelog — @xshieldai/n8n-nodes
 
+## 1.4.1 (2026-10-12)
+
+- **The four node icons now exist.** Each node has always named an icon file; none was in the source or in the
+  package, so n8n showed a placeholder.
+- **Known, not changed here:** n8n's community-nodes screen only installs a package whose name (after the
+  scope) starts with `n8n-nodes-`. This package is `@xshieldai/n8n-nodes`, so that screen refuses it
+  ("Package name must start with n8n-nodes-"). Install it by hand into n8n's custom-extensions folder
+  (`npm install @xshieldai/n8n-nodes` there) until it is published under a name n8n accepts.
+
 ## 1.4.0 (2026-10-12)
 
 Found in our own review, not reported from outside.

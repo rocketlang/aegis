@@ -71,6 +71,10 @@ const KAVACHOS_DIR = join(getAegisDir(), "kernel");
 //                require (fail CLOSED: no profile → no launch) | off
 // @rule:KGT-002 fail-closed key custody · @rule:KGT-006 violations train the armor
 const APPARMOR_PROFILE = "kavachos-agent";
+// The install script sits beside this module in the source tree and beside the bundle in the published
+// package (dist/apparmor/). Through agent-kernel 2.6.0 the messages below named a path inside the repository,
+// and the package did not ship the script at all.
+const APPARMOR_INSTALL = join(dirname(new URL(import.meta.url).pathname), "apparmor", "install.sh");
 
 function apparmorJailMode(): "require" | "prefer" | "off" {
   const v = (process.env.KAVACHOS_JAIL ?? "prefer").toLowerCase();
@@ -424,13 +428,13 @@ export async function runWithKernel(
   if (jailMode === "require" && !jailActive) {
     throw new Error(
       `KAVACHOS_JAIL=require but AppArmor profile '${APPARMOR_PROFILE}' is not loaded — ` +
-      `refusing to launch (fail-closed). Load it: bash src/kernel/apparmor/install.sh`,
+      `refusing to launch (fail-closed). Load it, as root: bash ${APPARMOR_INSTALL}`,
     );
   }
   if (jailMode === "prefer" && !jailActive) {
     process.stderr.write(
       `[kavachos] WARNING: AppArmor path jail '${APPARMOR_PROFILE}' not loaded — ` +
-      `agent can read signing keys. Load it: bash src/kernel/apparmor/install.sh\n`,
+      `agent can read signing keys. Load it, as root: bash ${APPARMOR_INSTALL}\n`,
     );
     try {
       addAlert({
