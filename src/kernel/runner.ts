@@ -258,6 +258,17 @@ export async function runWithKernel(
       falcoRulesPath,
       egressPolicyPath,
       dryRun: true,
+      // What would be launched, and under which choices: the words are the agent's own (2.5.0).
+      agentCommand,
+      options: {
+        trustMask: opts.trustMask,
+        domain: opts.domain,
+        delegationDepth,
+        strictExec,
+        falco: opts.falcoEnabled ?? false,
+        allowUnconstrainedEgress: opts.allowUnconstrainedEgress === true,
+        loopbackPorts: opts.loopbackPorts ?? [],
+      },
     }, null, 2));
     return { sessionId, profileHash, syscallCount: syscall_count, profilePath, falcoRulesPath, egressPolicyPath };
   }

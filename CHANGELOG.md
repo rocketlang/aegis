@@ -4,6 +4,19 @@ All notable changes to AEGIS will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [2.18.1] — 2026-10-12
+
+Our own review of the kernel launcher. Nothing here was reported from outside.
+
+### Fixed — `kavachos run` read the agent's arguments as its own options
+
+- **Every word starting with `--` was read as a kavachos option wherever it stood on the line**, and removed from what the agent received. The agent lost its own options (`kavachos run bun agent.ts --port 4900` handed it `4900`). And whoever supplied the agent's arguments could set kavachos's: `--dry-run` (nothing runs, exit 0), `--allow-unconstrained-egress`, `--needs=`, `--depth=`, `--session-id=`, and a trust mask when none was given.
+- **A bare `--` now ends kavachos's options.** `kavachos run [options] -- <agent> [its arguments]`: everything after it is the agent's, word for word. A command word before `--` is refused (exit 2).
+- A line without `--` is read the old way, so existing launch lines keep working; each option found after the agent's binary is named in a warning. A caller that passes on arguments it did not write must use `--`.
+- A dry run also prints the command that would be launched and the choices it would be launched under.
+- The same command ships in `@xshieldai/agent-kernel` 2.5.0. `@xshieldai/n8n-nodes` 1.3.0 uses `--` and refuses an older `kavachos`.
+- New: `red-team/kavachos-run-args.battery.sh` (9 cases, dry runs only; 7 gaps on agent-kernel 2.4.0), `red-team/n8n-kavach-run.battery.sh` (5 cases; 5 gaps on n8n-nodes 1.2.0), `tests/kavachos-run-args.test.ts` (7).
+
 ## [2.18.0] — 2026-10-12
 
 The dashboard moves to fastify 5. Our own review of the dependencies, not a report from outside.

@@ -87,10 +87,10 @@ Requires: **Bun ≥ 1.0**, **Linux x86_64**, kernel ≥ 3.5 (seccomp-bpf), kerne
 kavachos init --domain=general --trust-mask=0xFF
 
 # Run any agent under kernel enforcement
-kavachos run claude --trust-mask=0xFF --domain=general --verbose
+kavachos run --trust-mask=0xFF --domain=general --verbose -- claude
 
 # Run a Bun script with maritime domain rules
-kavachos run bun src/my-agent.ts --trust-mask=0x00FF0000 --domain=maritime --falco
+kavachos run --trust-mask=0x00FF0000 --domain=maritime --falco -- bun src/my-agent.ts --port 4900
 
 # Inspect profile + gate valve state
 kavachos profile show
@@ -98,6 +98,23 @@ kavachos profile show
 # Audit the receipt chain
 kavachos audit --all
 ```
+
+### `--` ends kavachos's options (2.5.0)
+
+Write kavachos's options first, then a bare `--`, then the agent's command. Everything after `--` is passed
+to the agent word for word and is never read as a kavachos option.
+
+Through 2.4.0 every word starting with `--` was read as a kavachos option wherever it stood on the line, and
+removed from what the agent received. So the agent lost its own options (`--port` above), and whoever supplied
+the agent's arguments could set kavachos's: `--dry-run` (nothing runs, exit 0), `--allow-unconstrained-egress`,
+`--needs=`, `--depth=`, `--session-id=`, a trust mask if none was given.
+
+A line without `--` is still read the old way, so existing launch lines keep working; each option found after
+the agent's binary is named in a warning on stderr. **If the agent's arguments come from anywhere but your own
+hand (a workflow, a wrapper script, a model), use `--`.** A dry run now also prints the command that would be
+launched and the choices it would be launched under. Found in our own review, not reported from outside.
+Checked by `red-team/kavachos-run-args.battery.sh` in the repository (dry runs only): 7 gaps on 2.4.0, none on 2.5.0.
+
 
 ---
 

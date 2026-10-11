@@ -25,6 +25,27 @@ function kavachosAvailable(): boolean {
   }
 }
 
+// kavachos reads a bare "--" as the end of its own options from 2.5.0. Before that, any word starting
+// with "--" among the binary's arguments was read as a kavachos option (a dry run, an unconstrained
+// launch, another trust mask). The arguments of this node often come from an expression, so the node
+// uses "--" and refuses a kavachos that does not know it.
+const KAVACHOS_MIN = "2.5.0";
+
+function kavachosVersion(): string | null {
+  const out = spawnSync("kavachos", ["version"], { encoding: "utf8", timeout: 15000 });
+  const m = /^kavachos (\d+\.\d+\.\d+)/m.exec(out.stdout ?? "");
+  return m ? m[1] : null;
+}
+
+function versionAtLeast(have: string, want: string): boolean {
+  const h = have.split(".").map((n) => parseInt(n, 10));
+  const w = want.split(".").map((n) => parseInt(n, 10));
+  for (let i = 0; i < 3; i++) {
+    if ((h[i] ?? 0) !== (w[i] ?? 0)) return (h[i] ?? 0) > (w[i] ?? 0);
+  }
+  return true;
+}
+
 export class KavachRun implements INodeType {
   description: INodeTypeDescription = {
     displayName: "Kavach Run",
@@ -164,12 +185,28 @@ export class KavachRun implements INodeType {
         continue;
       }
 
-      // Linux + kavachos available — build command
+      // Linux + kavachos available. It must be one that reads "--": with an older one the words
+      // below the separator would still be read as its options, so that is a refusal, not a warning.
+      const have = kavachosVersion();
+      if (!have || !versionAtLeast(have, KAVACHOS_MIN)) {
+        throw new NodeOperationError(
+          this.getNode(),
+          `kavachos ${have ?? "(version not readable)"} is too old for this node: ${KAVACHOS_MIN} or later is needed ` +
+            `(npm install -g @xshieldai/agent-kernel@latest). Not run.`,
+          { itemIndex: i }
+        );
+      }
+      if (/\s/.test(trustMask) || /\s/.test(domain)) {
+        throw new NodeOperationError(this.getNode(), "trust mask and domain must be single words", { itemIndex: i });
+      }
+
+      // Everything after "--" is the binary and its arguments, passed on word for word.
       const kavachArgs = [
         "run",
         `--trust-mask=${trustMask}`,
         `--domain=${domain}`,
         ...(falco ? ["--falco"] : []),
+        "--",
         binary,
         ...(args ? args.split(/\s+/) : []),
       ];

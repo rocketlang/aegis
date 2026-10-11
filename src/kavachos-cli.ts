@@ -6,7 +6,7 @@
 // kavachos <command> [options]
 //
 // Commands:
-//   run <agent> [args]           Launch agent under seccomp + Falco governance
+//   run [options] -- <agent> [args]   Launch agent under seccomp + Falco governance
 //   generate                     Generate profile only (no exec)
 //   profile show <agent-id>      Display active seccomp profile + gate valve state
 //   sessions [list]              List all registered Claude Code sessions (KOS-076/077/078)
@@ -19,7 +19,7 @@
 // Single source of truth for the version inside the bundle. The build refuses to run
 // if this disagrees with package.json — it silently drifted from 2.0.0 for five months,
 // so `kavachos version` reported a release that was no longer being shipped.
-const KAVACHOS_VERSION = "2.4.0";
+const KAVACHOS_VERSION = "2.5.0";
 const command = Bun.argv[2] || "help";
 const subCommand = Bun.argv[3];
 const args = Bun.argv.slice(3);
@@ -83,12 +83,28 @@ async function main() {
 async function cmdRun(args: string[]) {
   const { runWithKernel } = await import("./kernel/runner");
 
-  const opts = parseRunOpts(args);
-  const agentArgs = args.filter((a) => !a.startsWith("--"));
+  const { splitRunArgs } = await import("./kernel/run-args");
+
+  // A bare "--" ends kavachos's options; what follows is the agent's command, untouched (2.5.0).
+  const split = splitRunArgs(args);
+  if (split.error) {
+    console.error(`[kavachos] ${split.error}`);
+    process.exit(2);
+  }
+  const opts = parseRunOpts(split.optionArgs);
+  const agentArgs = split.agentArgs;
 
   if (agentArgs.length === 0) {
-    console.error("Usage: kavachos run <agent_binary> [args] [--trust-mask=N] [--domain=D] [--dry-run] [--verbose]");
+    console.error("Usage: kavachos run [--trust-mask=N] [--domain=D] [--dry-run] [--verbose] -- <agent_binary> [its arguments]");
     process.exit(1);
+  }
+  // The old reading, kept so existing launch lines work: said aloud, because these words were
+  // taken from the agent and acted on here.
+  if (split.optionsAfterBinary.length) {
+    console.error(
+      `[kavachos] WARNING: read as kavachos options and NOT passed to the agent: ${split.optionsAfterBinary.join(" ")}. ` +
+      `Put kavachos options first and a bare "--" before the agent's command: kavachos run [options] -- ${agentArgs.join(" ")}`,
+    );
   }
 
   try {
@@ -712,7 +728,7 @@ Version ${KAVACHOS_VERSION} | AGPL-3.0 | DOI 10.5281/zenodo.19908430
 Usage: kavachos <command> [options]
 
 Commands:
-  run <binary> [args]        Launch agent under seccomp-bpf governance (KOS-011)
+  run [options] -- <binary> [args]   Launch agent under seccomp-bpf governance (KOS-011)
   generate                   Generate seccomp profile + Falco rules without exec
   profile show [agent-id]    Show active seccomp profile + gate valve state (KOS-031)
   egress show [session-id]   Show active egress policy (host allowlist) for a session (KOS-042)
@@ -728,6 +744,9 @@ Commands:
   version                    Print version
 
 Options for run / generate:
+  --                         (run) End of kavachos options. Everything after it is the agent's
+                             command, passed on word for word and never read as an option here.
+                             Without it, any --word on the line is read as a kavachos option.
   --trust-mask=<N>           trust_mask value (hex or decimal, default: 1)
   --domain=<name>            Domain: general|maritime|logistics|ot|finance (default: general)
   --agent-type=<name>        Agent type label (default: claude-code)
@@ -753,8 +772,8 @@ Options for init:
 
 Examples:
   kavachos init --domain=maritime --trust-mask=0xFF
-  kavachos run claude --trust-mask=0xFF --domain=general --verbose
-  kavachos run bun src/my-agent.ts --trust-mask=0x00FF0000 --domain=maritime --falco
+  kavachos run --trust-mask=0xFF --domain=general --verbose -- claude
+  kavachos run --trust-mask=0x00FF0000 --domain=maritime --falco -- bun src/my-agent.ts --port 4900
   kavachos generate --trust-mask=255 --domain=logistics --json
   kavachos generate --trust-mask=0 --domain=general --out=/tmp/minimal
   kavachos profile show agent-123

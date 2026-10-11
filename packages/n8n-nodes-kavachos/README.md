@@ -31,6 +31,10 @@ Intercepts AI agent actions **before execution**. Calls the Aegis KAVACH HTTP ga
 
 Wraps a subprocess in kavachos **kernel enforcement** (seccomp-bpf + cgroup BPF egress firewall).
 
+**Requires `@xshieldai/agent-kernel` 2.5.0 or later** (since 1.3.0). The node starts
+`kavachos run <options> -- <binary> <arguments>`, so the binary's arguments are passed on word for word and
+cannot be read as kavachos options. With an older `kavachos` the node refuses to run. See the changelog.
+
 - Linux only — where enforcement is unavailable it **fails closed by default** (`On Non-Linux` = `throw`; set `warn` to run unwrapped, or `skip`)
 - Use **after** KavachGate for defense in depth: policy gate + kernel enforcement
 - `trust_mask` controls which syscall groups the process may call
@@ -51,7 +55,7 @@ Then restart n8n and add the **Aegis API** credential pointing to your Aegis das
 
 ## Quick Start
 
-1. **Start Aegis**: `npx @xshieldai/aegis` (or `kavachos run n8n --domain=general`)
+1. **Start Aegis**: `npx @xshieldai/aegis` (or `kavachos run --domain=general -- n8n`)
 2. **Add credential**: Aegis API → base URL `http://localhost:4850`
 3. **Import template**: `examples/n8n-governed-agent.json`
 4. **Run**: Trigger → KavachGate → AI Agent → Audit
