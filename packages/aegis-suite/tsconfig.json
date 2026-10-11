@@ -11,7 +11,13 @@
     "resolveJsonModule": true,
     "isolatedModules": true,
     "noEmit": true,
-    "types": ["node"]
+    "types": ["node"],
+    "paths": {
+      "@xshieldai/aegis-guard": ["../aegis-guard/src/index.ts"],
+      "@xshieldai/chitta-detect": ["../chitta-detect/src/index.ts"],
+      "@xshieldai/lakshmanrekha": ["../lakshmanrekha/src/index.ts"],
+      "@xshieldai/hanumang-mandate": ["../hanumang-mandate/src/index.ts"]
+    }
   },
   "include": ["src/**/*.ts"]
 }

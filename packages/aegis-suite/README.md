@@ -1,8 +1,8 @@
 # @xshieldai/aegis-suite
 
-> **🔍 Verification status (2026-10-05 IST — v0.2.5)**
-> - **Tests:** ⚠️ `wireAllToBus()` helper has no standalone tests yet. Bundled primitives' test status: **4 of 6** bundled packages have automated tests today (aegis-guard: 177, chitta-detect: 108, lakshmanrekha: 109, hanumang-mandate: 98 — **492 tests total** across primitives at their current versions, all passing on `bun test`).
-> - **Examples:** ✅ runnable quickstart, in the repository (not in the npm package): [examples/quickstart.ts](https://github.com/rocketlang/aegis/blob/master/packages/aegis-suite/examples/quickstart.ts) — `bun run examples/quickstart.ts` calls `wireAllToBus()` then exercises each primitive, showing receipts unified into one stream (primitive name in `[brackets]` per line). Writes to `~/.aegis/acc-events.db` for later inspection.
+> **🔍 Verification status (2026-10-11 IST — v0.3.1)**
+> - **Tests:** ⚠️ `wireAllToBus()` helper has no standalone tests yet. Bundled primitives' test status: **4 of 6** bundled packages have automated tests today (aegis-guard: 184, chitta-detect: 134, lakshmanrekha: 125, hanumang-mandate: 98 — **541 tests total** across primitives at their current versions, all passing on `bun test`).
+> - **Examples:** ✅ runnable quickstart, in the repository (not in the npm package): [examples/quickstart.ts](https://github.com/rocketlang/aegis/blob/master/packages/aegis-suite/examples/quickstart.ts) — `bun run examples/quickstart.ts` calls `wireAllToBus()` then exercises each primitive, showing receipts unified into one stream (primitive name in `[brackets]` per line). Run it from the repository root. It mints nothing: since aegis-guard 0.6.0 an ordinary process verifies and does not mint, so the example shows a refusal. Writes to `~/.aegis/acc-events.db` for later inspection.
 > - **Live demo:** ⚠️ planned (Tier 3)
 > - **Phase-1 limits:** documented in "Phase-1 limits (v0.2.0)" section below (SQLite WAL checkpointing, in-process vs cross-process visibility, etc.)
 >
@@ -22,12 +22,29 @@ That's it. You now have all six primitives. Import from each sub-package by name
 
 | Package | Role | Range this package installs |
 |---|---|---|
-| [`@xshieldai/aegis`](https://www.npmjs.com/package/@xshieldai/aegis) | Agent **spend** governance: budget caps, kill-switch, DAN gate, HanumanG 7-axis spawn check | `^2.2.0` |
+| [`@xshieldai/aegis`](https://www.npmjs.com/package/@xshieldai/aegis) | Agent **spend** governance: budget caps, kill-switch, DAN gate, HanumanG 7-axis spawn check | `^2.17.2` |
 | [`@xshieldai/agent-kernel`](https://www.npmjs.com/package/@xshieldai/agent-kernel) | Agent **behavior**: seccomp-bpf, Falco, syscall mediation, exec allowlist, egress firewall | `^2.0.2` |
-| [`@xshieldai/aegis-guard`](https://www.npmjs.com/package/@xshieldai/aegis-guard) | Five Locks SDK: approval-token, nonce, idempotency, SENSE, quality-evidence | `^0.4.0` |
-| [`@xshieldai/chitta-detect`](https://www.npmjs.com/package/@xshieldai/chitta-detect) | Memory poisoning detection: trust / imperative / tool-output / capability-expansion / fingerprint scanners | `^0.3.0` |
-| [`@xshieldai/lakshmanrekha`](https://www.npmjs.com/package/@xshieldai/lakshmanrekha) | LLM endpoint probe suite: 8 deterministic attack probes + replayable refusal classifier + multi-provider runner | `^0.4.0` |
-| [`@xshieldai/hanumang-mandate`](https://www.npmjs.com/package/@xshieldai/hanumang-mandate) | Mudrika delegation-credential verifier + 7-axis posture scorer | `^0.3.0` |
+| [`@xshieldai/aegis-guard`](https://www.npmjs.com/package/@xshieldai/aegis-guard) | Five Locks SDK: approval-token, nonce, idempotency, SENSE, quality-evidence | `^0.6.1` |
+| [`@xshieldai/chitta-detect`](https://www.npmjs.com/package/@xshieldai/chitta-detect) | Memory poisoning detection: trust / imperative / tool-output / capability-expansion / fingerprint scanners | `^0.3.1` |
+| [`@xshieldai/lakshmanrekha`](https://www.npmjs.com/package/@xshieldai/lakshmanrekha) | LLM endpoint probe suite: 8 deterministic attack probes + replayable refusal classifier + multi-provider runner | `^0.4.1` |
+| [`@xshieldai/hanumang-mandate`](https://www.npmjs.com/package/@xshieldai/hanumang-mandate) | Mudrika delegation-credential verifier + 7-axis posture scorer | `^0.3.1` |
+
+### Changed in 0.3.1 (11 October 2026)
+
+Versions 0.2.5 and 0.3.0 asked for `@xshieldai/aegis-guard ^0.4.0`. A fresh install therefore gave your own
+code aegis-guard 0.4.0, while `@xshieldai/aegis` carried its own, newer copy. Two things followed:
+
+- the copy you imported lacked the fixes of 0.5.0, 0.6.0 and 0.6.1 (an approval bound to the concrete act,
+  minting as an authority action, an act that must be plain data);
+- `wireAllToBus()` wired the 0.4.0 copy only, so approvals checked by aegis's own copy sent no receipt to the bus.
+
+0.3.1 asks for the current line of every package (table above), so one copy of each is installed. Nothing
+else in this package changed. If you installed 0.3.0, reinstall, then check with
+`npm ls @xshieldai/aegis-guard` that a single version at 0.6.1 or later is listed.
+
+**If you move from aegis-guard 0.4:** a process that mints must now declare itself the authority
+(`AEGIS_MINT_AUTHORITY=1`), and an approval is checked against the act it was given for. See the
+aegis-guard README before upgrading a service that mints its own tokens.
 
 ## Deliberately NOT bundled
 
