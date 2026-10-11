@@ -24,6 +24,7 @@ import { dirname } from "path";
 import { recordPending, listPending, approvePending, consumeApproval } from "./destructive-approval";
 import type { ApproverOp, ApproverRequest, ApproverResponse } from "./approver-client";
 import { LedgerAuthority } from "../core/ledger-authority";
+import { isNonce } from "../core/ledger-sign";
 
 export interface DaemonOptions {
   consumeSocketPath: string;
@@ -61,7 +62,10 @@ function handle(req: ApproverRequest, ledger: LedgerAuthority): ApproverResponse
       case "refusal": {
         if (typeof req.gate !== "string" || !req.gate) return { ok: false, error: "refusal needs a gate" };
         const row = ledger.record(req);
-        return { ok: true, value: { seq: row.seq } };
+        // The signed row itself, and a receipt bound to the asker's nonce: a gate with a pinned public key
+        // checks both, so an answer from anything that does not hold the ledger key is not taken as signed.
+        const nonce = (req as { nonce?: unknown }).nonce;
+        return { ok: true, value: { seq: row.seq, row, ...(isNonce(nonce) ? { receipt: ledger.receipt(nonce, row) } : {}) } };
       }
       case "ledger-status":
         return { ok: true, value: ledger.status() };

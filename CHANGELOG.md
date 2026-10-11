@@ -4,6 +4,33 @@ All notable changes to AEGIS will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [2.16.3] — 2026-10-11
+
+### Fixed — the dashboard's login check could be walked past
+
+- **A protected dashboard address was served without a session if it ended in `.js`, `.css`, `.png` or `.ico`, and a query string counted as the end.** The session guard compared the whole request address with its public list, so `/api/status?x=.js` passed as a static file. A route parameter ending that way passed too. The guard now decides on the route the server matched (`src/dashboard/public-routes.ts`), which the guard and the handler cannot disagree about. Which routes are public is unchanged. **Upgrade if your dashboard can be reached by anyone you would not give the password.** A dashboard bound to 127.0.0.1 (the default) was reachable only from the same machine.
+- **A public page with anything after it got the login page.** `/demo?utm_source=…` (a tracking tag added by a link shortener or a social network) and `/demo/` were not on the list. Both now reach the page.
+- New battery: `red-team/dashboard-login-check.battery.sh` starts the dashboard with a password and asks without a session. 34 gaps on 2.16.2, none now.
+
+### Fixed — the signed refusal ledger: an answer that was not the authority's was taken as signed
+
+Reported by Andrey Lazarev on 11 October 2026 against 2.16.2, with a probe. Both of his findings are right.
+
+- **A gate believed any reply that said "ok" and carried a number.** The gate finds the authority by a socket path (the environment, or the pointer file `ledger-socket` in the aegis home, which the agent's own account can write). A socket of the agent's own answering `{"ok":true,"value":{"seq":42}}` produced a local row reading `authority_seq: 42`, with no error and nothing on stderr, while the real ledger never saw the refusal: no gap in the signed ledger, no stall at the witness, no leaf in the public log. With the pointer file deleted, the local row carried no number and no reason.
+  - **The authority now returns the signed row and a receipt**: its signature over the gate's own fresh nonce, the row's number and the row's hash.
+  - **The gate checks both against a pinned public key**: `/etc/aegis/ledger-signing.pub` if it exists (nothing in the environment or the aegis home can replace it), else `AEGIS_LEDGER_PUBKEY` / `AEGIS_LEDGER_PUBKEY_FILE` from the environment the harness gives the gate. The copy in the aegis home is not read for this. An answer that does not verify is written as NOT signed and said on stderr; so is a refusal made with a key pinned and no socket configured. A verified row says `authority_check: "verified"`.
+  - **With no key pinned the gate cannot check.** It accepts the answer as before and writes `authority_check: "unchecked"`, so the row never claims more than it has.
+  - **`aegis ledger-verify --local <file>`** compares the gates' local copy with the signed ledger: a local row naming a number the ledger does not hold, or holds as another refusal, exits 1; so does a local row written after the ledger's first row with no number and no reason (`--local-since <time>` for a period when an operator had switched the authority off).
+  - New battery: `red-team/ledger-fake-authority.battery.sh` (a real authority and four false ones: a bare number, a copied genuine answer, another key, no socket).
+- **To turn the check on:** install the authority from 2.16.3 first, then pin its public key, for example `install -D -m 644 <store>/ledger-signing.pub /etc/aegis/ledger-signing.pub` as root. A gate with a pinned key refuses the answer of an authority older than 2.16.3, because that answer carries no signed row.
+- **What this does not give.** Where the gate runs as root, or as the account that owns the key file, the pin is a file that account can rewrite. The local file is written by the gates' own account: a refusal removed from it as well leaves nothing to compare. A gate that refuses and never asks still leaves no row.
+
+### Documented — a quiet ledger and a dead authority look the same in the public log
+
+The anchor statement carries no time, so a ledger that has not grown adds no leaf. Someone who reads only the public log cannot tell a week with no refusals from an authority switched off a week ago; the stall alarm that tells them apart lives with the witness. This was not among the listed limits (pointed out by Andrey Lazarev). It is now, in `src/core/ledger-anchor.ts`. A dated statement, one leaf a day, would close it and is not built.
+
+Still open: the request limit on the authority's socket bounds one connection, not the number of connections.
+
 ## [2.16.2] — 2026-10-10
 
 ### Fixed — two answers that said the wrong thing

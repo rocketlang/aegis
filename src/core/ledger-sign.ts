@@ -99,6 +99,46 @@ export function verifyHeartbeat(h: Heartbeat, publicKeyPem: string): boolean {
   }
 }
 
+// ── Receipt (the authority's answer to a gate) ────────────────────────────────────────────────
+// Through 2.16.2 the authority answered a gate with a bare number, and the gate believed any reply
+// that said "ok" and carried one. A socket the agent's uid controls could answer in the authority's
+// place, and the local row then read as signed (reported by Andrey Lazarev, 11 October 2026).
+//
+// A receipt is the authority's signature over "the nonce you sent, the number I gave, the hash of
+// the row I signed". The gate checks the row and the receipt against a public key it reads from a
+// place the agent's uid cannot write. The nonce is the gate's own, fresh for each ask, so a genuine
+// row and receipt copied from an earlier answer do not pass. The canonical bytes start with
+// "receipt" where a row's start with "seq" and a heartbeat's with "hb".
+
+export interface Receipt {
+  nonce: string;
+  seq: number;
+  row_hash: string;
+  sig: string;
+}
+
+/** A nonce is hex and nothing else, so the authority never signs a structure of the asker's choosing. */
+export const isNonce = (v: unknown): v is string => typeof v === "string" && /^[0-9a-f]{32,64}$/.test(v);
+
+function receiptCanonical(r: Omit<Receipt, "sig">): string {
+  return JSON.stringify({ receipt: 1, nonce: r.nonce, seq: r.seq, row_hash: r.row_hash });
+}
+
+export function signReceipt(nonce: string, row: SignedRow, privateKeyPem: string | KeyObject): Receipt {
+  const key = typeof privateKeyPem === "string" ? createPrivateKey(privateKeyPem) : privateKeyPem;
+  const body = { nonce, seq: row.seq, row_hash: rowHash(row) };
+  return { ...body, sig: edSign(null, Buffer.from(receiptCanonical(body), "utf8"), key).toString("base64") };
+}
+
+export function verifyReceipt(r: Receipt, publicKeyPem: string): boolean {
+  try {
+    if (!r || !isNonce(r.nonce) || typeof r.seq !== "number" || typeof r.row_hash !== "string" || typeof r.sig !== "string") return false;
+    return edVerify(null, Buffer.from(receiptCanonical(r), "utf8"), createPublicKey(publicKeyPem), Buffer.from(r.sig, "base64"));
+  } catch {
+    return false;
+  }
+}
+
 export type LedgerVerdict =
   | { ok: true; rows: number; maxSeq: number }
   | { ok: false; kind: "gap" | "chain" | "signature" | "unverifiable"; seq: number | null; detail: string };

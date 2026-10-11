@@ -27,6 +27,12 @@
 //     different readers. Without a policy the tree head is checked against the log's own key only,
 //     and the output says so. With one, the trust is in the policy's choice of witnesses.
 //   - Rows added after the last anchor are not covered until the next one.
+//   - A QUIET LEDGER AND A DEAD AUTHORITY LOOK THE SAME IN THE LOG. Because the statement carries no
+//     time, a ledger that has not grown adds no leaf. Someone who reads only the public log cannot
+//     tell a week with no refusals from an authority switched off a week ago. The stall alarm that
+//     tells them apart lives with the witness, and a witness on the same box is a second copy, not a
+//     second trust domain. Closing this needs a dated statement (one leaf a day, and a ledger-verify
+//     that accounts for dated leaves); it is not built. Pointed out by Andrey Lazarev, 11 October 2026.
 //   - A ledger cut back BEFORE its first anchor leaves nothing in the log to contradict it.
 //   - On a box where the agent can read the ledger key, the agent can sign an anchor for a state that
 //     never existed and so raise a false alarm. It cannot use an anchor to hide a cut.

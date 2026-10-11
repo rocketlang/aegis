@@ -101,7 +101,12 @@ afterAll(() => {
   try { witness?.kill(); } catch { /* */ }
 });
 
-describe("signed refusal ledger, wired through the authority", () => {
+// A box that pins the ledger key at /etc/aegis/ledger-signing.pub pins it for every gate, these tests' gates too:
+// they would rightly refuse this file's throwaway authority. There the wired cases are skipped, not failed; run
+// them in a private mount namespace instead (unshare -m, an empty tmpfs over /etc/aegis), as
+// red-team/ledger-fake-authority.battery.sh does.
+const boxPinsAKey = existsSync("/etc/aegis/ledger-signing.pub");
+describe.skipIf(boxPinsAKey)("signed refusal ledger, wired through the authority", () => {
   it("a real gate refusal becomes a signed, numbered row the gate did not write", async () => {
     const h = overBudget("ledger-authority-1");
     try {

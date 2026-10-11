@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Copyright (c) 2026 Capt. Anil Sharma (rocketlang). All rights reserved.
 //
-// aegis ledger-verify [path] [--witness <url> --source <name>] — "show me the chain is whole."
+// aegis ledger-verify [path] [--witness <url> --source <name>] [--local <file>] — "show me the chain is whole."
 //
 // Answers the auditor's question (Shyan-Ming Perng, JieGou): not just "show me the row" but "show me
 // that no row was suppressed, edited or forged." Reads the refusal ledger and the authority PUBLIC key
@@ -22,6 +22,11 @@
 // quorum of witnesses; a head without the quorum is UNVERIFIABLE (exit 2). Without a policy only the
 // log's own signature is checked, and a note says so.
 //
+// With --local <file> the gates' own plain copy is compared with this ledger (core/ledger-reconcile.ts):
+// a local row that names a number this ledger does not hold, or holds as another refusal, exits 1, and
+// so does a local row written after this ledger's first row with no number and no reason
+// (--local-since <ISO time> leaves out rows before a known time).
+//
 // Exit: 0 clean · 1 a gap/break (concealment or tamper) · 2 unverifiable · 3 broke.
 
 import { existsSync, readFileSync } from "fs";
@@ -32,6 +37,7 @@ import { verifyLedgerFile, refusalLedgerPath } from "../../core/refusal-ledger";
 import { witnessHighWaterMark } from "../../core/witness-client";
 import { judgeAnchors, loadPolicy, rawPublicKey, scanForKey } from "../../core/ledger-anchor";
 import type { SignedRow } from "../../core/ledger-sign";
+import { reconcileLocal } from "../../core/ledger-reconcile";
 import { createHash } from "crypto";
 
 function loadPublicKey(): string | null {
@@ -62,6 +68,30 @@ export default async function ledgerVerify(args: string[]): Promise<void> {
   }
   if (v.ok) {
     process.stdout.write(`[ledger-verify] OK — ${v.rows} row(s), seq 1..${v.maxSeq} contiguous, chain intact, signatures valid\n`);
+    // The gates' own copy, if one is named: does every number it carries exist in this ledger, as that refusal?
+    let localCode = 0;
+    const localPath = flag("--local");
+    if (args.includes("--local")) {
+      try {
+        if (!localPath || localPath.startsWith("--")) throw new Error("--local needs the path of the gates' local file (for example ~/.aegis/refusals.jsonl)");
+        if (!existsSync(localPath)) throw new Error(`no local file at ${localPath}`);
+        const signedRows = readFileSync(path, "utf-8").split("\n").filter(Boolean).map((l) => JSON.parse(l) as SignedRow);
+        const localRows = readFileSync(localPath, "utf-8").split("\n").filter(Boolean).map((l) => { try { return JSON.parse(l); } catch { return null; } });
+        const rec = reconcileLocal(localRows, signedRows, flag("--local-since"));
+        for (const m of rec.mismatches) process.stderr.write(`[ledger-verify] LOCAL ROW NOT IN THE SIGNED LEDGER — ${m}. Something other than the authority answered the gate, or one of the two files was changed.\n`);
+        if (rec.silent.length) {
+          const last = rec.silent[rec.silent.length - 1];
+          process.stderr.write(`[ledger-verify] NOT SIGNED AND NOT SAID — ${rec.silent.length} local refusal(s) written after this ledger's first row carry no number and no reason (the latest: ${last.ts}, ${last.gate}). The gate did not ask the authority: it was not configured for that process. If an operator switched it off for that time, pass --local-since <time it was switched back on>.\n`);
+        }
+        if (rec.mismatches.length || rec.silent.length) localCode = 1;
+        else process.stdout.write(`[ledger-verify] the local copy ${localPath} agrees: ${rec.numbered} numbered row(s), each the refusal this ledger holds under that number (${rec.verifiedAtWrite} checked against a pinned key when written).\n`);
+        if (rec.declared) process.stdout.write(`[ledger-verify] note: ${rec.declared} local refusal(s) say they were NOT signed, with the reason. They are not in this ledger.\n`);
+        process.stdout.write(`[ledger-verify] note: the local file is written by the gates' own account. A refusal removed from it as well would not show here.\n`);
+      } catch (e) {
+        process.stderr.write(`[ledger-verify] UNVERIFIABLE — the local copy could not be compared: ${(e as Error).message}\n`);
+        localCode = 2;
+      }
+    }
     // The public log, if one is named. Its finding is combined with the witness's: 1 beats 2 beats 0.
     let anchorCode = 0;
     const anchorLog = flag("--anchor-log") || process.env.AEGIS_ANCHOR_LOG;
@@ -119,7 +149,7 @@ export default async function ledgerVerify(args: string[]): Promise<void> {
         anchorCode = 2;
       }
     }
-    const finish = (code: number): never => process.exit(code === 1 || anchorCode === 1 ? 1 : Math.max(code, anchorCode));
+    const finish = (code: number): never => process.exit(code === 1 || anchorCode === 1 || localCode === 1 ? 1 : Math.max(code, anchorCode, localCode));
     if (witnessUrl) {
       // The on-box file is whole as far as it goes. Ask the witness how far it should go.
       const held = await witnessHighWaterMark(witnessUrl, source);

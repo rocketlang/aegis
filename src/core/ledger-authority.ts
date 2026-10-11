@@ -23,8 +23,8 @@ import * as nodeFs from "fs";
 import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "fs";
 import { join } from "path";
 import {
-  generateLedgerKeypair, signLedgerRow, signHeartbeat, rowHash, verifyLedgerRows,
-  type LedgerPayload, type SignedRow, type LedgerVerdict,
+  generateLedgerKeypair, signLedgerRow, signHeartbeat, signReceipt, rowHash, verifyLedgerRows,
+  type LedgerPayload, type SignedRow, type LedgerVerdict, type Receipt,
 } from "./ledger-sign";
 import { sendToWitness, sendHeartbeat, witnessHighWaterMark } from "./witness-client";
 import { signAnchor, type Anchor } from "./ledger-anchor";
@@ -187,6 +187,11 @@ export class LedgerAuthority {
     this.rows.push(row);
     void this.pump();
     return row;
+  }
+
+  /** The answer a gate can check: this row, under the nonce the gate sent (core/ledger-sign.ts, Receipt). */
+  receipt(nonce: string, row: SignedRow): Receipt {
+    return signReceipt(nonce, row, this.privateKey);
   }
 
   /**
