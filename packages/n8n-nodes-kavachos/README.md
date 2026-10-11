@@ -1,12 +1,12 @@
 # @xshieldai/n8n-nodes-kavachos
 
-> **🔍 Verification status (2026-10-05 IST — v1.1.2)**
-> - **Tests:** ⚠️ none yet — n8n node test fixtures planned. See [PROOF-STACK.md](https://github.com/rocketlang/aegis/blob/master/PROOF-STACK.md).
+> **🔍 Verification status (2026-10-12 IST — v1.5.1)**
+> - **Tests:** ⚠️ none inside the package. In the repository, [red-team/n8n-kavach-run.battery.sh](https://github.com/rocketlang/aegis/blob/master/red-team/n8n-kavach-run.battery.sh) drives the Run and Gate nodes outside n8n against an installed copy (32 cases, with a stand-in `kavachos` and a stand-in gate). **Not yet run inside an n8n instance.**
 > - **Examples:** ✅ 1 importable workflow, in the repository (not in the npm package): [examples/n8n-governed-agent.json](https://github.com/rocketlang/aegis/blob/master/packages/n8n-nodes-kavachos/examples/n8n-governed-agent.json). Drag into n8n, wire the Aegis API credential pointing at `http://localhost:4850`, run.
 > - **Live demo:** ⚠️ planned (Tier 3)
 > - **Phase-1 limits:** KavachRun is Linux-only; where enforcement is unavailable (non-Linux, or `kavachos` not installed) it **fails closed by default** (`On Non-Linux` = `throw`; `warn`/`skip` are opt-in). KavachGate works on any OS — it's a thin HTTP relay to AEGIS.
 >
-> The KavachGate node's behaviour is end-to-end testable against a live AEGIS instance — start AEGIS, import the example workflow, fire a `rm -rf /` command, watch it block. Automated CI fixtures still to come.
+> The KavachGate node's behaviour is end-to-end testable against a live AEGIS instance — start AEGIS, import the example workflow, fire a `rm -rf /` command, watch it block. Fixtures that run inside n8n are still to come.
 
 > **Renamed at 1.5.0.** This package was `@xshieldai/n8n-nodes` through 1.4.1. n8n's community-nodes screen
 > only installs a package whose name starts with `n8n-nodes-` after the scope, and refused the old name. The

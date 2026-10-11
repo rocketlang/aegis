@@ -1,5 +1,12 @@
 # Changelog — @xshieldai/n8n-nodes-kavachos
 
+## 1.5.1 (2026-10-12)
+
+- The status banner at the top of the README still read "v1.1.2" and "Tests: none yet". It now gives the
+  current version and says what is and is not tested: a 32-case battery in the repository drives the nodes
+  outside n8n; nothing has yet been run inside an n8n instance.
+- No code change. This is also the first release of this name through tokenless trusted publishing.
+
 ## 1.5.0 (2026-10-12)
 
 ### Renamed — `@xshieldai/n8n-nodes` is now `@xshieldai/n8n-nodes-kavachos`

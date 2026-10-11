@@ -1,6 +1,6 @@
 {
   "name": "@xshieldai/n8n-nodes-kavachos",
-  "version": "1.5.0",
+  "version": "1.5.1",
   "description": "xShieldAI n8n community nodes — DAN gate, kernel enforcement, budget check, and audit log for AI agents.",
   "license": "AGPL-3.0-only",
   "author": "Capt. Anil Sharma <capt.anil.sharma@powerpbox.org>",
