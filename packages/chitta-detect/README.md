@@ -1,12 +1,13 @@
 # @xshieldai/chitta-detect
 
-> **🔍 Verification status (2026-10-05 IST — v0.3.0)**
-> - **Tests:** ✅ **108/108 passing** — 61 in [tests/chitta-detect.test.ts](tests/chitta-detect.test.ts) and 47 in [tests/evasion.test.ts](tests/evasion.test.ts), which covers disguised attacks, ordinary text that must be kept, and the stated limits (`bun test`). Covers §1 trust, §2 imperative, §3 toolOutput, §4 capabilityExpansion, §5 fingerprint, §6 rateLimit, §7 retrospective, §8 scan.evaluate orchestrator, §9 ACC bus.
+> **🔍 Verification status (2026-10-12 IST — v0.3.1)**
+> - **Tests:** ✅ **134/134 passing** — 61 in [tests/chitta-detect.test.ts](tests/chitta-detect.test.ts) and 73 in [tests/evasion.test.ts](tests/evasion.test.ts), which covers disguised attacks, ordinary text that must be kept, and the stated limits (`bun test`). Covers §1 trust, §2 imperative, §3 toolOutput, §4 capabilityExpansion, §5 fingerprint, §6 rateLimit, §7 retrospective, §8 scan.evaluate orchestrator, §9 ACC bus.
 > - **Examples:** ✅ runnable quickstart, in the repository (not in the npm package): [examples/quickstart.ts](https://github.com/rocketlang/aegis/blob/master/packages/chitta-detect/examples/quickstart.ts) — `bun run examples/quickstart.ts` scans 4 attacks + ELEVATED_SCRUTINY threshold demo with live receipts
 > - **Live demo:** ⚠️ planned (Tier 3)
 > - **Phase-1 limits:** documented in the "Honest discipline" + v0.2.0 ACC sections below
 > - **Known misses:** the same intent in other words, other languages, a keyword split by a space, rot13 and reversed text are NOT caught. See "Disguised attacks and ordinary text" below; each is pinned by a test.
 > - **Stated outputs:** the `// result…` comments in the examples below were run against this version; all 15 hold. Three were wrong before v0.2.3 and were corrected then: the `imperative.scan` example returns 0.65 (two patterns match, multiMatchBoost adds 0.05), the orchestrator headline example returns confidence 0.95, and the tool output example matches both `SYSTEM_OVERRIDE` and `IDENTITY_CLAIM`.
+> - **Fixed in v0.3.1:** eight disguises that the table below already claimed were undone, and were not once taken one step further. See "Changed in 0.3.1".
 > - **Fixed in v0.3.0 (CD-049b):** the `CG-YK-006` rule id was never recorded under `ELEVATED_SCRUTINY`, because the lowered threshold made the branch that recorded it unreachable. The verdict was right; the reason for it was missing. It is recorded now when that posture is what promoted the verdict.
 
 Memory poisoning detection primitives for AI agents — pure pattern matchers extracted from the internal **chitta-guard** service.
@@ -168,12 +169,12 @@ person would see it. These are undone:
 | Disguise | Example |
 |---|---|
 | invisible characters inside a word | a zero-width space or soft hyphen in `jailbreak` |
-| look-alike letters | Cyrillic or Greek letters drawn like Latin ones; fullwidth and mathematical letters |
+| look-alike letters | Cyrillic, Greek and a few Armenian and non-ASCII Latin letters drawn like Latin ones, **from a table** (see below); fullwidth and mathematical letters |
 | accents and combining marks | `Ignóre` |
-| tags, markdown emphasis, line breaks between words | `Ignore <b>all</b> previous` |
+| tags of any length, HTML comments, markdown emphasis, line breaks between words | `Ignore <b>all</b> previous`, `Ignore <!-- x --> all previous` |
 | letters spelled out with one separator | `S.Y.S.T.E.M`, `j|a|i|l|b|r|e|a|k` |
-| digits for letters | `1gn0re` |
-| base64, hex, HTML entities, URL-encoding | decoded and scanned |
+| digits for letters | `1gn0re`; the digit 1 is read as `i`, as `l`, and doubled as `ll` |
+| base64, hex, HTML entities, URL-encoding | decoded and scanned, wherever in the text they stand; base64 wrapped across lines; base64 encoded twice |
 
 The original text is never changed. The folded forms exist only to be matched against.
 
@@ -196,11 +197,25 @@ so this list cannot drift from the code without a test failing:
 - the same intent in other words ("the earlier guidance no longer applies")
 - other languages
 - a keyword split by a space (`Ig nore`)
-- rot13, reversed text, and any encoding not in the table above
+- rot13, reversed text, and any encoding not in the table above (`\x69\x67…` escapes, base64 encoded three times)
+- a look-alike letter that is not in the table. The table is short and hand-written; Unicode has thousands of them
+- letters spelled out with two separators (`i. g. n. o. r. e`), and a blank that is not white space inside a word
+- a text that uses the digit 1 for `i` in one word and for a single `l` in another
+- base64 past the first 256 long tokens of a text, or past 256 KB of them
 
 A pattern matcher cannot see these. Use this package as one layer, not as the only one.
 
-**Cost.** A scan of a 2 KB document takes about 0.8 ms on the machine this was measured on,
+**Changed in 0.3.1.** Each of these was `PASS` with confidence 0 on 0.3.0, although the table said the disguise was undone:
+
+- a look-alike letter that also carried an accent (Greek `ό`, Cyrillic `ё`): the table was consulted before the accent was removed;
+- look-alikes missing from the table (Cyrillic palochka for `l`, Greek lunate sigma for `c`, dotless `i`);
+- the digit 1 standing for `l` (`a11`);
+- a tag whose attributes ran past 60 characters, and any HTML comment;
+- base64 after the first eight long tokens of a text (only eight were tried, and ordinary documents are full of links, hashes and identifiers), base64 wrapped across lines, and base64 encoded twice.
+
+If this package screens what reaches an agent's memory, text screened by 0.3.0 or earlier may hold one of these. Scan it again.
+
+**Cost.** A scan of a 2 KB document takes about 0.9 ms on the machine this was measured on (0.8 ms in v0.3.0),
 up from about 0.02 ms in v0.2.x, because the text is matched in up to five forms.
 
 ## What this package does NOT do

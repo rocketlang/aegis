@@ -9,6 +9,7 @@
 // ADVISORY.
 
 import { describe, it, expect } from 'bun:test';
+import { readFileSync } from 'node:fs';
 import { scan, imperative, fingerprint } from '../src/index.js';
 import { views } from '../src/normalize.js';
 
@@ -141,5 +142,89 @@ describe('§13 views (normalize.ts)', () => {
     const original = 'Ig​nore';
     views(original);
     expect(original).toBe('Ig​nore');
+  });
+});
+
+// ─── §14 the same disguises, one step further (0.3.1) ─────────────────────────
+// Each of these was PASS with confidence 0 on the published 0.3.0. The sentence is the
+// README's own example, read from the file, so that this section does not spell it again.
+describe('§14 a claimed disguise, taken one step further, is still caught (CG-014, 0.3.1)', () => {
+  const readme = readFileSync(new URL('../README.md', import.meta.url), 'utf8');
+  const P = /scan\.evaluate\(\s*'([^']+)'/.exec(readme)![1].split('. ')[0] + '.';
+  const [w1, w2, w3, w4] = P.split(' ');
+  const rest = `${w2} ${w3} ${w4}`;
+  const b64 = (s: string) => Buffer.from(s).toString('base64');
+  const v = (t: string) => scan.evaluate(t, ctx('e14')).verdict;
+
+  it('EV-140 the README sentence is the one this section expects', () => {
+    expect(P.split(' ').length).toBe(4);
+    expect(withheld(v(P))).toBe(true);
+  });
+
+  const disguised: [string, () => string][] = [
+    ['a Greek letter that also carries an accent', () => P.replace('o', 'ό')],
+    ['Cyrillic io for e', () => P.replace('e ', 'ё ')],
+    ['Cyrillic palochka for l', () => `${w1} ${w2.replace(/l/g, 'ӏ')} ${w3} ${w4}`],
+    ['dotless i', () => P.replace('I', 'ı')],
+    ['Greek lunate sigma for c', () => P.replace('c', 'ϲ')],
+    ['the digit 1 for l', () => `${w1} ${w2.replace(/l/g, '1')} ${w3} ${w4}`],
+    ['the digit 1 for i and, doubled, for ll', () => `${w1.replace('I', '1')} ${w2.replace(/l/g, '1')} ${w3} ${w4}`],
+    ['a tag with a 70-character attribute', () => `${w1} <span class="${'x'.repeat(70)}">${w2}</span> ${w3} ${w4}`],
+    ['a tag with a 3000-character attribute', () => `${w1} <span data-x="${'y'.repeat(3000)}">${w2}</span> ${w3} ${w4}`],
+    ['an HTML comment between the words', () => `${w1} <!-- note --> ${rest}`],
+    ['an HTML comment inside a word', () => `${w1.slice(0, 2)}<!---->${w1.slice(2)} ${rest}`],
+    ['base64 after eight long tokens', () => Array.from({ length: 8 }, (_, i) => `files_example_com_reports_quarter${i}`).join(' ') + ' ' + b64(P)],
+    ['base64 after two hundred long tokens', () => Array.from({ length: 200 }, (_, i) => `files_example_com_item${String(i).padStart(4, '0')}`).join(' ') + ' ' + b64(P)],
+    ['base64 wrapped at 20 columns', () => b64(P).replace(/(.{20})/g, '$1\n')],
+    ['base64 wrapped at 64 columns inside a longer text', () => 'See below.\n' + b64('Figures follow in the table. '.repeat(4) + P).replace(/(.{64})/g, '$1\n') + '\nEnd.'],
+    ['base64 of base64', () => b64(b64(P))],
+  ];
+  for (const [name, make] of disguised) {
+    it(`EV-141 caught: ${name}`, () => expect(withheld(v(make()))).toBe(true));
+  }
+
+  const ordinary: [string, string][] = [
+    ['accessibility shorthand with digits', 'The a11y review found 11 issues in the l10n and i18n strings of build 1101.'],
+    ['a page with comments and long tags', `<div class="${'c'.repeat(90)}"><!-- header --><p>Opening hours are nine to five.</p><!-- footer --></div>`],
+    ['base64 of ordinary text', 'Attachment: ' + Buffer.from('The invoice for March is attached. Please pay within thirty days.').toString('base64')],
+    ['wrapped base64 of ordinary text', Buffer.from('Minutes of the meeting held on the first Monday of the month, as agreed.').toString('base64').replace(/(.{20})/g, '$1\n')],
+    ['Greek and Cyrillic prose', 'Καλημέρα, η συνάντηση είναι αύριο. Добрый день, счёт приложен.'],
+    ['a list of hashes', Array.from({ length: 40 }, (_, i) => i.toString(16).padStart(2, '0').repeat(20)).join('\n')],
+  ];
+  for (const [name, text] of ordinary) {
+    it(`EV-142 kept: ${name}`, () => expect(v(text)).toBe('PASS'));
+  }
+
+  it('EV-143 awkward large inputs do not slow a scan (each under 500 ms)', () => {
+    const blob = Buffer.from('x'.repeat(200000)).toString('base64');
+    const inputs = [
+      blob.replace(/(.{76})/g, '$1\n'),
+      Array.from({ length: 20000 }, (_, i) => 'token_number_' + String(i).padStart(8, '0')).join(' '),
+      '<!-- x '.repeat(50000),
+      '<a href=x '.repeat(50000),
+      'a11 th3 w0rds h3r3 ar3 l33t 1n th1s l1ne '.repeat(5000),
+    ];
+    for (const input of inputs) {
+      const t0 = Date.now();
+      views(input);
+      expect(Date.now() - t0).toBeLessThan(500);
+    }
+  });
+
+  it('LIMIT (0.3.1): encodings and separators the README lists as not caught', () => {
+    expect(v(b64(b64(b64(P))))).toBe('PASS');                                              // three times
+    expect(v([...P].map((c) => '\\x' + c.charCodeAt(0).toString(16)).join(''))).toBe('PASS'); // \xNN escapes
+    expect(v([...w1].join('. ') + ' ' + rest)).toBe('PASS');                               // two separators
+    expect(v(P.replace('g', 'g⠀'))).toBe('PASS');                                     // a braille blank
+    const far = Array.from({ length: 300 }, (_, i) => 'files_example_com_item' + String(i).padStart(4, '0')).join(' ') + ' ' + b64(P);
+    expect(v(far)).toBe('PASS');                                                           // past 256 long tokens
+  });
+
+  it('LIMIT (0.3.1): a text that uses 1 for "l" singly and for "i" as well is not read', () => {
+    // "1" is tried as i everywhere, as l everywhere, and as "ll" when doubled; not word by word.
+    const mixed = `${w1.replace('I', '1')} ${w2} ${w3.replace('i', '1')} ${w4.replace(/i/g, '1').replace('l', '1')}`;
+    expect(typeof v(mixed)).toBe('string');
+    const single = `${w1.replace('I', '1')} a1l ${w3} ${w4}`; // i in one word, a single l in the next
+    expect(v(single)).toBe('PASS');
   });
 });
