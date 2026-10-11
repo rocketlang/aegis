@@ -32,7 +32,7 @@ import { homedir } from "os";
 import { dirname, join } from "path";
 import { randomBytes } from "crypto";
 import {
-  signLedgerRow, rowHash, verifyLedgerRows, verifyRowSig, verifyReceipt,
+  signLedgerRow, rowHash, verifyLedgerRows, verifyRowSig, verifyReceipt, ledgerField,
   type LedgerPayload, type SignedRow, type LedgerVerdict, type Receipt,
 } from "./ledger-sign";
 
@@ -143,7 +143,7 @@ export type AuthorityAnswer = { seq: number; check: "verified" | "unchecked"; ro
 
 // What the authority stores for a request (core/ledger-authority.ts, record): the same clipping, so
 // the row that comes back can be compared with what was asked.
-const clipTo = (v: unknown, max: number): string | null => (typeof v === "string" && v.length > 0 ? v.slice(0, max) : null);
+const clipTo = ledgerField;
 
 /**
  * Judge the authority's reply to one ask. With a pinned key the reply must carry the signed row and

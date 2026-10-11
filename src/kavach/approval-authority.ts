@@ -53,18 +53,18 @@ export function authorityHint(): string {
 
 // Pending is only a NOTE of what was refused (never an approval), so recording/listing it over
 // the local file in non-hardened modes is harmless — an agent cannot turn a note into consent.
-export async function recordPendingAuthority(command: string, rule: string): Promise<string> {
-  return isHardened() ? remoteRecordPending(command, rule) : recordPending(command, rule);
+export async function recordPendingAuthority(command: string, rule: string, cwd?: string | null): Promise<string> {
+  return isHardened() ? remoteRecordPending(command, rule, cwd) : recordPending(command, rule, Date.now(), cwd);
 }
 
 export async function listPendingAuthority(): Promise<PendingRefusal[]> {
   return isHardened() ? remoteListPending() : listPending();
 }
 
-export async function consumeApprovalAuthority(command: string): Promise<boolean> {
+export async function consumeApprovalAuthority(command: string, cwd?: string | null): Promise<boolean> {
   switch (authorityMode()) {
-    case "hardened": return remoteConsume(command);
-    case "insecure-local": return consumeApproval(command);
+    case "hardened": return remoteConsume(command, cwd);
+    case "insecure-local": return consumeApproval(command, Date.now(), cwd);
     case "none": return false; // safe default: no same-account override is honoured
   }
 }

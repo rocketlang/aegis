@@ -24,7 +24,7 @@
 // was diverted, not one that was erased from both sides; that needs the refusal itself to pass
 // through the authority.
 
-import { rowHash, type SignedRow } from "./ledger-sign";
+import { rowHash, ledgerField, visible, type SignedRow } from "./ledger-sign";
 
 export interface LocalRow {
   ts?: string; kind?: string; gate?: string; rule?: string | null; session?: string | null;
@@ -41,7 +41,7 @@ export interface Reconciliation {
   declared: number;
 }
 
-const clip = (v: unknown, max: number): string | null => (typeof v === "string" && v.length > 0 ? v.slice(0, max) : null);
+const clip = ledgerField;
 
 /**
  * @param local   the gates' local rows, as read
@@ -60,7 +60,8 @@ export function reconcileLocal(local: unknown[], signed: SignedRow[], since?: st
   for (const raw of local) {
     if (!raw || typeof raw !== "object") continue;
     const r = raw as LocalRow;
-    const when = `${r.ts ?? "no time"}, ${r.gate ?? "no gate"}`;
+    // The local file is written by the gates' own account: what is quoted from it is shown, never sent raw.
+    const when = visible(`${r.ts ?? "no time"}, ${r.gate ?? "no gate"}`.slice(0, 140));
     if (since && typeof r.ts === "string" && r.ts < since) continue;
 
     if (r.authority_seq !== undefined) {

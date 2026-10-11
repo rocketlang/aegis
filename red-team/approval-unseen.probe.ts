@@ -11,6 +11,10 @@
 //     a harmless one made to share its code, gets the destructive one approved by a person reading the
 //     harmless one. Finding such a pair is about four thousand million hashes: minutes to an hour.
 //
+//   - (2.17.2) characters a terminal acts on were printed to the approving person as they came, so a
+//     command could erase itself from the screen and show another;
+//   - (2.17.2) an approval was for the text alone: `rm -rf ./build` approved in one folder ran in any.
+//
 // GAP = an approval covers a command, or part of one, that the approving person was not shown.
 // The pair with one code is NOT computed here: the store is given the two rows a collision would have
 // left in it. A real approver daemon, real sockets, the real `approve-destructive` command; one user,
@@ -86,6 +90,23 @@ try {
   const xRuns = await client.remoteConsume(x), evil4 = await client.remoteConsume(evil);
   SAFE("A4 a code already held by another command", c4.length > 8 && a4.code === 0 && xRuns === true && evil4 === false,
     c4.length > 8 ? `the new command got the code ${c4} (${c4.length} characters); approving it approved that command only` : `the new command got the same code ${c4}; approving it ${evil4 ? "approved the OTHER command" : `gave exit ${a4.code}`}`);
+
+  // 5. Characters a terminal acts on. The command erases its own line on the person's screen and writes another.
+  const ESC = String.fromCharCode(27);
+  const masked = `${TAIL} #${ESC}[1A${ESC}[2K\recho tidy the build folder`;
+  await client.remoteRecordPending(masked, `r${ESC}[2K`);
+  const l5 = await person();
+  SAFE("A5 a command that rewrites the person's screen", !l5.said.includes(ESC) && l5.said.includes("\\x1b"),
+    l5.said.includes(ESC) ? "the escape characters reached the terminal as they came: what the person reads is not the command" : "the characters are written out (\\x1b), not sent to the terminal");
+
+  // 6. Approved in one folder, run in another.
+  const rel = W("rm", "-rf", "./build");
+  const c6 = await client.remoteRecordPending(rel, "recursive removal", "/srv/project");
+  const l6 = await person(); const a6 = await person(c6);
+  const elsewhere = await client.remoteConsume(rel, "/srv/customer-data");
+  const there = await client.remoteConsume(rel, "/srv/project");
+  SAFE("A6 an approval used in another folder", a6.code === 0 && elsewhere === false && there === true && l6.said.includes("/srv/project"),
+    elsewhere ? "approved for ./build with the folder not shown, and the gate let it run in /srv/customer-data" : `the person is shown the folder; refused in another folder, let through once in the same one (${there})`);
 } catch (e) {
   console.log(`BROKE — ${(e as Error).stack || e}`); try { daemon?.stop(); } catch { /* */ } rmSync(dir, { recursive: true, force: true }); process.exit(3);
 }

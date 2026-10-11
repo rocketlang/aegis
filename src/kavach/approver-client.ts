@@ -34,6 +34,8 @@ export const isHardened = (): boolean => Boolean(process.env[CONSUME_SOCK_ENV]);
 export type ApproverOp = "pending" | "consume" | "approve" | "list" | "refusal" | "ledger-status" | "anchor";
 export interface ApproverRequest {
   op: ApproverOp; command?: string; rule?: string | null; code?: string;
+  /** "pending" and "consume": the folder the command runs in. The approval is for the command in that folder. */
+  cwd?: string | null;
   gate?: string; kind?: string; session?: string | null;
   /** "anchor" only: ask for a dated anchor (the authority's own UTC day; the asker never names the day). */
   dated?: boolean;
@@ -84,14 +86,14 @@ const approveSock = (): string => process.env[APPROVE_SOCK_ENV] || consumeSock()
  * FAIL LOUD: if the approver cannot be reached in hardened mode, this throws — the caller
  * must refuse the command, never fall back to the writable local file.
  */
-export async function remoteConsume(command: string): Promise<boolean> {
-  const r = await ask<boolean>(consumeSock(), { op: "consume", command });
+export async function remoteConsume(command: string, cwd?: string | null): Promise<boolean> {
+  const r = await ask<boolean>(consumeSock(), { op: "consume", command, ...(cwd ? { cwd } : {}) });
   if (!r.ok) throw new Error(`approver consume failed: ${r.error ?? "unknown"}`);
   return r.value === true;
 }
 
-export async function remoteRecordPending(command: string, rule: string): Promise<string> {
-  const r = await ask<string>(consumeSock(), { op: "pending", command, rule });
+export async function remoteRecordPending(command: string, rule: string, cwd?: string | null): Promise<string> {
+  const r = await ask<string>(consumeSock(), { op: "pending", command, rule, ...(cwd ? { cwd } : {}) });
   if (!r.ok) throw new Error(`approver pending failed: ${r.error ?? "unknown"}`);
   return String(r.value ?? "");
 }

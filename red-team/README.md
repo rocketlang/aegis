@@ -307,3 +307,19 @@ four thousand million hashes); the store is given the two rows a collision leave
 ./red-team/approval-unseen.battery.sh
 AEGIS_PROBE_REPO=<an installed 2.17.0>/ ./red-team/approval-unseen.battery.sh   # red: 3 gaps
 ```
+
+Since 2.17.2 the battery has two more cases, also found by us: a command carrying terminal escape
+characters that rewrite the approving person's screen, and an approval used in another folder than the one
+it was given for (7 cases; 2 further gaps on 2.17.1).
+
+### `ledger-anchor-asker` — who may ask for an anchor, and whose anchor is sent
+**Found by us, reading our own code; not reported from outside.** Through 2.17.1 any asker on the consume
+socket could have the authority sign a dated statement (the first dated leaf in a public log is a one-way
+switch); `aegis ledger-anchor` checked the anchor against the key the socket itself handed over, so a false
+authority's statement could be sent as the ledger's own; and a gate name went into a signed row with any
+characters in it. Nothing is sent to any log: dry runs against a log that does not exist.
+
+```
+./red-team/ledger-anchor-asker.battery.sh
+AEGIS_PROBE_REPO=<an installed 2.17.1>/ ./red-team/ledger-anchor-asker.battery.sh   # red: 5 gaps
+```

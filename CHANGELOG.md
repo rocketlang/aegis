@@ -4,6 +4,33 @@ All notable changes to AEGIS will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [2.17.2] — 2026-10-11
+
+A second pass over 2.17.1 by us, attacking our own code. Nothing here was reported from outside. Each item has a case in a battery that is red on the published 2.17.1.
+
+### Fixed — a person could approve something other than what their screen showed
+
+- **Characters a terminal acts on were printed to the approving person as they came.** A refused command could carry escape sequences that erase its own line and write another, hide text, or run it right to left; `aegis approve-destructive` printed them raw. What the person read need not have been the command. They are now written out (`\x1b`) where the command is stored and again where it is printed. The same for the rule text, which is the asker's own.
+- **An approval was for the text of a command, not for where it ran.** `rm -rf ./build` approved for one folder went through once in any folder, and the person was not shown a folder at all. The gate now sends the folder the harness reports; the approval is for the command in that folder, and the list shows it. With no folder reported (an older gate) it is the text alone, as before, and the list says so.
+- `red-team/approval-unseen.battery.sh` grows to 7 cases (2 new gaps on 2.17.1).
+
+### Fixed — who may ask for a dated anchor, and whose anchor is sent
+
+- **Any asker on the consume socket could have the authority sign a dated statement.** That is the socket every gate uses. The statement is true, but the first dated leaf in a public log switches that ledger to one leaf a day for good, and a leaf needs only the ledger key's signature to be taken as the ledger's own: whoever could ask could throw the switch, and nothing on the box showed who. A dated anchor is now given on the **approve socket** only (`approver-daemon --dated-anchor-on-consume` restores the old behaviour). An undated anchor is given where it was.
+  - `aegis ledger-anchor --dated`, refused on the consume socket, asks the approve socket: `--anchor-socket`, `AEGIS_LEDGER_ANCHOR_SOCKET`, `AEGIS_APPROVER_APPROVE_SOCKET`, or `approve.sock` beside the consume socket. **The account that runs the daily anchor must be able to open the approve socket.** If it cannot, the run stops with exit 2 and sends nothing.
+- **`aegis ledger-anchor` checked the anchor against the key the socket itself had just handed over.** The socket is found through the environment or a pointer file the gates' own account can write. Whatever answered there could have its own statement sent with the box's token and written into the receipts as today's leaf, while the real ledger got none that day; a missed day cannot be filled afterwards. With a ledger key pinned, what answers must hold that key, or nothing is sent (exit 2). With none pinned the command says it could not tell.
+- **A gate name, a rule or a session id went into a signed row with any characters in it**, and from there into what `ledger-verify` prints, and so into mail and briefs. Each unseen character is now stored as `?`, by the authority and by the gate's own check of the answer. `ledger-verify --local` writes out what it quotes from the local file.
+- `aegis ledger-pin` refuses a key file owned by the account `sudo` was run from (`--own-file` if that is right), and prints the owner.
+- New battery: `red-team/ledger-anchor-asker.battery.sh` (7 cases; 5 gaps on 2.17.1). `tests/unseen-characters.test.ts` (6).
+
+**Upgrade the authority and the gates together.** A 2.17.2 gate whose refusal carries an unseen character is told "not signed" by an older authority, aloud. An authority of 2.17.2 refuses a dated anchor to a `ledger-anchor` older than 2.17.2 that asks on the consume socket: the daily run then stops with exit 2. Upgrade the copy the daily run uses in the same step.
+
+**What this does not give.**
+- The folder is the one the harness reports to the gate. A command that changes folder inside itself (`cd /x && …`) is shown as written; read it.
+- An approval is for a command's text and folder, not for what the files it names contain at the moment it runs. `bash cleanup.sh`, approved, runs whatever `cleanup.sh` holds by then.
+- A dated anchor on the approve socket is for whoever can open that socket: the approver account, its group, and root.
+- On a box that pins a key, the tests that run a throwaway authority are skipped under `bun test`; the batteries run them in a private mount namespace.
+
 ## [2.17.1] — 2026-10-11
 
 ### Fixed — an authority with no pinned key ran unchecked and said nothing

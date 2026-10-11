@@ -89,7 +89,7 @@ export default async function checkDestructive(_args: string[]): Promise<void> {
     const stdin = readStdin().trim();
     if (!stdin) process.exit(0);
 
-    let toolInput: { tool_name?: string; session_id?: string; agent_id?: string; tool_input?: Record<string, unknown> };
+    let toolInput: { tool_name?: string; session_id?: string; agent_id?: string; cwd?: unknown; tool_input?: Record<string, unknown> };
     try {
       toolInput = JSON.parse(stdin);
     } catch {
@@ -171,7 +171,10 @@ export default async function checkDestructive(_args: string[]): Promise<void> {
     // is indistinguishable from a gate that never fired.
     // In hardened mode this asks the separate-uid approver; if it is unreachable it THROWS and
     // the outer handler (ANU-004) refuses — it never falls back to the writable local file.
-    if (verdict.kind === "match" && await consumeApprovalAuthority(command)) {
+    // The folder the harness says the command runs in. An approval is for the command in that folder (2.17.2);
+    // with none reported it is for the text alone, as before.
+    const cwd = typeof toolInput.cwd === "string" && toolInput.cwd ? toolInput.cwd : null;
+    if (verdict.kind === "match" && await consumeApprovalAuthority(command, cwd)) {
       recordRefusal({ gate: "aegis-destructive", kind: "override", rule: "KAV-098" });
       process.stderr.write(`[KAVACH] One-time approval found for this exact command — allowing, once\n`);
       process.exit(0);
@@ -224,7 +227,7 @@ export default async function checkDestructive(_args: string[]): Promise<void> {
 
       } else {
         // HIGH/MEDIUM, and CRITICAL unless the approval gate is switched on — immediate block.
-        const msg = buildBlockMessage(rule, null, rule.reason, await recordPendingAuthority(command, rule.pattern));
+        const msg = buildBlockMessage(rule, null, rule.reason, await recordPendingAuthority(command, rule.pattern, cwd));
         process.stderr.write(msg);
         // Say how to override — and, by default, that overrides are off until the approver is set up.
         if (authorityMode() === "none") process.stderr.write(authorityHint());

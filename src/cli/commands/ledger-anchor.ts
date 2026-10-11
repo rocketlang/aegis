@@ -45,7 +45,7 @@ import { appendFileSync, existsSync, mkdirSync, readFileSync } from "fs";
 import { homedir } from "os";
 import { dirname, join } from "path";
 import { askLedgerAuthority } from "../../kavach/approver-client";
-import { ledgerSocket } from "../../core/refusal-ledger";
+import { ledgerSocket, pinnedLedgerKey, PINNED_LEDGER_KEY_PATH } from "../../core/refusal-ledger";
 import { loadPolicy, submitAnchor, verifyAnchor, type Anchor, type AnchorReceipt, type TrustPolicy } from "../../core/ledger-anchor";
 
 const norm = (u: string) => u.replace(/\/+$/, "");
@@ -91,7 +91,26 @@ export default async function ledgerAnchor(args: string[]): Promise<void> {
     const st = await askLedgerAuthority<{ max_seq: number; public_key: string; source: string }>(socket as string, "ledger-status");
     if (!st.ok || !st.value) fail(2, `COULD NOT ANCHOR — the authority did not answer: ${st.error ?? "no reply"}`);
     if ((st.value as { max_seq: number }).max_seq === 0) { say("the ledger is empty — nothing to anchor."); process.exit(0); }
-    const got = await askLedgerAuthority<Anchor>(socket as string, "anchor", { dated });
+    // Whose anchor is it? Through 2.17.1 the anchor was checked against the key the same socket handed over, so
+    // whatever answered at the socket (the pointer file is the gates' own account's to write) could have its own
+    // statement sent with this box's token and written down here as today's leaf, while the real ledger got none.
+    // With a key pinned, the socket's key must be that key.
+    let pinned: string | null = null;
+    try { pinned = pinnedLedgerKey(); } catch { pinned = "unreadable"; }
+    const stKey = String((st.value as { public_key?: unknown }).public_key ?? "");
+    if (pinned !== null && (pinned === "unreadable" || pinned.replace(/\s+/g, "") !== stKey.replace(/\s+/g, ""))) {
+      fail(2, `COULD NOT ANCHOR — what answers at ${socket} is not the authority whose key is pinned (${PINNED_LEDGER_KEY_PATH}, or the key named in the environment). Nothing was sent.`);
+    }
+    if (pinned === null) say("note: no ledger key is pinned, so the anchor is checked against the key the socket itself gave (aegis ledger-pin)");
+    let got = await askLedgerAuthority<Anchor>(socket as string, "anchor", { dated });
+    // Since 2.17.2 a dated anchor is given on the approve socket only. Named, or the one beside the consume socket.
+    if (dated && !got.ok && /approve socket/.test(String(got.error ?? ""))) {
+      const beside = join(dirname(socket as string), "approve.sock");
+      const op = flag("--anchor-socket") || process.env.AEGIS_LEDGER_ANCHOR_SOCKET || process.env.AEGIS_APPROVER_APPROVE_SOCKET || (existsSync(beside) ? beside : "");
+      if (!op) fail(2, "COULD NOT ANCHOR — this authority gives a dated anchor on its approve socket only, and none is named (--anchor-socket, AEGIS_LEDGER_ANCHOR_SOCKET). Nothing was sent.");
+      got = await askLedgerAuthority<Anchor>(op, "anchor", { dated });
+      if (!got.ok) fail(2, `COULD NOT ANCHOR — a dated anchor is given on the approve socket only, and ${op} did not give one: ${got.error ?? "no reply"}. The account running this must be allowed to open that socket. Nothing was sent.`);
+    }
     if (!got.ok || !got.value) fail(2, `COULD NOT ANCHOR — the authority gave no anchor: ${got.error ?? "no reply"}`);
     const a = got.value as Anchor;
     // An authority before 2.17.0 does not know the question and answers with an undated anchor. Sending that would
@@ -99,7 +118,7 @@ export default async function ledgerAnchor(args: string[]): Promise<void> {
     if (dated && a.day === undefined) fail(2, "COULD NOT ANCHOR — a dated anchor was asked for and the authority gave an undated one: it is older than 2.17.0. Nothing was sent.");
     if (!dated && a.day !== undefined) fail(3, "BROKE — an undated anchor was asked for and the authority gave a dated one. Nothing was sent.");
     // Nothing the authority says is carried on trust: the statement is rebuilt and the signature checked.
-    if (!verifyAnchor(a, (st.value as { public_key: string }).public_key)) fail(3, "BROKE — the anchor the authority handed over does not verify under its own public key. Nothing was sent.");
+    if (!verifyAnchor(a, pinned ?? stKey)) fail(3, "BROKE — the anchor the authority handed over does not verify under its own public key. Nothing was sent.");
     say(`the ledger '${a.source}' stands at seq ${a.max_seq}, tail ${a.tail_hash.slice(0, 16)}…${a.day ? `, stated for ${a.day} (UTC)` : ""}`);
 
     const receipts: AnchorReceipt[] = existsSync(receiptsPath)

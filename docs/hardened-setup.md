@@ -14,7 +14,7 @@ was a sentence in the changelog. An install that stopped before it ran with ever
 |---|---|---|
 | The store: approvals, the signed refusal ledger, the ledger's private key | the approver account | nobody |
 | The consume socket: a gate ASKS here (is this approved; record this refusal) | the approver account | the agent's account, to ask |
-| The approve socket: a person APPROVES here | the approver account | members of the approver group only |
+| The approve socket: a person APPROVES here; a dated anchor is asked for here | the approver account | members of the approver group only |
 | The pinned public key, `/etc/aegis/ledger-signing.pub` | root | everyone reads it |
 
 ## Steps
@@ -61,6 +61,13 @@ aegis ledger-pin --from /var/lib/aegis-approver/pub/ledger-signing.pub
 
 `ledger-pin` takes the key from the file you name, never from the socket. It asks the authority whether
 that is its key and whether it is 2.16.3 or later, and refuses if either answer is no.
+
+## The daily anchor
+
+If the ledger is anchored in a public log with `aegis ledger-anchor --dated`, the account that runs it
+must be able to open the **approve** socket: since 2.17.2 the authority gives a dated statement there
+only, because the first dated leaf switches the ledger to one leaf a day for good. The command finds
+`approve.sock` beside the consume socket by itself; name another with `--anchor-socket`.
 
 ## Check it
 

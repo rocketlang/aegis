@@ -27,6 +27,7 @@ import { createHash, randomBytes } from "crypto";
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "fs";
 import { join } from "path";
 import { redactSecrets } from "../shield/credential-marker";
+import { visible } from "../core/ledger-sign";
 
 export const PENDING_TTL_MS = 30 * 60 * 1000;
 export const APPROVAL_TTL_MS = 10 * 60 * 1000;
@@ -41,7 +42,10 @@ export class ApprovalRefused extends Error {}
 
 // `chars` is the length of the whole command; `cut` says the person is NOT shown all of it (the text
 // was longer than SHOWN_MAX, or a secret was taken out of it). Rows written before 2.17.1 have neither.
-export interface PendingRefusal { code: string; hash: string; shown: string; rule: string; at: number; chars?: number; cut?: boolean }
+// `cwd` is the folder the command was refused in; when there is one the approval is for the command IN that
+// folder (2.17.2). `shown`, `rule` and `cwd` are safe to print: characters a terminal would act on are
+// written out (\x1b), since 2.17.2.
+export interface PendingRefusal { code: string; hash: string; shown: string; rule: string; at: number; chars?: number; cut?: boolean; cwd?: string }
 export interface Approval { code: string; hash: string; approved_at: number; expires_at: number }
 
 // AEGIS_DIR lets a separate-uid approver daemon own its store under a directory the agent's
@@ -50,7 +54,15 @@ const dir = (): string => process.env.AEGIS_DIR || join(process.env.HOME || "/ro
 const pendingPath = (): string => join(dir(), "destructive-pending.json");
 const approvalPath = (): string => join(dir(), "destructive-approvals.json");
 
-export const hashCommand = (command: string): string => createHash("sha256").update(command, "utf8").digest("hex");
+// With a folder, the hash is of the command and the folder: `rm -rf ./build` approved in one folder is
+// not approved in another. Through 2.17.1 the folder was no part of it, and the person was not shown it.
+// Without a folder (an older gate, or a caller that has none) it is the command alone, as before.
+export const hashCommand = (command: string, cwd?: string | null): string => {
+  if (typeof cwd !== "string" || !cwd) return createHash("sha256").update(command, "utf8").digest("hex");
+  // Another function than the one above, over an encoding that keeps the two parts apart: no command text
+  // hashed alone can come out as some command in some folder.
+  return createHash("sha512").update(JSON.stringify([command, cwd]), "utf8").digest("hex").slice(0, 64);
+};
 
 function readList<T>(path: string): T[] {
   try {
@@ -73,8 +85,8 @@ function writeList(path: string, list: unknown[]): void {
  * Remember a refused command so a person can approve it. Returns the code to show. The
  * command is stored as its hash plus a short form with secrets removed — never whole.
  */
-export function recordPending(command: string, rule: string, now = Date.now()): string {
-  const hash = hashCommand(command);
+export function recordPending(command: string, rule: string, now = Date.now(), cwd?: string | null): string {
+  const hash = hashCommand(command, cwd);
   let code = hash.slice(0, CODE_MIN);
   try {
     const list = readList<PendingRefusal>(pendingPath()).filter((p) => now - p.at < PENDING_TTL_MS && p.hash !== hash);
@@ -84,10 +96,15 @@ export function recordPending(command: string, rule: string, now = Date.now()): 
     // (A code is matched whole, so a longer one is not confused with the shorter one it begins with.)
     for (let n = CODE_MIN + 4; n <= hash.length && list.some((p) => p.code === code); n += 4) code = hash.slice(0, n);
     const redacted = redactSecrets(command);
+    // A command can carry characters that make a terminal move the cursor, erase a line, hide text or run
+    // it right to left. Through 2.17.1 they were printed to the approving person's terminal as they came,
+    // so what the person read need not be what the command was. They are written out instead (\x1b).
     const flat = redacted.replace(/\s+/g, " ");
+    const safe = visible(flat);
     list.push({
-      code, hash, shown: flat.slice(0, SHOWN_MAX), rule: String(rule).slice(0, 120), at: now,
-      chars: command.length, cut: flat.length > SHOWN_MAX || redacted !== command,
+      code, hash, shown: safe.slice(0, SHOWN_MAX), rule: visible(String(rule).replace(/\s+/g, " ")).slice(0, 120), at: now,
+      chars: command.length, cut: safe.length > SHOWN_MAX || redacted !== command,
+      ...(typeof cwd === "string" && cwd ? { cwd: visible(cwd).slice(0, 400) } : {}),
     });
     writeList(pendingPath(), list.slice(-KEEP));
   } catch { /* the refusal stands whether or not it could be remembered */ }
@@ -103,7 +120,7 @@ export function listPending(now = Date.now()): PendingRefusal[] {
  * Throws ApprovalRefused when the code is held by more than one command, or when the person was not
  * shown the whole command and has not said (`unseen`) that they read it somewhere else.
  */
-export function approvePending(code: string, now = Date.now(), opts: { unseen?: boolean } = {}): (Approval & { shown: string; rule: string }) | null {
+export function approvePending(code: string, now = Date.now(), opts: { unseen?: boolean } = {}): (Approval & { shown: string; rule: string; cwd?: string }) | null {
   if (typeof code !== "string" || !/^[0-9a-f]{8,64}$/.test(code)) return null;
   const pending = listPending(now);
   const hits = pending.filter((p) => p.code === code);
@@ -124,15 +141,15 @@ export function approvePending(code: string, now = Date.now(), opts: { unseen?: 
   approvals.push(approval);
   writeList(approvalPath(), approvals.slice(-KEEP));
   writeList(pendingPath(), pending.filter((p) => p.code !== code));
-  return { ...approval, shown: hit.shown, rule: hit.rule };
+  return { ...approval, shown: hit.shown, rule: hit.rule, ...(hit.cwd ? { cwd: hit.cwd } : {}) };
 }
 
 /**
  * Is there an unexpired approval for exactly this command? If so it is used up here: the
  * same approval never lets a second run through.
  */
-export function consumeApproval(command: string, now = Date.now()): boolean {
-  const hash = hashCommand(command);
+export function consumeApproval(command: string, now = Date.now(), cwd?: string | null): boolean {
+  const hash = hashCommand(command, cwd);
   const approvals = readList<Approval>(approvalPath());
   const hit = approvals.find((a) => a.hash === hash && typeof a.expires_at === "number" && a.expires_at > now);
   if (!hit) return false;

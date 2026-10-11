@@ -24,7 +24,7 @@ import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "f
 import { join } from "path";
 import {
   generateLedgerKeypair, signLedgerRow, signHeartbeat, signReceipt, rowHash, verifyLedgerRows,
-  type LedgerPayload, type SignedRow, type LedgerVerdict, type Receipt,
+  type LedgerPayload, type SignedRow, type LedgerVerdict, type Receipt, ledgerField,
 } from "./ledger-sign";
 import { sendToWitness, sendHeartbeat, witnessHighWaterMark } from "./witness-client";
 import { signAnchor, utcDay, type Anchor } from "./ledger-anchor";
@@ -91,8 +91,7 @@ export interface RefusalAsk {
   session?: unknown;
 }
 
-const clip = (v: unknown, max: number): string | null =>
-  typeof v === "string" && v.length > 0 ? v.slice(0, max) : null;
+const clip = ledgerField;
 
 export class LedgerAuthority {
   readonly ledgerPath: string;

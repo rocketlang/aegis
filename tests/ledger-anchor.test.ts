@@ -138,7 +138,12 @@ afterAll(() => {
   if (aegisDirBefore === undefined) delete process.env.AEGIS_DIR; else process.env.AEGIS_DIR = aegisDirBefore;
 });
 
-describe("ledger anchor, wired: authority signs, command submits, verifier reads the log", () => {
+// A box that pins the ledger key at /etc/aegis/ledger-signing.pub pins it for `aegis ledger-anchor` too (since
+// 2.17.2 the anchor must be by the pinned key), and it would rightly refuse this file's throwaway authority. There
+// these cases are skipped, not failed; the batteries run them in a private mount namespace instead.
+const boxPinsAKey = existsSync("/etc/aegis/ledger-signing.pub");
+
+describe.skipIf(boxPinsAKey)("ledger anchor, wired: authority signs, command submits, verifier reads the log", () => {
   it("an empty ledger sends nothing, and the authority will not sign an anchor for it", async () => {
     const r = await anchor();
     expect(r.code).toBe(0); expect(r.out).toContain("nothing to anchor"); expect(log.state.addLeafCalls).toBe(0);
@@ -285,7 +290,7 @@ describe("ledger anchor, wired: authority signs, command submits, verifier reads
   });
 });
 
-describe("anchor arithmetic, against an independent implementation", () => {
+describe.skipIf(boxPinsAKey)("anchor arithmetic, against an independent implementation", () => {
   it("the root and the inclusion proofs agree with a separately written RFC 6962 tree, at awkward sizes", async () => {
     for (const n of [1, 2, 3, 5, 7, 8, 13]) {
       const d = Array.from({ length: n }, () => randomBytes(32));
@@ -305,7 +310,7 @@ describe("anchor arithmetic, against an independent implementation", () => {
   });
 });
 
-describe("cosigning witnesses, under a trust policy", () => {
+describe.skipIf(boxPinsAKey)("cosigning witnesses, under a trust policy", () => {
   let wlog: ReturnType<typeof standInLog>; let policyFile: string; const rc = join(dir, "witnessed-receipts.jsonl");
   const run = (extra: string[] = []) => cli(["ledger-anchor", "--log", wlog.url, "--log-key", wlog.key, "--socket", sock, "--receipts", rc, "--policy", policyFile, ...extra]);
   const check = (file: string, extra: string[] = []) => cli(["ledger-verify", file, "--source", SOURCE, "--anchor-log", wlog.url, "--anchor-log-key", wlog.key, "--anchor-policy", policyFile, ...extra]);
@@ -369,7 +374,7 @@ describe("cosigning witnesses, under a trust policy", () => {
   });
 });
 
-describe("trust policy, parsed strictly", () => {
+describe.skipIf(boxPinsAKey)("trust policy, parsed strictly", () => {
   const K = (n: number) => String(n).repeat(64).slice(0, 64);
   it("the two published policies load by name: production is 2 of 3, and it names seasalp", () => {
     const p = loadPolicy("sigsum-generic-2025-1").policy;

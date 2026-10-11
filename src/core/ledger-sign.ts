@@ -30,6 +30,22 @@ export interface SignedRow extends LedgerPayload {
 }
 
 /** The ledger authority's keypair. The private key stays with the authority (off the agent's uid). */
+// Characters that change what a terminal or a reader shows without being seen: the C0 and C1 control
+// characters (escape sequences, backspace, carriage return), and the invisible and direction-changing
+// format characters. Through 2.17.1 a gate name, a rule or a session id went into a signed row, and from
+// there into `ledger-verify` output, mail and session briefs, exactly as the asker sent it.
+export const UNSEEN_CHARS = /[\u0000-\u001f\u007f-\u009f\u061c\u200b-\u200f\u2028-\u202e\u2060-\u2069\ufeff]/g;
+
+/** A text field of a ledger row: cut to its length, and with every unseen character replaced by "?". */
+export function ledgerField(v: unknown, max: number): string | null {
+  return typeof v === "string" && v.length > 0 ? v.slice(0, max).replace(UNSEEN_CHARS, "?") : null;
+}
+
+/** For showing a person text an agent chose: unseen characters are written out (\\x1b), never sent to the terminal. */
+export function visible(s: string): string {
+  return String(s).replace(UNSEEN_CHARS, (c) => { const n = c.charCodeAt(0); return n < 256 ? `\\x${n.toString(16).padStart(2, "0")}` : `\\u${n.toString(16).padStart(4, "0")}`; });
+}
+
 export function generateLedgerKeypair(): { publicKey: string; privateKey: string } {
   const { publicKey, privateKey } = generateKeyPairSync("ed25519");
   return {

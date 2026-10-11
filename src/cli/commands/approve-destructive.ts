@@ -16,6 +16,7 @@ import {
   approvePendingAuthority, listPendingAuthority, authorityMode, authorityHint,
 } from "../../kavach/approval-authority";
 import { recordRefusal } from "../../core/refusal-ledger";
+import { visible } from "../../core/ledger-sign";
 
 export default async function approveDestructive(args: string[]): Promise<void> {
   const unseen = args.includes("--unseen-tail");
@@ -44,8 +45,10 @@ export default async function approveDestructive(args: string[]): Promise<void> 
     console.log("Refused commands waiting for a person's approval:\n");
     for (const p of pending) {
       const mins = Math.max(0, Math.round((Date.now() - p.at) / 60000));
-      console.log(`  ${p.code}   ${mins} min ago   ${p.rule}`);
-      console.log(`             ${p.shown}`);
+      // visible(): an authority before 2.17.2 stores the text as the asker sent it.
+      console.log(`  ${visible(String(p.code))}   ${mins} min ago   the asker says it matched: ${visible(String(p.rule))}`);
+      console.log(`             ${visible(String(p.shown))}`);
+      console.log(p.cwd ? `             in the folder: ${visible(p.cwd)}` : `             (no folder recorded: the approval is for this text wherever it is run)`);
       if (p.cut) console.log(`             ^ NOT THE WHOLE COMMAND: it is ${p.chars} characters; at most ${SHOWN_MAX} are shown and secrets are taken out. An approval covers all of it.`);
     }
     console.log("\nTo approve one, once:  aegis approve-destructive <code>");
@@ -67,8 +70,9 @@ export default async function approveDestructive(args: string[]): Promise<void> 
   }
   recordRefusal({ gate: "aegis-destructive", kind: "override", rule: "KAV-098" });
   console.log(`Approved, once, for ${Math.round(APPROVAL_TTL_MS / 60000)} minutes:`);
-  console.log(`  ${done.shown}`);
-  console.log(`  (matched: ${done.rule})`);
+  console.log(`  ${visible(String(done.shown))}`);
+  if ((done as { cwd?: string }).cwd) console.log(`  in the folder: ${visible(String((done as { cwd?: string }).cwd))}`);
+  console.log(`  (the asker says it matched: ${visible(String(done.rule))})`);
   console.log("The same command, run again unchanged, will now go through one time.");
   process.exit(0);
 }

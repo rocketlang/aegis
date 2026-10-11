@@ -2,6 +2,7 @@
 // Dated anchors (aegis 2.17.0): the statement form, what the verifier accepts as a (row, day), and the time
 // check against the witnesses. End to end, with real processes and a stand-in log whose clocks are set:
 // red-team/ledger-quiet-or-dead.battery.sh.
+import { existsSync as _exists } from "fs";
 import { describe, expect, test } from "bun:test";
 import { createHash, createPublicKey, generateKeyPairSync, sign } from "crypto";
 import { createServer } from "net";
@@ -27,7 +28,12 @@ const leafOf = (seq: number, day: string | undefined, index: number): LoggedLeaf
 const scanOf = (leaves: LoggedLeaf[]): ScanResult => ({ head: { size: 100, root_hash: "", signature: "", cosignatures: 0, cosigs: [], checkpoint: "" }, from: 0, leaves, whole_log_checked: true, cosign: null });
 const NOW = new Date("2026-03-08T12:00:00Z");
 
-describe("the dated statement", () => {
+// A box that pins the ledger key at /etc/aegis/ledger-signing.pub pins it for `aegis ledger-anchor` too (since
+// 2.17.2 the anchor must be by the pinned key), and it would rightly refuse this file's throwaway authority. There
+// these cases are skipped, not failed; the batteries run them in a private mount namespace instead.
+const boxPinsAKey = _exists("/etc/aegis/ledger-signing.pub");
+
+describe.skipIf(boxPinsAKey)("the dated statement", () => {
   test("the two forms differ, and a day changes the leaf", () => {
     expect(anchorStatement(S, 1, "h")).toBe('{"anchor":1,"source":"unit-box","max_seq":1,"tail_hash":"h"}');
     expect(anchorStatement(S, 1, "h", "2026-03-01")).toBe('{"anchor":2,"source":"unit-box","max_seq":1,"tail_hash":"h","day":"2026-03-01"}');
@@ -48,7 +54,7 @@ describe("the dated statement", () => {
   });
 });
 
-describe("what the verifier accepts as a dated leaf", () => {
+describe.skipIf(boxPinsAKey)("what the verifier accepts as a dated leaf", () => {
   test("row 1 on the days it was the tail; undated leaves beside them", () => {
     const j = judgeAnchors(rows, S, kp.publicKey, scanOf([leafOf(1, undefined, 3), leafOf(1, "2026-03-01", 5), leafOf(1, "2026-03-02", 7), leafOf(1, "2026-03-03", 9), leafOf(2, "2026-03-04", 11), leafOf(2, "2026-03-05", 13), leafOf(2, "2026-03-06", 15), leafOf(2, "2026-03-07", 17)]), NOW);
     expect(j.kind).toBe("anchored");
@@ -81,7 +87,7 @@ describe("what the verifier accepts as a dated leaf", () => {
   });
 });
 
-describe("when a dated leaf reached the log", () => {
+describe.skipIf(boxPinsAKey)("when a dated leaf reached the log", () => {
   const sha = (...b: Uint8Array[]) => { const h = createHash("sha256"); b.forEach((x) => h.update(x)); return h.digest(); };
   const raw = (k: ReturnType<typeof createPublicKey>) => Buffer.from(k.export({ format: "der", type: "spki" })).subarray(-32);
   const logKp = generateKeyPairSync("ed25519"); const logKey = raw(logKp.publicKey);
@@ -119,7 +125,7 @@ describe("when a dated leaf reached the log", () => {
   });
 });
 
-describe("aegis ledger-anchor --dated against an authority that does not know the question", () => {
+describe.skipIf(boxPinsAKey)("aegis ledger-anchor --dated against an authority that does not know the question", () => {
   test("an undated answer is 'could not', and nothing is sent", async () => {
     const dir = mkdtempSync(join(tmpdir(), "aegis-dated-old-")); const sock = join(dir, "old.sock");
     const undated = signAnchor(S, 2, rowHash(r2), kp.privateKey, kp.publicKey);

@@ -18,6 +18,8 @@
 //   --witness <url>        off-box witness for the signed refusal ledger ($AEGIS_WITNESS_URL).
 //   --source <name>        this ledger's name at the witness ($AEGIS_LEDGER_SOURCE, default host name).
 //   --ledger-pub <path>    also write the ledger public key here ($AEGIS_LEDGER_PUBKEY_OUT).
+//   --dated-anchor-on-consume   give a DATED anchor to any asker on the consume socket, as through 2.17.1.
+//                          Default: on the approve socket only (the first dated leaf is a one-way switch).
 //
 // The daemon is also the one writer of the signed refusal ledger (core/ledger-authority.ts): the
 // gates ask it to record each refusal; the key never leaves this account's store.
@@ -59,6 +61,7 @@ export default async function approverDaemon(args: string[]): Promise<void> {
     ledgerPublicKeyOut: flag(args, "--ledger-pub") || process.env.AEGIS_LEDGER_PUBKEY_OUT || undefined,
     ledgerHeartbeatMs: Number.isFinite(hb) && hb > 0 ? hb : undefined,
     consumeSocketMode: modeArg === "666" ? 0o666 : 0o660,
+    datedAnchorOnConsume: args.includes("--dated-anchor-on-consume") || process.env.AEGIS_DATED_ANCHOR_ON_CONSUME === "1",
   });
   if (warnSameUser) {
     process.stderr.write(

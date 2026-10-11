@@ -46,6 +46,8 @@ export interface DaemonOptions {
    * account can ask only if it is in that group, or if this is 0o666. The approve socket is always 0o660.
    */
   consumeSocketMode?: number;
+  /** Give a DATED anchor to any asker on the consume socket, as through 2.17.1. Default: approve socket only. */
+  datedAnchorOnConsume?: boolean;
   /** Called with human-readable lines for audit/logging. Defaults to stderr. */
   log?: (line: string) => void;
 }
@@ -54,17 +56,23 @@ export interface DaemonOptions {
 // "anchor" hands out the authority's signed statement of its own tail; submitting it to a public log is
 // the asker's business (the authority needs no network and holds no log token).
 const CONSUME_OPS = new Set<ApproverOp>(["pending", "consume", "list", "refusal", "ledger-status", "anchor"]);
-const APPROVE_OPS = new Set<ApproverOp>(["approve", "list"]);
+// The approve socket is the operators' socket: a person approves there, and a DATED anchor is asked for
+// there. Through 2.17.1 any asker on the consume socket could have the authority sign "on this day the
+// ledger stands at row N". The statement is true, but the first dated leaf in a public log switches that
+// ledger to one leaf a day for good, and a leaf needs nothing but this signature to be accepted as ours:
+// whoever could ask could throw the switch. An undated anchor stays where it was.
+const APPROVE_OPS = new Set<ApproverOp>(["approve", "list", "anchor", "ledger-status"]);
+export const DATED_ON_APPROVE_ONLY = "a dated anchor is given on the approve socket only";
 
-function handle(req: ApproverRequest, ledger: LedgerAuthority): ApproverResponse {
+function handle(req: ApproverRequest, ledger: LedgerAuthority, on: { approveSocket: boolean; datedOnConsume: boolean }): ApproverResponse {
   try {
     switch (req.op) {
       case "pending":
         if (typeof req.command !== "string") return { ok: false, error: "pending needs a command" };
-        return { ok: true, value: recordPending(req.command, String(req.rule ?? "")) };
+        return { ok: true, value: recordPending(req.command, String(req.rule ?? ""), Date.now(), typeof req.cwd === "string" ? req.cwd : null) };
       case "consume":
         if (typeof req.command !== "string") return { ok: false, error: "consume needs a command" };
-        return { ok: true, value: consumeApproval(req.command) };
+        return { ok: true, value: consumeApproval(req.command, Date.now(), typeof req.cwd === "string" ? req.cwd : null) };
       case "list":
         return { ok: true, value: listPending() };
       case "refusal": {
@@ -79,7 +87,10 @@ function handle(req: ApproverRequest, ledger: LedgerAuthority): ApproverResponse
         return { ok: true, value: ledger.status() };
       case "anchor":
         // "dated" is a yes or no. The day itself is the authority's own clock (core/ledger-anchor.ts, form 2).
-        return { ok: true, value: ledger.anchor((req as { dated?: unknown }).dated === true) };
+        if (req.dated === true && !on.approveSocket && !on.datedOnConsume) {
+          return { ok: false, error: `${DATED_ON_APPROVE_ONLY} (it switches this ledger to one leaf a day, for good). Ask there, or start the authority with --dated-anchor-on-consume.` };
+        }
+        return { ok: true, value: ledger.anchor(req.dated === true) };
       case "approve":
         if (typeof req.code !== "string") return { ok: false, error: "approve needs a code" };
         return { ok: true, value: approvePending(req.code, Date.now(), { unseen: req.unseen === true }) };
@@ -97,7 +108,7 @@ function handle(req: ApproverRequest, ledger: LedgerAuthority): ApproverResponse
 export const MAX_REQUEST_BYTES = 64 * 1024;
 const idleMs = (): number => { const n = parseInt(process.env.AEGIS_APPROVER_IDLE_MS || "", 10); return Number.isFinite(n) && n > 0 ? n : 10_000; };
 
-function serve(path: string, allowed: Set<ApproverOp>, ledger: LedgerAuthority, log: (s: string) => void, mode = 0o660): Server {
+function serve(path: string, allowed: Set<ApproverOp>, ledger: LedgerAuthority, log: (s: string) => void, mode = 0o660, datedOnConsume = false): Server {
   if (existsSync(path)) { try { unlinkSync(path); } catch { /* stale socket */ } }
   const dir = dirname(path);
   if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
@@ -126,7 +137,7 @@ function serve(path: string, allowed: Set<ApproverOp>, ledger: LedgerAuthority, 
           log(`REFUSED op '${req.op}' on ${allowed.has("approve") ? "approve" : "consume"} socket`);
           reply = { ok: false, error: `op '${req.op}' is not allowed on this socket` };
         } else {
-          reply = handle(req, ledger);
+          reply = handle(req, ledger, { approveSocket: allowed.has("approve"), datedOnConsume });
           log(`${req.op} → ${reply.ok ? "ok" : "error:" + reply.error}`);
         }
       } catch {
@@ -173,7 +184,7 @@ export function startApproverDaemon(opts: DaemonOptions): { stop: () => void; le
   ledger.start();
 
   const consumeMode = opts.consumeSocketMode ?? 0o660;
-  const consumeServer = serve(opts.consumeSocketPath, CONSUME_OPS, ledger, log, consumeMode);
+  const consumeServer = serve(opts.consumeSocketPath, CONSUME_OPS, ledger, log, consumeMode, opts.datedAnchorOnConsume === true);
   const approveServer = serve(opts.approveSocketPath, APPROVE_OPS, ledger, log);
   log(`listening — consume=${opts.consumeSocketPath} (mode ${consumeMode.toString(8)}) approve=${opts.approveSocketPath} (mode 660) store=${opts.storeDir}`);
   sayPinState(ledger.status().public_key, log);

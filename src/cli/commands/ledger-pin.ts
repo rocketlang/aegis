@@ -54,6 +54,11 @@ export default async function ledgerPin(args: string[]): Promise<void> {
     const st = lstatSync(from!);
     if (!st.isFile()) refuse(`${from} is not a regular file (a link is not followed: name the file itself)`);
     if (st.mode & 0o022) refuse(`${from} can be written by its group or by anyone (mode ${(st.mode & 0o777).toString(8)}); a key anyone can replace is not a key to pin`);
+    // Run through sudo from the agent's own account, a key file that account owns is the agent's to have written.
+    const cameFrom = parseInt(process.env.SUDO_UID || "", 10);
+    if (Number.isFinite(cameFrom) && cameFrom !== 0 && st.uid === cameFrom && !args.includes("--own-file")) {
+      refuse(`${from} belongs to the account you came from (uid ${cameFrom}). The authority's key is written by the authority's account, in its own folder. If this really is the file: --own-file.`);
+    }
     const pem = readFileSync(from!, "utf-8");
     let fp: string;
     try { fp = keyFingerprint(pem); } catch { return refuse(`${from} is not a public key`); }
@@ -81,6 +86,7 @@ export default async function ledgerPin(args: string[]): Promise<void> {
     writeFileSync(tmp, pem, { mode: 0o644 });
     if (to === PINNED_LEDGER_KEY_PATH) { try { chownSync(tmp, 0, 0); } catch { /* already root's */ } }
     renameSync(tmp, to);
+    say(`the key file ${from} belongs to uid ${st.uid}`);
     say(`pinned ${fp} at ${to}${unchecked ? " — the authority was NOT asked whether this is its key" : ""}`);
     say("every gate on this box now checks the authority's answer against it; an answer that does not verify is written as NOT signed and said on stderr");
     if (typeof process.getuid === "function" && process.getuid() === 0) say("note: an agent that runs as root can rewrite this file. The pin holds against an agent under another account.");
