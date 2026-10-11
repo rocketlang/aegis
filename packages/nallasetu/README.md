@@ -6,7 +6,7 @@ session may do, and the session's capability is the **intersection** of what bot
 the scope requested — never the union, never an escalation. An agent that claims every permission
 still gets only what the other side already had.
 
-> Status: **0.1.0**, early. This is a running service, not a drop-in library. It is published so the
+> Status: **0.3.0**, early. This is a running service, not a drop-in library. It is published so the
 > protocol can be read, run and checked in the open.
 
 ## Requires
@@ -23,6 +23,21 @@ bun run start                 # serves POST /api/v2/nallasetu/handshake
 ```
 
 The store is a local SQLite file at `$HOME/.ankr/nallasetu/nallasetu.db`.
+
+Settings, all optional: `PORT` (default 4898), `NALLASETU_HOST` (the address to listen on; the default is
+every interface, `0.0.0.0`; set `127.0.0.1` behind a proxy), `NALLASETU_RESPONDER_ID`, `NALLASETU_RATE_LIMIT`
+(handshakes a second for one partner, default 10), `SUPER_EVENTS_URL`, `LOG_LEVEL`.
+
+## Changed in 0.3.0 (12 October 2026)
+
+- **fastify 4 → 5** (5.12.5), `@fastify/cors` 9 → 11, `@fastify/helmet` 11 → 13. The fastify 4 line carried
+  published advisories whose fixes exist only in the 5 line. No line of the service had to change for it.
+- **One answer differs:** a semicolon in an address is no longer read as the start of a query.
+  `/health;x=1` answered like `/health`; it now matches no route (404).
+- `NALLASETU_HOST` is new. The default is unchanged.
+- `/health` and the state face reported version `0.1.0` in every release. They now report the version installed.
+- Checked with `red-team/nallasetu-http-behaviour.battery.sh` in the repository: 34 answers, written and green
+  on fastify 4 first (bar the semicolon line), then green on fastify 5.
 
 ## The five primitives
 

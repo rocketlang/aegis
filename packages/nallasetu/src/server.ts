@@ -11,9 +11,13 @@ import { registerSessionRoutes } from "./routes/sessions";
 import { registerForjaRoutes } from "./routes/forja";
 import { ensureResponderKey } from "./handshake";
 import { policyHash } from "./crypto";
+import pkg from "../package.json";
 
 const PORT = parseInt(process.env.PORT ?? "4898", 10);
 const RESPONDER_ID = process.env.NALLASETU_RESPONDER_ID ?? "nallasetu-v0";
+// The address to listen on. The default is every interface, as before: a handshake comes from another
+// organisation. Set NALLASETU_HOST=127.0.0.1 behind a proxy, or for a test.
+const HOST = process.env.NALLASETU_HOST ?? "0.0.0.0";
 
 const app = Fastify({
   logger: {
@@ -42,7 +46,7 @@ app.get("/health", async (_req, reply) => {
   return reply.send({
     status: "ok",
     service: "nallasetu",
-    version: "0.1.0",
+    version: pkg.version,
     responder_id: RESPONDER_ID,
     policy_hash: policyHash(),
     uptime_s: Math.round(process.uptime()),
@@ -59,7 +63,7 @@ const { keyId } = ensureResponderKey(RESPONDER_ID);
 app.log.info({ responder_id: RESPONDER_ID, key_id: keyId }, "Nallasetu responder key ready");
 
 try {
-  await app.listen({ port: PORT, host: "0.0.0.0" });
+  await app.listen({ port: PORT, host: HOST });
   app.log.info(`Nallasetu listening on :${PORT} — policy_hash=${policyHash()}`);
 } catch (err) {
   app.log.error(err);

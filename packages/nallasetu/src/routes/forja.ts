@@ -23,6 +23,7 @@ import { join } from "path";
 import type { FastifyInstance } from "fastify";
 import { getSession, expireStale } from "../db";
 import { policyHash } from "../crypto";
+import pkg from "../../package.json";
 
 const SERVICE_START = new Date().toISOString();
 
@@ -34,7 +35,7 @@ export function registerForjaRoutes(app: FastifyInstance): void {
   app.get("/api/v2/forja/state", async (_req, reply) => {
     return reply.send({
       service: "nallasetu",
-      version: "0.1.0",
+      version: pkg.version,
       protocol: "nallasetu/0.1",
       trust_mask: NALLASETU_TRUST_MASK,
       policy_hash: policyHash(),
