@@ -6,7 +6,7 @@ session may do, and the session's capability is the **intersection** of what bot
 the scope requested — never the union, never an escalation. An agent that claims every permission
 still gets only what the other side already had.
 
-> Status: **0.3.0**, early. This is a running service, not a drop-in library. It is published so the
+> Status: **0.4.0**, early. This is a running service, not a drop-in library. It is published so the
 > protocol can be read, run and checked in the open.
 
 ## Requires
@@ -24,9 +24,31 @@ bun run start                 # serves POST /api/v2/nallasetu/handshake
 
 The store is a local SQLite file at `$HOME/.ankr/nallasetu/nallasetu.db`.
 
-Settings, all optional: `PORT` (default 4898), `NALLASETU_HOST` (the address to listen on; the default is
-every interface, `0.0.0.0`; set `127.0.0.1` behind a proxy), `NALLASETU_RESPONDER_ID`, `NALLASETU_RATE_LIMIT`
-(handshakes a second for one partner, default 10), `SUPER_EVENTS_URL`, `LOG_LEVEL`.
+Settings, all optional: `PORT` (default 4898), `NALLASETU_RESPONDER_ID`, `NALLASETU_RATE_LIMIT` (handshakes a
+second for one partner, default 10), `SUPER_EVENTS_URL`, `LOG_LEVEL`, and the four below.
+
+## Who may reach it (0.4.0)
+
+| Setting | Default | What it does |
+|---|---|---|
+| `NALLASETU_HOST` | `127.0.0.1` | The address to listen on. Was every interface through 0.3.0. |
+| `NALLASETU_API_TOKEN` | none | 24 characters or more (`openssl rand -hex 24`). When set, every route but `/health` needs `Authorization: Bearer <token>`. |
+| `NALLASETU_ALLOW_OPEN` | off | `1` accepts a listener that is reachable off this machine with no token. Without it such a start is refused. |
+| `NALLASETU_CORS_ORIGIN` | none | One browser origin to allow. Cross-origin was allowed from anywhere through 0.3.0. |
+
+Through 0.3.0 no route asked who was calling, and the server listened on every interface. Anyone who could
+reach the port could read a session by its id, revoke it, run the expire-stale call, and have a session issued
+for any new name. **If you run 0.3.0 or earlier on a reachable address, put it behind a firewall or upgrade.**
+Found in our own review, not reported from outside.
+
+**Upgrading:** a deployment that other machines call must now set `NALLASETU_HOST` and `NALLASETU_API_TOKEN`
+(and give its callers the token), or it will listen on this machine only.
+
+**What this does not give.** One shared token says "a permitted caller", not which one: every holder can read
+and revoke any session whose id it knows, and the engine still registers an unknown initiator and signs for
+it. Per-partner identity on the wire (each caller presenting its own signed attestation) is not built.
+
+Checked by `red-team/nallasetu-http-behaviour.battery.sh` in the repository (50 cases): 14 of them are red on 0.3.0.
 
 ## Changed in 0.3.0 (12 October 2026)
 

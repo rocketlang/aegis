@@ -12,12 +12,17 @@ import { registerForjaRoutes } from "./routes/forja";
 import { ensureResponderKey } from "./handshake";
 import { policyHash } from "./crypto";
 import pkg from "../package.json";
+import { resolveHost, resolveAuth, resolveCorsOrigin, isPublicRoute, tokenMatches } from "./security";
 
 const PORT = parseInt(process.env.PORT ?? "4898", 10);
 const RESPONDER_ID = process.env.NALLASETU_RESPONDER_ID ?? "nallasetu-v0";
-// The address to listen on. The default is every interface, as before: a handshake comes from another
-// organisation. Set NALLASETU_HOST=127.0.0.1 behind a proxy, or for a test.
-const HOST = process.env.NALLASETU_HOST ?? "0.0.0.0";
+// Who may reach the listener: closed by default since 0.4.0 (see security.ts).
+const HOST = resolveHost(process.env);
+const auth = resolveAuth(process.env, HOST);
+if (auth.mode === "refuse") {
+  console.error(`[nallasetu] REFUSING TO START: ${auth.reason}`);
+  process.exit(1);
+}
 
 const app = Fastify({
   logger: {
@@ -29,8 +34,20 @@ const app = Fastify({
   requestTimeout: 5000,
 });
 
-await app.register(cors, { origin: true });
+await app.register(cors, { origin: resolveCorsOrigin(process.env) }); // off unless NALLASETU_CORS_ORIGIN is set
 await app.register(helmet, { contentSecurityPolicy: false });
+
+if (auth.mode === "token") {
+  const token = auth.token!;
+  app.addHook("onRequest", async (req, reply) => {
+    if (isPublicRoute(req.method, req.routeOptions?.url)) return;
+    if (!tokenMatches(req.headers.authorization, token)) {
+      return reply.code(401).send({ error: "unauthorized", message: "Nallasetu requires Authorization: Bearer <NALLASETU_API_TOKEN> on this route.", statusCode: 401 });
+    }
+  });
+} else {
+  app.log.warn(`[nallasetu] running WITHOUT authentication (${auth.reason}). Set NALLASETU_API_TOKEN to require a bearer token.`);
+}
 
 // @rule:NLS-016 latency budget logging
 app.addHook("onResponse", (req, reply, done) => {
