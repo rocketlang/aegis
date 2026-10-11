@@ -51,8 +51,20 @@ chown "$APPROVER:$APPROVER" "$SOCKDIR"; chmod 711 "$SOCKDIR"
 sudo -u "$APPROVER" env AEGIS_APPROVER_SUPPRESS_UID_WARN=1 \
   "$BUN" run "$ROOT/src/cli/index.ts" approver-daemon --store "$STORE" --consume "$CONSUME" --approve "$APPROVE" --consume-mode 666 &
 DAEMON_PID=$!
-sleep 1
-[ -S "$CONSUME" ] && [ -S "$APPROVE" ] || { echo "BROKE — daemon did not create sockets"; exit 3; }
+# Wait for the sockets to appear, up to 30 seconds, instead of sleeping a fixed time: a cold bun start under
+# a fresh account took longer than the one second this slept, and the run said BROKE with nothing wrong
+# (found by Andrey Lazarev on a throwaway VM, 11 October 2026, against 2.17.2).
+WAIT="${AEGIS_SOCKET_WAIT:-30}"; up=""
+for _ in $(seq 1 $((WAIT * 4))); do
+  [ -S "$CONSUME" ] && [ -S "$APPROVE" ] && { up=1; break; }
+  kill -0 "$DAEMON_PID" 2>/dev/null || break
+  sleep 0.25
+done
+if [ -z "$up" ]; then
+  if kill -0 "$DAEMON_PID" 2>/dev/null; then echo "BROKE — the daemon is running but made no sockets within ${WAIT}s (a slower host: set AEGIS_SOCKET_WAIT)"
+  else echo "BROKE — the daemon exited before it made its sockets"; fi
+  exit 3
+fi
 # The daemon sets the modes itself: consume 666 (asked for above), approve 660. Nothing is widened or
 # narrowed here, so what is tested is what the daemon made.
 mode() { stat -c '%a' "$1"; }
