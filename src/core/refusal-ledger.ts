@@ -116,9 +116,10 @@ export const ledgerSocket = (): string | null => {
 // The copy in the aegis home (~/.aegis/ledger-signing.pub) is NOT read here, on purpose: the agent
 // can write it.
 //
-// With no key pinned the answer cannot be checked. It is accepted as before and the local row says
-// `authority_check: "unchecked"`, so it never reads as verified; `aegis ledger-verify --local`
-// compares such rows with the signed ledger afterwards.
+// With no key pinned the answer cannot be checked. It is accepted as before, the local row says
+// `authority_check: "unchecked"`, and since 2.17.1 the gate says so on stderr each time;
+// `aegis ledger-verify --local` compares such rows with the signed ledger afterwards.
+// `aegis ledger-pin` (as root) puts the key at the system path.
 //
 // WHAT THIS DOES NOT GIVE: where the gate runs as root, or as the account that owns the key file,
 // the pin is a file that account can rewrite.
@@ -209,6 +210,14 @@ export function recordRefusal(r: { gate: string; rule?: string | null; kind?: "r
   try { signed = askAuthority(r); } catch (e) { signed = { error: `authority could not be asked: ${(e as Error).message}` }; }
   if (signed && "error" in signed) {
     try { process.stderr.write(`[aegis:ledger] this refusal was NOT signed — ${signed.error}\n`); } catch { /* */ }
+  }
+  // An authority is configured and no key is pinned: the answer was taken as it came. Through 2.17.0 the
+  // local row said "unchecked" and nothing was said aloud, so an install with an authority and no pin
+  // (which is every install where nobody ran the pin step) looked the same as a checked one from the
+  // terminal (pointed out by Andrey Lazarev, 11 October 2026). AEGIS_LEDGER_UNPINNED_QUIET=1 stops the
+  // line, not the row's "unchecked".
+  if (signed && "seq" in signed && signed.check === "unchecked" && process.env.AEGIS_LEDGER_UNPINNED_QUIET !== "1") {
+    try { process.stderr.write(`[aegis:ledger] this refusal's number (${signed.seq}) was NOT CHECKED — an authority socket is configured and no ledger key is pinned at ${PINNED_LEDGER_KEY_PATH}, so the answer could be anyone's. As root: aegis ledger-pin --from <authority store>/ledger-signing.pub\n`); } catch { /* */ }
   }
   try {
     const file = refusalLedgerPath();

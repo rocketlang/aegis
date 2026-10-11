@@ -8,7 +8,7 @@
 //
 //   hardened        — a separate-uid approver daemon is configured (a consume socket is set).
 //                     The agent's uid cannot write the store, so it cannot forge an approval.
-//                     This is the normal posture after `aegis init`.
+//                     Setting it up is a person's work, as root: docs/hardened-setup.md.
 //   none (DEFAULT)  — no approver is configured and insecure local mode was not asked for.
 //                     NO same-account override is honoured at all: consume returns false and
 //                     approve returns null. Self-approval is dead by default; the worst case is
@@ -46,7 +46,7 @@ export function authorityHint(): string {
   return (
     "[KAVACH] No approval authority is configured, so overrides are disabled (safe default — an agent " +
     "cannot approve its own command).\n" +
-    "[KAVACH] To enable overrides: run `aegis init` to set up the separate-uid approver (recommended), or " +
+    "[KAVACH] To enable overrides: set up the separate-account approver (recommended; docs/hardened-setup.md), or " +
     `set ${INSECURE_LOCAL_ENV}=1 for insecure single-box mode.\n`
   );
 }
@@ -70,11 +70,11 @@ export async function consumeApprovalAuthority(command: string): Promise<boolean
 }
 
 export async function approvePendingAuthority(
-  code: string,
+  code: string, unseen = false,
 ): Promise<(Approval & { shown: string; rule: string }) | null> {
   switch (authorityMode()) {
-    case "hardened": return remoteApprove(code);
-    case "insecure-local": return approvePending(code);
+    case "hardened": return remoteApprove(code, unseen);
+    case "insecure-local": return approvePending(code, Date.now(), { unseen });
     case "none": return null; // no authority to approve with
   }
 }

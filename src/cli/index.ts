@@ -50,6 +50,8 @@ async function main() {
       return (await import("./commands/approve-destructive")).default(args);
     case "ledger-verify":
       return (await import("./commands/ledger-verify")).default(args);
+    case "ledger-pin":
+      return (await import("./commands/ledger-pin")).default(args);
     case "ledger-anchor":
       return (await import("./commands/ledger-anchor")).default(args);
     case "witness":
@@ -141,6 +143,7 @@ Commands:
   check-destructive   Hook: block destructive Bash commands (DROP/DELETE/TRUNCATE/rm-rf)
   check-shield        Hook: LakshmanRekha injection/exfil/credential detection on Bash/Read/Write/Edit
   approve-destructive [code]  A PERSON approves one refused destructive command, once (no code: list)
+  ledger-pin --from <key>     AS ROOT: pin the ledger authority's public key for every gate on this box
   check-anumati       Hook: permissive layer — may the PLANT obey, in its current state? (exit 0=ok, 2=refuse)
   anumati [n]             Show last n refusals the permissive layer made (or would have, in shadow)
   anumati mode [m]        Show or set mode: shadow (report only) | enforce (refusals bite)

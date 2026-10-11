@@ -9,7 +9,7 @@
 //                 itself overrides the gate.
 //
 // How it goes: the gate refuses a command and remembers it here as PENDING, under a short
-// code. A person reads what was refused and runs `aegis approve-destructive <code>`. That
+// code (the start of the command's hash; lengthened when another waiting command starts the same). A person reads what was refused and runs `aegis approve-destructive <code>`. That
 // writes an APPROVAL for the SHA-256 of that exact command, good for ten minutes. The agent
 // runs the same command again; the gate finds the approval, uses it up, and lets that one
 // run through. A different command, or the same one a second time, is refused again.
@@ -31,8 +31,17 @@ import { redactSecrets } from "../shield/credential-marker";
 export const PENDING_TTL_MS = 30 * 60 * 1000;
 export const APPROVAL_TTL_MS = 10 * 60 * 1000;
 const KEEP = 20;
+// How much of a refused command a person is shown. Through 2.17.0 it was 300 characters, and the
+// approval covered the whole command: what came after the 300th character was approved unseen.
+export const SHOWN_MAX = 2000;
+const CODE_MIN = 8;
 
-export interface PendingRefusal { code: string; hash: string; shown: string; rule: string; at: number }
+/** An approval that is refused for a reason the person must read. Not "no such code". */
+export class ApprovalRefused extends Error {}
+
+// `chars` is the length of the whole command; `cut` says the person is NOT shown all of it (the text
+// was longer than SHOWN_MAX, or a secret was taken out of it). Rows written before 2.17.1 have neither.
+export interface PendingRefusal { code: string; hash: string; shown: string; rule: string; at: number; chars?: number; cut?: boolean }
 export interface Approval { code: string; hash: string; approved_at: number; expires_at: number }
 
 // AEGIS_DIR lets a separate-uid approver daemon own its store under a directory the agent's
@@ -66,10 +75,20 @@ function writeList(path: string, list: unknown[]): void {
  */
 export function recordPending(command: string, rule: string, now = Date.now()): string {
   const hash = hashCommand(command);
-  const code = hash.slice(0, 8);
+  let code = hash.slice(0, CODE_MIN);
   try {
     const list = readList<PendingRefusal>(pendingPath()).filter((p) => now - p.at < PENDING_TTL_MS && p.hash !== hash);
-    list.push({ code, hash, shown: redactSecrets(command).replace(/\s+/g, " ").slice(0, 300), rule: String(rule).slice(0, 120), at: now });
+    // The code is the start of the hash. Eight characters are 32 bits: a second command made to begin
+    // with the same eight is a matter of minutes, and through 2.17.0 the OLDER of the two was the one
+    // approved. A code already held by another command is lengthened until it is this command's alone.
+    // (A code is matched whole, so a longer one is not confused with the shorter one it begins with.)
+    for (let n = CODE_MIN + 4; n <= hash.length && list.some((p) => p.code === code); n += 4) code = hash.slice(0, n);
+    const redacted = redactSecrets(command);
+    const flat = redacted.replace(/\s+/g, " ");
+    list.push({
+      code, hash, shown: flat.slice(0, SHOWN_MAX), rule: String(rule).slice(0, 120), at: now,
+      chars: command.length, cut: flat.length > SHOWN_MAX || redacted !== command,
+    });
     writeList(pendingPath(), list.slice(-KEEP));
   } catch { /* the refusal stands whether or not it could be remembered */ }
   return code;
@@ -79,12 +98,27 @@ export function listPending(now = Date.now()): PendingRefusal[] {
   return readList<PendingRefusal>(pendingPath()).filter((p) => typeof p.at === "number" && now - p.at < PENDING_TTL_MS);
 }
 
-/** A person approves one pending refusal by its code. Null when there is no such code. */
-export function approvePending(code: string, now = Date.now()): (Approval & { shown: string; rule: string }) | null {
-  if (typeof code !== "string" || !/^[0-9a-f]{8}$/.test(code)) return null;
+/**
+ * A person approves one pending refusal by its code. Null when there is no such code.
+ * Throws ApprovalRefused when the code is held by more than one command, or when the person was not
+ * shown the whole command and has not said (`unseen`) that they read it somewhere else.
+ */
+export function approvePending(code: string, now = Date.now(), opts: { unseen?: boolean } = {}): (Approval & { shown: string; rule: string }) | null {
+  if (typeof code !== "string" || !/^[0-9a-f]{8,64}$/.test(code)) return null;
   const pending = listPending(now);
-  const hit = pending.find((p) => p.code === code);
-  if (!hit) return null;
+  const hits = pending.filter((p) => p.code === code);
+  if (hits.length === 0) return null;
+  if (new Set(hits.map((p) => p.hash)).size > 1) {
+    throw new ApprovalRefused(`${hits.length} different refused commands are waiting under the code '${code}'. None was approved. Have the command refused again and use the new code.`);
+  }
+  const hit = hits[0];
+  if (hit.cut && !opts.unseen) {
+    throw new ApprovalRefused(
+      `the command is ${hit.chars ?? "an unknown number of"} characters and what is shown is not all of it` +
+      ` (only the first ${SHOWN_MAX} characters are shown, and secrets are taken out). The approval would cover the whole command.` +
+      ` Read the whole command where it was refused; then approve with --unseen-tail.`,
+    );
+  }
   const approval: Approval = { code, hash: hit.hash, approved_at: now, expires_at: now + APPROVAL_TTL_MS };
   const approvals = readList<Approval>(approvalPath()).filter((a) => a.expires_at > now && a.hash !== hit.hash);
   approvals.push(approval);

@@ -4,6 +4,39 @@ All notable changes to AEGIS will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [2.17.1] — 2026-10-11
+
+### Fixed — an authority with no pinned key ran unchecked and said nothing
+
+Reported by Andrey Lazarev on 11 October 2026 against 2.17.0. He is right on each point.
+
+- **Nothing in the package pinned the ledger key.** The step was one sentence in the 2.16.3 notes, so an install with an authority and no `/etc/aegis/ledger-signing.pub` accepted any answer, marked the local row "unchecked", and said nothing. His probe (a socket of the agent's own answering "ok, 42") still passed quietly there.
+  - **The gate now says so each time**: with a socket configured and no key pinned, stderr carries "this refusal's number was NOT CHECKED" and how to pin. `AEGIS_LEDGER_UNPINNED_QUIET=1` stops the line, not the row's "unchecked".
+  - **`aegis ledger-pin --from <public key file>`**, as root, is the missing step. The key comes from the file the person names, never from the socket: the authority is only asked whether that is its key and whether it answers with receipts (2.16.3 or later). It refuses a key the authority does not own, an older authority, a key file its group or anyone can write, a link, and another key over an existing pin (`--replace`). `--unchecked` pins without asking, for a box where the authority is not running yet.
+  - **The authority's log says at start** whether the pinned key is its own, is missing, or is another key.
+  - **`docs/hardened-setup.md`**: the setup of the separate account, start to finish. It was written down nowhere, and three messages named `aegis init` for it, which does not do it. They now name the page.
+- **`aegis ledger-verify` says which key it used**, and looks for the pinned key before the copy in the aegis home, which the gates' own account can write. A key the runner names (`AEGIS_LEDGER_PUBKEY`, `AEGIS_LEDGER_PUBKEY_FILE`) still comes first.
+- **The uid-boundary test passed for the wrong reason.** `red-team/point1-uid-boundary.disposable.sh` set the socket folder to 750, so the agent's account never reached the sockets: the approve-socket check passed at the folder, and the consume check failed as a false gap. Now 711, with the approve check accepting only a permission refusal on a socket the agent can see. **Not run by us since the change**: it needs a disposable host.
+- **`approver-daemon --consume-mode 660|666`.** The daemon set both sockets to 660 and left widening the consume socket to whoever provisioned the box. It is now the daemon's stated setting (default 660, unchanged). The approve socket is always 660.
+- New battery: `red-team/ledger-unpinned.battery.sh` (12 cases; 5 gaps on 2.17.0).
+
+### Fixed — a person could approve more than they were shown
+
+Found by reading our own approval path after the review; not reported from outside. Both concern the one-time approval of a refused destructive command (`aegis approve-destructive <code>`), in every mode that has approvals.
+
+- **A refused command was shown as its first 300 characters, and the approval covered all of it.** A command whose destructive part came after the 300th character was approved with that part unseen. Now 2,000 characters are shown, the list says when that is not the whole command (or when a secret was taken out of it), and such a command is **not approved** unless the person adds `--unseen-tail`, which says they read it where it was refused.
+- **The approval code was 8 characters of the command's hash, and of two waiting commands with the same code the older was approved.** Making a second command share a code is about four thousand million hashes. An agent could have a destructive command refused, then a harmless one with the same code, and a person approving the code beside the harmless one approved the destructive one. Now a command whose code is held by another gets a longer code of its own, and a code held by two commands approves neither.
+- New battery: `red-team/approval-unseen.battery.sh` (5 cases; 3 gaps on 2.17.0). The pair with one code is not computed there; the store is given the two rows a collision leaves. `tests/approval-shown-whole.test.ts` (6).
+
+**Upgrade the authority too.** The approval checks are made where the store is: with a separate-account approver that is the daemon, so a 2.17.1 `approve-destructive` talking to an older daemon is not protected.
+
+**What this does not give.**
+- The rule a refusal "matched" is the asker's word: an agent that asks the authority directly can put any 120 characters there. It is printed beside the command; the command is what to read.
+- `--unseen-tail` is a person's statement. Nothing checks that they read the rest.
+- Line breaks in a command are shown as spaces.
+- A gate that breaks while judging (the shield, by design) lets the call through and says so on stderr only; that leaves no row in the ledger.
+- Where the agent runs as root, the pinned key is a file it can rewrite, as before.
+
 ## [2.17.0] — 2026-10-11
 
 ### Added — dated anchors: a quiet ledger and a dead authority no longer look the same in the public log

@@ -19,12 +19,13 @@
 // operating on the daemon's own AEGIS_DIR — one implementation, two deployments.
 
 import { createServer, type Server, type Socket } from "net";
-import { chmodSync, existsSync, mkdirSync, unlinkSync } from "fs";
+import { chmodSync, existsSync, mkdirSync, readFileSync, unlinkSync } from "fs";
 import { dirname } from "path";
 import { recordPending, listPending, approvePending, consumeApproval } from "./destructive-approval";
 import type { ApproverOp, ApproverRequest, ApproverResponse } from "./approver-client";
 import { LedgerAuthority } from "../core/ledger-authority";
 import { isNonce } from "../core/ledger-sign";
+import { PINNED_LEDGER_KEY_PATH } from "../core/refusal-ledger";
 
 export interface DaemonOptions {
   consumeSocketPath: string;
@@ -40,6 +41,11 @@ export interface DaemonOptions {
   ledgerPublicKeyOut?: string;
   /** The ledger authority's clock. Only a test replaces it. */
   ledgerNow?: () => Date;
+  /**
+   * Mode of the consume socket. Default 0o660: this account and its group. A gate running as another
+   * account can ask only if it is in that group, or if this is 0o666. The approve socket is always 0o660.
+   */
+  consumeSocketMode?: number;
   /** Called with human-readable lines for audit/logging. Defaults to stderr. */
   log?: (line: string) => void;
 }
@@ -76,7 +82,7 @@ function handle(req: ApproverRequest, ledger: LedgerAuthority): ApproverResponse
         return { ok: true, value: ledger.anchor((req as { dated?: unknown }).dated === true) };
       case "approve":
         if (typeof req.code !== "string") return { ok: false, error: "approve needs a code" };
-        return { ok: true, value: approvePending(req.code) };
+        return { ok: true, value: approvePending(req.code, Date.now(), { unseen: req.unseen === true }) };
       default:
         return { ok: false, error: `unknown op '${String((req as { op?: unknown }).op)}'` };
     }
@@ -91,7 +97,7 @@ function handle(req: ApproverRequest, ledger: LedgerAuthority): ApproverResponse
 export const MAX_REQUEST_BYTES = 64 * 1024;
 const idleMs = (): number => { const n = parseInt(process.env.AEGIS_APPROVER_IDLE_MS || "", 10); return Number.isFinite(n) && n > 0 ? n : 10_000; };
 
-function serve(path: string, allowed: Set<ApproverOp>, ledger: LedgerAuthority, log: (s: string) => void): Server {
+function serve(path: string, allowed: Set<ApproverOp>, ledger: LedgerAuthority, log: (s: string) => void, mode = 0o660): Server {
   if (existsSync(path)) { try { unlinkSync(path); } catch { /* stale socket */ } }
   const dir = dirname(path);
   if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
@@ -131,8 +137,26 @@ function serve(path: string, allowed: Set<ApproverOp>, ledger: LedgerAuthority, 
     });
     sock.on("error", () => { /* client vanished */ });
   });
-  server.listen(path, () => { try { chmodSync(path, 0o660); } catch { /* perms set by provisioning */ } });
+  server.listen(path, () => { try { chmodSync(path, mode); } catch { /* perms set by provisioning */ } });
   return server;
+}
+
+// Nothing pinned the ledger key for the gates through 2.17.0, so an install with an authority ran with
+// every answer "unchecked" and no word of it (pointed out by Andrey Lazarev, 11 October 2026). This
+// account cannot write /etc, so it says what a person has to run.
+export function sayPinState(publicKey: string, log: (s: string) => void, pinPath = PINNED_LEDGER_KEY_PATH): void {
+  try {
+    if (!existsSync(pinPath)) {
+      log(`the ledger key is NOT pinned for the gates (${pinPath} does not exist): a gate cannot tell this authority's answer from anyone else's. As root: aegis ledger-pin --from <this store>/ledger-signing.pub`);
+      return;
+    }
+    const same = (a: string, b: string) => a.replace(/\s+/g, "") === b.replace(/\s+/g, "");
+    if (!same(readFileSync(pinPath, "utf-8"), publicKey)) {
+      log(`THE PINNED LEDGER KEY IS NOT THIS AUTHORITY'S KEY (${pinPath}): every gate on this box will refuse this authority's answers as not signed. As root, after checking which is right: aegis ledger-pin --from <this store>/ledger-signing.pub --replace`);
+    } else log(`the ledger key pinned for the gates (${pinPath}) is this authority's key`);
+  } catch (e) {
+    log(`could not read the pinned ledger key at ${pinPath}: ${(e as Error).message}`);
+  }
 }
 
 /** Start the daemon. Returns a stop() that unlinks both sockets. */
@@ -148,9 +172,11 @@ export function startApproverDaemon(opts: DaemonOptions): { stop: () => void; le
   });
   ledger.start();
 
-  const consumeServer = serve(opts.consumeSocketPath, CONSUME_OPS, ledger, log);
+  const consumeMode = opts.consumeSocketMode ?? 0o660;
+  const consumeServer = serve(opts.consumeSocketPath, CONSUME_OPS, ledger, log, consumeMode);
   const approveServer = serve(opts.approveSocketPath, APPROVE_OPS, ledger, log);
-  log(`listening — consume=${opts.consumeSocketPath} approve=${opts.approveSocketPath} store=${opts.storeDir}`);
+  log(`listening — consume=${opts.consumeSocketPath} (mode ${consumeMode.toString(8)}) approve=${opts.approveSocketPath} (mode 660) store=${opts.storeDir}`);
+  sayPinState(ledger.status().public_key, log);
 
   const stop = () => {
     ledger.stop();

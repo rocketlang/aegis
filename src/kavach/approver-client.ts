@@ -37,6 +37,8 @@ export interface ApproverRequest {
   gate?: string; kind?: string; session?: string | null;
   /** "anchor" only: ask for a dated anchor (the authority's own UTC day; the asker never names the day). */
   dated?: boolean;
+  /** "approve" only: the person says they read the whole command elsewhere (it was not shown whole). */
+  unseen?: boolean;
 }
 export interface ApproverResponse<T = unknown> { ok: boolean; value?: T; error?: string }
 
@@ -107,8 +109,8 @@ export async function remoteLedgerStatus(socketPath = process.env.AEGIS_LEDGER_S
 }
 
 /** A PERSON approves one pending command over the restricted approve socket. */
-export async function remoteApprove(code: string): Promise<(Approval & { shown: string; rule: string }) | null> {
-  const r = await ask<(Approval & { shown: string; rule: string }) | null>(approveSock(), { op: "approve", code });
+export async function remoteApprove(code: string, unseen = false): Promise<(Approval & { shown: string; rule: string }) | null> {
+  const r = await ask<(Approval & { shown: string; rule: string }) | null>(approveSock(), { op: "approve", code, ...(unseen ? { unseen: true } : {}) });
   if (!r.ok) throw new Error(`approver approve failed: ${r.error ?? "unknown"}`);
   return (r.value as (Approval & { shown: string; rule: string }) | null) ?? null;
 }

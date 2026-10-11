@@ -214,6 +214,7 @@ export class LedgerAuthority {
     rows: number; max_seq: number; public_key: string; ledger: string; source: string;
     verified_at_start: boolean; start_detail: string | null;
     witness: string | null; witness_holds: number | null;
+    receipts: true;
   } {
     return {
       rows: this.rows.length,
@@ -225,6 +226,9 @@ export class LedgerAuthority {
       start_detail: this.startVerdict.ok ? null : this.startVerdict.detail,
       witness: this.witnessUrl,
       witness_holds: this.delivered,
+      // This authority answers a refusal with the signed row and a receipt (since 2.16.3). An older one
+      // has no such field, and a gate with a pinned key refuses its answers: `aegis ledger-pin` looks here.
+      receipts: true,
     };
   }
 

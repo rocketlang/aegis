@@ -41,18 +41,26 @@ import { existsSync, readFileSync } from "fs";
 import { homedir } from "os";
 import { join } from "path";
 import { hostname } from "os";
-import { verifyLedgerFile, refusalLedgerPath } from "../../core/refusal-ledger";
+import { verifyLedgerFile, refusalLedgerPath, PINNED_LEDGER_KEY_PATH } from "../../core/refusal-ledger";
 import { witnessHighWaterMark } from "../../core/witness-client";
 import { checkLeafTimes, judgeAnchors, loadPolicy, rawPublicKey, scanForKey, type AnchorReceipt } from "../../core/ledger-anchor";
 import type { SignedRow } from "../../core/ledger-sign";
 import { reconcileLocal } from "../../core/ledger-reconcile";
 import { createHash } from "crypto";
 
-function loadPublicKey(): string | null {
+// Which key the ledger is checked against, in order: the one the runner names (AEGIS_LEDGER_PUBKEY, or
+// AEGIS_LEDGER_PUBKEY_FILE), then the key pinned for this box's gates, then the copy in the aegis home.
+// Through 2.17.0 the pinned key was not looked at, so on a box that pins one the default was still the
+// home copy, which the gates' own account can write. The source is always said.
+function loadPublicKey(): { pem: string | null; from: string } {
   const env = process.env.AEGIS_LEDGER_PUBKEY;
-  if (env && env.includes("BEGIN")) return env;
-  const file = process.env.AEGIS_LEDGER_PUBKEY_FILE || join(process.env.AEGIS_HOME || join(homedir(), ".aegis"), "ledger-signing.pub");
-  try { return existsSync(file) ? readFileSync(file, "utf-8") : null; } catch { return null; }
+  if (env && env.includes("BEGIN")) return { pem: env, from: "AEGIS_LEDGER_PUBKEY" };
+  const read = (f: string): string | null => { try { return existsSync(f) ? readFileSync(f, "utf-8") : null; } catch { return null; } };
+  const named = process.env.AEGIS_LEDGER_PUBKEY_FILE;
+  if (named) return { pem: read(named), from: named };
+  if (existsSync(PINNED_LEDGER_KEY_PATH)) return { pem: read(PINNED_LEDGER_KEY_PATH), from: `${PINNED_LEDGER_KEY_PATH} (pinned)` };
+  const home = join(process.env.AEGIS_HOME || join(homedir(), ".aegis"), "ledger-signing.pub");
+  return { pem: read(home), from: `${home} — a file the gates' own account can write; name the key with AEGIS_LEDGER_PUBKEY_FILE, or pin it (aegis ledger-pin)` };
 }
 
 export default async function ledgerVerify(args: string[]): Promise<void> {
@@ -61,7 +69,10 @@ export default async function ledgerVerify(args: string[]): Promise<void> {
   const path = positional[0] || refusalLedgerPath();
   const witnessUrl = flag("--witness") || process.env.AEGIS_WITNESS_URL;
   const source = flag("--source") || process.env.AEGIS_LEDGER_SOURCE || hostname();
-  const pub = loadPublicKey();
+  const key = loadPublicKey();
+  const pub = key.pem;
+  // On stdout: the first line of stderr is what a caller quotes when the check fails.
+  if (pub) process.stdout.write(`[ledger-verify] key: ${key.from}\n`);
   // No file is not an empty ledger. "0 rows, OK" for a path that does not exist would read as clean.
   if (!existsSync(path)) {
     process.stderr.write(`[ledger-verify] UNVERIFIABLE — no ledger file at ${path}. Nothing was checked.\n`);

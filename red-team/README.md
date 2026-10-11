@@ -50,6 +50,14 @@ separate increment, still RED. Tracked in the public
 Creates a real `aegis-approver` account and a separate `agent` account, starts the daemon as the approver,
 and proves the agent's uid cannot write the store or open the approve socket while it can still *ask*.
 
+**Corrected in 2.17.1.** Through 2.17.0 this script set the socket folder to mode 750, so the agent's
+account could not reach either socket. The approve-socket check passed because of the folder, without
+touching the socket it names, and the consume check failed as a false gap. Andrey Lazarev found this
+running it on a throwaway VM (11 October 2026); with the folder at 711 he saw all three pass for the right
+reasons. The script now uses 711, lets the daemon set the socket modes itself (`--consume-mode 666`),
+stops with exit 3 if the agent cannot see the sockets, and accepts only a permission refusal on a socket
+the agent can see. **We have not run the corrected script ourselves**: it needs a disposable host.
+
 ```
 sudo AEGIS_DISPOSABLE_HOST=1 ./red-team/point1-uid-boundary.disposable.sh
 ```
@@ -272,4 +280,30 @@ run" (exit 3), not a pass.
 
 ```
 ./red-team/ledger-disk-full.battery.sh
+```
+
+
+### `ledger-unpinned` — an authority is set up and nobody pinned its key
+**Finding (Andrey Lazarev, 11 October 2026, against 2.17.0).** Nothing in the package put the ledger key
+at `/etc/aegis/ledger-signing.pub`, so an install with an authority ran with every answer "unchecked" and
+nothing said; a socket of the agent's own answering "ok, 42" still passed quietly. Twelve cases: the gate
+says NOT CHECKED on stderr; `aegis ledger-pin` refuses a key the authority does not own, an authority older
+than 2.16.3, a key file anyone can write, a link, and a second key over an existing pin; the verifier names
+the key it used; the daemon sets the consume socket's mode when asked.
+
+```
+./red-team/ledger-unpinned.battery.sh
+AEGIS_PROBE_REPO=<an installed 2.17.0>/ ./red-team/ledger-unpinned.battery.sh   # red: 5 gaps
+```
+
+### `approval-unseen` — an approval for more than the person was shown
+**Found by us, reading our own approval path after the review; not reported from outside.** A person
+approved a refused command by a short code after reading it. Through 2.17.0 they were shown the first 300
+characters and the approval covered the whole command; and where two waiting commands had the same
+8-character code the older one was approved. The pair with one code is not computed by the battery (about
+four thousand million hashes); the store is given the two rows a collision leaves.
+
+```
+./red-team/approval-unseen.battery.sh
+AEGIS_PROBE_REPO=<an installed 2.17.0>/ ./red-team/approval-unseen.battery.sh   # red: 3 gaps
 ```

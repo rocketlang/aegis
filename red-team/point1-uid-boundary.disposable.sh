@@ -41,17 +41,24 @@ id -u "$AGENT"    >/dev/null 2>&1 || useradd -r -s /usr/sbin/nologin "$AGENT"
 
 mkdir -p "$STORE" "$SOCKDIR"
 chown "$APPROVER:$APPROVER" "$STORE";   chmod 700 "$STORE"      # agent uid: no read, no write
-chown "$APPROVER:$APPROVER" "$SOCKDIR"; chmod 750 "$SOCKDIR"
+# 711, not 750: the agent must be able to REACH the sockets, so that what refuses it at the approve socket
+# is that socket's own mode. At 750 the agent was stopped at the directory: check (b) passed without ever
+# touching the approve socket, and check (c) failed as a false gap (found by Andrey Lazarev on a throwaway
+# VM, 11 October 2026, against 2.17.0).
+chown "$APPROVER:$APPROVER" "$SOCKDIR"; chmod 711 "$SOCKDIR"
 
 # Start the daemon AS the approver.
 sudo -u "$APPROVER" env AEGIS_APPROVER_SUPPRESS_UID_WARN=1 \
-  "$BUN" run "$ROOT/src/cli/index.ts" approver-daemon --store "$STORE" --consume "$CONSUME" --approve "$APPROVE" &
+  "$BUN" run "$ROOT/src/cli/index.ts" approver-daemon --store "$STORE" --consume "$CONSUME" --approve "$APPROVE" --consume-mode 666 &
 DAEMON_PID=$!
 sleep 1
 [ -S "$CONSUME" ] && [ -S "$APPROVE" ] || { echo "BROKE — daemon did not create sockets"; exit 3; }
-# consume socket: reachable by the agent. approve socket: approver group only.
-chmod 666 "$CONSUME"
-chown "$APPROVER:$APPROVER" "$APPROVE"; chmod 660 "$APPROVE"
+# The daemon sets the modes itself: consume 666 (asked for above), approve 660. Nothing is widened or
+# narrowed here, so what is tested is what the daemon made.
+mode() { stat -c '%a' "$1"; }
+[ "$(mode "$CONSUME")" = 666 ] && [ "$(mode "$APPROVE")" = 660 ] || { echo "BROKE — socket modes are consume=$(mode "$CONSUME") approve=$(mode "$APPROVE"), expected 666 and 660"; exit 3; }
+# The checks below mean something only if the agent can reach the sockets at all.
+sudo -u "$AGENT" test -S "$APPROVE" && sudo -u "$AGENT" test -S "$CONSUME" || { echo "BROKE — the agent's uid cannot even see the sockets (directory mode $(mode "$SOCKDIR")); (b) would pass for the wrong reason"; exit 3; }
 
 gaps=0
 R() { echo "  [$([ "$1" = 1 ] && echo 'GAP ' || echo 'safe')] $2 — $3"; [ "$1" = 1 ] && gaps=$((gaps+1)); }
@@ -63,12 +70,13 @@ else
   R 0 "agent cannot write the approver store" "EACCES — the store is owned by $APPROVER, mode 700"
 fi
 
-# (b) agent tries to OPEN the approve socket → must be denied.
-if sudo -u "$AGENT" "$BUN" -e "require('net').createConnection('$APPROVE').on('connect',()=>process.exit(0)).on('error',()=>process.exit(7))" 2>/dev/null; then
-  R 1 "agent opens the approve socket" "the agent connected to the person-only approve socket — the boundary FAILED"
-else
-  R 0 "agent cannot open the approve socket" "EACCES — approve socket is $APPROVER-group only"
-fi
+# (b) agent tries to OPEN the approve socket → must be denied, BY THE SOCKET (EACCES on a socket it can see).
+sudo -u "$AGENT" "$BUN" -e "require('net').createConnection('$APPROVE').on('connect',()=>process.exit(0)).on('error',(e)=>process.exit(e.code==='EACCES'?7:8))" 2>/dev/null; rc=$?
+case "$rc" in
+  0) R 1 "agent opens the approve socket" "the agent connected to the person-only approve socket — the boundary FAILED" ;;
+  7) R 0 "agent cannot open the approve socket" "EACCES on a socket the agent can see — the approve socket's own mode (660, $APPROVER group) refused it" ;;
+  *) echo "BROKE — the agent's connect to the approve socket failed for another reason than permission (exit $rc); nothing was proved"; exit 3 ;;
+esac
 
 # (c) agent CAN ask over the consume socket (this is allowed) and gets 'false' (no approval).
 ASK="require('net');const s=require('net').createConnection('$CONSUME');s.on('connect',()=>s.write(JSON.stringify({op:'consume',command:'rm -rf /x'})+'\n'));s.setEncoding('utf8');s.on('data',d=>{const r=JSON.parse(d);process.exit(r.ok&&r.value===false?0:8)});s.on('error',()=>process.exit(9))"

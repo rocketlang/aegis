@@ -11,6 +11,9 @@
 //                          or ~/.aegis-approver). Must be writable only by this account.
 //   --consume <path>       consume socket (agents may ask). Default $AEGIS_APPROVER_CONSUME_SOCKET.
 //   --approve <path>       approve socket (people only).     Default $AEGIS_APPROVER_APPROVE_SOCKET.
+//   --consume-mode <mode>  660 (default: this account and its group) or 666 (any local account may ASK).
+//                          $AEGIS_APPROVER_CONSUME_MODE. A gate under another account needs one or the
+//                          other: membership of this account's group, or 666. The approve socket stays 660.
 //
 //   --witness <url>        off-box witness for the signed refusal ledger ($AEGIS_WITNESS_URL).
 //   --source <name>        this ledger's name at the witness ($AEGIS_LEDGER_SOURCE, default host name).
@@ -42,6 +45,12 @@ export default async function approverDaemon(args: string[]): Promise<void> {
   // the store and socket perms). We say it loudly so a misconfiguration is visible.
   const warnSameUser = !process.env.AEGIS_APPROVER_SUPPRESS_UID_WARN;
 
+  const modeArg = flag(args, "--consume-mode") || process.env.AEGIS_APPROVER_CONSUME_MODE;
+  if (modeArg !== undefined && modeArg !== "660" && modeArg !== "666") {
+    process.stderr.write(`[aegis-approver] refusing to start — --consume-mode is 660 or 666, not '${modeArg}'.\n`);
+    process.exit(3);
+  }
+
   const hb = parseInt(process.env.AEGIS_LEDGER_HEARTBEAT_MS || "", 10);
   const { stop } = startApproverDaemon({
     storeDir: store, consumeSocketPath, approveSocketPath,
@@ -49,6 +58,7 @@ export default async function approverDaemon(args: string[]): Promise<void> {
     ledgerSource: flag(args, "--source") || process.env.AEGIS_LEDGER_SOURCE || hostname(),
     ledgerPublicKeyOut: flag(args, "--ledger-pub") || process.env.AEGIS_LEDGER_PUBKEY_OUT || undefined,
     ledgerHeartbeatMs: Number.isFinite(hb) && hb > 0 ? hb : undefined,
+    consumeSocketMode: modeArg === "666" ? 0o666 : 0o660,
   });
   if (warnSameUser) {
     process.stderr.write(

@@ -11,14 +11,15 @@
 // @rule:KAV-098 — the shield stops this command when it arrives as a tool call: an agent
 // approving its own refused command is the thing this exists to prevent.
 
-import { APPROVAL_TTL_MS } from "../../kavach/destructive-approval";
+import { APPROVAL_TTL_MS, SHOWN_MAX } from "../../kavach/destructive-approval";
 import {
   approvePendingAuthority, listPendingAuthority, authorityMode, authorityHint,
 } from "../../kavach/approval-authority";
 import { recordRefusal } from "../../core/refusal-ledger";
 
 export default async function approveDestructive(args: string[]): Promise<void> {
-  const code = (args[0] ?? "").trim().toLowerCase();
+  const unseen = args.includes("--unseen-tail");
+  const code = (args.filter((a) => !a.startsWith("--"))[0] ?? "").trim().toLowerCase();
   const mode = authorityMode();
 
   // Separation is the default: with no approver configured, there is nothing to approve WITH,
@@ -30,7 +31,7 @@ export default async function approveDestructive(args: string[]): Promise<void> 
   if (mode === "insecure-local") {
     process.stderr.write(
       "[KAVACH] Insecure single-box mode: this approval lives in a file your agent's own uid can " +
-      "write. Set up the separate-uid approver (`aegis init`) for a real boundary.\n",
+      "write. Set up the separate-account approver (docs/hardened-setup.md) for a real boundary.\n",
     );
   }
 
@@ -45,12 +46,20 @@ export default async function approveDestructive(args: string[]): Promise<void> 
       const mins = Math.max(0, Math.round((Date.now() - p.at) / 60000));
       console.log(`  ${p.code}   ${mins} min ago   ${p.rule}`);
       console.log(`             ${p.shown}`);
+      if (p.cut) console.log(`             ^ NOT THE WHOLE COMMAND: it is ${p.chars} characters; at most ${SHOWN_MAX} are shown and secrets are taken out. An approval covers all of it.`);
     }
     console.log("\nTo approve one, once:  aegis approve-destructive <code>");
     process.exit(0);
   }
 
-  const done = await approvePendingAuthority(code);
+  // A refusal with a reason (the command was not shown whole; two commands under one code) is not "no such code".
+  let done: Awaited<ReturnType<typeof approvePendingAuthority>>;
+  try {
+    done = await approvePendingAuthority(code, unseen);
+  } catch (e) {
+    console.error(`NOT APPROVED — ${(e as Error).message.replace(/^approver approve failed: /, "")}`);
+    process.exit(1);
+  }
   if (!done) {
     console.error(`No refused command is waiting under the code '${code}'. It may have expired (30 minutes) or been approved already.`);
     console.error("Run `aegis approve-destructive` with no code to see what is waiting.");
