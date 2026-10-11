@@ -1,11 +1,12 @@
 # @xshieldai/aegis-guard
 
-> **🔍 Verification status (2026-10-05 IST — v0.4.0)**
-> - **Tests:** ✅ **177/177 passing** in the repository; the npm package ships `src/` only, so run them from a clone (`bun test`): 70 in [tests/aegis-guard.test.ts](https://github.com/rocketlang/aegis/blob/master/packages/aegis-guard/tests/aegis-guard.test.ts) and 107 in [tests/hardening.test.ts](https://github.com/rocketlang/aegis/blob/master/packages/aegis-guard/tests/hardening.test.ts) for key trust, malformed tokens, nonces, the duplicate check, the audit event, the quality bar, the envelope helpers and the stated limits. No test contacts a network or touches `~/.aegis`.
+> **🔍 Verification status (2026-10-11 IST — v0.6.1)**
+> - **Tests:** ✅ **184/184 passing** in the repository; the npm package ships `src/` only, so run them from a clone (`bun test`): 70 in [tests/aegis-guard.test.ts](https://github.com/rocketlang/aegis/blob/master/packages/aegis-guard/tests/aegis-guard.test.ts) and 114 in [tests/hardening.test.ts](https://github.com/rocketlang/aegis/blob/master/packages/aegis-guard/tests/hardening.test.ts) for key trust, malformed tokens, nonces, the duplicate check, the audit event, the quality bar, the envelope helpers, the stated limits and the action digest. No test contacts a network or touches `~/.aegis`.
 > - **Examples:** ✅ runnable quickstart, in the repository (not in the npm package): [examples/quickstart.ts](https://github.com/rocketlang/aegis/blob/master/packages/aegis-guard/examples/quickstart.ts) — `bun run examples/quickstart.ts` shows all 5 Locks in action with receipts
 > - **Live demo:** ⚠️ planned (Tier 3, see [PROOF-STACK.md](https://github.com/rocketlang/aegis/blob/master/PROOF-STACK.md))
 > - **Limits:** see "What this does not do" below, and the v0.2.0 ACC section
 > - **Upgrading from 0.3.x:** some calls that passed are now refused, and minting no longer makes a key. See "Upgrading from 0.3.x".
+> - **Upgrading from 0.4.x, 0.5.0 or 0.6.0:** minting needs `AEGIS_MINT_AUTHORITY=1`, an approval must name the concrete action, and since 0.6.1 an action must be plain data. See "Upgrading to 0.6.x".
 
 AEGIS Guard SDK — reusable approval-token, nonce, idempotency, SENSE, and quality-evidence primitives for AEGIS-governed services.
 
@@ -53,7 +54,12 @@ An approval token is an EdDSA-signed JWT. One box signs; every other box only ve
 
 `verifyApprovalToken()` checks, in order: the signature; that service, capability and operation match exactly; that `expires_at` is a number and not past; that `issued_at`, when present, is a number, not more than 60 seconds ahead of the clock and not after `expires_at`; that `status`, when present, is exactly `approved`. Anything else throws `IrrNoApprovalError` (`code: 'IRR-NOAPPROVAL'`) — including a token that is not text.
 
-Mint with `issued_at` and `expires_at` in milliseconds: `mintApprovalToken({ service_id, capability, operation, nonce, issued_at: Date.now(), expires_at: Date.now() + 60_000 })`.
+Since 0.6.0 two things are refused by default, and the two calls below are therefore not enough on their own:
+
+- **Minting is an authority action.** `mintApprovalToken()` and `ensureSigningKeypair()` throw unless the process declares itself the approving authority with `AEGIS_MINT_AUTHORITY=1`. An agent process verifies; it does not mint. On one user account an agent can set that variable itself: the real boundary is a private key under a different account that the agent cannot read.
+- **An approval must name the concrete action.** A token without an `action_digest` is refused by every verify call, because an approval scoped only to service, capability and operation fits every instance of that operation. Use the action-bound pair described in the next section. `AEGIS_ALLOW_LABEL_ONLY_APPROVAL=1` brings back the old label-only behaviour for a caller that knowingly accepts it.
+
+Mint with `issued_at` and `expires_at` in milliseconds: `mintActionApprovalToken({ service_id, capability, operation, nonce, issued_at: Date.now(), expires_at: Date.now() + 60_000 }, action)`.
 
 ```typescript
 import { verifyApprovalToken, verifyScopedApprovalToken } from '@xshieldai/aegis-guard';
@@ -69,6 +75,25 @@ const payload = verifyScopedApprovalToken(
 ```
 
 Each scope field must be the token's own field and strictly equal (`100` is not `"100"`). A field the caller has no value for (`undefined` or `null`) is refused: it would bind the token to nothing.
+
+### One approval, one action
+
+```typescript
+import { mintActionApprovalToken, verifyActionApprovalToken } from '@xshieldai/aegis-guard';
+
+// On the authority (AEGIS_MINT_AUTHORITY=1): the approval names what was approved.
+const action = { table: 'audit_log_2023', run_at: '2026-10-11T06:40:00.000Z' };
+const token = mintActionApprovalToken({ service_id, capability, operation, nonce, issued_at, expires_at }, action);
+
+// In the service, with the action it is about to perform:
+const payload = verifyActionApprovalToken(token, 'my-service', 'schema', 'drop_table', actionInHand);
+```
+
+The token carries a SHA-256 digest of the action; the service recomputes it from the action in hand and a mismatch is refused. Keys are sorted at every depth, so the order they were written in does not matter.
+
+**An action must be plain data: text, finite numbers, booleans, `null`, arrays and plain objects of these.** Anything else is refused with `IrrNoApprovalError`, at mint and at verify, and the message says where in the action it is (`action.pay.to[0].when is a Date, not a plain object`). That covers `Date`, `URL`, `Map`, `Set`, `RegExp`, `Buffer`, any class instance, `NaN`, `±Infinity`, `undefined` (also as a field's value, and a hole in an array), `bigint`, functions, symbols, and an action that contains itself. Write such a value as text yourself: a date as its ISO text, a URL as its href, a set as a sorted array, a large integer as digits.
+
+Through 0.6.0 the digest gave those values a guessed spelling and the guesses collided: every `Date`, `URL`, `Map`, `Set`, `RegExp` and class instance was written `{}`, and `NaN`, `Infinity` and `undefined` were written `null`. **An approval minted for one such action verified for a different one.** If a service on 0.5.0 or 0.6.0 passes any of those as part of an action, upgrade. For an action that was plain data already, the digest is unchanged, so tokens minted before the upgrade still verify.
 
 ### LOCK_3 — observability (SENSE)
 
@@ -176,6 +201,13 @@ const redisNonceStore: NonceStore = {
 - `quality_drift_score`: bits 12–15, `aegis-quality-16bit-v1`
 - AEG-Q-003 invariant: bits 12–15 must **never** be set in `quality_mask_at_promotion`
 
+## Upgrading to 0.6.x
+
+- **0.5.0** added `actionDigest()`, `mintActionApprovalToken()` and `verifyActionApprovalToken()`.
+- **0.6.0: set `AEGIS_MINT_AUTHORITY=1` for the one process that mints**, and for no other. Without it minting and key generation throw. `AEGIS_ALLOW_INSECURE_LOCAL_MINT=1` is the stated opt-out for a single-process development box.
+- **0.6.0: mint and verify with the action-bound pair.** A token with no `action_digest` is refused by `verifyApprovalToken()` and `verifyScopedApprovalToken()` too, unless `AEGIS_ALLOW_LABEL_ONLY_APPROVAL=1`.
+- **0.6.1: an action must be plain data.** A `Date`, `URL`, `Map`, `Set`, `RegExp`, `Buffer`, class instance, `NaN`, `±Infinity`, `undefined` or `bigint` anywhere in an action is now refused, where 0.6.0 digested it (wrongly, see "One approval, one action"). Convert it to text on both sides, the minting side and the verifying side. A `Buffer` was digested correctly before and is refused now as well: write it as hex or base64 text.
+
 ## Upgrading from 0.3.x
 
 - **Call `ensureSigningKeypair()` once on the authority box before minting.** Minting no longer makes a key. On a verifier box, do not call it at all.
@@ -191,6 +223,8 @@ const redisNonceStore: NonceStore = {
 Each of these is pinned by a test in `tests/hardening.test.ts`, so it cannot change unnoticed — except the two about what is absent (a shared nonce store, a revocation list), which no test can show.
 
 - **No upper limit on a token's life.** The signer chooses `expires_at`.
+- **The package does not decide what "the action" is.** The caller builds it. A field the caller leaves out of the action is not bound, and two services that describe the same act differently do not match.
+- **Verifying an action-bound token does not use it up.** The same token verifies again until it expires; a second use is stopped only by `verifyAndConsumeNonce()`.
 - **An empty scope checks nothing more** than `verifyApprovalToken()`. A scope value that is an object never matches.
 - **`verifyAndConsumeNonce()` checks no signature and no status.** It trusts the payload it is given.
 - **A key file swapped under a running process is not noticed until restart.** A change of `AEGIS_APPROVAL_PUBKEY_PEM` is.

@@ -11,6 +11,7 @@
 //   §H6 quality bar (AEG-Q-003)
 //   §H7 envelope (ASE-016), fetch stubbed
 //   §H8 limits   what the package does not do, so a change in any of them is noticed
+//   §H9 action   (AEG-HG-2B-010) an action is plain data or it is refused; one approval, one act
 //
 // Hermetic: every key lives in a temp directory; no network.
 
@@ -35,6 +36,7 @@ import {
   mintApprovalToken,
   mintActionApprovalToken,
   verifyActionApprovalToken,
+  actionDigest,
   verifyApprovalToken,
   verifyScopedApprovalToken,
   verifyAndConsumeNonce,
@@ -678,5 +680,68 @@ describe('§H8 stated limits', () => {
       expect(r.class_mask).toBe(0xffff);
       expect(r.budget_usd).toBe(0);
     } finally { globalThis.fetch = realFetch; }
+  });
+});
+
+// ─── §H9 the action digest ────────────────────────────────────────────────────
+
+describe('§H9 an action is plain data or it is refused (AEG-HG-2B-010)', () => {
+  const act = (token: string, action: unknown) =>
+    on(AUTH, () => verifyActionApprovalToken(token, 'svc', 'settle', 'record_settle', action));
+  const mintFor = (action: unknown) => on(AUTH, () => mintActionApprovalToken(base() as any, action));
+
+  it('GH-901: plain data digests as it did in 0.5.0 and 0.6.0, whatever the key order', () => {
+    // sha256 of {"table":"users"} — written out so a change of spelling is noticed
+    expect(actionDigest({ table: 'users' })).toBe('91706c046f2d64bab45c30323964724c37c07f9ea14887311dbde6f61bfc5321');
+    expect(actionDigest({ a: 1, b: [true, null, 'x', { d: 2, c: 1 }] })).toBe(actionDigest({ b: [true, null, 'x', { c: 1, d: 2 }], a: 1 }));
+    expect(actionDigest({ amount: 100 })).not.toBe(actionDigest({ amount: '100' }));
+    expect(actionDigest(Object.assign(Object.create(null), { a: 1 }))).toBe(actionDigest({ a: 1 }));
+    expect(actionDigest('drop users')).not.toBe(actionDigest('drop logs'));
+  });
+
+  it('GH-902: a value JSON cannot carry is refused with IrrNoApprovalError, and the refusal says where', () => {
+    const self: Record<string, unknown> = {}; self.self = self;
+    const bad: Array<[string, unknown]> = [
+      ['a Date', { at: new Date(0) }], ['a URL', { to: new URL('https://a.example/') }],
+      ['a Set', { to: new Set(['a']) }], ['a Map', { m: new Map([['a', 1]]) }], ['a RegExp', { r: /x/ }],
+      ['a Buffer', { b: Buffer.from('aa') }], ['a class instance', new (class Money { v = 1; })()],
+      ['NaN', { n: NaN }], ['Infinity', { n: Infinity }], ['-Infinity', { n: -Infinity }],
+      ['undefined field', { n: undefined }], ['undefined', undefined], ['a hole', { l: [1, , 3] }],
+      ['a bigint', { n: 10n }], ['a function', { f: () => 1 }], ['a symbol', { s: Symbol('x') }],
+      ['a symbol key', { [Symbol('k')]: 1 }], ['itself', self],
+    ];
+    for (const [name, v] of bad) {
+      let err: unknown;
+      try { actionDigest(v); } catch (e) { err = e; }
+      expect(err, name).toBeInstanceOf(IrrNoApprovalError);
+    }
+    expect(() => actionDigest({ pay: { to: [{ when: new Date(0) }] } })).toThrow(/action\.pay\.to\[0\]\.when is a Date/);
+  });
+
+  it('GH-903: an approval for one act is not minted for, and does not fit, an act that is not plain data', () => {
+    expect(() => mintFor({ run_at: new Date('2026-01-01') })).toThrow(IrrNoApprovalError);
+    const tok = mintFor({});
+    // through 0.6.0 each of these digested as {} and was accepted on the approval for {}
+    for (const other of [new Date(0), new URL('https://evil.example/'), new Set(['x']), new Map(), /.*/, new (class X { #v = 1; })()]) {
+      expect(() => act(tok, other)).toThrow(IrrNoApprovalError);
+    }
+    const nul = mintFor({ amount: null });
+    for (const other of [{ amount: NaN }, { amount: Infinity }, { amount: undefined }]) {
+      expect(() => act(nul, other)).toThrow(IrrNoApprovalError);
+    }
+    expect(act(nul, { amount: null }).service_id).toBe('svc');
+  });
+
+  it('GH-905: stated limits — a field left out of the action is not bound, and verifying does not use the token up', () => {
+    const tok = mintFor({ table: 'logs' });
+    // the caller left "database" out of what it had approved: nothing binds it
+    expect(act(tok, { table: 'logs' }).service_id).toBe('svc');
+    expect(act(tok, { table: 'logs' }).service_id).toBe('svc'); // a second time, same token
+    expect(() => act(tok, { table: 'logs', database: 'prod' })).toThrow(IrrNoApprovalError);
+  });
+
+  it('GH-904: the same object used twice in one act is not "itself"', () => {
+    const shared = { id: 7 };
+    expect(actionDigest({ a: shared, b: shared })).toBe(actionDigest({ a: { id: 7 }, b: { id: 7 } }));
   });
 });

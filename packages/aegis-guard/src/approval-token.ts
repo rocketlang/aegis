@@ -4,6 +4,7 @@
 // @rule:AEG-HG-2B-008 — every field a decision rests on is checked for its type before it is
 //                       compared; anything the gate cannot read is a refusal, with the
 //                       package's own error, never a pass and never a TypeError
+// @rule:AEG-HG-2B-010 — an action is plain data or it is refused; the digest never guesses a spelling
 
 import { createHash } from 'crypto';
 import { IrrNoApprovalError } from './errors.js';
@@ -285,21 +286,65 @@ export function verifyScopedApprovalToken(
 // so a token minted without an action_digest cannot pass the action-bound check at all.
 
 // Deterministic JSON: keys sorted, so {a,b} and {b,a} digest the same.
-function stableStringify(v: unknown): string {
-  if (v === null || typeof v !== 'object') return JSON.stringify(v) ?? 'null';
-  if (Array.isArray(v)) return '[' + v.map(stableStringify).join(',') + ']';
-  const o = v as Record<string, unknown>;
-  return '{' + Object.keys(o).sort().map((k) => JSON.stringify(k) + ':' + stableStringify(o[k])).join(',') + '}';
+//
+// @rule:AEG-HG-2B-010 — an action is PLAIN DATA or it is refused: text, finite numbers, booleans,
+// null, arrays of these, and plain objects of these. Through 0.6.0 every other value was given a
+// guessed spelling, and the guesses collided: a Date, a URL, a Set, a Map, a RegExp and any class
+// instance were all written "{}", and NaN, Infinity and undefined were all written "null". An
+// approval minted for one such act then verified for a different one (found 11 October 2026 on
+// the published 0.6.0). The digest does not guess any more. A caller writes such a value as text
+// itself (a date as its ISO text, a URL as its href, a set as a sorted array), so that what was
+// approved is what a person could read.
+//
+// For an action that was plain data already, the digest is the same as in 0.5.0 and 0.6.0.
+function stableStringify(v: unknown, cap: string, at: string, seen: Set<object>): string {
+  const refuse = (what: string): never => {
+    throw new IrrNoApprovalError(
+      cap,
+      `AEG-E-016: the action cannot be bound — ${at} is ${what}. An action must be plain data ` +
+      `(text, finite numbers, booleans, null, arrays and plain objects); write other values as text.`,
+    );
+  };
+  if (v === null || typeof v === 'string' || typeof v === 'boolean') return JSON.stringify(v);
+  if (typeof v === 'number') return Number.isFinite(v) ? JSON.stringify(v) : refuse(`the number ${String(v)}`);
+  if (typeof v !== 'object') return refuse(v === undefined ? 'undefined' : `a ${typeof v}`);
+  if (seen.has(v)) return refuse('a value that contains itself');
+  seen.add(v);
+  let out: string;
+  if (Array.isArray(v)) {
+    const parts: string[] = [];
+    // By index, not map(): map() skips a hole, and a hole is a missing value.
+    for (let i = 0; i < v.length; i++) parts.push(stableStringify(v[i], cap, `${at}[${i}]`, seen));
+    out = '[' + parts.join(',') + ']';
+  } else {
+    const proto = Object.getPrototypeOf(v);
+    if (proto !== Object.prototype && proto !== null) {
+      const name = (proto as { constructor?: { name?: unknown } })?.constructor?.name;
+      refuse(`a ${typeof name === 'string' && name ? name.slice(0, 40) : 'class instance'}, not a plain object`);
+    }
+    if (Object.getOwnPropertySymbols(v).length > 0) refuse('an object with a symbol key');
+    const o = v as Record<string, unknown>;
+    out = '{' + Object.keys(o).sort().map((k) =>
+      JSON.stringify(k) + ':' + stableStringify(o[k], cap, `${at}.${k.slice(0, 40)}`, seen)).join(',') + '}';
+  }
+  seen.delete(v);
+  return out;
+}
+
+function digestFor(action: unknown, cap: string): string {
+  return createHash('sha256').update(stableStringify(action, cap, 'action', new Set())).digest('hex');
 }
 
 // SHA-256 of the canonical action. The caller owns what 'the action' is; the SDK never names domain concepts.
+// Throws IrrNoApprovalError for an action that is not plain data (see AEG-HG-2B-010 above).
 export function actionDigest(action: unknown): string {
-  return createHash('sha256').update(stableStringify(action)).digest('hex');
+  return digestFor(action, 'unknown');
 }
 
 // Mint an approval already bound to a concrete action (adds action_digest to the signed payload).
 export function mintActionApprovalToken(payload: ApprovalTokenPayload, action: unknown): string {
-  return mintApprovalToken({ ...payload, action_digest: actionDigest(action) });
+  const cap = payload !== null && typeof payload === 'object' && isText(payload.capability) ? payload.capability : 'unknown';
+  return mintApprovalToken({ ...payload, action_digest: digestFor(action, cap) });
 }
 
 // Verify an approval against the concrete action in hand. The token MUST carry a matching action_digest;
@@ -313,6 +358,6 @@ export function verifyActionApprovalToken(
 ): ApprovalTokenPayload {
   return verifyScopedApprovalToken(
     token, expectedServiceId, expectedCapability, expectedOperation,
-    { action_digest: actionDigest(action) },
+    { action_digest: digestFor(action, isText(expectedCapability) ? expectedCapability : 'unknown') },
   );
 }
