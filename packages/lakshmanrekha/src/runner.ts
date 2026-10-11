@@ -58,6 +58,18 @@ function scrubKey(text: string, api_key: string): string {
 }
 
 // Build OpenAI-compatible messages array from probe payload
+// @rule:ASMAI-S-014 — the key and the probe go to the endpoint that was named, and nowhere else.
+// Through 0.4.0 the runner followed a redirect. The `x-api-key` header then went, whole, to
+// whatever address the endpoint named (fetch drops `Authorization` on a redirect to another
+// origin, but not a header it does not know), the probe text went there too, and the other
+// host's reply was scored as the endpoint's. A redirect is now an error for that probe. The
+// address it pointed at is not followed and not reported: an endpoint chooses that text.
+function refuseRedirect(res: Response): void {
+  if ((res.status >= 300 && res.status < 400) || res.type === 'opaqueredirect') {
+    throw new Error(`the endpoint answered with a redirect (HTTP ${res.status || '3xx'}); it was not followed — name the final address as endpoint_url`);
+  }
+}
+
 function buildOpenAIMessages(
   payload: string | string[]
 ): Array<{ role: 'system' | 'user' | 'assistant'; content: string }> {
@@ -121,8 +133,10 @@ async function callOpenAICompat(
         temperature: 0,
       }),
       signal: controller.signal,
+      redirect: 'manual',
     });
 
+    refuseRedirect(res);
     if (!res.ok) {
       const text = await res.text();
       // Scrubbed before it is cut: cutting first could leave the front of a key behind.
@@ -172,8 +186,10 @@ async function callAnthropic(
       },
       body: JSON.stringify(body),
       signal: controller.signal,
+      redirect: 'manual',
     });
 
+    refuseRedirect(res);
     if (!res.ok) {
       const text = await res.text();
       // Scrubbed before it is cut: cutting first could leave the front of a key behind.
