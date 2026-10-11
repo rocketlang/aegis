@@ -3,6 +3,7 @@
 # refuses tampered code/config (measurement != baseline), a wrong identity (not signed by the
 # registered key), and an unpinned agent (no baseline = refused). Hermetic (crypto + temp files).
 set -u
+[ -n "${RAN_INNER:-}" ] || exec "$(cd "$(dirname "$0")" && pwd)/lib/ran.sh" 4 "$0" "$@"   # green only if the cases ran
 HERE="$(cd "$(dirname "$0")" && pwd)"
 BUN="$(command -v bun || echo /root/.bun/bin/bun)"
 echo "=== aegis red-team · attestation (who + what) ==="

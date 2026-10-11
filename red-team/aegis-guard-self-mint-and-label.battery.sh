@@ -3,6 +3,7 @@
 # Red test: GAP lines = the exploit succeeded. RED until the code is fixed, then it goes green.
 # Tests the PUBLISHED package, in a throwaway HOME (the signing key + store land there, disposable).
 set -u
+[ -n "${RAN_INNER:-}" ] || exec "$(cd "$(dirname "$0")" && pwd)/lib/ran.sh" 2 "$0" "$@"   # green only if the cases ran
 BUN="$(command -v bun || echo /root/.bun/bin/bun)"
 PROBE="$(cd "$(dirname "$0")" && pwd)/aegis-guard-self-mint-and-label.probe.ts"
 echo "=== Adversarial battery · @xshieldai/aegis-guard ==="

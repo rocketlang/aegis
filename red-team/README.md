@@ -323,3 +323,19 @@ characters in it. Nothing is sent to any log: dry runs against a log that does n
 ./red-team/ledger-anchor-asker.battery.sh
 AEGIS_PROBE_REPO=<an installed 2.17.1>/ ./red-team/ledger-anchor-asker.battery.sh   # red: 5 gaps
 ```
+
+## A battery is green only if its cases ran (`lib/ran.sh`, 11 October 2026)
+
+Every battery hands itself to `red-team/lib/ran.sh` in its first lines, with the least number of cases it has.
+The runner shows the output, then counts what ran: lines that begin with a verdict in brackets, tests a
+`bun test` run reports, or a pattern the battery names. Exit 0 or 1 with fewer cases than that is **BROKE (3)**,
+and so is exit 0 with a skipped test.
+
+Why: until this was added a battery believed its probe's exit code and nothing else. With a `bun` and a
+`python3` that did nothing and exited 0, 19 of the 22 batteries printed their banner and exited 0. One battery
+(`ledger-authority-wired`) had been skipping 8 of its 13 tests on a box with a pinned ledger key and saying green.
+
+When a case is added to a probe, raise the number in that battery's `lib/ran.sh` line in the same change.
+`lakshmanrekha-false-refusal-and-redirect` and `ledger-authority-wired` carry their own count instead.
+
+What this does not give: it counts that cases ran, not that each case tests what its line says.

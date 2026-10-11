@@ -3,6 +3,7 @@
 # Proves the hard cutover to per-agent Ed25519 seals: no forgery from the public key, non-repudiation,
 # and a captured attestation can't be escalated or extended. GAP = still forgeable. Runs vs repo source.
 set -u
+[ -n "${RAN_INNER:-}" ] || exec "$(cd "$(dirname "$0")" && pwd)/lib/ran.sh" 5 "$0" "$@"   # green only if the cases ran
 HERE="$(cd "$(dirname "$0")" && pwd)"
 BUN="$(command -v bun || echo /root/.bun/bin/bun)"
 echo "=== aegis red-team · nallasetu asymmetric (no forgery / no repudiation) ==="

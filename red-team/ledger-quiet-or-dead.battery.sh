@@ -6,6 +6,7 @@
 # and checks that silence, a missed day, a day filled in late and a day that has not come are each named.
 # See the probe for each case and for what a stand-in log does not prove.
 set -u
+[ -n "${RAN_INNER:-}" ] || exec "$(cd "$(dirname "$0")" && pwd)/lib/ran.sh" 11 "$0" "$@"   # green only if the cases ran
 HERE="$(cd "$(dirname "$0")" && pwd)"; BUN="$(command -v bun || echo /root/.bun/bin/bun)"
 echo "=== aegis red-team · a quiet ledger or a dead authority ==="
 [ -x "$BUN" ] || { echo "BROKE — bun not found"; exit 3; }

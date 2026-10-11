@@ -4,6 +4,7 @@
 # KERNEL denies a non-allowlisted execve (EACCES) while the allowlisted one runs — the TOCTOU boundary
 # the pointer swap cannot cross. Per-process Landlock, so it only confines the probe's own children.
 set -u
+[ -n "${RAN_INNER:-}" ] || exec "$(cd "$(dirname "$0")" && pwd)/lib/ran.sh" 3 "$0" "$@"   # green only if the cases ran
 HERE="$(cd "$(dirname "$0")" && pwd)"
 echo "=== aegis red-team · exec-race closure (Landlock) ==="
 command -v python3 >/dev/null || { echo "BROKE — python3 not found"; exit 3; }

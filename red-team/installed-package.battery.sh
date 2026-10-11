@@ -13,11 +13,15 @@
 #
 # Exit: 0 it installs and runs · 1 something that works in the repository does not work installed · 3 broke.
 set -u
+[ -n "${RAN_INNER:-}" ] || exec "$(cd "$(dirname "$0")" && pwd)/lib/ran.sh" 6 "$0" "$@"   # green only if the cases ran
 HERE="$(cd "$(dirname "$0")" && pwd)"; REPO="$(cd "$HERE/.." && pwd)"
 BUN="$(command -v bun || echo /root/.bun/bin/bun)"; PORT="${TEST_PORT:-48996}"
 T="$(mktemp -d /tmp/aegis-installed-XXXXXX)"; chmod 700 "$T"; trap 'rm -rf "$T"' EXIT
 echo "=== aegis red-team · the package as npm installs it ==="
 [ -x "$BUN" ] && command -v npm >/dev/null || { echo "BROKE — bun or npm not found"; exit 3; }
+# Something else listening on the port would answer /health in the dashboard's place, and every line below would
+# be about that other thing (seen 11 October 2026: a stand-in listener gave "[ok] starts" and a false GAP).
+ss -ltn 2>/dev/null | grep -q ":$PORT " && { echo "BROKE — port $PORT is in use (set TEST_PORT)"; exit 3; }
 ( cd "$REPO" && npm pack --silent --pack-destination "$T" >/dev/null 2>"$T/pack.err" ) || { echo "BROKE — npm pack failed: $(tail -1 "$T/pack.err")"; exit 3; }
 TGZ="$(ls "$T"/*.tgz 2>/dev/null | head -1)"; [ -n "$TGZ" ] || { echo "BROKE — no tarball"; exit 3; }
 mkdir -p "$T/app" "$T/home/.aegis"; cd "$T/app" && npm init -y >/dev/null 2>&1
@@ -31,6 +35,10 @@ HOME="$T/home" "$BUN" -e 'import { loadConfig } from "'"$PKG"'/src/core/config.t
 start() { ( cd "$T/app" && exec env HOME="$T/home" "$@" timeout 20 "$BUN" "$PKG/src/dashboard/server.ts" >"$T/dash.log" 2>&1 ) & pid=$!
   up=""; for _ in $(seq 1 40); do curl -s -m 2 -o /dev/null "http://127.0.0.1:$PORT/health" && { up=1; break; }; kill -0 "$pid" 2>/dev/null || break; sleep 0.25; done; }
 start AEGIS_MINT_AUTHORITY=1
+# A port that is taken is this box's business, not the package's: BROKE, not a gap. (48996 sits in the range the
+# kernel hands to outgoing connections, so it can be in use for a moment with nothing listening on it; seen
+# 11 October 2026, when this said GAP three times running and then passed.)
+if [ -z "$up" ] && grep -q -i -E 'EADDRINUSE|address already in use|port [0-9]+ in use' "$T/dash.log"; then echo "BROKE — port $PORT was in use when the dashboard tried to listen (set TEST_PORT, or run again)"; exit 3; fi
 if [ -n "$up" ]; then echo "  [ok]   the dashboard starts from the install and answers /health"; else echo "  [GAP]  the dashboard does not start from the install: $(sed 's/\x1b\[[0-9;]*m//g' "$T/dash.log" | grep -m1 -i -E 'error|not found' | cut -c1-170)"; fail=1; fi
 kill "$pid" 2>/dev/null; wait "$pid" 2>/dev/null; for _ in $(seq 1 20); do ss -ltn 2>/dev/null | grep -q ":$PORT " || break; sleep 0.25; done
 start AEGIS_NOTHING=1

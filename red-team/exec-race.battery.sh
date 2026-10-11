@@ -5,6 +5,7 @@
 # kernel's re-read. Deterministic model against the real check_exec; the live race is disposable-host.
 # GAP = an un-allowlisted binary would run under ALLOW. Runs vs repo source.
 set -u
+[ -n "${RAN_INNER:-}" ] || exec "$(cd "$(dirname "$0")" && pwd)/lib/ran.sh" 3 "$0" "$@"   # green only if the cases ran
 HERE="$(cd "$(dirname "$0")" && pwd)"
 echo "=== aegis red-team · exec-check race (TOCTOU) ==="
 command -v python3 >/dev/null || { echo "BROKE — python3 not found"; exit 3; }

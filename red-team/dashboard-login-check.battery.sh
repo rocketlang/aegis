@@ -14,6 +14,7 @@
 #
 # Exit: 0 every protected route refuses and every public route answers · 1 a gap · 3 broke.
 set -u
+[ -n "${RAN_INNER:-}" ] || exec "$(cd "$(dirname "$0")" && pwd)/lib/ran.sh" 53 "$0" "$@"   # green only if the cases ran
 HERE="$(cd "$(dirname "$0")" && pwd)"; REPO="$(cd "$HERE/.." && pwd)"
 BUN="$(command -v bun || echo /root/.bun/bin/bun)"; PORT="${TEST_PORT:-48997}"
 T="$(mktemp -d /tmp/aegis-login-check-XXXXXX)"; chmod 700 "$T"; pid=""

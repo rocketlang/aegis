@@ -6,6 +6,7 @@
 # On a box that pins a key the probe runs in a PRIVATE mount namespace with an empty folder over /etc/aegis
 # (it disappears with the process; the host's mounts are not touched). Where that is not allowed: exit 3.
 set -u
+[ -n "${RAN_INNER:-}" ] || exec "$(cd "$(dirname "$0")" && pwd)/lib/ran.sh" 12 "$0" "$@"   # green only if the cases ran
 HERE="$(cd "$(dirname "$0")" && pwd)"; BUN="$(command -v bun || echo /root/.bun/bin/bun)"
 echo "=== aegis red-team · an authority with no pinned key ==="
 [ -x "$BUN" ] || { echo "BROKE — bun not found"; exit 3; }

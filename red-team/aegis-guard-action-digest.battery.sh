@@ -10,6 +10,7 @@
 # Red on 0.6.0 and earlier (the digest guessed a spelling for values JSON cannot carry), green from 0.6.1.
 # Exit: 0 every different act is refused · 1 a gap · 3 broke.
 set -u
+[ -n "${RAN_INNER:-}" ] || exec "$(cd "$(dirname "$0")" && pwd)/lib/ran.sh" 17 "$0" "$@"   # green only if the cases ran
 HERE="$(cd "$(dirname "$0")" && pwd)"; REPO="$(cd "$HERE/.." && pwd)"
 BUN="$(command -v bun || echo /root/.bun/bin/bun)"
 echo "=== aegis red-team · aegis-guard: one approval, one act ==="

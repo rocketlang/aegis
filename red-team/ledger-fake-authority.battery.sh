@@ -8,6 +8,7 @@
 # the probe runs in a PRIVATE mount namespace with an empty folder over /etc/aegis (it disappears with the
 # process; the host's mounts are not touched). Where that is not allowed: exit 3, not a pass.
 set -u
+[ -n "${RAN_INNER:-}" ] || exec "$(cd "$(dirname "$0")" && pwd)/lib/ran.sh" 9 "$0" "$@"   # green only if the cases ran
 HERE="$(cd "$(dirname "$0")" && pwd)"; BUN="$(command -v bun || echo /root/.bun/bin/bun)"
 echo "=== aegis red-team · a false authority answers the gate ==="
 [ -x "$BUN" ] || { echo "BROKE — bun not found"; exit 3; }

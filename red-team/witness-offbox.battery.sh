@@ -3,6 +3,7 @@
 # alarms on a suppressed row (gap), a silent source (stall), a forged row (signature), and tail
 # truncation (reconcile vs its high-water-mark) — the gaps rung 2 and the agent itself can't surface.
 set -u
+[ -n "${RAN_INNER:-}" ] || exec "$(cd "$(dirname "$0")" && pwd)/lib/ran.sh" 5 "$0" "$@"   # green only if the cases ran
 HERE="$(cd "$(dirname "$0")" && pwd)"
 BUN="$(command -v bun || echo /root/.bun/bin/bun)"
 echo "=== aegis red-team · off-box witness (concealment rung 3) ==="

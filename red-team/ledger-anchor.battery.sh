@@ -8,6 +8,7 @@
 # checked under a trust policy (a missing quorum, a bad cosignature, a policy for another log are forced).
 # It does NOT prove the uid boundary (one user here).
 set -u
+[ -n "${RAN_INNER:-}" ] || exec "$(cd "$(dirname "$0")" && pwd)/lib/ran.sh" 42 "$0" "$@"   # green only if the cases ran
 HERE="$(cd "$(dirname "$0")" && pwd)"
 BUN="$(command -v bun || echo /root/.bun/bin/bun)"
 echo "=== aegis red-team · signed ledger, anchored in a public log ==="

@@ -7,6 +7,7 @@
 # approval key is hardware-bound. Runs against the repo source (public):
 #   src/kavach/destructive-approval.ts  +  src/kavach/destructive-verdict.ts
 set -u
+[ -n "${RAN_INNER:-}" ] || exec "$(cd "$(dirname "$0")" && pwd)/lib/ran.sh" 3 "$0" "$@"   # green only if the cases ran
 HERE="$(cd "$(dirname "$0")" && pwd)"
 BUN="$(command -v bun || echo /root/.bun/bin/bun)"
 echo "=== aegis red-team · point 1 — self-approval at the agent's own uid ==="

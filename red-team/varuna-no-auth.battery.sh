@@ -3,6 +3,7 @@
 # loopback bind, CORS off, off-box+no-token refuses to start, and ingest requires a bearer token.
 # GAP = the open/cross-origin/unauth-write exploit still works. Runs against repo source.
 set -u
+[ -n "${RAN_INNER:-}" ] || exec "$(cd "$(dirname "$0")" && pwd)/lib/ran.sh" 10 "$0" "$@"   # green only if the cases ran
 HERE="$(cd "$(dirname "$0")" && pwd)"
 BUN="$(command -v bun || echo /root/.bun/bin/bun)"
 echo "=== aegis red-team · varuna no-auth ==="

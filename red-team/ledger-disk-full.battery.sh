@@ -6,6 +6,7 @@
 # host's mounts are not touched), runs a real authority on it, fills it, asks, frees it, asks again, verifies.
 # It needs the right to make a mount namespace (root, or user namespaces). Without it: exit 3, not a pass.
 set -u
+[ -n "${RAN_INNER:-}" ] || RAN_MARK='ledger-disk-full: [0-9]+ gap' exec "$(cd "$(dirname "$0")" && pwd)/lib/ran.sh" 1 "$0" "$@"   # green only if the cases ran
 HERE="$(cd "$(dirname "$0")" && pwd)"; BUN="$(command -v bun || echo /root/.bun/bin/bun)"
 echo "=== aegis red-team · signed ledger on a full disk ==="
 [ -x "$BUN" ] || { echo "BROKE — bun not found"; exit 3; }

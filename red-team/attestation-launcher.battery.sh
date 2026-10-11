@@ -9,6 +9,7 @@
 #
 # GAP = a tampered agent would exec, or the two languages disagree on the digest. 0 = all hold.
 set -u
+[ -n "${RAN_INNER:-}" ] || exec "$(cd "$(dirname "$0")" && pwd)/lib/ran.sh" 5 "$0" "$@"   # green only if the cases ran
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 BUN="$(command -v bun || echo /root/.bun/bin/bun)"
 APPLY="$ROOT/src/kernel/apply-seccomp.py"

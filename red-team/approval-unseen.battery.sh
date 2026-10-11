@@ -3,6 +3,7 @@
 # A refused command shown only in part, and two refused commands under one approval code. See the probe.
 # To see it red: AEGIS_PROBE_REPO=<an installed 2.17.0> ./red-team/approval-unseen.battery.sh
 set -u
+[ -n "${RAN_INNER:-}" ] || exec "$(cd "$(dirname "$0")" && pwd)/lib/ran.sh" 7 "$0" "$@"   # green only if the cases ran
 HERE="$(cd "$(dirname "$0")" && pwd)"; BUN="$(command -v bun || echo /root/.bun/bin/bun)"
 echo "=== aegis red-team · an approval for more than the person was shown ==="
 [ -x "$BUN" ] || { echo "BROKE — bun not found"; exit 3; }

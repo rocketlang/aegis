@@ -4,6 +4,7 @@
 # explicit --allow-unconstrained-egress opt-out. Hermetic — drives the real _join_egress_cgroup(),
 # no root/BPF/profile. GAP = it proceeded (fail open). Runs vs repo source.
 set -u
+[ -n "${RAN_INNER:-}" ] || exec "$(cd "$(dirname "$0")" && pwd)/lib/ran.sh" 3 "$0" "$@"   # green only if the cases ran
 HERE="$(cd "$(dirname "$0")" && pwd)"
 echo "=== aegis red-team · egress fail-closed ==="
 command -v python3 >/dev/null || { echo "BROKE — python3 not found"; exit 3; }
