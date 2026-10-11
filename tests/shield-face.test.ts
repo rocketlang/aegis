@@ -38,7 +38,11 @@ describe("shield face (AF-T-301)", () => {
   it("WEAK rules miss the seeds — the face reports it as not-clean", () => {
     const r = runShieldFace(WEAK);
     expect(r.injection.misses.length).toBe(6);
-    expect(r.persistence.misses.length).toBe(5);
+    // One seed is /root/.claude/settings.json. Where HOME is /root that is the shield's own file, refused by the
+    // built-in rule (KAV-096) whatever the ruleset says, so a weak ruleset misses four there and five elsewhere.
+    const ownFile = (process.env.HOME || "/root") === "/root";
+    expect(r.persistence.misses.length).toBe(ownFile ? 4 : 5);
+    expect(r.persistence.misses.includes("/root/.claude/settings.json")).toBe(!ownFile);
     expect(shieldFaceClean(r)).toBe(false);
   });
 
