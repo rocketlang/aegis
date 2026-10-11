@@ -4,6 +4,36 @@ All notable changes to AEGIS will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [2.17.0] — 2026-10-11
+
+### Added — dated anchors: a quiet ledger and a dead authority no longer look the same in the public log
+
+Andrey Lazarev's second finding against 2.16.2, listed as a limit in 2.16.3 and built here. An anchor said "this ledger stands at row N with hash H" and carried no time, so a ledger that had not grown added no leaf: from the log alone, a week with no refusals and an authority switched off a week ago were the same.
+
+- **`aegis ledger-anchor --dated`** (or `AEGIS_ANCHOR_DATED=1`) asks the authority for a dated statement: "on this UTC day, this ledger stands at row N with hash H". One leaf a day, grown or not. The day is the authority's own clock; the asker says only whether, never which day, so nobody can have it sign for tomorrow or for yesterday. At most one leaf is sent for a day: a second run the same day sends nothing, even if the ledger has grown (the next day's leaf states it).
+- **The first dated leaf in a log is the switch.** From that day on `aegis ledger-verify --anchor-log` expects one for every day and names the days that have none:
+  - `SILENT SINCE <day>`, exit 1: no dated leaf since the last one, up to yesterday. As far as the log shows, the authority has not spoken since.
+  - `UNVERIFIABLE for N day(s)`, exit 2: a past day with no leaf, after which the authority spoke again. `--anchor-known-holes <day,day>` names days a person has looked at; they are still printed.
+  - `DATED IN THE FUTURE`, exit 1: a statement for a day that has not come.
+  - `DAY FILLED IN LATE`, exit 1: a statement for a day earlier than a leaf already before it in the log; or, with `--anchor-policy`, a leaf whose earliest tree head cosigned by the policy's witnesses is from a later day than its own day or the day after.
+  - `UNVERIFIABLE as to time`, exit 2: with `--anchor-policy`, a dated leaf for which the receipts hold no cosigned tree head showing it in the log.
+- **A dated leaf must be a (row, day) the file can account for:** row N can have been the tail on day D only if row N was written by then and row N+1 not before it, by the rows' own signed times. Anything else is a state the file does not contain, as before.
+- **Receipts keep the whole cosigned tree head** (the log's signature and each cosignature with its time), so that when a leaf reached the log can be checked again later on the witnesses' signatures. The log itself serves only its newest head. The receipt file is not trusted: the head in it is rebuilt and every signature checked.
+- Undated anchors made before the switch verify as before, and `ledger-anchor` without `--dated` behaves as before.
+- New battery: `red-team/ledger-quiet-or-dead.battery.sh`, real processes against a stand-in log whose witnesses' clock the probe sets (11 cases; 10 are gaps on 2.16.3). `tests/ledger-anchor-dated.test.ts` (14).
+
+**Before the first dated leaf, install 2.17.0 wherever the ledger is verified.** A verifier of 2.16.3 or older knows only the undated form and reads a dated leaf as `TRUNCATION OR REWRITE`. The authority must be 2.17.0 too: asked for a dated anchor, an older one answers with an undated one, and `ledger-anchor --dated` then stops with exit 2 and sends nothing.
+
+**What a dated leaf does not show.**
+- That this box or this daemon was alive: only that the holder of the ledger key signed that day.
+- A missed day, afterwards. The authority signs for today only, so a day lost to a log that could not be reached stays a hole for good.
+- Anything to a reader who does not hold the ledger's tail (row number and hash): the leaf is a hash. Someone given the tail once can check each later quiet day alone.
+- When a leaf reached the log, from the log alone. That rests on the receipts kept at submission; a dated leaf with no such receipt is dated on the key holder's word, and the check says so.
+- An empty ledger still has nothing to anchor, dated or not.
+- The log is checked here against a stand-in written from the protocol. No dated leaf has been sent to a public log as of this release.
+
+Still open: the request limit on the authority's socket bounds one connection, not the number of connections.
+
 ## [2.16.3] — 2026-10-11
 
 ### Fixed — the dashboard's login check could be walked past

@@ -22,6 +22,14 @@
 // quorum of witnesses; a head without the quorum is UNVERIFIABLE (exit 2). Without a policy only the
 // log's own signature is checked, and a note says so.
 //
+// DATED ANCHORS (2.17.0). An anchor made with `aegis ledger-anchor --dated` says which UTC day it speaks for,
+// one a day. From the first dated leaf on, a day with no leaf is named: days the authority has not spoken
+// SINCE its last leaf are SILENT SINCE, exit 1; a past day it missed and then came back from is
+// UNVERIFIABLE for that day, exit 2 (--anchor-known-holes <day,day> names days a person has already looked at).
+// A leaf dated in the future, or for a day earlier than a leaf already before it in the log, exits 1. With
+// --anchor-policy the time each dated leaf reached the log is checked on the witnesses' signatures, from the
+// tree heads kept in the receipts: late is exit 1, no such head is exit 2.
+//
 // With --local <file> the gates' own plain copy is compared with this ledger (core/ledger-reconcile.ts):
 // a local row that names a number this ledger does not hold, or holds as another refusal, exits 1, and
 // so does a local row written after this ledger's first row with no number and no reason
@@ -35,7 +43,7 @@ import { join } from "path";
 import { hostname } from "os";
 import { verifyLedgerFile, refusalLedgerPath } from "../../core/refusal-ledger";
 import { witnessHighWaterMark } from "../../core/witness-client";
-import { judgeAnchors, loadPolicy, rawPublicKey, scanForKey } from "../../core/ledger-anchor";
+import { checkLeafTimes, judgeAnchors, loadPolicy, rawPublicKey, scanForKey, type AnchorReceipt } from "../../core/ledger-anchor";
 import type { SignedRow } from "../../core/ledger-sign";
 import { reconcileLocal } from "../../core/ledger-reconcile";
 import { createHash } from "crypto";
@@ -127,7 +135,9 @@ export default async function ledgerVerify(args: string[]): Promise<void> {
             anchorCode = 2;
           } else {
             const nameNote = j.matched === 0 ? ` None of the ${j.anchors} anchor(s) matches this file under the name '${source}': if that is not the name the authority uses (--source, by default the host name), this is the name and not the ledger. If it is the right name, the ledger was rewritten from before its first anchor.` : "";
-            process.stderr.write(`[ledger-verify] TRUNCATION OR REWRITE — the public log ${anchorLog} holds ${j.unmatched.length} anchor(s) signed by this ledger's key for a state this file does not contain (leaf index ${j.unmatched.map((l) => l.index).join(", ")}). The ledger once stood where this file does not.${nameNote}\n`);
+            if (j.unmatched.length) process.stderr.write(`[ledger-verify] TRUNCATION OR REWRITE — the public log ${anchorLog} holds ${j.unmatched.length} anchor(s) signed by this ledger's key for a state this file does not contain (leaf index ${j.unmatched.map((l) => l.index).join(", ")}). The ledger once stood where this file does not.${nameNote}\n`);
+            for (const l of j.future) process.stderr.write(`[ledger-verify] DATED IN THE FUTURE — leaf ${l.index} of ${anchorLog} is this ledger's statement for ${l.day}, a day that has not come. An authority reading its own clock does not sign that: the ledger key was used elsewhere, or a clock is wrong.\n`);
+            for (const l of j.outOfOrder) process.stderr.write(`[ledger-verify] DAY FILLED IN LATE — leaf ${l.index} of ${anchorLog} is this ledger's statement for ${l.day}, and it sits in the log AFTER a leaf for a later day. The authority signs for today only: this one was added afterwards.\n`);
             anchorCode = 1;
           }
         } else if (j.kind === "none") {
@@ -136,6 +146,40 @@ export default async function ledgerVerify(args: string[]): Promise<void> {
         } else {
           process.stdout.write(`[ledger-verify] the public log ${anchorLog} holds ${j.anchors} anchor(s) for '${source}', every one a state this file contains; the latest is seq ${j.upTo} (leaf ${j.leafIndex}); ${reach}.\n`);
           if (j.upTo < j.maxSeq) process.stdout.write(`[ledger-verify] note: ${j.maxSeq - j.upTo} row(s) after seq ${j.upTo} are not anchored yet.\n`);
+          // Dated anchors: from the first one on, every day is expected to have one.
+          const d = j.dated;
+          if (!d) process.stdout.write(`[ledger-verify] note: none of these anchors is dated. From the log alone a quiet ledger and a stopped authority look the same (aegis ledger-anchor --dated).\n`);
+          else {
+            const known = new Set((flag("--anchor-known-holes") || "").split(",").map((x) => x.trim()).filter(Boolean));
+            const holes = d.holes.filter((x) => !known.has(x)); const excused = d.holes.filter((x) => known.has(x));
+            process.stdout.write(`[ledger-verify] dated anchors: ${d.leaves.length} leaf(s) from ${d.first} to ${d.last} (UTC days)${scan.whole_log_checked ? "" : `, as far as the partial read from index ${scan.from} shows`}.\n`);
+            if (excused.length) process.stdout.write(`[ledger-verify] note: no dated anchor for ${excused.join(", ")}: named as known by the caller (--anchor-known-holes).\n`);
+            if (holes.length) {
+              process.stderr.write(`[ledger-verify] UNVERIFIABLE for ${holes.length} day(s) — no dated anchor for ${holes.join(", ")}. The authority did not state its ledger in the log on those days (it was stopped, the daily run failed, or the log could not be reached) and it has spoken since. A missed day cannot be filled in afterwards.\n`);
+              anchorCode = 2;
+            }
+            if (d.silentSince.length) {
+              process.stderr.write(`[ledger-verify] SILENT SINCE ${d.last} — no dated anchor for ${d.silentSince.length} day(s) up to yesterday (${d.silentSince.slice(0, 10).join(", ")}${d.silentSince.length > 10 ? ", …" : ""}). As far as the log shows, the authority has not stated its ledger since ${d.last}: a refusal after that day is in no anchor.\n`);
+              anchorCode = 1;
+            }
+            // when the leaves reached the log, on the witnesses' signatures
+            if (!policy) process.stdout.write(`[ledger-verify] note: when each dated leaf reached the log was not checked (no --anchor-policy): each day is the key holder's word.\n`);
+            else {
+              const receiptsPath = flag("--receipts") || join(process.env.AEGIS_HOME || join(homedir(), ".aegis"), "ledger-anchors.jsonl");
+              let receipts: AnchorReceipt[] = [];
+              try { receipts = readFileSync(receiptsPath, "utf-8").split("\n").filter(Boolean).flatMap((l) => { try { return [JSON.parse(l) as AnchorReceipt]; } catch { return []; } }); } catch { /* no receipts here */ }
+              const t = checkLeafTimes(d.leaves, receipts, { url: anchorLog.replace(/\/+$/, ""), publicKey: anchorKey.toLowerCase() }, policy);
+              for (const l of t.late) {
+                process.stderr.write(`[ledger-verify] DAY FILLED IN LATE — leaf ${l.leaf.index} is this ledger's statement for ${l.leaf.day}, and the earliest tree head holding it that the policy's witnesses cosigned is from ${l.seen}. The authority signs for today only.\n`);
+                anchorCode = 1;
+              }
+              if (t.noProof.length) {
+                process.stderr.write(`[ledger-verify] UNVERIFIABLE as to time for ${t.noProof.length} dated leaf(s) (${t.noProof.slice(0, 10).map((l) => l.day).join(", ")}${t.noProof.length > 10 ? ", …" : ""}) — ${receiptsPath} holds no tree head, cosigned by the policy's quorum, that shows the leaf in the log. Their day is the key holder's word.\n`);
+                if (anchorCode === 0) anchorCode = 2;
+              }
+              if (t.onTime) process.stdout.write(`[ledger-verify] ${t.onTime} dated leaf(s) were in the log on their own day or the day after, by tree heads the policy's witnesses cosigned (kept in ${receiptsPath}).\n`);
+            }
+          }
         }
         // the witnesses: said for every outcome, and a head without the quorum cannot be called clean
         if (!scan.cosign) process.stdout.write(`[ledger-verify] note: the tree head carries ${scan.head.cosignatures} cosignature(s); they were not checked (no --anchor-policy), only the log's own signature.\n`);

@@ -35,6 +35,8 @@ export type ApproverOp = "pending" | "consume" | "approve" | "list" | "refusal" 
 export interface ApproverRequest {
   op: ApproverOp; command?: string; rule?: string | null; code?: string;
   gate?: string; kind?: string; session?: string | null;
+  /** "anchor" only: ask for a dated anchor (the authority's own UTC day; the asker never names the day). */
+  dated?: boolean;
 }
 export interface ApproverResponse<T = unknown> { ok: boolean; value?: T; error?: string }
 
@@ -64,8 +66,8 @@ function ask<T>(socketPath: string, req: ApproverRequest): Promise<ApproverRespo
 }
 
 /** Ask the ledger authority at socketPath one question (ledger-status, anchor). Never throws. */
-export function askLedgerAuthority<T>(socketPath: string, op: "ledger-status" | "anchor"): Promise<ApproverResponse<T>> {
-  return ask<T>(socketPath, { op });
+export function askLedgerAuthority<T>(socketPath: string, op: "ledger-status" | "anchor", extra: { dated?: boolean } = {}): Promise<ApproverResponse<T>> {
+  return ask<T>(socketPath, { op, ...(extra.dated ? { dated: true } : {}) });
 }
 
 const consumeSock = (): string => {

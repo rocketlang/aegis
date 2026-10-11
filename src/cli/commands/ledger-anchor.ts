@@ -25,8 +25,17 @@
 //   --socket <path>        the authority's socket (default: where the gates find it)
 //   --receipts <path>      where proofs are kept (default <aegis home>/ledger-anchors.jsonl)
 //   --dry-run              ask, check and show the statement; send nothing
+//   --dated                ask for a DATED anchor ($AEGIS_ANCHOR_DATED=1): "on this UTC day the ledger stands at
+//                          row N". One leaf a day, grown or not, so that a day with no leaf is a day the authority
+//                          did not speak. The day is the authority's clock. Needs an authority of 2.17.0 or later.
+//                          ONCE A DATED LEAF IS IN A LOG, EVERY LATER DAY IS EXPECTED TO HAVE ONE: `aegis
+//                          ledger-verify --anchor-log` names the days that do not. Install 2.17.0 wherever the
+//                          ledger is verified BEFORE the first dated leaf: an older verifier reads a dated leaf as a
+//                          state the file does not contain.
 //
-// A ledger that has not grown since its last anchor in this log is not sent again.
+// Without --dated, a ledger that has not grown since its last anchor in this log is not sent again.
+// With --dated, at most one leaf is sent for a UTC day: a second run the same day sends nothing, even if the
+// ledger has grown since (tomorrow's leaf carries it).
 //
 // Exit: 0 anchored, or already anchored, or the ledger is empty · 1 the log refused or did not prove it
 //       2 could not ask (no authority, no log given, token unreadable, or the log could not be reached or did
@@ -69,6 +78,7 @@ export default async function ledgerAnchor(args: string[]): Promise<void> {
     const home = process.env.AEGIS_HOME || join(homedir(), ".aegis");
     const receiptsPath = flag("--receipts") || join(home, "ledger-anchors.jsonl");
     const dry = args.includes("--dry-run");
+    const dated = args.includes("--dated") || process.env.AEGIS_ANCHOR_DATED === "1";
     let policy: TrustPolicy | null = null;
     const policyRef = flag("--policy") || process.env.AEGIS_ANCHOR_POLICY;
     if (policyRef) {
@@ -81,18 +91,25 @@ export default async function ledgerAnchor(args: string[]): Promise<void> {
     const st = await askLedgerAuthority<{ max_seq: number; public_key: string; source: string }>(socket as string, "ledger-status");
     if (!st.ok || !st.value) fail(2, `COULD NOT ANCHOR — the authority did not answer: ${st.error ?? "no reply"}`);
     if ((st.value as { max_seq: number }).max_seq === 0) { say("the ledger is empty — nothing to anchor."); process.exit(0); }
-    const got = await askLedgerAuthority<Anchor>(socket as string, "anchor");
+    const got = await askLedgerAuthority<Anchor>(socket as string, "anchor", { dated });
     if (!got.ok || !got.value) fail(2, `COULD NOT ANCHOR — the authority gave no anchor: ${got.error ?? "no reply"}`);
     const a = got.value as Anchor;
+    // An authority before 2.17.0 does not know the question and answers with an undated anchor. Sending that would
+    // look like a daily leaf here and be none in the log.
+    if (dated && a.day === undefined) fail(2, "COULD NOT ANCHOR — a dated anchor was asked for and the authority gave an undated one: it is older than 2.17.0. Nothing was sent.");
+    if (!dated && a.day !== undefined) fail(3, "BROKE — an undated anchor was asked for and the authority gave a dated one. Nothing was sent.");
     // Nothing the authority says is carried on trust: the statement is rebuilt and the signature checked.
     if (!verifyAnchor(a, (st.value as { public_key: string }).public_key)) fail(3, "BROKE — the anchor the authority handed over does not verify under its own public key. Nothing was sent.");
-    say(`the ledger '${a.source}' stands at seq ${a.max_seq}, tail ${a.tail_hash.slice(0, 16)}…`);
+    say(`the ledger '${a.source}' stands at seq ${a.max_seq}, tail ${a.tail_hash.slice(0, 16)}…${a.day ? `, stated for ${a.day} (UTC)` : ""}`);
 
     const receipts: AnchorReceipt[] = existsSync(receiptsPath)
       ? readFileSync(receiptsPath, "utf-8").split("\n").filter(Boolean).flatMap((l) => { try { return [JSON.parse(l) as AnchorReceipt]; } catch { return []; } })
       : [];
     const had = receipts.find((r) => norm(r.log) === log.url && r.leaf_hash === a.leaf_hash);
-    if (had) { say(`already anchored: this tail is leaf ${had.leaf_index} of ${log.url} (${had.at}). Nothing was sent.`); process.exit(0); }
+    if (had) { say(`already anchored: this ${a.day ? "day's statement" : "tail"} is leaf ${had.leaf_index} of ${log.url} (${had.at}). Nothing was sent.`); process.exit(0); }
+    // One leaf a day. The ledger may have grown since today's leaf; that is tomorrow's leaf.
+    const today = a.day ? receipts.find((r) => norm(r.log) === log.url && r.source === a.source && r.day === a.day) : undefined;
+    if (today) { say(`already anchored for ${a.day}: leaf ${today.leaf_index} of ${log.url} states seq ${today.max_seq}${today.max_seq < a.max_seq ? `; the ledger has grown to seq ${a.max_seq} since, which tomorrow's leaf will state` : ""}. One leaf a day: nothing was sent.`); process.exit(0); }
     if (dry) { say(`dry run: would submit leaf ${a.leaf_hash} to ${log.url}. Nothing was sent.`); process.exit(0); }
 
     let token: string | null = null;
@@ -113,7 +130,7 @@ export default async function ledgerAnchor(args: string[]): Promise<void> {
     const receipt = (out as { receipt: AnchorReceipt }).receipt;
     mkdirSync(dirname(receiptsPath), { recursive: true });
     appendFileSync(receiptsPath, JSON.stringify(receipt) + "\n");
-    say(`ANCHORED — seq ${receipt.max_seq} is leaf ${receipt.leaf_index} in a tree of ${receipt.tree_size}, root ${receipt.root_hash.slice(0, 16)}…, ${receipt.witnessed_by ? `cosigned by ${receipt.witnessed_by.join(", ")} (the policy's quorum '${receipt.quorum}' is met)` : `${receipt.cosignatures} cosignature(s) seen (not checked: no trust policy given)`}.`);
+    say(`ANCHORED — seq ${receipt.max_seq}${receipt.day ? ` on ${receipt.day}` : ""} is leaf ${receipt.leaf_index} in a tree of ${receipt.tree_size}, root ${receipt.root_hash.slice(0, 16)}…, ${receipt.witnessed_by ? `cosigned by ${receipt.witnessed_by.join(", ")} (the policy's quorum '${receipt.quorum}' is met)` : `${receipt.cosignatures} cosignature(s) seen (not checked: no trust policy given)`}.`);
     say(`proof kept in ${receiptsPath}. The receipt is a convenience: \`aegis ledger-verify --anchor-log\` reads the log itself.`);
     process.exit(0);
   } catch (e) {

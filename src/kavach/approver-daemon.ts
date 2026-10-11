@@ -38,6 +38,8 @@ export interface DaemonOptions {
   ledgerHeartbeatMs?: number;
   /** Also write the ledger public key here, for a verifier outside the store. */
   ledgerPublicKeyOut?: string;
+  /** The ledger authority's clock. Only a test replaces it. */
+  ledgerNow?: () => Date;
   /** Called with human-readable lines for audit/logging. Defaults to stderr. */
   log?: (line: string) => void;
 }
@@ -70,7 +72,8 @@ function handle(req: ApproverRequest, ledger: LedgerAuthority): ApproverResponse
       case "ledger-status":
         return { ok: true, value: ledger.status() };
       case "anchor":
-        return { ok: true, value: ledger.anchor() };
+        // "dated" is a yes or no. The day itself is the authority's own clock (core/ledger-anchor.ts, form 2).
+        return { ok: true, value: ledger.anchor((req as { dated?: unknown }).dated === true) };
       case "approve":
         if (typeof req.code !== "string") return { ok: false, error: "approve needs a code" };
         return { ok: true, value: approvePending(req.code) };
@@ -141,7 +144,7 @@ export function startApproverDaemon(opts: DaemonOptions): { stop: () => void; le
 
   const ledger = new LedgerAuthority({
     storeDir: opts.storeDir, witnessUrl: opts.witnessUrl, source: opts.ledgerSource,
-    heartbeatMs: opts.ledgerHeartbeatMs, publicKeyOut: opts.ledgerPublicKeyOut, log,
+    heartbeatMs: opts.ledgerHeartbeatMs, publicKeyOut: opts.ledgerPublicKeyOut, now: opts.ledgerNow, log,
   });
   ledger.start();
 

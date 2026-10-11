@@ -27,12 +27,20 @@
 //     different readers. Without a policy the tree head is checked against the log's own key only,
 //     and the output says so. With one, the trust is in the policy's choice of witnesses.
 //   - Rows added after the last anchor are not covered until the next one.
-//   - A QUIET LEDGER AND A DEAD AUTHORITY LOOK THE SAME IN THE LOG. Because the statement carries no
-//     time, a ledger that has not grown adds no leaf. Someone who reads only the public log cannot
-//     tell a week with no refusals from an authority switched off a week ago. The stall alarm that
-//     tells them apart lives with the witness, and a witness on the same box is a second copy, not a
-//     second trust domain. Closing this needs a dated statement (one leaf a day, and a ledger-verify
-//     that accounts for dated leaves); it is not built. Pointed out by Andrey Lazarev, 11 October 2026.
+//   - A QUIET LEDGER AND A DEAD AUTHORITY looked the same in the log through 2.16.3: the statement
+//     carried no time, so a ledger that had not grown added no leaf (pointed out by Andrey Lazarev,
+//     11 October 2026). Since 2.17.0 an anchor can be DATED (form 2, `aegis ledger-anchor --dated`):
+//     one leaf a day, grown or not. From the first dated leaf on, a day with no leaf is a day the
+//     authority did not speak, and ledger-verify names it. What a dated leaf does NOT show:
+//       · that this box or this daemon was alive, only that the holder of the ledger key signed that day;
+//       · the missed day afterwards: the authority signs for today only, so a day lost to an
+//         unreachable log stays a hole;
+//       · anything to a reader who does not hold the ledger's tail (row number and hash): the leaf is
+//         a hash. Someone given the tail once can check each later quiet day alone;
+//       · WHEN the leaf reached the log, from the log alone. The log serves only its newest tree head.
+//         The receipt kept at submission holds the cosigned head, whose witness times bound it
+//         (checkLeafTimes); a dated leaf with no such receipt is dated on the key holder's word.
+//     An empty ledger still has nothing to anchor, dated or not.
 //   - A ledger cut back BEFORE its first anchor leaves nothing in the log to contradict it.
 //   - On a box where the agent can read the ledger key, the agent can sign an anchor for a state that
 //     never existed and so raise a false alarm. It cannot use an anchor to hide a cut.
@@ -52,15 +60,32 @@ export function rawPublicKey(publicKeyPem: string): Buffer {
 const keyFromRaw = (raw: Buffer): KeyObject =>
   createPublicKey({ key: Buffer.concat([Buffer.from("302a300506032b6570032100", "hex"), raw]), format: "der", type: "spki" });
 
-/** The statement an anchor commits to. Starts with "anchor" where a row starts with "seq" and a heartbeat with "hb". */
-export function anchorStatement(source: string, maxSeq: number, tailHash: string): string {
-  return JSON.stringify({ anchor: 1, source, max_seq: maxSeq, tail_hash: tailHash });
+/** A calendar day in UTC, "2026-10-11". The only form a dated anchor carries. */
+export const isDay = (v: unknown): v is string => typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v) && !Number.isNaN(Date.parse(v + "T00:00:00Z"));
+export const utcDay = (d: Date = new Date()): string => d.toISOString().slice(0, 10);
+const addDays = (day: string, n: number): string => utcDay(new Date(Date.parse(day + "T00:00:00Z") + n * 86_400_000));
+
+/**
+ * The statement an anchor commits to. Starts with "anchor" where a row starts with "seq" and a heartbeat with "hb".
+ *
+ * Without a day (form 1): "this ledger stands at row N with hash H". A ledger that has not grown yields the same
+ * leaf again, so a quiet ledger and a dead authority look the same in the log.
+ * With a day (form 2, since 2.17.0): "on this UTC day, this ledger stands at row N with hash H". One a day, grown
+ * or not, so a day with no leaf is a day the authority did not speak. The day is the AUTHORITY'S clock, never the
+ * asker's: nobody can ask it to sign for tomorrow or for yesterday.
+ */
+export function anchorStatement(source: string, maxSeq: number, tailHash: string, day?: string): string {
+  return day === undefined
+    ? JSON.stringify({ anchor: 1, source, max_seq: maxSeq, tail_hash: tailHash })
+    : JSON.stringify({ anchor: 2, source, max_seq: maxSeq, tail_hash: tailHash, day });
 }
 
 export interface Anchor {
   source: string;
   max_seq: number;
   tail_hash: string;
+  /** The UTC day a dated anchor speaks for. Absent on an undated (form 1) anchor. */
+  day?: string;
   statement: string;
   /** H(statement): the `message` of the add-leaf request. */
   message: string;
@@ -73,8 +98,8 @@ export interface Anchor {
 }
 
 /** The checksum the log would hold for a ledger standing at (source, seq, hash). */
-export function anchorChecksum(source: string, maxSeq: number, tailHash: string): string {
-  return sha(sha(Buffer.from(anchorStatement(source, maxSeq, tailHash), "utf8"))).toString("hex");
+export function anchorChecksum(source: string, maxSeq: number, tailHash: string, day?: string): string {
+  return sha(sha(Buffer.from(anchorStatement(source, maxSeq, tailHash, day), "utf8"))).toString("hex");
 }
 
 export function leafHash(checksumHex: string, signatureHex: string, keyHashHex: string): string {
@@ -82,15 +107,16 @@ export function leafHash(checksumHex: string, signatureHex: string, keyHashHex: 
 }
 
 /** Sign an anchor for a ledger standing at (seq, hash). Only the authority calls this: it holds the key. */
-export function signAnchor(source: string, maxSeq: number, tailHash: string, privateKeyPem: string, publicKeyPem: string): Anchor {
-  const statement = anchorStatement(source, maxSeq, tailHash);
+export function signAnchor(source: string, maxSeq: number, tailHash: string, privateKeyPem: string, publicKeyPem: string, day?: string): Anchor {
+  if (day !== undefined && !isDay(day)) throw new Error(`'${day}' is not a day (YYYY-MM-DD)`);
+  const statement = anchorStatement(source, maxSeq, tailHash, day);
   const message = sha(Buffer.from(statement, "utf8"));
   const checksum = sha(message);
   const signature = edSign(null, Buffer.concat([LEAF_NAMESPACE, checksum]), createPrivateKey(privateKeyPem));
   const pub = rawPublicKey(publicKeyPem);
   const keyHash = sha(pub);
   return {
-    source, max_seq: maxSeq, tail_hash: tailHash, statement,
+    source, max_seq: maxSeq, tail_hash: tailHash, ...(day !== undefined ? { day } : {}), statement,
     message: message.toString("hex"), checksum: checksum.toString("hex"), signature: signature.toString("hex"),
     public_key: pub.toString("hex"), key_hash: keyHash.toString("hex"),
     leaf_hash: leafHash(checksum.toString("hex"), signature.toString("hex"), keyHash.toString("hex")),
@@ -107,7 +133,8 @@ export function verifyLeafSignature(checksumHex: string, signatureHex: string, p
 /** An anchor as handed over by the authority: every field recomputed from the statement, nothing taken on trust. */
 export function verifyAnchor(a: Anchor, publicKeyPem: string): boolean {
   try {
-    if (!a || typeof a.statement !== "string" || a.statement !== anchorStatement(a.source, a.max_seq, a.tail_hash)) return false;
+    if (a && a.day !== undefined && !isDay(a.day)) return false;
+    if (!a || typeof a.statement !== "string" || a.statement !== anchorStatement(a.source, a.max_seq, a.tail_hash, a.day)) return false;
     const message = sha(Buffer.from(a.statement, "utf8")); const checksum = sha(message); const pub = rawPublicKey(publicKeyPem);
     if (a.message !== message.toString("hex") || a.checksum !== checksum.toString("hex")) return false;
     if (a.public_key !== pub.toString("hex") || a.key_hash !== sha(pub).toString("hex")) return false;
@@ -189,8 +216,16 @@ async function inclusionProof(log: AnchorLog, size: number, leafHashHex: string)
 export interface AnchorReceipt {
   at: string; log: string; log_key: string;
   source: string; max_seq: number; tail_hash: string; statement: string;
+  /** The UTC day of a dated anchor (form 2). Absent on an undated one. */
+  day?: string;
   checksum: string; signature: string; key_hash: string; leaf_hash: string;
   leaf_index: number; tree_size: number; root_hash: string; cosignatures: number;
+  /**
+   * The tree head the proof was checked against, whole: the log's signature and every cosignature with its time.
+   * Kept since 2.17.0 so that WHEN the leaf was in the log can be checked again later by anyone, on the witnesses'
+   * signatures (checkLeafTimes). The log itself serves only its newest head.
+   */
+  head_signature?: string; cosigs?: Cosignature[];
   /** With a trust policy: the witnesses whose cosignature on that tree head verified, and the quorum rule met. Without: null. */
   witnessed_by?: string[] | null; quorum?: string | null;
 }
@@ -228,7 +263,8 @@ export async function submitAnchor(
       if (!verifyInclusion(a.leaf_hash, p.index, head.size, p.path, head.root_hash)) return { ok: false, kind: "unproven", detail: "the log's inclusion proof does not verify against its signed tree head" };
       return { ok: true, receipt: {
         at: new Date().toISOString(), log: log.url, log_key: log.publicKey,
-        source: a.source, max_seq: a.max_seq, tail_hash: a.tail_hash, statement: a.statement,
+        source: a.source, max_seq: a.max_seq, tail_hash: a.tail_hash, statement: a.statement, ...(a.day !== undefined ? { day: a.day } : {}),
+        head_signature: head.signature, cosigs: head.cosigs,
         checksum: a.checksum, signature: a.signature, key_hash: a.key_hash, leaf_hash: a.leaf_hash,
         leaf_index: p.index, tree_size: head.size, root_hash: head.root_hash, cosignatures: head.cosignatures,
         witnessed_by: check ? check.witnessed : null, quorum: check ? check.quorum : null,
@@ -287,9 +323,22 @@ export async function scanForKey(log: AnchorLog, keyHashHex: string, from = 0, s
   return { head, from: start, leaves: found, whole_log_checked: false, cosign };
 }
 
+/** A dated leaf found in the log and matched to a row of the file. */
+export interface DatedLeaf { index: number; checksum: string; seq: number; day: string }
+
+/** What the dated leaves say about the days since the first of them. null = the log holds no dated leaf for this ledger. */
+export interface DatedReading {
+  leaves: DatedLeaf[];
+  first: string; last: string;
+  /** Days after the first dated day and before the last one with no leaf: the authority came back afterwards. */
+  holes: string[];
+  /** Days after the last dated leaf, up to yesterday (UTC), with no leaf: as far as the log shows, the authority has not spoken since. */
+  silentSince: string[];
+}
+
 export type AnchorVerdict =
-  | { kind: "anchored"; upTo: number; maxSeq: number; anchors: number; leafIndex: number; wholeLog: boolean; cosignatures: number }
-  | { kind: "contradicted"; unmatched: LoggedLeaf[]; anchors: number; matched: number; wholeLog: boolean }
+  | { kind: "anchored"; upTo: number; maxSeq: number; anchors: number; leafIndex: number; wholeLog: boolean; cosignatures: number; dated: DatedReading | null }
+  | { kind: "contradicted"; unmatched: LoggedLeaf[]; anchors: number; matched: number; wholeLog: boolean; future: DatedLeaf[]; outOfOrder: DatedLeaf[] }
   | { kind: "none"; wholeLog: boolean; from: number; treeSize: number };
 
 /**
@@ -297,15 +346,85 @@ export type AnchorVerdict =
  * the key did not sign are ignored (anyone can name any key hash). A genuine anchor the file cannot
  * produce is the finding.
  */
-export function judgeAnchors(rows: SignedRow[], source: string, publicKeyPem: string, scan: ScanResult): AnchorVerdict {
+export function judgeAnchors(rows: SignedRow[], source: string, publicKeyPem: string, scan: ScanResult, now: Date = new Date()): AnchorVerdict {
   const mine = checksumsForRows(rows, source);
   const genuine = scan.leaves.filter((l) => verifyLeafSignature(l.checksum, l.signature, publicKeyPem));
   if (genuine.length === 0) return { kind: "none", wholeLog: scan.whole_log_checked, from: scan.from, treeSize: scan.head.size };
-  const unmatched = genuine.filter((l) => !mine.includes(l.checksum));
-  if (unmatched.length) return { kind: "contradicted", unmatched, anchors: genuine.length, matched: genuine.length - unmatched.length, wholeLog: scan.whole_log_checked };
+
+  // Dated leaves (form 2). A leaf holds only a hash, so the file must say which (row, day) it could be. Row N can
+  // have been the tail on day D only if row N was written by then and row N+1 not before it, by the rows' own signed
+  // times: those are the only candidates, and a dated leaf that is none of them is a state this file cannot account
+  // for. The last row stays a candidate up to today; a little beyond today is tried too, only so that a leaf dated
+  // in the future can be named as that rather than as an unknown leaf.
+  const today = utcDay(new Date(now.getTime() + 10 * 60_000));   // ten minutes of clock difference at midnight
+  const dated = new Map<string, { seq: number; day: string }>();
+  for (let i = 0; i < rows.length; i++) {
+    const from = String(rows[i].ts).slice(0, 10); if (!isDay(from)) continue;
+    const next = i + 1 < rows.length ? String(rows[i + 1].ts).slice(0, 10) : addDays(today, 30);
+    const hash = rowHash(rows[i]);
+    for (let d = from, n = 0; d <= next && n < 4000; d = addDays(d, 1), n++) dated.set(anchorChecksum(source, rows[i].seq, hash, d), { seq: rows[i].seq, day: d });
+  }
+  const datedLeaves: DatedLeaf[] = []; const unmatched: LoggedLeaf[] = [];
   let upTo = 0, leafIndex = -1;
-  for (const l of genuine) { const seq = mine.indexOf(l.checksum) + 1; if (seq > upTo) { upTo = seq; leafIndex = l.index; } }
-  return { kind: "anchored", upTo, maxSeq: rows.length ? rows[rows.length - 1].seq : 0, anchors: genuine.length, leafIndex, wholeLog: scan.whole_log_checked, cosignatures: scan.head.cosignatures };
+  for (const l of genuine) {
+    const seq1 = mine.indexOf(l.checksum) + 1; const d = dated.get(l.checksum);
+    if (seq1 > 0) { if (seq1 > upTo) { upTo = seq1; leafIndex = l.index; } }
+    else if (d) { datedLeaves.push({ index: l.index, checksum: l.checksum, seq: d.seq, day: d.day }); if (d.seq > upTo) { upTo = d.seq; leafIndex = l.index; } }
+    else unmatched.push(l);
+  }
+  // A leaf for a day that has not come was not made by an authority reading its own clock. A leaf for a day
+  // EARLIER than a leaf already in the log before it was added afterwards: a day filled in late.
+  const future = datedLeaves.filter((l) => l.day > today);
+  const outOfOrder: DatedLeaf[] = []; let latest = "";
+  for (const l of datedLeaves) { if (l.day < latest) outOfOrder.push(l); else latest = l.day; }
+  if (unmatched.length || future.length || outOfOrder.length) {
+    return { kind: "contradicted", unmatched, anchors: genuine.length, matched: genuine.length - unmatched.length, wholeLog: scan.whole_log_checked, future, outOfOrder };
+  }
+  let reading: DatedReading | null = null;
+  if (datedLeaves.length) {
+    const days = new Set(datedLeaves.map((l) => l.day)); const sorted = [...days].sort();
+    const first = sorted[0], last = sorted[sorted.length - 1];
+    const holes: string[] = []; for (let d = addDays(first, 1); d < last; d = addDays(d, 1)) if (!days.has(d)) holes.push(d);
+    // Today's leaf may simply not have been sent yet: silence is counted up to yesterday.
+    const yesterday = addDays(utcDay(now), -1);
+    const silentSince: string[] = []; for (let d = addDays(last, 1); d <= yesterday; d = addDays(d, 1)) silentSince.push(d);
+    reading = { leaves: datedLeaves, first, last, holes, silentSince };
+  }
+  return { kind: "anchored", upTo, maxSeq: rows.length ? rows[rows.length - 1].seq : 0, anchors: genuine.length, leafIndex, wholeLog: scan.whole_log_checked, cosignatures: scan.head.cosignatures, dated: reading };
+}
+
+/**
+ * WHEN was each dated leaf in the log? The statement's day is the key holder's word. The log's cosigning
+ * witnesses sign each tree head together with the time they saw it, and the receipt written at submission keeps
+ * that head. A leaf whose receipt shows it inside a head the policy's quorum cosigned on its own day or the day
+ * after was in the log then, on signatures the key holder cannot make. A leaf filled in days later has a head
+ * with a later time, or no receipt.
+ *
+ * The receipt file is not trusted: the head in it is rebuilt and its signatures checked here.
+ */
+export interface LeafTimes { onTime: number; late: { leaf: DatedLeaf; seen: string }[]; noProof: DatedLeaf[] }
+export function checkLeafTimes(leaves: DatedLeaf[], receipts: AnchorReceipt[], log: AnchorLog, policy: TrustPolicy): LeafTimes {
+  const out: LeafTimes = { onTime: 0, late: [], noProof: [] };
+  const logKey = Buffer.from(log.publicKey, "hex");
+  for (const leaf of leaves) {
+    let seen: number | null = null;
+    for (const r of receipts) {
+      try {
+        if (r.checksum !== leaf.checksum || r.leaf_index !== leaf.index || !r.head_signature || !Array.isArray(r.cosigs)) continue;
+        if (!(Number.isInteger(r.tree_size) && r.tree_size > leaf.index)) continue;
+        const checkpoint = `sigsum.org/v1/tree/${sha(logKey).toString("hex")}\n${r.tree_size}\n${Buffer.from(r.root_hash, "hex").toString("base64")}\n`;
+        if (!edVerify(null, Buffer.from(checkpoint), keyFromRaw(logKey), Buffer.from(r.head_signature, "hex"))) continue;
+        const head: TreeHead = { size: r.tree_size, root_hash: r.root_hash, signature: r.head_signature, cosignatures: r.cosigs.length, cosigs: r.cosigs, checkpoint };
+        const c = checkCosignatures(head, log, policy);
+        if (!c.met || c.oldest === null) continue;
+        seen = seen === null ? c.oldest : Math.min(seen, c.oldest);
+      } catch { /* a receipt that cannot be read proves nothing */ }
+    }
+    if (seen === null) { out.noProof.push(leaf); continue; }
+    const seenDay = utcDay(new Date(seen * 1000));
+    if (seenDay >= leaf.day && seenDay <= addDays(leaf.day, 1)) out.onTime++; else out.late.push({ leaf, seen: seenDay });
+  }
+  return out;
 }
 
 // ── trust policy and cosigning witnesses (sigsum-go doc/policy.md; log.md 2.2.3) ────────────────────

@@ -27,7 +27,7 @@ import {
   type LedgerPayload, type SignedRow, type LedgerVerdict, type Receipt,
 } from "./ledger-sign";
 import { sendToWitness, sendHeartbeat, witnessHighWaterMark } from "./witness-client";
-import { signAnchor, type Anchor } from "./ledger-anchor";
+import { signAnchor, utcDay, type Anchor } from "./ledger-anchor";
 
 export interface LedgerAuthorityOptions {
   /** The store this authority owns. Key, public key and ledger live here. */
@@ -42,6 +42,8 @@ export interface LedgerAuthorityOptions {
   publicKeyOut?: string;
   /** File calls used to append a row. Only a test replaces them. */
   appendIo?: AppendIo;
+  /** The clock rows and dated anchors are stamped from. Only a test replaces it. */
+  now?: () => Date;
   log?: (line: string) => void;
 }
 
@@ -107,6 +109,7 @@ export class LedgerAuthority {
   private log: (line: string) => void;
   private heartbeatMs: number;
   private appendIo: AppendIo;
+  private now: () => Date;
   /** false when the ledger file does not end on a whole line: the next row must start on a new one. */
   private tailClean = true;
 
@@ -116,6 +119,7 @@ export class LedgerAuthority {
     this.witnessUrl = opts.witnessUrl || null;
     this.heartbeatMs = opts.heartbeatMs ?? 20_000;
     this.appendIo = opts.appendIo ?? nodeFs;
+    this.now = opts.now ?? (() => new Date());
     if (!existsSync(opts.storeDir)) mkdirSync(opts.storeDir, { recursive: true, mode: 0o700 });
 
     const keyPath = join(opts.storeDir, "ledger-signing.key");
@@ -169,7 +173,7 @@ export class LedgerAuthority {
   record(ask: RefusalAsk): SignedRow {
     const t = this.tail();
     const payload: LedgerPayload = {
-      ts: new Date().toISOString(),
+      ts: this.now().toISOString(),
       kind: ask.kind === "override" ? "override" : "refused",
       gate: clip(ask.gate, 80) ?? "unknown",
       rule: clip(ask.rule, 60),
@@ -199,10 +203,11 @@ export class LedgerAuthority {
    * (core/ledger-anchor.ts). The asker supplies nothing: the statement is this ledger's own tail, so
    * the key signs no bytes of anybody else's choosing. An empty ledger has nothing to anchor.
    */
-  anchor(): Anchor {
+  anchor(dated = false): Anchor {
     const t = this.tail();
     if (t.seq === 0) throw new Error("the ledger is empty — there is no row to anchor");
-    return signAnchor(this.source, t.seq, t.hash, this.privateKey, this.publicKey);
+    // A dated anchor says "on this day". The day is this process's own clock: the asker chooses whether, never which.
+    return signAnchor(this.source, t.seq, t.hash, this.privateKey, this.publicKey, dated ? utcDay(this.now()) : undefined);
   }
 
   status(): {
