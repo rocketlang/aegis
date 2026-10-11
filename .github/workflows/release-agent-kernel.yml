@@ -100,7 +100,7 @@ jobs:
       - name: Show what would ship
         working-directory: packages/kavachos
         run: |
-          sha256sum dist/*
+          find dist -type f | sort | xargs sha256sum   # dist holds a folder (apparmor/) since 2.6.1
           npm pack --dry-run
 
       # A manual run from a branch is a rehearsal: it builds, checks and packs, and stops
