@@ -12,6 +12,7 @@ import type {
   INodeTypeDescription,
 } from "n8n-workflow";
 import { NodeOperationError } from "n8n-workflow";
+import { requestJson } from "../shared";
 
 export class KavachGate implements INodeType {
   description: INodeTypeDescription = {
@@ -66,6 +67,15 @@ export class KavachGate implements INodeType {
           "Classify danger level only — no notification sent, no polling. Use for testing the gate without blocking.",
       },
       {
+        displayName: "Wait For A Decision (seconds)",
+        name: "timeoutSeconds",
+        type: "number",
+        default: 660,
+        description:
+          "How long to wait for the gate's answer. Aegis itself waits up to 600 s for an approver on the lowest level, " +
+          "so the default is a little longer. No answer in this time is treated as a block.",
+      },
+      {
         displayName: "On STOP / Timeout",
         name: "onBlock",
         type: "options",
@@ -94,6 +104,8 @@ export class KavachGate implements INodeType {
       const sessionId = this.getNodeParameter("sessionId", i) as string;
       const dryRun = this.getNodeParameter("dryRun", i) as boolean;
       const onBlock = this.getNodeParameter("onBlock", i) as string;
+      const limit = Number(this.getNodeParameter("timeoutSeconds", i, 660));
+      const timeoutMs = (Number.isFinite(limit) && limit > 0 ? limit : 660) * 1000;
 
       if (!command?.trim()) {
         throw new NodeOperationError(this.getNode(), "command must not be empty", { itemIndex: i });
@@ -112,33 +124,48 @@ export class KavachGate implements INodeType {
         _meta?: { computed_at: string; duration_ms?: number };
       };
 
+      // Three different failures, said as what they are: no answer in time (a block), an answer that is
+      // not the gate's (an error), and Aegis not reachable (an error). Through 1.3.0 all three read
+      // "Cannot reach Aegis gate".
+      let reply;
       try {
-        const res = await fetch(`${baseUrl}/api/v1/kavach/gate`, {
-          method: "POST",
+        reply = await requestJson(
+          "POST",
+          `${baseUrl}/api/v1/kavach/gate`,
           headers,
-          body: JSON.stringify({ command, tool_name: toolName, session_id: sessionId, dry_run: dryRun }),
-        });
-
-        if (!res.ok && res.status !== 200) {
-          const text = await res.text().catch(() => res.status.toString());
+          JSON.stringify({ command, tool_name: toolName, session_id: sessionId, dry_run: dryRun }),
+          timeoutMs
+        );
+      } catch (err: any) {
+        if (err?.message === "TIMEOUT") {
+          gateResult = { allow: false, reason: `no decision from the Aegis gate within ${timeoutMs / 1000} s`, decision: "TIMEOUT" };
+          reply = undefined;
+        } else {
+          throw new NodeOperationError(this.getNode(), `Cannot reach Aegis gate at ${baseUrl}: ${err?.message ?? err}`, { itemIndex: i });
+        }
+      }
+      if (reply) {
+        if (reply.status !== 200) {
           throw new NodeOperationError(
             this.getNode(),
-            `Aegis gate returned HTTP ${res.status}: ${text}`,
+            `Aegis gate answered HTTP ${reply.status}, not a decision: ${reply.text.slice(0, 300)}`,
             { itemIndex: i }
           );
         }
-
-        gateResult = (await res.json()) as typeof gateResult;
-      } catch (err: any) {
-        // Network error — aegis unreachable
-        throw new NodeOperationError(
-          this.getNode(),
-          `Cannot reach Aegis gate at ${baseUrl}: ${err.message}`,
-          { itemIndex: i }
-        );
+        const j = reply.json as Record<string, unknown> | undefined;
+        if (!j || typeof j !== "object" || typeof j.allow !== "boolean") {
+          throw new NodeOperationError(
+            this.getNode(),
+            `what answered at ${baseUrl} is not the Aegis gate: no true/false "allow" in its answer. Treated as a block.`,
+            { itemIndex: i }
+          );
+        }
+        gateResult = j as typeof gateResult;
       }
+      gateResult = gateResult!;
 
-      if (!gateResult.allow) {
+      // Only the boolean true is an allow. A string, a number or anything else is not.
+      if (gateResult.allow !== true) {
         if (onBlock === "throw") {
           throw new NodeOperationError(
             this.getNode(),
@@ -153,7 +180,7 @@ export class KavachGate implements INodeType {
         json: {
           ...items[i].json,
           kavach: {
-            allow: gateResult.allow,
+            allow: gateResult.allow === true,
             level: gateResult.level,
             reason: gateResult.reason,
             decision: gateResult.decision,

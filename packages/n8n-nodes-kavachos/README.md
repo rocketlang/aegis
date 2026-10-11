@@ -35,6 +35,14 @@ Wraps a subprocess in kavachos **kernel enforcement** (seccomp-bpf + cgroup BPF 
 `kavachos run <options> -- <binary> <arguments>`, so the binary's arguments are passed on word for word and
 cannot be read as kavachos options. With an older `kavachos` the node refuses to run. See the changelog.
 
+Since 1.4.0 the node waits for the command without stopping n8n, stops it at **Time Limit (seconds)**, and
+reports what `kavachos` itself said: a refused launch is an error, and `enforced` is true only when no layer
+was reported missing (`egress_constrained`, `path_jail_loaded`). It reads kavachos's own lines for this, so
+it is as true as they are.
+
+**This node runs a command on the n8n host.** Anyone who can edit a workflow that contains it can run a
+program there, as n8n's own Execute Command node can. Install it only where that is acceptable.
+
 - Linux only — where enforcement is unavailable it **fails closed by default** (`On Non-Linux` = `throw`; set `warn` to run unwrapped, or `skip`)
 - Use **after** KavachGate for defense in depth: policy gate + kernel enforcement
 - `trust_mask` controls which syscall groups the process may call

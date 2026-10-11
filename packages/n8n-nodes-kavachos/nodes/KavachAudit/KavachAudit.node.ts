@@ -10,6 +10,7 @@ import type {
   INodeTypeDescription,
 } from "n8n-workflow";
 import { NodeOperationError } from "n8n-workflow";
+import { requestJson } from "../shared";
 
 export class KavachAudit implements INodeType {
   description: INodeTypeDescription = {
@@ -118,27 +119,24 @@ export class KavachAudit implements INodeType {
         _meta: { computed_at: string; duration_ms?: number };
       };
 
+      let reply;
       try {
-        const url = `${baseUrl}/api/v1/kavach/audit?${params.toString()}`;
-        const res = await fetch(url, { headers });
-
-        if (!res.ok) {
-          const text = await res.text().catch(() => res.status.toString());
-          throw new NodeOperationError(
-            this.getNode(),
-            `Aegis audit returned HTTP ${res.status}: ${text}`,
-            { itemIndex: i }
-          );
-        }
-
-        auditResult = (await res.json()) as typeof auditResult;
+        reply = await requestJson("GET", `${baseUrl}/api/v1/kavach/audit?${params.toString()}`, headers, undefined, 30000);
       } catch (err: any) {
         throw new NodeOperationError(
           this.getNode(),
-          `Cannot reach Aegis audit at ${baseUrl}: ${err.message}`,
+          err?.message === "TIMEOUT" ? `Aegis audit did not answer within 30 s at ${baseUrl}` : `Cannot reach Aegis audit at ${baseUrl}: ${err?.message ?? err}`,
           { itemIndex: i }
         );
       }
+      if (reply.status !== 200 || !reply.json || typeof reply.json !== "object") {
+        throw new NodeOperationError(
+          this.getNode(),
+          `Aegis audit answered HTTP ${reply.status}: ${reply.text.slice(0, 300)}. On a dashboard with a password the audit needs the API token (dashboard.auth.api_token), set in this credential.`,
+          { itemIndex: i }
+        );
+      }
+      auditResult = reply.json as typeof auditResult;
 
       results.push({
         json: {

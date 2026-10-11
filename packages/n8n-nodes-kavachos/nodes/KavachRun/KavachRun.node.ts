@@ -11,6 +11,7 @@ import type {
 } from "n8n-workflow";
 import { NodeOperationError } from "n8n-workflow";
 import { execSync, spawnSync } from "child_process";
+import { runProcess } from "../shared";
 
 function isLinux(): boolean {
   return process.platform === "linux";
@@ -111,6 +112,14 @@ export class KavachRun implements INodeType {
         description: "Enable Falco CRITICAL rule monitoring (requires Falco installed on host).",
       },
       {
+        displayName: "Time Limit (seconds)",
+        name: "timeoutSeconds",
+        type: "number",
+        default: 300,
+        description:
+          "The command is stopped after this long and the node fails. n8n keeps running other workflows meanwhile.",
+      },
+      {
         displayName: "On Non-Linux",
         name: "onNonLinux",
         type: "options",
@@ -139,6 +148,8 @@ export class KavachRun implements INodeType {
       const domain = this.getNodeParameter("domain", i) as string;
       const falco = this.getNodeParameter("falco", i) as boolean;
       const onNonLinux = this.getNodeParameter("onNonLinux", i) as string;
+      const limit = Number(this.getNodeParameter("timeoutSeconds", i, 300));
+      const timeoutMs = (Number.isFinite(limit) && limit > 0 ? limit : 300) * 1000;
 
       if (!binary?.trim()) {
         throw new NodeOperationError(this.getNode(), "binary must not be empty", { itemIndex: i });
@@ -167,7 +178,13 @@ export class KavachRun implements INodeType {
         process.stderr.write(`[KavachRun] WARNING: ${reason} — running ${binary} unwrapped\n`);
 
         const argList = args ? args.split(/\s+/) : [];
-        const proc = spawnSync(binary, argList, { encoding: "utf8" });
+        const proc = await runProcess(binary, argList, timeoutMs);
+        if (proc.error) {
+          throw new NodeOperationError(this.getNode(), `${binary} could not be started: ${proc.error}`, { itemIndex: i });
+        }
+        if (proc.timedOut) {
+          throw new NodeOperationError(this.getNode(), `${binary} was stopped after ${timeoutMs / 1000} s (the node's time limit)`, { itemIndex: i });
+        }
 
         results.push({
           json: {
@@ -177,7 +194,8 @@ export class KavachRun implements INodeType {
               reason,
               stdout: proc.stdout,
               stderr: proc.stderr,
-              exit_code: proc.status,
+              exit_code: proc.code,
+              output_truncated: proc.truncated,
             },
           },
           pairedItem: i,
@@ -211,27 +229,51 @@ export class KavachRun implements INodeType {
         ...(args ? args.split(/\s+/) : []),
       ];
 
-      const proc = spawnSync("kavachos", kavachArgs, { encoding: "utf8" });
+      const proc = await runProcess("kavachos", kavachArgs, timeoutMs);
 
       if (proc.error) {
+        throw new NodeOperationError(this.getNode(), `kavachos could not be started: ${proc.error}`, { itemIndex: i });
+      }
+      if (proc.timedOut) {
         throw new NodeOperationError(
           this.getNode(),
-          `kavachos run failed: ${proc.error.message}`,
+          `the command was stopped after ${timeoutMs / 1000} s (the node's time limit)`,
           { itemIndex: i }
         );
       }
+
+      // What kavachos itself said about this launch. Through 1.3.0 the node wrote "enforced: true"
+      // whenever kavachos had been started, whatever it then did.
+      //   refused        kavachos would not launch the command at all (its exit 3, with its own line)
+      //   unconstrained  it launched, and said the egress gate was NOT in force for this launch
+      const refusal = /^\[kavachos\] launch refused: (.*)$/m.exec(proc.stderr);
+      if (refusal) {
+        throw new NodeOperationError(
+          this.getNode(),
+          `kavachos refused to launch the command: ${refusal[1]}. Nothing was run.`,
+          { itemIndex: i }
+        );
+      }
+      const egressConstrained = !/NOT egress-constrained|egress_enforced=false/.test(proc.stderr);
+      const jailMissing = /path jail .* not loaded/.test(proc.stderr);
 
       results.push({
         json: {
           ...items[i].json,
           kavach_run: {
-            enforced: true,
+            // True only when kavachos launched the command and reported no layer missing.
+            enforced: egressConstrained && !jailMissing,
+            launched_by_kavachos: true,
+            egress_constrained: egressConstrained,
+            path_jail_loaded: !jailMissing,
+            kavachos_version: have,
             trust_mask: trustMask,
             domain,
             falco_enabled: falco,
             stdout: proc.stdout,
             stderr: proc.stderr,
-            exit_code: proc.status,
+            exit_code: proc.code,
+            output_truncated: proc.truncated,
           },
         },
         pairedItem: i,

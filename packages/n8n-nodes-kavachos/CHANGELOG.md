@@ -1,5 +1,33 @@
 # Changelog — @xshieldai/n8n-nodes
 
+## 1.4.0 (2026-10-12)
+
+Found in our own review, not reported from outside.
+
+### Fixed — Kavach Run said "enforced" whatever kavachos did, and stopped n8n while it ran
+
+- **`enforced: true` was written whenever `kavachos` had been started.** A launch that kavachos refused (its
+  exit 3) came back as ordinary output with `enforced: true`. A refused launch is now an error ("Nothing was
+  run"). A launch kavachos reported as not egress-constrained now reads `enforced: false`, with
+  `egress_constrained` and `path_jail_loaded` beside it. The command's own exit status 3 is still passed on.
+- **The node blocked n8n for as long as the command ran**, with no time limit: every other workflow and n8n's
+  own interface stopped. It now waits without blocking, and a new **Time Limit (seconds)** (default 300) stops
+  the command and fails the node.
+- **Output above 1 MB killed the command**, and in "warn" mode that was not reported. Up to 5 MB is kept, the
+  rest is dropped with `output_truncated: true`, and the command is left to finish.
+
+### Fixed — Kavach Gate
+
+- **Only the boolean `true` is an allow.** Any other value in `allow` (the text "false", a number, an object)
+  let the workflow on. An answer with no true/false `allow` is now an error: it is not the gate.
+- **The node has its own wait, "Wait For A Decision (seconds)", default 660.** The request used to give up at
+  about 300 s, while Aegis waits up to 600 s for an approver on the lowest level. No answer in time is a
+  block (`decision: TIMEOUT`), as it is in Aegis.
+- A server error and a redirect are reported as what they are. Both used to read "Cannot reach Aegis gate".
+- Kavach Budget and Kavach Audit give up after 30 s, and say when the audit needs the API token.
+
+`red-team/n8n-kavach-run.battery.sh` in the repository: 28 cases, 17 gaps on 1.3.0, none on 1.4.0.
+
 ## 1.3.0 (2026-10-12)
 
 ### Fixed — the binary's arguments could set kavachos's own options

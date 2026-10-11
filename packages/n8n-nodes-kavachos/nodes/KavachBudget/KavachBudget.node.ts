@@ -9,6 +9,7 @@ import type {
   INodeTypeDescription,
 } from "n8n-workflow";
 import { NodeOperationError } from "n8n-workflow";
+import { requestJson } from "../shared";
 
 export class KavachBudget implements INodeType {
   description: INodeTypeDescription = {
@@ -69,27 +70,28 @@ export class KavachBudget implements INodeType {
         _meta: { computed_at: string; duration_ms?: number };
       };
 
+      let reply;
       try {
-        const res = await fetch(`${baseUrl}/api/v1/kavach/state`, { headers });
-
-        if (!res.ok) {
-          const text = await res.text().catch(() => res.status.toString());
-          throw new NodeOperationError(
-            this.getNode(),
-            `Aegis state returned HTTP ${res.status}: ${text}`,
-            { itemIndex: i }
-          );
-        }
-
-        state = (await res.json()) as typeof state;
+        reply = await requestJson("GET", `${baseUrl}/api/v1/kavach/state`, headers, undefined, 30000);
       } catch (err: any) {
         throw new NodeOperationError(
           this.getNode(),
-          `Cannot reach Aegis state at ${baseUrl}: ${err.message}`,
+          err?.message === "TIMEOUT" ? `Aegis state did not answer within 30 s at ${baseUrl}` : `Cannot reach Aegis state at ${baseUrl}: ${err?.message ?? err}`,
           { itemIndex: i }
         );
       }
+      if (reply.status !== 200 || !reply.json || typeof reply.json !== "object") {
+        throw new NodeOperationError(
+          this.getNode(),
+          `Aegis state answered HTTP ${reply.status}: ${reply.text.slice(0, 300)}.`,
+          { itemIndex: i }
+        );
+      }
+      state = reply.json as typeof state;
 
+      if (!state.budget || typeof state.budget.breached !== "boolean") {
+        throw new NodeOperationError(this.getNode(), `what answered at ${baseUrl} is not the Aegis budget state`, { itemIndex: i });
+      }
       const output: INodeExecutionData = {
         json: {
           ...items[i].json,
