@@ -4,13 +4,12 @@
 // @rule:KOS-051 zero-agent-code-change — ANTHROPIC_BASE_URL / OPENAI_BASE_URL override in runner.ts
 // @rule:KOS-055 HITL HTTPS flow — escalation blocks request, polls DB, forwards on ALLOW
 
-import { existsSync, readFileSync, writeFileSync } from "fs";
-import { spawnSync } from "child_process";
 import { randomBytes } from "crypto";
 import { checkRequestBody, checkResponseBody } from "./firewall";
 import { createKavachApproval, getKavachApproval, decideKavachApproval } from "../core/db";
 import { loadConfig, getAegisDir } from "../core/config";
 import { join } from "path";
+import { freshProxyCertificate } from "./proxy-trust";
 
 export interface ProxyConfig {
   port: number;
@@ -18,34 +17,12 @@ export interface ProxyConfig {
   domain: string;         // trust domain (for firewall context)
   sessionId?: string;     // KAVACHOS_SESSION_ID from runner.ts
   verbose?: boolean;
+  /** Address to listen on. Default 127.0.0.1: a governed agent on this machine is the only caller. */
+  host?: string;
 }
 
-const CERT_PATH = "/tmp/kavachos-proxy.crt";
-const KEY_PATH  = "/tmp/kavachos-proxy.key";
-
-// @rule:KOS-050 per-boot self-signed cert — regenerated on each proxy start
-function generateSelfSignedCert(): { cert: string; key: string } {
-  // Reuse within the same boot (same PID tree), regen if files are stale/missing
-  if (!existsSync(CERT_PATH) || !existsSync(KEY_PATH)) {
-    const result = spawnSync("openssl", [
-      "req", "-x509", "-newkey", "rsa:2048",
-      "-keyout", KEY_PATH, "-out", CERT_PATH,
-      "-days", "1", "-nodes",
-      "-subj", "/CN=kavachos-proxy/O=KavachOS/OU=KERNEL",
-    ], { encoding: "utf-8" });
-
-    if (result.status !== 0) {
-      throw new Error(`[kavachos:proxy] openssl cert gen failed: ${result.stderr?.slice(0, 200)}`);
-    }
-
-    process.stderr.write(`[kavachos:proxy] Self-signed TLS cert generated: ${CERT_PATH}\n`);
-  }
-
-  return {
-    cert: readFileSync(CERT_PATH, "utf-8"),
-    key:  readFileSync(KEY_PATH,  "utf-8"),
-  };
-}
+// @rule:KOS-050 a fresh self-signed pair on every proxy start, in a folder only this account can enter.
+// See proxy-trust.ts for why it is no longer two fixed names in /tmp.
 
 // @rule:KOS-055 poll aegis.db until human decides or timeout
 // Returns true=ALLOW, false=DENY/TIMEOUT. Blocks the caller (proxy request handler).
@@ -135,12 +112,13 @@ async function forwardToUpstream(
 
 // @rule:KOS-050 main proxy entry point
 export async function startProxy(config: ProxyConfig): Promise<void> {
-  const { cert, key } = generateSelfSignedCert();
+  const { cert, key, certPath: CERT_PATH } = freshProxyCertificate();
+  const host = config.host?.trim() || "127.0.0.1";
   const aegisCfg = loadConfig();
 
   process.stderr.write(
     `[kavachos:proxy] KavachOS L7 Proxy starting\n` +
-    `[kavachos:proxy] Port    : ${config.port}\n` +
+    `[kavachos:proxy] Listen  : ${host}:${config.port}\n` +
     `[kavachos:proxy] Upstream: ${config.upstream}\n` +
     `[kavachos:proxy] Domain  : ${config.domain}\n` +
     `[kavachos:proxy] TLS     : self-signed (${CERT_PATH})\n` +
@@ -149,6 +127,7 @@ export async function startProxy(config: ProxyConfig): Promise<void> {
 
   Bun.serve({
     port: config.port,
+    hostname: host,
     tls: { cert, key },
 
     async fetch(req: Request): Promise<Response> {

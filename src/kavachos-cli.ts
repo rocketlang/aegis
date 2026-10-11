@@ -19,7 +19,7 @@
 // Single source of truth for the version inside the bundle. The build refuses to run
 // if this disagrees with package.json — it silently drifted from 2.0.0 for five months,
 // so `kavachos version` reported a release that was no longer being shipped.
-const KAVACHOS_VERSION = "2.5.0";
+const KAVACHOS_VERSION = "2.6.0";
 const command = Bun.argv[2] || "help";
 const subCommand = Bun.argv[3];
 const args = Bun.argv.slice(3);
@@ -103,7 +103,8 @@ async function cmdRun(args: string[]) {
   if (split.optionsAfterBinary.length) {
     console.error(
       `[kavachos] WARNING: read as kavachos options and NOT passed to the agent: ${split.optionsAfterBinary.join(" ")}. ` +
-      `Put kavachos options first and a bare "--" before the agent's command: kavachos run [options] -- ${agentArgs.join(" ")}`,
+      `Put kavachos options first and a bare "--" before the agent's command: kavachos run [options] -- ${agentArgs.join(" ")}. ` +
+      `From agent-kernel 3.0 a line without "--" will be refused.`,
     );
   }
 
@@ -591,8 +592,10 @@ async function cmdProxyStart(args: string[]) {
   const sessionId = args.find((a) => a.startsWith("--session-id="))?.split("=")[1] ??
     process.env.KAVACHOS_SESSION_ID;
   const verbose = args.includes("--verbose") || args.includes("-v");
+  // Loopback unless asked: the proxy forwards whatever it is sent to the upstream.
+  const host = args.find((a) => a.startsWith("--host="))?.split("=")[1] ?? process.env.KAVACHOS_PROXY_HOST ?? "127.0.0.1";
 
-  await startProxy({ port, upstream, domain, sessionId, verbose });
+  await startProxy({ port, upstream, domain, sessionId, verbose, host });
   // startProxy calls Bun.serve (non-blocking) then logs ready.
   // Keep the process alive.
   await new Promise(() => {});
@@ -601,7 +604,8 @@ async function cmdProxyStart(args: string[]) {
 // kavachos proxy cert — print the self-signed CA cert so operators can trust it
 async function cmdProxyCert() {
   const { existsSync, readFileSync } = await import("fs");
-  const certPath = "/tmp/kavachos-proxy.crt";
+  const { proxyCertPath } = await import("./proxy/proxy-trust");
+  const certPath = proxyCertPath();
   if (!existsSync(certPath)) {
     console.error("No cert found. Start the proxy first: kavachos proxy start");
     process.exit(1);
@@ -783,7 +787,7 @@ Examples:
   kavachos egress show --json
   kavachos proxy start --upstream=https://api.anthropic.com --domain=general
   kavachos proxy start --port=4856 --upstream=https://api.openai.com --verbose
-  kavachos proxy cert   # print CA cert for NODE_EXTRA_CA_CERTS
+  kavachos proxy cert   # print the proxy certificate (kavachos run hands it to the agent by itself)
   kavachos audit KOS-A1B2C3
   kavachos audit --all
   kavachos rules --domain=maritime --trust-mask=0x0000FF00

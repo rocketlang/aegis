@@ -110,10 +110,40 @@ the agent's arguments could set kavachos's: `--dry-run` (nothing runs, exit 0), 
 `--needs=`, `--depth=`, `--session-id=`, a trust mask if none was given.
 
 A line without `--` is still read the old way, so existing launch lines keep working; each option found after
-the agent's binary is named in a warning on stderr. **If the agent's arguments come from anywhere but your own
+the agent's binary is named in a warning on stderr. **From 3.0 a line without `--` will be refused**: while the old
+reading remains, a caller who forgets `--` is still exposed, so it is kept for one major version only. **If the agent's arguments come from anywhere but your own
 hand (a workflow, a wrapper script, a model), use `--`.** A dry run now also prints the command that would be
 launched and the choices it would be launched under. Found in our own review, not reported from outside.
 Checked by `red-team/kavachos-run-args.battery.sh` in the repository (dry runs only): 7 gaps on 2.4.0, none on 2.5.0.
+
+### The proxy is trusted by its certificate (2.6.0)
+
+`kavachos proxy start` terminates TLS with a self-signed certificate. Through 2.5.0:
+
+- an agent launched with `KAVACHOS_PROXY_URL` set was given `NODE_TLS_REJECT_UNAUTHORIZED=0` and
+  `PYTHONHTTPSVERIFY=0`. That switched certificate checking off for **every** host the agent talked to, not
+  only the proxy;
+- the certificate and its key were two fixed names in `/tmp`, reused if already there, so whoever wrote those
+  files first held the proxy's key;
+- the proxy listened on every interface;
+- the certificate named no host, so a client could not verify it even when told to trust it.
+
+From 2.6.0:
+
+- the pair is made fresh on every proxy start, under `<aegis home>/kernel/proxy/` (folder `700`, key `600`),
+  valid 30 days, naming `localhost` and `127.0.0.1`. **Restart the proxy at least every 30 days**;
+- `kavachos run` hands the agent that one certificate as an extra trust root (`NODE_EXTRA_CA_CERTS` for Node
+  and Bun; `SSL_CERT_FILE`, `REQUESTS_CA_BUNDLE` and `CURL_CA_BUNDLE` pointing at the system's roots plus this
+  certificate, for Python and curl). Checking stays on. If the certificate cannot be found the agent's calls
+  to the proxy fail, and the launcher says why;
+- the proxy listens on `127.0.0.1` unless `--host=` or `KAVACHOS_PROXY_HOST` says otherwise;
+- start the proxy and the agent as the same account (or name the certificate with `KAVACHOS_PROXY_CA`).
+
+**What this does not give.** The agent runs as the account that owns the key file; the AppArmor profile in the
+repository now denies it that file, but without the profile loaded an agent can read it. The proxy still lets
+a request through when it cannot reach the budget service; that is its stated design, not changed here.
+Found in our own review, not reported from outside. Checked by `red-team/kavachos-proxy-trust.battery.sh`
+(10 cases, no launch under enforcement): 9 gaps on 2.5.0, none on 2.6.0.
 
 
 ---

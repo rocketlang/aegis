@@ -4,6 +4,20 @@ All notable changes to AEGIS will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [2.19.0] — 2026-10-12
+
+Our own review, continued. Nothing here was reported from outside.
+
+### Fixed — under the proxy, certificate checking was switched off for the whole agent
+
+- **`kavachos run` with `KAVACHOS_PROXY_URL` set gave the agent `NODE_TLS_REJECT_UNAUTHORIZED=0` and `PYTHONHTTPSVERIFY=0`**: no certificate checking to any host, to make one self-signed certificate acceptable. The agent is now handed the proxy's certificate as an extra trust root, and checking stays on.
+- **The proxy's certificate and key were two fixed names in `/tmp`, reused if already there.** They are made fresh on every start under `<aegis home>/kernel/proxy/` (folder `700`, key `600`).
+- **The proxy listened on every interface.** It listens on `127.0.0.1` unless `--host=` or `KAVACHOS_PROXY_HOST` is given.
+- The certificate now names `localhost` and `127.0.0.1` (it named no host, so nothing could verify it) and is valid 30 days: restart the proxy at least that often.
+- The AppArmor profile denies the agent the proxy's key file.
+- A `kavachos run` line without `--` now says it will be refused from agent-kernel 3.0.
+- The same code ships as `@xshieldai/agent-kernel` 2.6.0. New battery `red-team/kavachos-proxy-trust.battery.sh` (10 cases; 9 gaps on agent-kernel 2.5.0).
+
 ## [2.18.1] — 2026-10-12
 
 Our own review of the kernel launcher. Nothing here was reported from outside.

@@ -260,6 +260,13 @@ export async function runWithKernel(
       dryRun: true,
       // What would be launched, and under which choices: the words are the agent's own (2.5.0).
       agentCommand,
+      // Under the proxy: how the agent would be told to trust it (2.6.0). Never by switching checking off.
+      proxy: await (async () => {
+        const url = process.env.KAVACHOS_PROXY_URL ?? null;
+        if (!url) return null;
+        const t = (await import("../proxy/proxy-trust")).agentProxyTrust(false);
+        return { url, certificate: t.certPath, certificatePresent: t.certPresent, certificateChecking: "on", environment: Object.keys(t.env).sort() };
+      })(),
       options: {
         trustMask: opts.trustMask,
         domain: opts.domain,
@@ -385,6 +392,7 @@ export async function runWithKernel(
       }
     : {};
   const proxyUrl = process.env.KAVACHOS_PROXY_URL ?? null;
+  const proxyTrust = proxyUrl ? (await import("../proxy/proxy-trust")).agentProxyTrust(true) : null;
   const proxyEnvOverrides: NodeJS.ProcessEnv = proxyUrl ? {
     ANTHROPIC_BASE_URL:    proxyUrl,
     OPENAI_BASE_URL:       proxyUrl,
@@ -392,10 +400,11 @@ export async function runWithKernel(
     GOOGLE_GENERATIVE_AI_ENDPOINT: proxyUrl,
     GROQ_BASE_URL:         proxyUrl,
     KAVACHOS_PROXY_ACTIVE: "1",
-    // Allow self-signed cert (per-boot, localhost only) — @rule:KOS-050
-    NODE_TLS_REJECT_UNAUTHORIZED: "0",
-    PYTHONHTTPSVERIFY:     "0",
+    // The proxy's own certificate, added to the agent's trust roots. Certificate checking stays ON for
+    // every host: through 2.5.0 it was switched off for the whole agent here. @rule:KOS-050
+    ...proxyTrust!.env,
   } : {};
+  for (const note of proxyTrust?.notes ?? []) console.error(`[kavachos:proxy] ${note}`);
 
   const env: NodeJS.ProcessEnv = {
     ...process.env,

@@ -36,6 +36,7 @@ profile kavachos-agent flags=(attach_disconnected,mediate_deleted) {
   # ── except the key material (deny overrides allow) ───────────────────────
   deny /root/.aegis/approval-signing.key mrwkl,
   deny /root/.aegis/mudrika.secret mrwkl,
+  deny /root/.aegis/kernel/proxy/proxy.key mrwkl,
   deny /root/.ankr/secrets/ mrwkl,
   deny /root/.ankr/secrets/** mrwkl,
   # >>> anumati: generated from ANU-I-005 — do not hand-edit
