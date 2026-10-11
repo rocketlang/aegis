@@ -72,7 +72,7 @@ try {
 const config = loadConfig();
 // A trailing slash reaches the same route ("/demo/" is "/demo"); the session guard decides on the
 // matched route, so this cannot open anything the route itself does not.
-const app = Fastify({ logger: false, ignoreTrailingSlash: true });
+const app = Fastify({ logger: false, routerOptions: { ignoreTrailingSlash: true } });
 
 app.register(fastifyCors, { origin: true });
 app.register(fastifyFormbody);
@@ -134,7 +134,7 @@ if (config.dashboard.auth?.enabled) {
       if (url.startsWith("/api/") || accept.includes("application/json")) {
         reply.code(401).send({ error: "session expired" });
       } else {
-        reply.redirect(302, "/login");
+        reply.redirect("/login", 302);
       }
     }
   });

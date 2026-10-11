@@ -4,6 +4,30 @@ All notable changes to AEGIS will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [2.18.0] — 2026-10-12
+
+The dashboard moves to fastify 5. Our own review of the dependencies, not a report from outside.
+
+### Changed — the web framework under the dashboard
+
+- **fastify 4.29.1 → 5.12.5**, `@fastify/static` 7 → 10, `@fastify/cors` 9 → 11, `@fastify/formbody` 7 → 9. The fastify 4 line and its router carried 12 published advisories whose fixes exist only in the 5 line. We found none of them reachable in 2.17.2 as shipped (no custom not-found handler, no schema-driven content types, no proxy trust), but a dashboard that holds a login should not sit on a line that no longer receives fixes.
+- **Node 20 or later is now required** (it was 18). fastify 5 does not run on Node 18. Bun is unaffected.
+- Two lines of ours changed: the redirect to the login page used the argument order fastify 5 removed (with no change it answered 500 to every browser without a session), and the trailing-slash option moved to `routerOptions`.
+
+### How it was checked
+
+- New battery `red-team/dashboard-http-behaviour.battery.sh` (37 answers): where a refusal sends the browser, what a login sets and where it lands, what a logout clears, the type a static file is served with, what a climbing or malformed address gets, what an unreadable body gets. Written and green on fastify 4 first, then run on fastify 5.
+- `red-team/dashboard-login-check.battery.sh` (53 cases) green on both.
+- Every route the dashboard registers (102) was asked on fastify 4 and on fastify 5, reading routes with a session and writing routes without one: the status and content type are the same on all 102.
+
+### One answer differs
+
+- **A semicolon is no longer read as the start of a query.** `/demo;x=1` reached the public demo page on fastify 4; on fastify 5 it matches no route (404, or the login page when a password is set). No protected route is affected: `/api/status;x=.js` was refused before and is refused now.
+
+### Known, not changed here
+
+- `/metrics` answers 500 (`no such table: kernel_profiles`) on a home where the monitor has never run. It did so on 2.17.2 as well.
+
 ## [2.17.2] — 2026-10-11
 
 A second pass over 2.17.1 by us, attacking our own code. Nothing here was reported from outside. Each item has a case in a battery that is red on the published 2.17.1.

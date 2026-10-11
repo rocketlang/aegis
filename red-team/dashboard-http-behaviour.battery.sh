@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# aegis red-team — what the dashboard answers over HTTP, pinned (2026-10-12, before the move to fastify 5).
+# aegis red-team — what the dashboard answers over HTTP, pinned (2026-10-12, written on fastify 4 before the move to fastify 5; one line differs, marked below).
 #
 # dashboard-login-check.battery.sh asks WHETHER a route is refused. This one pins HOW the server answers: where a
 # refusal sends the browser, what a login sets and where it lands, what a logout clears, the type a static file is
@@ -12,7 +12,7 @@
 #
 # Exit: 0 every answer is the pinned one · 1 an answer changed · 3 broke.
 set -u
-[ -n "${RAN_INNER:-}" ] || exec "$(cd "$(dirname "$0")" && pwd)/lib/ran.sh" 36 "$0" "$@"   # green only if the cases ran
+[ -n "${RAN_INNER:-}" ] || exec "$(cd "$(dirname "$0")" && pwd)/lib/ran.sh" 37 "$0" "$@"   # green only if the cases ran
 HERE="$(cd "$(dirname "$0")" && pwd)"; REPO="$(cd "$HERE/.." && pwd)"
 BUN="$(command -v bun || echo /root/.bun/bin/bun)"; PORT="${TEST_PORT:-48995}"
 T="$(mktemp -d /tmp/aegis-http-behaviour-XXXXXX)"; chmod 700 "$T"; pid=""
@@ -41,6 +41,8 @@ ask -H 'Accept: application/json' "$B/suite";     pin "a page asked for as JSON 
 ask "$B/login";                                   pin "the login page is served as HTML" "$S $(hdr content-type | cut -d';' -f1)" '200 text/html'
 ask -I "$B/health";                               pin "HEAD /health answers" "$S" '200'
 ask "$B/health/";                                 pin "a trailing slash reaches the same route" "$S" '200'
+# Since fastify 5 a ";" is part of the path, not the start of a query: one address, one reading (fastify 4 answered 200).
+ask "$B/health;x=1";                             pin "a semicolon is not read as a query: /health;x=1 matches no route" "$S" '(302|401|404)'
 
 # ── logging in and out ────────────────────────────────────────────────────────────────────────────────────────
 ask --data-urlencode "username=captain" --data-urlencode "password=wrong-$PW" "$B/login"
