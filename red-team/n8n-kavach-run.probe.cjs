@@ -35,6 +35,13 @@ async function run(params, version, mode = "ok") {
   say(r.threw !== null && r.argv === null, "with a kavachos whose version cannot be read the node refuses", r.threw ? r.threw.slice(0, 70) : "it ran");
   r = await run({ args: "agent.ts", falco: true }, "2.6.1");
   say(r.argv && r.argv.indexOf("--falco") !== -1 && r.argv.indexOf("--falco") < r.argv.indexOf("--"), "the node's own options stay before the --", JSON.stringify(r.argv));
+  // 1.5.2: quotes group. Through 1.5.1 the field was cut at every space.
+  r = await run({ binary: "echo", args: `--name 'two words' --k="a b" plain` }, "2.6.1");
+  say(r.argv && JSON.stringify(r.argv.slice(r.argv.indexOf("--") + 1)) === JSON.stringify(["echo", "--name", "two words", "--k=a b", "plain"]), "an argument in quotes reaches kavachos as one word", JSON.stringify(r.argv));
+  r = await run({ binary: "echo", args: "$HOME * ~ C:\\dir ; rm" }, "2.6.1");
+  say(r.argv && JSON.stringify(r.argv.slice(r.argv.indexOf("--") + 1)) === JSON.stringify(["echo", "$HOME", "*", "~", "C:\\dir", ";", "rm"]), "nothing else is read specially: $, *, ~, a backslash and ; stay as written", JSON.stringify(r.argv));
+  r = await run({ binary: "echo", args: "--name 'never closed" }, "2.6.1");
+  say(r.threw !== null && r.argv === null, "a quote that is never closed is refused and nothing is run", r.threw ? r.threw.slice(0, 90) : `it ran: ${JSON.stringify(r.argv)}`);
 
   // ── what the node says happened is what kavachos said happened (1.4.0) ──
   r = await run({ args: "agent.ts" }, "2.6.0", "ok");

@@ -84,3 +84,29 @@ export function requestJson(method: "GET" | "POST", url: string, headers: Record
     req.end();
   });
 }
+
+// The Arguments field as a list of words. Through 1.5.1 the field was cut at every space, so an argument that
+// holds a space could not be passed. Now quotes group: '...' is taken as it stands, and in "..." a backslash
+// before a double quote or another backslash gives that character. Everywhere else every character is itself:
+// this is not a shell, so $, *, ~ and a backslash outside double quotes are not read as anything.
+// A quote that is never closed is an error and not a guess.
+export function splitWords(text: string): { words: string[]; error?: string } {
+  const words: string[] = [];
+  let word = "", inWord = false, quote: "'" | '"' | null = null;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (quote === "'") { if (c === "'") quote = null; else word += c; continue; }
+    if (quote === '"') {
+      if (c === '"') quote = null;
+      else if (c === "\\" && (text[i + 1] === '"' || text[i + 1] === "\\")) word += text[++i];
+      else word += c;
+      continue;
+    }
+    if (c === "'" || c === '"') { quote = c; inWord = true; continue; }
+    if (/\s/.test(c)) { if (inWord) { words.push(word); word = ""; inWord = false; } continue; }
+    word += c; inWord = true;
+  }
+  if (quote) return { words: [], error: `the arguments have a ${quote === "'" ? "single" : "double"} quote that is never closed` };
+  if (inWord) words.push(word);
+  return { words };
+}

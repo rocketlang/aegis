@@ -86,7 +86,7 @@ async function run(label, type, parameters, cred) {
   r = await run("run ok", "kavachRun", runParams());
   let argv = []; try { argv = JSON.parse(fs.readFileSync(path.join(WORK, "argv.json"), "utf8")); } catch {}
   const sep = argv.indexOf("--");
-  say(r.status === "success" && sep > 0 && JSON.stringify(argv.slice(sep + 1)) === JSON.stringify(["echo", "--domain=evil", "-x", "'two", "words'"]), "Run: the binary's arguments reach kavachos after `--`, split on spaces as the field says (quotes are not read)", JSON.stringify(argv));
+  say(r.status === "success" && sep > 0 && JSON.stringify(argv.slice(sep + 1)) === JSON.stringify(["echo", "--domain=evil", "-x", "two words"]), "Run: the binary's arguments reach kavachos after `--`, and an argument in quotes is one word (1.5.2)", JSON.stringify(argv));
   say(r.out?.kavach_run?.enforced === true, "Run: a launch kavachos did not complain about is reported enforced", JSON.stringify(r.out?.kavach_run ?? r).slice(0, 200));
   mode("unconstrained"); r = await run("run unconstrained", "kavachRun", runParams());
   say(r.status === "success" && r.out?.kavach_run?.enforced === false && r.out?.kavach_run?.egress_constrained === false, "Run: a launch kavachos called not egress-constrained is NOT reported enforced", JSON.stringify(r.out?.kavach_run ?? r).slice(0, 200));

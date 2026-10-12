@@ -11,7 +11,7 @@ import type {
 } from "n8n-workflow";
 import { NodeOperationError } from "n8n-workflow";
 import { execSync, spawnSync } from "child_process";
-import { runProcess } from "../shared";
+import { runProcess, splitWords } from "../shared";
 
 function isLinux(): boolean {
   return process.platform === "linux";
@@ -79,7 +79,7 @@ export class KavachRun implements INodeType {
         type: "string",
         default: "",
         placeholder: "src/my-agent.ts --port 4900",
-        description: "Space-separated arguments to pass to the binary.",
+        description: "Arguments for the binary, separated by spaces. Put quotes around an argument that holds a space: --name 'two words'. Nothing else is read specially (this is not a shell).",
       },
       {
         displayName: "Trust Mask (hex)",
@@ -144,6 +144,9 @@ export class KavachRun implements INodeType {
     for (let i = 0; i < items.length; i++) {
       const binary = this.getNodeParameter("binary", i) as string;
       const args = (this.getNodeParameter("args", i) as string).trim();
+      const split = splitWords(args);
+      if (split.error) throw new NodeOperationError(this.getNode(), `${split.error}. Nothing was run.`, { itemIndex: i });
+      const argWords = split.words;
       const trustMask = this.getNodeParameter("trustMask", i) as string;
       const domain = this.getNodeParameter("domain", i) as string;
       const falco = this.getNodeParameter("falco", i) as boolean;
@@ -177,8 +180,7 @@ export class KavachRun implements INodeType {
         // warn: run unwrapped with a flag in output
         process.stderr.write(`[KavachRun] WARNING: ${reason} — running ${binary} unwrapped\n`);
 
-        const argList = args ? args.split(/\s+/) : [];
-        const proc = await runProcess(binary, argList, timeoutMs);
+        const proc = await runProcess(binary, argWords, timeoutMs);
         if (proc.error) {
           throw new NodeOperationError(this.getNode(), `${binary} could not be started: ${proc.error}`, { itemIndex: i });
         }
@@ -226,7 +228,7 @@ export class KavachRun implements INodeType {
         ...(falco ? ["--falco"] : []),
         "--",
         binary,
-        ...(args ? args.split(/\s+/) : []),
+        ...argWords,
       ];
 
       const proc = await runProcess("kavachos", kavachArgs, timeoutMs);

@@ -1,12 +1,12 @@
 # @xshieldai/n8n-nodes-kavachos
 
-> **🔍 Verification status (2026-10-12 IST — v1.5.1)**
-> - **Tests:** ⚠️ none inside the package. In the repository, [red-team/n8n-kavach-run.battery.sh](https://github.com/rocketlang/aegis/blob/master/red-team/n8n-kavach-run.battery.sh) drives the Run and Gate nodes outside n8n against an installed copy (32 cases, with a stand-in `kavachos` and a stand-in gate). **Not yet run inside an n8n instance.**
+> **🔍 Verification status (2026-10-12 IST — v1.5.2)**
+> - **Tests:** ⚠️ none inside the package. In the repository: [red-team/n8n-kavach-run.battery.sh](https://github.com/rocketlang/aegis/blob/master/red-team/n8n-kavach-run.battery.sh) drives the Run and Gate nodes outside n8n against an installed copy (35 cases), and [red-team/n8n-inside-n8n.battery.sh](https://github.com/rocketlang/aegis/blob/master/red-team/n8n-inside-n8n.battery.sh) installs the package through n8n's own installer and runs all four nodes in workflows inside n8n 2.42.7 (23 cases; first run on 1.5.1, 12 October 2026). Gate, Budget and Audit run against a real Aegis there. **Kavach Run is tested with a stand-in `kavachos` in both: neither battery launches anything under kernel enforcement.**
 > - **Examples:** ✅ 1 importable workflow, in the repository (not in the npm package): [examples/n8n-governed-agent.json](https://github.com/rocketlang/aegis/blob/master/packages/n8n-nodes-kavachos/examples/n8n-governed-agent.json). Drag into n8n, wire the Aegis API credential pointing at `http://localhost:4850`, run.
 > - **Live demo:** ⚠️ planned (Tier 3)
 > - **Phase-1 limits:** KavachRun is Linux-only; where enforcement is unavailable (non-Linux, or `kavachos` not installed) it **fails closed by default** (`On Non-Linux` = `throw`; `warn`/`skip` are opt-in). KavachGate works on any OS — it's a thin HTTP relay to AEGIS.
 >
-> The KavachGate node's behaviour is end-to-end testable against a live AEGIS instance — start AEGIS, import the example workflow, fire a `rm -rf /` command, watch it block. Fixtures that run inside n8n are still to come.
+> The KavachGate node's behaviour is end-to-end testable against a live AEGIS instance — start AEGIS, import the example workflow, fire a `rm -rf /` command, watch it block.
 
 > **Renamed at 1.5.0.** This package was `@xshieldai/n8n-nodes` through 1.4.1. n8n's community-nodes screen
 > only installs a package whose name starts with `n8n-nodes-` after the scope, and refused the old name. The
@@ -40,6 +40,9 @@ Wraps a subprocess in kavachos **kernel enforcement** (seccomp-bpf + cgroup BPF 
 **Requires `@xshieldai/agent-kernel` 2.5.0 or later** (since 1.3.0). The node starts
 `kavachos run <options> -- <binary> <arguments>`, so the binary's arguments are passed on word for word and
 cannot be read as kavachos options. With an older `kavachos` the node refuses to run. See the changelog.
+
+Since 1.5.2 an argument in quotes is one word: `--name 'two words'`. Nothing else in the **Arguments** field is
+read specially (it is not a shell), and a quote that is never closed stops the node before anything runs.
 
 Since 1.4.0 the node waits for the command without stopping n8n, stops it at **Time Limit (seconds)**, and
 reports what `kavachos` itself said: a refused launch is an error, and `enforced` is true only when no layer

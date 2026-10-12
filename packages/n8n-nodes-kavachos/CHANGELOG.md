@@ -1,5 +1,26 @@
 # Changelog — @xshieldai/n8n-nodes-kavachos
 
+## 1.5.2 (2026-10-12)
+
+### Fixed — Kavach Run: an argument in quotes is one word
+
+- The Arguments field was cut at every space, so an argument that holds a space could not be passed:
+  `--name 'two words'` reached the command as `--name`, `'two`, `words'`. Quotes now group. `'...'` is taken
+  as it stands; in `"..."` a backslash before a double quote or another backslash gives that character.
+- Nothing else is read specially. This is not a shell: `$HOME`, `*`, `~`, `;` and a backslash outside double
+  quotes reach the command exactly as written.
+- **Changed for existing workflows:** a quote character in the field is now read as a quote. An argument that
+  was meant to carry a literal quote needs the other kind around it (`"it's"`), and a quote that is never
+  closed is an error: the node stops and runs nothing, where it used to pass the pieces on.
+
+### Tested inside n8n
+
+- `red-team/n8n-inside-n8n.battery.sh` (in the repository) starts n8n 2.42.7, installs this package through
+  n8n's own installer, and runs the four nodes in workflows: 23 cases. n8n refuses the old name and installs
+  this one; Gate, Budget and Audit run against a real Aegis; Run uses a stand-in `kavachos`, so nothing in it
+  is launched under kernel enforcement. It was this run that found the quoting fault above.
+- The README banner says so in place of "not yet run inside an n8n instance".
+
 ## 1.5.1 (2026-10-12)
 
 - The status banner at the top of the README still read "v1.1.2" and "Tests: none yet". It now gives the

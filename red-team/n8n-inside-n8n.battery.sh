@@ -16,6 +16,7 @@
 #   ./red-team/n8n-inside-n8n.battery.sh                      the version in packages/n8n-nodes-kavachos/package.json
 #   N8N_VERSION=1.5.1 N8N_IMAGE=n8nio/n8n:2.42.7 ./red-team/n8n-inside-n8n.battery.sh
 #
+# One gap on 1.5.1 (an argument in quotes was cut at its space), green from 1.5.2.
 # Exit: 0 no gap · 1 a gap · 3 broke, or not every case ran.
 set -u
 EXPECT_CASES=23

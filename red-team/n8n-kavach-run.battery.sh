@@ -12,9 +12,10 @@
 #   N8N_VERSION=1.5.0 ./red-team/n8n-kavach-run.battery.sh   that version from the npm registry
 #   N8N_PACKAGE=@xshieldai/n8n-nodes N8N_VERSION=1.2.0 …     a version under the old name
 #
-# Red on 1.2.0 and 1.3.0, green from 1.4.0. Exit: 0 no gap · 1 a gap · 3 broke, or the probe did not run all its cases.
+# 1.5.2: an argument in quotes is one word.
+# Red on 1.2.0 and 1.3.0, two gaps on 1.4.0 to 1.5.1 (the quotes), green from 1.5.2. Exit: 0 no gap · 1 a gap · 3 broke, or the probe did not run all its cases.
 set -u
-EXPECT_CASES=32
+EXPECT_CASES=35
 # The package was @xshieldai/n8n-nodes through 1.4.1: N8N_PACKAGE=@xshieldai/n8n-nodes N8N_VERSION=1.4.1 runs that one.
 NAME="${N8N_PACKAGE:-@xshieldai/n8n-nodes-kavachos}"
 HERE="$(cd "$(dirname "$0")" && pwd)"; REPO="$(cd "$HERE/.." && pwd)"
