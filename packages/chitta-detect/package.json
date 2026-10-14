@@ -1,6 +1,6 @@
 {
   "name": "@xshieldai/chitta-detect",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "description": "Memory poisoning detection primitives for AI agents — pure pattern matchers (RAG trust, agent-role imperatives, tool-output poisoning, capability expansion, injection fingerprints) + opt-in Agentic Control Center event bus. Extracted from chitta-guard.",
   "license": "AGPL-3.0-only",
   "type": "module",
@@ -29,18 +29,20 @@
   ],
   "exports": {
     ".": {
-      "import": "./src/index.ts",
-      "types": "./src/index.ts"
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
     }
   },
-  "main": "./src/index.ts",
+  "main": "./dist/index.js",
   "files": [
+    "dist/",
     "src/",
     "tests/",
     "README.md",
     "LICENSE"
   ],
   "scripts": {
+    "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc --noEmit",
     "test": "bun test",
     "prepublishOnly": "node ../../scripts/publish-guard.mjs"
@@ -58,9 +60,21 @@
   "chitta_detect": {
     "extracted_from": "chitta-guard (internal Fastify service)",
     "rules_implemented": [
-      "CG-002", "CG-003", "CG-006", "CG-010", "CG-012",
-      "CG-YK-001", "CG-YK-002", "CG-YK-003", "CG-YK-006", "CG-YK-007",
-      "INF-CG-001", "INF-CG-002", "INF-CG-004", "INF-CG-005", "INF-CG-006"
+      "CG-002",
+      "CG-003",
+      "CG-006",
+      "CG-010",
+      "CG-012",
+      "CG-YK-001",
+      "CG-YK-002",
+      "CG-YK-003",
+      "CG-YK-006",
+      "CG-YK-007",
+      "INF-CG-001",
+      "INF-CG-002",
+      "INF-CG-004",
+      "INF-CG-005",
+      "INF-CG-006"
     ],
     "rules_left_in_ee": [
       "CG-006 (DB persistence)",
@@ -69,5 +83,6 @@
       "CG-009 (baseline supersede chain)",
       "CG-YK-006 (posture persistence across restarts)"
     ]
-  }
+  },
+  "types": "./dist/index.d.ts"
 }

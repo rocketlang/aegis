@@ -1,6 +1,7 @@
 # @xshieldai/aegis-guard
 
-> **🔍 Verification status (2026-10-11 IST — v0.6.1)**
+> **🔍 Verification status (2026-10-14 IST — v0.6.2)**
+> - **New in 0.6.2:** **plain Node can import it.** Until 0.6.1 the entry was the TypeScript source, so it loaded under Bun only. It now ships compiled JavaScript with type declarations in `dist/`. Nothing else changed.
 > - **Tests:** ✅ **184/184 passing** in the repository; the npm package ships `src/` only, so run them from a clone (`bun test`): 70 in [tests/aegis-guard.test.ts](https://github.com/rocketlang/aegis/blob/master/packages/aegis-guard/tests/aegis-guard.test.ts) and 114 in [tests/hardening.test.ts](https://github.com/rocketlang/aegis/blob/master/packages/aegis-guard/tests/hardening.test.ts) for key trust, malformed tokens, nonces, the duplicate check, the audit event, the quality bar, the envelope helpers, the stated limits and the action digest. No test contacts a network or touches `~/.aegis`.
 > - **Examples:** ✅ runnable quickstart, in the repository (not in the npm package): [examples/quickstart.ts](https://github.com/rocketlang/aegis/blob/master/packages/aegis-guard/examples/quickstart.ts) — `bun run examples/quickstart.ts` shows all 5 Locks in action with receipts
 > - **Live demo:** ⚠️ planned (Tier 3, see [PROOF-STACK.md](https://github.com/rocketlang/aegis/blob/master/PROOF-STACK.md))

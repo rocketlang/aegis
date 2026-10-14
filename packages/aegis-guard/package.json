@@ -1,7 +1,7 @@
 {
   "name": "@xshieldai/aegis-guard",
-  "version": "0.6.1",
-  "description": "AEGIS Guard SDK \u2014 Five Locks primitives (approval-token, nonce, idempotency, SENSE, quality-evidence) + opt-in Agentic Control Center event bus for AEGIS-governed services",
+  "version": "0.6.2",
+  "description": "AEGIS Guard SDK — Five Locks primitives (approval-token, nonce, idempotency, SENSE, quality-evidence) + opt-in Agentic Control Center event bus for AEGIS-governed services",
   "license": "AGPL-3.0-only",
   "type": "module",
   "author": "Capt. Anil Sharma <capt.anil.sharma@powerpbox.org>",
@@ -30,17 +30,19 @@
   ],
   "exports": {
     ".": {
-      "import": "./src/index.ts",
-      "types": "./src/index.ts"
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
     }
   },
-  "main": "./src/index.ts",
+  "main": "./dist/index.js",
   "files": [
+    "dist/",
     "src/",
     "README.md",
     "LICENSE"
   ],
   "scripts": {
+    "build": "tsc -p tsconfig.build.json",
     "test": "bun test",
     "typecheck": "tsc --noEmit",
     "prepublishOnly": "node ../../scripts/publish-guard.mjs"
@@ -59,5 +61,6 @@
     "batch": 93,
     "five_locks_proof": "carbonx-backend batches 62-74",
     "doctrine": "Carbonx proved the locks. Batch 93 makes the locks reusable."
-  }
+  },
+  "types": "./dist/index.d.ts"
 }

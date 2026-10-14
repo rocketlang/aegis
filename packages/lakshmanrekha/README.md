@@ -1,6 +1,7 @@
 # @xshieldai/lakshmanrekha
 
-> **🔍 Verification status (2026-10-11 IST — v0.4.1)**
+> **🔍 Verification status (2026-10-14 IST — v0.4.2)**
+> - **New in 0.4.2:** **plain Node can import it.** Until 0.4.1 the entry was the TypeScript source, so it loaded under Bun only. It now ships compiled JavaScript with type declarations in `dist/`. Nothing else changed.
 > - **Tests:** ✅ **125/125 passing** — 36 in [tests/lakshmanrekha.test.ts](tests/lakshmanrekha.test.ts), 24 in [tests/surface.test.ts](tests/surface.test.ts) for the HTTP-surface probes, and 65 in [tests/hardening.test.ts](tests/hardening.test.ts) for the classifier, the refusal rate, API-key scrubbing and the stated limits (`bun test`). No test contacts a network; `fetch` is stubbed.
 > - **Examples:** ✅ runnable quickstart, in the repository (not in the npm package): [examples/quickstart.ts](https://github.com/rocketlang/aegis/blob/master/packages/lakshmanrekha/examples/quickstart.ts) — `bun run examples/quickstart.ts` lists all 8 probes + classifies 6 sample responses (no live LLM endpoint needed). For a real probe against your own endpoint, see "Run a single probe" below.
 > - **Live demo:** ⚠️ planned (Tier 3)

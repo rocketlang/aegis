@@ -1,6 +1,7 @@
 # @xshieldai/chitta-detect
 
-> **🔍 Verification status (2026-10-12 IST — v0.3.1)**
+> **🔍 Verification status (2026-10-14 IST — v0.3.2)**
+> - **New in 0.3.2:** **plain Node can import it.** Until 0.3.1 the entry was the TypeScript source, so it loaded under Bun only. It now ships compiled JavaScript with type declarations in `dist/`. Nothing else changed.
 > - **Tests:** ✅ **134/134 passing** — 61 in [tests/chitta-detect.test.ts](tests/chitta-detect.test.ts) and 73 in [tests/evasion.test.ts](tests/evasion.test.ts), which covers disguised attacks, ordinary text that must be kept, and the stated limits (`bun test`). Covers §1 trust, §2 imperative, §3 toolOutput, §4 capabilityExpansion, §5 fingerprint, §6 rateLimit, §7 retrospective, §8 scan.evaluate orchestrator, §9 ACC bus.
 > - **Examples:** ✅ runnable quickstart, in the repository (not in the npm package): [examples/quickstart.ts](https://github.com/rocketlang/aegis/blob/master/packages/chitta-detect/examples/quickstart.ts) — `bun run examples/quickstart.ts` scans 4 attacks + ELEVATED_SCRUTINY threshold demo with live receipts
 > - **Live demo:** ⚠️ planned (Tier 3)

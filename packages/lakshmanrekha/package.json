@@ -1,6 +1,6 @@
 {
   "name": "@xshieldai/lakshmanrekha",
-  "version": "0.4.1",
+  "version": "0.4.2",
   "description": "LLM endpoint probe suite — 8 deterministic attack probes + replayable refusal classifier + multi-provider runner (OpenAI / Anthropic / Azure / ankr-proxy) + opt-in Agentic Control Center event bus. Extracted from xshieldai-asm-ai-module.",
   "license": "AGPL-3.0-only",
   "type": "module",
@@ -31,18 +31,20 @@
   ],
   "exports": {
     ".": {
-      "import": "./src/index.ts",
-      "types": "./src/index.ts"
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
     }
   },
-  "main": "./src/index.ts",
+  "main": "./dist/index.js",
   "files": [
+    "dist/",
     "src/",
     "tests/",
     "README.md",
     "LICENSE"
   ],
   "scripts": {
+    "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc --noEmit",
     "test": "bun test",
     "prepublishOnly": "node ../../scripts/publish-guard.mjs"
@@ -62,13 +64,23 @@
     "extracted_from": "xshieldai-asm-ai-module (internal Fastify service, port 4256)",
     "phase": "phase-1-complete (deterministic regex classifier; sequential runner)",
     "probes_included": 8,
-    "framework_mappings": ["NIST AI RMF", "EU AI Act", "ISO 42001"],
-    "rules_implemented": ["ASMAI-S-001", "ASMAI-S-002", "ASMAI-S-003", "ASMAI-S-005"],
+    "framework_mappings": [
+      "NIST AI RMF",
+      "EU AI Act",
+      "ISO 42001"
+    ],
+    "rules_implemented": [
+      "ASMAI-S-001",
+      "ASMAI-S-002",
+      "ASMAI-S-003",
+      "ASMAI-S-005"
+    ],
     "rules_left_in_ee": [
       "ASMAI-S-006 (ownership verification — honor-system only in OSS)",
       "ASMAI-S-007 (rules-of-engagement gate)",
       "Attestation persistence (SQLite-backed)",
       "Forja STATE/TRUST/SENSE/PROOF endpoints"
     ]
-  }
+  },
+  "types": "./dist/index.d.ts"
 }
