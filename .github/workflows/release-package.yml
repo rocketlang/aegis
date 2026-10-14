@@ -141,6 +141,14 @@ jobs:
           npm init -y > /dev/null
           npm install --ignore-scripts "$TGZ"
           bun -e "const m = await import('$NAME'); console.log('$NAME imports under its own name;', Object.keys(m).length, 'exports')"
+          # Bun loads TypeScript; plain Node does not. hanumang-mandate 0.3.1 shipped src/index.ts as its
+          # entry and passed the Bun check above while no Node user could import it. A package whose
+          # entry is JavaScript must also import under plain Node; one whose entry is TypeScript says so.
+          MAIN=$(node -p "require('./node_modules/$NAME/package.json').main || ''")
+          case "$MAIN" in
+            *.js) node --input-type=module -e "const m = await import('$NAME'); console.log('$NAME imports under plain Node;', Object.keys(m).length, 'exports')" ;;
+            *) echo "note: the entry of $NAME is $MAIN, which plain Node cannot load: it is importable under Bun only" ;;
+          esac
 
       - name: Refuse if a tracked file changed
         run: |
