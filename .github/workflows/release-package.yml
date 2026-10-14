@@ -202,6 +202,11 @@ jobs:
         run: |
           [ -n "$NPM_TOKEN" ] || { echo "a first publish needs the NPM_TOKEN secret (a stage-capable npm token) — refusing"; exit 1; }
           echo "//registry.npmjs.org/:_authToken=${NPM_TOKEN}" > "$HOME/.npmrc"
+          # Ask npm who the token is BEFORE staging. Staging signs a provenance statement into the public
+          # transparency log first and authenticates second, so a dead token used to spend the version
+          # number (flow 0.1.0 and 0.1.1, 2026-10-15, both E401). Now a dead token stops here, nothing signed.
+          WHO=$(npm whoami 2>&1) || { rm -f "$HOME/.npmrc"; echo "NPM_TOKEN does not authenticate ($WHO) — refusing before anything is signed; replace the secret and re-tag the SAME version"; exit 1; }
+          echo "token authenticates as $WHO"
           npm stage publish --provenance --access public
           rm -f "$HOME/.npmrc"
           echo "$NAME@$PKG is STAGED, not published. Approve it with 2FA at npmjs.com → Staged Packages (or 'npm stage approve'). Then add a Trusted Publisher on the package's page: GitHub Actions · rocketlang/aegis · release-package.yml."
