@@ -4,6 +4,13 @@ All notable changes to AEGIS will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [2.20.1] — 2026-10-14
+
+The README, which is the npm page. No code changes.
+
+- **The README now describes this package.** Its first heading names `@xshieldai/aegis`; the 2026-05-17 rename table lists the old names under the retired `@rocketlang/` scope without writing them as installable names; and five links to files the package does not ship (`MIGRATION.md`, `PROOF-STACK.md`, `DAILY-LOG.md` and two test files) now point at the repository on GitHub, so they no longer break on npm.
+- **The release checks it.** `release.yml` now runs `scripts/check-readme.mjs`, the check the primitives' releases already ran, and refuses a README that does not match the package it ships in. The main package's release had never run it, which is how this README drifted.
+
 ## [2.20.0] — 2026-10-14
 
 Plain Node can use the library. Nothing changes under Bun.
