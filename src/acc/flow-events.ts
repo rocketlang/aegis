@@ -45,6 +45,9 @@ export interface ToolDecision {
   ruleId?: string;
   verdict?: string;
   category?: string;
+  /** P3: the session's mandate and its status (GTP-017/022). */
+  mandateId?: string;
+  mandateStatus?: string;
 }
 
 // ── P2: which tool call spawned a subagent (GTP-018) ────────────────────────────────────────────────
@@ -109,7 +112,9 @@ export function toolDecisionEvent(input: Record<string, unknown>, d: ToolDecisio
       ...(d.category ? { category: d.category } : {}),
       ...(str(input.agent_type) ? { agent_type: str(input.agent_type) } : {}),
       ...(link ? link : {}),
+      ...(d.mandateStatus ? { mandate: d.mandateStatus } : {}),
     },
+    ...(d.mandateId ? { mandate_id: d.mandateId } : {}),
     ...flow,
   };
 }

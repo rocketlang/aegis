@@ -38,6 +38,9 @@ import { emitReceipt } from "../../kavach/pramana-emit";
 import type { ReceiptVerdict } from "../../../ee/kavach/pramana-receipts";
 import { precededByForSession } from "../../shield/provenance";
 import { recordToolDecision } from "../../acc/flow-events";
+import { mandateForCall, principalFromApprovers, issueMandate } from "../../kavach/mandate";
+import { deriveTrustFromGitRemote } from "../../core/ase";
+import { execFileSync } from "child_process";
 
 // Session id for the current hook invocation — captured once, read by emitBlock
 // when it records the PRAMANA receipt. Each hook run is its own process.
@@ -83,9 +86,37 @@ export default async function checkShield(_args: string[]): Promise<void> {
     // GTP-018/024 (P1): every exit below is this call's decision (0 allow, 2 block). Record it once,
     // privately, as a flow event. Synchronous, never throws, never changes the exit code.
     const decided = toolInput;
+    let mandate: ReturnType<typeof mandateForCall> = { status: "missing" };
     process.once("exit", (code) => {
-      recordToolDecision(decided, { exitCode: code, ruleId: _lastBlock?.ruleId, verdict: _lastBlock?.verdict, category: _lastBlock?.category });
+      recordToolDecision(decided, { exitCode: code, ruleId: _lastBlock?.ruleId, verdict: _lastBlock?.verdict, category: _lastBlock?.category, mandateId: mandate.mandate_id, mandateStatus: mandate.status });
     });
+
+    // @rule:GTP-017 a flow's root is its mandate: issued at the session's first tool call when it has
+    // none (the principal is the first owner in the approvers file). A revoked or expired mandate is
+    // never replaced inside the same session: only a new session gets a new one.
+    // @rule:GTP-022 a call whose mandate is not valid is refused in enforce mode; in monitor mode it is
+    // recorded (founder ruling 2026-10-15, 2a).
+    const callSession = typeof toolInput.session_id === "string" ? toolInput.session_id : "";
+    try {
+      mandate = mandateForCall(callSession);
+      if (mandate.status === "missing" && callSession) {
+        const principal = principalFromApprovers();
+        if (principal) {
+          let remote: string | null = null;
+          try {
+            remote = execFileSync("git", ["-C", typeof toolInput.cwd === "string" && toolInput.cwd ? toolInput.cwd : process.cwd(), "remote", "get-url", "origin"], { encoding: "utf8", timeout: 1500, stdio: ["ignore", "pipe", "ignore"] }).trim() || null;
+          } catch { /* not a repo: the fallback trust */ }
+          const { service_key, trust_mask } = deriveTrustFromGitRemote(remote);
+          issueMandate(callSession, { trustMask: trust_mask, scopeKey: service_key, principal });
+          mandate = mandateForCall(callSession);
+        }
+      }
+    } catch { /* a mandate fault never blocks in monitor mode; enforce below sees status as it is */ }
+    if (enforce && toolInput.hook_event_name !== "PostToolUse" && mandate.status !== "valid") {
+      const rule = mandate.status === "missing" ? "GTP-017" : "GTP-022";
+      emitBlock("MANDATE", rule, `this flow's mandate is ${mandate.status}${mandate.mandate_id ? ` (${mandate.mandate_id})` : ""}`, "mandate");
+      process.exit(2);
+    }
 
     const toolName = (toolInput.tool_name as string) || "";
     const sessionId = (toolInput.session_id as string) || process.env.CLAUDE_SESSION_ID || "unknown";
