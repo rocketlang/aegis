@@ -3,7 +3,7 @@
 // @rule:NLS-011 immutable receipt storage — append-only sessions table
 // @rule:NLS-013 registry-mediated key lookup
 
-import { Database } from "bun:sqlite";
+import { openSqlite, type SqlDb } from "./sqlite"; // bun:sqlite under Bun, node:sqlite under Node 22.5+
 import { join } from "path";
 import { mkdirSync, existsSync } from "fs";
 import type { SessionRow, KeyRegistryRow } from "./types";
@@ -11,12 +11,12 @@ import type { SessionRow, KeyRegistryRow } from "./types";
 const DB_DIR = join(process.env.HOME ?? "/root", ".ankr", "nallasetu");
 const DB_PATH = join(DB_DIR, "nallasetu.db");
 
-let _db: Database | null = null;
+let _db: SqlDb | null = null;
 
-export function getDb(): Database {
+export function getDb(): SqlDb {
   if (_db) return _db;
   if (!existsSync(DB_DIR)) mkdirSync(DB_DIR, { recursive: true });
-  _db = new Database(DB_PATH);
+  _db = openSqlite(DB_PATH);
   _db.run("PRAGMA journal_mode=WAL");
   _db.run(`CREATE TABLE IF NOT EXISTS sessions (
     session_id    TEXT PRIMARY KEY,

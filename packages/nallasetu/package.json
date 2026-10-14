@@ -1,12 +1,13 @@
 {
   "name": "@xshieldai/nallasetu",
-  "version": "0.4.0",
-  "description": "Nallasetu \u2014 Cross-org agent handshake protocol. TLS equivalent for agent authority negotiation.",
+  "version": "0.5.0",
+  "description": "Nallasetu — Cross-org agent handshake protocol. TLS equivalent for agent authority negotiation.",
   "type": "module",
   "license": "AGPL-3.0-only",
   "author": "Capt. Anil Sharma",
-  "main": "src/server.ts",
+  "main": "dist/server.js",
   "files": [
+    "dist",
     "src",
     "README.md",
     "LICENSE"
@@ -30,6 +31,8 @@
     "provenance": true
   },
   "scripts": {
+    "build": "bun build src/server.ts --target=node --format=esm --packages=external --outfile=dist/server.js --banner=\"#!/usr/bin/env node\"",
+    "start:node": "node dist/server.js",
     "start": "bun src/server.ts",
     "dev": "bun --watch src/server.ts",
     "prepublishOnly": "node ../../scripts/publish-guard.mjs"
@@ -43,5 +46,8 @@
     "@types/bun": "latest",
     "@types/node": "^20.0.0",
     "typescript": "^5.0.0"
+  },
+  "bin": {
+    "nallasetu": "dist/server.js"
   }
 }

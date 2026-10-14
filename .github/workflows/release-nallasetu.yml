@@ -42,6 +42,22 @@ jobs:
       - name: Install deps (frozen) where a lockfile exists
         run: |
           if [ -f bun.lock ] || [ -f bun.lockb ]; then bun install --frozen-lockfile; else echo "no lockfile"; fi
+      # Since 0.5.0 the server ships a Node build (dist/server.js, gitignored, built here).
+      - name: Build the server for Node
+        run: bun run build
+      # Start the packed server under plain Node, in a throwaway HOME (its database lives under $HOME),
+      # and refuse unless /health answers with this version.
+      - name: Refuse if the packed server does not start under plain Node
+        run: |
+          mkdir "$RUNNER_TEMP/packed" "$RUNNER_TEMP/consumer" "$RUNNER_TEMP/home"
+          npm pack --ignore-scripts --pack-destination "$RUNNER_TEMP/packed" > /dev/null
+          cd "$RUNNER_TEMP/consumer" && npm init -y > /dev/null
+          npm install --ignore-scripts "$(ls "$RUNNER_TEMP"/packed/*.tgz)"
+          HOME="$RUNNER_TEMP/home" PORT=4997 node node_modules/@xshieldai/nallasetu/dist/server.js > server.log 2>&1 &
+          for i in $(seq 1 30); do curl -sf http://127.0.0.1:4997/health > health.json && break; sleep 1; done
+          kill %1 || true
+          VER=$(node -p "require('./node_modules/@xshieldai/nallasetu/package.json').version")
+          node -e "const h=require('./health.json'); if (h.status!=='ok'||h.version!=='$VER') { console.error('health:', JSON.stringify(h)); process.exit(1) } console.log('nallasetu', h.version, 'starts under plain Node', process.version)" || { cat server.log; exit 1; }
       - name: Show what would ship
         run: npm pack --dry-run
       # Tokenless OIDC trusted publishing — requires a Trusted Publisher on npmjs.com for @xshieldai/nallasetu

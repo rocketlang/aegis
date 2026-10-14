@@ -6,20 +6,22 @@ session may do, and the session's capability is the **intersection** of what bot
 the scope requested — never the union, never an escalation. An agent that claims every permission
 still gets only what the other side already had.
 
-> Status: **0.4.0**, early. This is a running service, not a drop-in library. It is published so the
+> Status: **0.5.0**, early. This is a running service, not a drop-in library. It is published so the
 > protocol can be read, run and checked in the open.
 
 ## Requires
 
-**[Bun](https://bun.sh) ≥ 1.3** — the service uses `bun:sqlite` and is started with `bun`. It is not
-a Node package.
+**Node 22.5 or later, or [Bun](https://bun.sh) 1.3 or later.** Through 0.4.0 it ran under Bun only (`bun:sqlite`,
+source started with `bun`). Since 0.5.0 the package ships a Node build, `dist/server.js`; the store opens
+`node:sqlite` under Node and `bun:sqlite` under Bun. Node older than 22.5 has no `node:sqlite`, and the
+server says so when it opens the store.
 
 ## Run
 
 ```sh
 npm install @xshieldai/nallasetu   # or: bun add @xshieldai/nallasetu
-cd node_modules/@xshieldai/nallasetu
-bun run start                 # serves POST /api/v2/nallasetu/handshake
+npx nallasetu                      # Node: serves POST /api/v2/nallasetu/handshake
+# or, from the package folder under Bun: bun run start
 ```
 
 The store is a local SQLite file at `$HOME/.ankr/nallasetu/nallasetu.db`.

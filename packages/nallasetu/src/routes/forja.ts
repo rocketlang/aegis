@@ -19,7 +19,9 @@
 // @rule:INF-NLS-006 archival receipt immutability after 90 days
 
 import { readdir, readFile } from "fs/promises";
-import { join } from "path";
+import { existsSync } from "fs";
+import { dirname, join } from "path";
+import { fileURLToPath } from "url";
 import type { FastifyInstance } from "fastify";
 import { getSession, expireStale } from "../db";
 import { policyHash } from "../crypto";
@@ -123,7 +125,10 @@ export function registerForjaRoutes(app: FastifyInstance): void {
     // Walk src/ and collect all @rule:NLS-* annotations
     const covered = new Set<string>();
     const ruleRe = /@rule:(NLS-(?:YK-|FRJ-)?\d+|INF-NLS-\d+)/;
-    const srcDir = join(import.meta.dir, "..");
+    // The source this server scans for @rule tags: src/ beside this file when run from source,
+    // or the shipped src/ when run from the Node build in dist/. (import.meta.dir is Bun-only.)
+    const here = dirname(fileURLToPath(import.meta.url));
+    const srcDir = existsSync(join(here, "..", "routes")) ? join(here, "..") : join(here, "..", "src");
 
     async function walk(dir: string) {
       try {
