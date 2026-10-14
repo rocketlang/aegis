@@ -111,3 +111,54 @@ export function fromClaudeHook(input: ClaudeHookInput | null | undefined): FlowF
   }
   return flow;
 }
+
+// ── P3: the mandate as the root of a flow (GTP-017, GTP-019, GTP-022) ──────────────────────────────
+
+/** The fields of a mandate this package reads. Same names as a hanumang Mudrika (@xshieldai/hanumang-mandate). */
+export interface MandateLike {
+  mudrika_id: string;
+  trust_mask: number;
+  issued_at: string;
+  ttl_seconds: number;
+}
+
+export type MandateStatus = "valid" | "expired" | "revoked" | "missing" | "malformed";
+
+/**
+ * GTP-017 / GTP-022. A flow's root is valid only while its mandate exists, is well formed, has not
+ * expired and has not been revoked. `revoked` is the set of revoked mandate ids the caller keeps.
+ */
+export function mandateStatus(
+  mandate: MandateLike | null | undefined,
+  opts: { now?: Date; revoked?: ReadonlySet<string> } = {},
+): MandateStatus {
+  if (!mandate) return "missing";
+  const issued = Date.parse(mandate.issued_at);
+  if (typeof mandate.mudrika_id !== "string" || mandate.mudrika_id === "" || !isMask(mandate.trust_mask) ||
+      !Number.isFinite(issued) || !Number.isInteger(mandate.ttl_seconds) || mandate.ttl_seconds <= 0) return "malformed";
+  if (opts.revoked?.has(mandate.mudrika_id)) return "revoked";
+  const now = (opts.now ?? new Date()).getTime();
+  return now >= issued + mandate.ttl_seconds * 1000 ? "expired" : "valid";
+}
+
+/**
+ * GTP-019: the ceiling of a turn is computed, never declared: the mandate's mask AND every narrower
+ * layer that is present (the session envelope, a cross-org session, the parent turn). No mandate, no
+ * ceiling: refused (GTP-017).
+ */
+export function effectiveCeiling(layers: {
+  mandate?: number | null;
+  envelope?: number | null;
+  session?: number | null;
+  parent?: number | null;
+}): number {
+  if (layers.mandate === undefined || layers.mandate === null) {
+    throw new FlowRefusal("GTP-017", "no mandate: a flow has no root of authority, so it has no ceiling");
+  }
+  let m = narrow(0xffffffff, layers.mandate);
+  for (const k of ["envelope", "session", "parent"] as const) {
+    const v = layers[k];
+    if (v !== undefined && v !== null) m = narrow(m, v);
+  }
+  return m;
+}

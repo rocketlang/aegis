@@ -76,3 +76,38 @@ describe("fromClaudeHook (GTP-018)", () => {
     expect(fromClaudeHook({ session_id: 42 as unknown as string })).toEqual({});
   });
 });
+
+describe("mandateStatus (GTP-017, GTP-022)", () => {
+  const { mandateStatus } = require("../src/index.js") as typeof import("../src/index.js");
+  const m = { mudrika_id: "mdr_1", trust_mask: 0b0111, issued_at: "2026-10-15T00:00:00.000Z", ttl_seconds: 86400 };
+  const at = (iso: string) => ({ now: new Date(iso) });
+  test("valid inside its lifetime, expired at its end", () => {
+    expect(mandateStatus(m, at("2026-10-15T23:59:59.000Z"))).toBe("valid");
+    expect(mandateStatus(m, at("2026-10-16T00:00:00.000Z"))).toBe("expired");
+  });
+  test("revoked wins over valid", () => {
+    expect(mandateStatus(m, { ...at("2026-10-15T01:00:00.000Z"), revoked: new Set(["mdr_1"]) })).toBe("revoked");
+  });
+  test("missing and malformed are never valid", () => {
+    expect(mandateStatus(null)).toBe("missing");
+    expect(mandateStatus({ ...m, trust_mask: -1 })).toBe("malformed");
+    expect(mandateStatus({ ...m, issued_at: "yesterday" })).toBe("malformed");
+    expect(mandateStatus({ ...m, ttl_seconds: 0 })).toBe("malformed");
+    expect(mandateStatus({ ...m, mudrika_id: "" })).toBe("malformed");
+  });
+});
+
+describe("effectiveCeiling (GTP-019)", () => {
+  const { effectiveCeiling, FlowRefusal } = require("../src/index.js") as typeof import("../src/index.js");
+  test("the AND of every layer present", () => {
+    expect(effectiveCeiling({ mandate: 0b1111 })).toBe(0b1111);
+    expect(effectiveCeiling({ mandate: 0b1111, envelope: 0b0111, parent: 0b0011 })).toBe(0b0011);
+    expect(effectiveCeiling({ mandate: 0b0101, envelope: 0b1111, session: 0b0110 })).toBe(0b0100);
+  });
+  test("no mandate is refused, never treated as everything", () => {
+    for (const mandate of [undefined, null]) {
+      try { effectiveCeiling({ mandate, envelope: 0xff }); throw new Error("did not refuse"); }
+      catch (e) { expect(e).toBeInstanceOf(FlowRefusal); expect((e as InstanceType<typeof FlowRefusal>).rule).toBe("GTP-017"); }
+    }
+  });
+});

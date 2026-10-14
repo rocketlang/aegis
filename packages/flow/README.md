@@ -10,7 +10,7 @@ It follows section 19 of the Governed Turn Protocol (rules GTP-017 to GTP-026).
 npm install @xshieldai/flow
 ```
 
-## What it does (0.1.2)
+## What it does (0.1.3)
 
 | Function | Rule | What it does |
 |---|---|---|
@@ -19,6 +19,8 @@ npm install @xshieldai/flow
 | `narrow(parent, requested)` | GTP-020 | `parent & requested`. Every hop narrows; masks must be 32-bit unsigned integers or it refuses. |
 | `narrowFromParent(id, parent, requested)` | GTP-021 | Refuses when the named parent cannot be found. Missing lineage is never treated as a root. |
 | `isWithin(child, parent)` | KAV-065 | True when the child holds no bit the parent lacks. |
+| `mandateStatus(mandate, { revoked })` | GTP-017, GTP-022 | `valid`, `expired`, `revoked`, `missing` or `malformed`. A flow's root holds only while its mandate is valid. |
+| `effectiveCeiling({ mandate, envelope, session, parent })` | GTP-019 | The ceiling of a turn, computed: the mandate's mask AND every narrower layer present. No mandate is refused, never read as "everything". |
 
 A refusal is a `FlowRefusal` carrying the rule it enforces (`.rule`).
 
@@ -33,7 +35,7 @@ const mask = narrowFromParent(parentId, store.get(parentId), requested);   // th
 ## What it does not do
 
 - It enforces nothing on its own. It is pure functions with no I/O; the packages that hold the gates call it.
-- It does not yet issue or verify a mandate as the root of a flow, carry an envelope across a subprocess or MCP call, or check a flow's required proof at the end. Those are later phases of the same section.
+- It does not issue or sign a mandate (aegis does that at session start) or keep the revocation list; it judges the mandate it is given. It does not yet carry an envelope across a subprocess or MCP call, or check a flow's required proof at the end. Those are later phases of the same section.
 
 Runs under Bun and under plain Node 18+.
 

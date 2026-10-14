@@ -1,6 +1,6 @@
 {
   "name": "@xshieldai/flow",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "One agentic flow, end to end: GTP flow identity for tool calls, subagents and events (flow, turn, parent, mandate, session), narrowing that only shrinks (child = parent & requested), refusal of a missing parent, and a mapper from Claude Code hook input. Pure functions, no I/O. Part of the xShieldAI Posture Suite.",
   "license": "AGPL-3.0-only",
   "type": "module",
