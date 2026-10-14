@@ -24,6 +24,7 @@ import { registerAuthRoutes } from "../auth/routes";
 import { isPublicRoute } from "./public-routes";
 import { registerEnforcementRoutes } from "./routes/enforcement";
 import { registerAseRoutes } from "./routes/ase";
+import { registerFlowRoutes } from "./routes/flows";
 import { registerMachineLawRoutes } from "./routes/machine-law";
 import { registerAccRoutes } from "./routes/acc";  // @rule:ACC-001
 import { registerDemoRoutes } from "./routes/demo";  // Tier 3 playground
@@ -413,6 +414,7 @@ registerAseRoutes(app);
 // @rule:KAV-SHT-001 machine law — lawful action map before agent planning
 registerMachineLawRoutes(app);
 registerAccRoutes(app);  // @rule:ACC-001 — ACC Day 1: /suite + /api/suite/inventory
+registerFlowRoutes(app);  // GTP-018/024 P1c — /flows: real flows, LOGIN ONLY (not in public-routes.ts)
 registerDemoRoutes(app);  // Tier 3 — /demo playground
 registerTripwireMcpRoutes(app);  // AF-T-703 — /mcp external honeypot manifest (bait only, unauthenticated by design)
 registerFirewallRoutes(app);  // AF-T-802 — /firewall cockpit + /api/firewall/* (founder-only: stays BEHIND the session guard)

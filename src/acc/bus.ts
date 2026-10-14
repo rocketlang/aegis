@@ -183,6 +183,17 @@ export class SqliteEventWriter {
     return rows.map(rowToReceipt);
   }
 
+  /** Returns the newest `limit` events, newest first. Used by the flow list. */
+  queryLatest(limit = 100): AccReceipt[] {
+    const rows = this.db.query(`
+      SELECT ${COLUMNS}
+      FROM acc_events
+      ORDER BY id DESC
+      LIMIT ?
+    `).all(limit) as Array<Record<string, unknown>>;
+    return rows.map(rowToReceipt);
+  }
+
   /** Returns one flow's events, ordered by emitted_at (GTP-018). Used by the flow tree. */
   queryByFlow(flowId: string, limit = 500): AccReceipt[] {
     const rows = this.db.query(`

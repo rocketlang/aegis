@@ -84,3 +84,79 @@ export function recordToolDecision(input: Record<string, unknown>, d: ToolDecisi
     // a record we could not write must never change the decision
   }
 }
+
+// ── Reading flows back (P1c: the login-only flow page) ─────────────────────────────────────────────
+
+export interface FlowSummary {
+  flow_id: string;
+  first_at: string;
+  last_at: string;
+  turns: number;
+  blocked: number;
+  subagents: number;
+}
+
+const isBlock = (v?: string): boolean => !!v && v !== "ALLOWED";
+
+/** One line per flow, most recent first. Pure: give it the events. */
+export function summariseFlows(events: AccReceipt[], limit = 50): FlowSummary[] {
+  const by = new Map<string, FlowSummary & { _agents: Set<string> }>();
+  for (const e of events) {
+    if (!e.flow_id) continue;
+    let s = by.get(e.flow_id);
+    if (!s) { s = { flow_id: e.flow_id, first_at: e.emitted_at, last_at: e.emitted_at, turns: 0, blocked: 0, subagents: 0, _agents: new Set() }; by.set(e.flow_id, s); }
+    if (e.emitted_at < s.first_at) s.first_at = e.emitted_at;
+    if (e.emitted_at > s.last_at) s.last_at = e.emitted_at;
+    s.turns++;
+    if (isBlock(e.verdict)) s.blocked++;
+    if (e.parent_turn_id?.startsWith("agent:")) s._agents.add(e.parent_turn_id);
+  }
+  return [...by.values()]
+    .map(({ _agents, ...s }) => ({ ...s, subagents: _agents.size }))
+    .sort((a, b) => (a.last_at < b.last_at ? 1 : -1))
+    .slice(0, limit);
+}
+
+export interface FlowBranch {
+  /** `prompt:<id>`, `agent:<id>`, or `(no parent)` for a turn that named none. */
+  parent: string;
+  kind: "prompt" | "subagent" | "other";
+  agent_type?: string;
+  first_at: string;
+  turns: AccReceipt[];
+}
+
+/**
+ * The flow as a tree: the flow, then one branch per parent (each prompt of the main agent and each
+ * subagent) in the order it first acted, then that parent's turns in order. A subagent is not yet tied
+ * to the prompt that started it: the hook input carries no link (recorded as a P2 item).
+ */
+export function buildFlowTree(events: AccReceipt[]): FlowBranch[] {
+  const by = new Map<string, FlowBranch>();
+  const sorted = [...events].sort((a, b) => (a.emitted_at < b.emitted_at ? -1 : a.emitted_at > b.emitted_at ? 1 : 0));
+  for (const e of sorted) {
+    const parent = e.parent_turn_id ?? "(no parent)";
+    let b = by.get(parent);
+    if (!b) {
+      const kind = parent.startsWith("prompt:") ? "prompt" : parent.startsWith("agent:") ? "subagent" : "other";
+      b = { parent, kind, first_at: e.emitted_at, turns: [] };
+      by.set(parent, b);
+    }
+    const at = (e.payload as { agent_type?: unknown } | undefined)?.agent_type;
+    if (b.kind === "subagent" && !b.agent_type && typeof at === "string") b.agent_type = at;
+    b.turns.push(e);
+  }
+  return [...by.values()];
+}
+
+/** Reads the private store. Opens it only to read; returns [] if it does not exist yet. */
+export function readFlowEvents(opts: { flowId?: string; limit?: number; path?: string } = {}): AccReceipt[] {
+  const path = opts.path ?? defaultFlowEventsDbPath();
+  if (!existsSync(path)) return [];
+  const w = new SqliteEventWriter({ path });
+  try {
+    return opts.flowId ? w.queryByFlow(opts.flowId, opts.limit ?? 2000) : w.queryLatest(opts.limit ?? 5000);
+  } finally {
+    w.close();
+  }
+}
