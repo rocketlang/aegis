@@ -72,6 +72,11 @@ jobs:
             node --input-type=module -e "const m = await import('@xshieldai/aegis$e'); console.log('@xshieldai/aegis$e imports under plain Node;', Object.keys(m).length, 'exports')"
           done
 
+      # The README is the npm page. Same check the primitives' releases run (heading names the
+      # package, no retired-scope install names, every relative link is in the tarball).
+      - name: Refuse if the README does not describe this package
+        run: node scripts/check-readme.mjs .
+
       # The shasum printed here is what a stranger gets from `npm pack` on a clean checkout
       # of the same commit. It is the number to compare with the registry listing.
       - name: Show what would ship

@@ -1,4 +1,4 @@
-# AEGIS
+# AEGIS — @xshieldai/aegis
 
 > **Can you answer what your agents touched?** AEGIS makes that one command — and stops the answer from ever being "we don't know."
 
@@ -36,20 +36,20 @@ Three properties back it, each honest about its stage (shadow ≠ blocked, and t
 
 Same code, new home. As of v2.2.0 the AEGIS / Agent Kernel / primitive packages publish under the **xShieldAI Posture Suite** umbrella:
 
-| Old | New |
+| Old name, under the retired `@rocketlang/` scope | New |
 |---|---|
-| `@rocketlang/aegis` | `@xshieldai/aegis` |
-| `@rocketlang/kavachos` | `@xshieldai/agent-kernel` |
-| `@rocketlang/n8n-nodes-kavachos` | `@xshieldai/n8n-nodes-kavachos` (it was `@xshieldai/n8n-nodes` from 1.1.0 to 1.4.1) |
-| `@rocketlang/aegis-guard` | `@xshieldai/aegis-guard` |
-| `@rocketlang/chitta-detect` | `@xshieldai/chitta-detect` |
-| `@rocketlang/lakshmanrekha` | `@xshieldai/lakshmanrekha` |
-| `@rocketlang/hanumang-mandate` | `@xshieldai/hanumang-mandate` |
-| `@rocketlang/aegis-suite` | `@xshieldai/aegis-suite` |
+| `aegis` | `@xshieldai/aegis` |
+| `kavachos` | `@xshieldai/agent-kernel` |
+| `n8n-nodes-kavachos` | `@xshieldai/n8n-nodes-kavachos` (it was `@xshieldai/n8n-nodes` from 1.1.0 to 1.4.1) |
+| `aegis-guard` | `@xshieldai/aegis-guard` |
+| `chitta-detect` | `@xshieldai/chitta-detect` |
+| `lakshmanrekha` | `@xshieldai/lakshmanrekha` |
+| `hanumang-mandate` | `@xshieldai/hanumang-mandate` |
+| `aegis-suite` | `@xshieldai/aegis-suite` |
 | `langchain-kavachos` (PyPI) | `xshieldai-langchain` (PyPI) |
 | `crewai-kavachos` (PyPI) | `xshieldai-crewai` (PyPI) |
 
-Old packages are **deprecated on npm** with redirect messages. Existing installs keep working; please migrate on next `npm update` or `pip install`. See **[MIGRATION.md](MIGRATION.md)** for one-line migrations.
+Old packages are **deprecated on npm** with redirect messages. Existing installs keep working; please migrate on next `npm update` or `pip install`. See **[MIGRATION.md](https://github.com/rocketlang/aegis/blob/master/MIGRATION.md)** for one-line migrations.
 
 ---
 
@@ -57,12 +57,12 @@ Old packages are **deprecated on npm** with redirect messages. Existing installs
 
 Security tooling without proof is just marketing. The honest current state of `@xshieldai/aegis` v2.7.0:
 
-- **Tests:** 📄 1088 passing in the repository (`bun test src/ tests/`), and the dashboard + kill switch are exercised live on a socket in [`tests` + the atma-pariksha batteries]. For the budget and spawn hooks: 19 in [`tests/budget-spawn-hardening.test.ts`](tests/budget-spawn-hardening.test.ts), driven on a socket as a harness drives them. For the destructive-command gate: 104 in [`tests/destructive-hardening.test.ts`](tests/destructive-hardening.test.ts). For the shield hook: 23 in [`src/shield/shield.test.ts`](src/shield/shield.test.ts) and 165 in [`src/shield/hardening.test.ts`](src/shield/hardening.test.ts) — path rules, credential reads and persistence writes through a shell command, the shield's own files, network tools, phrase variants, answer time, and the stated limits. What the shield does not see is listed under "What the shield stops, and what it does not" below.
+- **Tests:** 📄 1088 passing in the repository (`bun test src/ tests/`), and the dashboard + kill switch are exercised live on a socket in [`tests` + the atma-pariksha batteries]. For the budget and spawn hooks: 19 in [`tests/budget-spawn-hardening.test.ts`](https://github.com/rocketlang/aegis/blob/master/tests/budget-spawn-hardening.test.ts), driven on a socket as a harness drives them. For the destructive-command gate: 104 in [`tests/destructive-hardening.test.ts`](https://github.com/rocketlang/aegis/blob/master/tests/destructive-hardening.test.ts). For the shield hook: 23 in [`src/shield/shield.test.ts`](src/shield/shield.test.ts) and 165 in [`src/shield/hardening.test.ts`](src/shield/hardening.test.ts) — path rules, credential reads and persistence writes through a shell command, the shield's own files, network tools, phrase variants, answer time, and the stated limits. What the shield does not see is listed under "What the shield stops, and what it does not" below.
 - **Examples:** 📄 `examples/agents/` — Claude Code + OpenAI Codex hooks. Plus the README "Verify it yourself" `grep` commands in the **Trust** section below are runnable proof of zero phone-home.
 - **Live demo:** ✅ **PUBLIC at https://xshieldai.com/demo** — paste text → pick primitive → see verdict + live receipt in the stream below. 4 primitives invokable, SSE streaming through Cloudflare, per-visitor rate-limited (30 req/min). Also available locally at `http://localhost:4850/demo` when `ankr-aegis-dashboard` runs.
 - **Forja receipt stream:** ⚠️ planned (Tier 4 — "binary truth, not interpretation" answer).
 
-The **bundled primitives** (`@xshieldai/aegis-guard`, `chitta-detect`, `lakshmanrekha`, `hanumang-mandate`, `agent-kernel`) each have their own verification banner. Full per-package matrix: **[PROOF-STACK.md](PROOF-STACK.md)**.
+The **bundled primitives** (`@xshieldai/aegis-guard`, `chitta-detect`, `lakshmanrekha`, `hanumang-mandate`, `agent-kernel`) each have their own verification banner. Full per-package matrix: **[PROOF-STACK.md](https://github.com/rocketlang/aegis/blob/master/PROOF-STACK.md)**.
 
 `aegis-guard` has 63 passing tests today (the Five Locks SDK extracted from carbonx-backend). The other 3 primitives ship code-only this week; their v0.2.1 patches add ~30 tests each.
 
@@ -789,7 +789,7 @@ Same release wave shipped these v0.2.0 primitive packages with opt-in
 - Filter UI on `/agent/:id` deferred to v2.3 (timeline works without it)
 - Consumer needs `@xshieldai/aegis-suite` v0.2.0+ for `wireAllToBus()` — direct `setEventBus()` per-primitive also works
 
-See [DAILY-LOG.md](DAILY-LOG.md) for the 5-day build chronology.
+See [DAILY-LOG.md](https://github.com/rocketlang/aegis/blob/master/DAILY-LOG.md) for the 5-day build chronology.
 
 ---
 
