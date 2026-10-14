@@ -2,7 +2,7 @@
 // Copyright (c) 2026 Capt. Anil Sharma (rocketlang). All rights reserved.
 //
 // ASE parent lineage — does a child envelope stay inside its parent? (design doc
-// xshieldai-agentic-flow--logics--provisional--2026-10-14.md, gap G5, rule AFG-005)
+// xshieldai-agentic-flow--logics--provisional--2026-10-14.md, gap G5, rule GTP-021)
 //
 // POST /api/v1/aegis/session narrows a child to `parent.perm_mask & requested` (ASE-005 / KAV-065),
 // but only when the named parent is found. These tests pin both halves:
@@ -67,7 +67,7 @@ describe.skipIf(unsafe)("ASE parent lineage", () => {
     expect(child.json().perm_mask).toBe(0b0011);
   });
 
-  // AFG-005: missing lineage is never read as a root.
+  // GTP-021: missing lineage is never read as a root.
   // Was a hole until 2026-10-14: the route answered 200 with perm_mask 65535 (the whole request).
   test("a child naming a parent that does not exist is refused, not given its whole request", async () => {
     const child = await issue({ service_key: "lineage-test", parent_session_id: "ses_does_not_exist", perm_mask: 0xffff });

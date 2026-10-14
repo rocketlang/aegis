@@ -108,11 +108,11 @@ export function registerAseRoutes(app: FastifyInstance): void {
 
     if (parentSessionId) {
       const parent = loadEnvelopeBySessionId(parentSessionId);
-      // @rule:AFG-005 a named parent that is not found is refused, never read as a root
+      // @rule:GTP-021 a named parent that is not found is refused, never read as a root
       // (until 2026-10-14 such a child was issued its whole requested mask, unnarrowed)
       if (!parent) {
         reply.code(422);
-        return { ok: false, error: "AFG-005: parent_session_id names no known session — refusing to issue a child without its parent", _meta: meta(start) };
+        return { ok: false, error: "GTP-021: parent_session_id names no known session — refusing to issue a child without its parent", _meta: meta(start) };
       }
       // @rule:KAV-065 child perm_mask = parent.effective AND requested
       permMask = parent.perm_mask & permMask;
