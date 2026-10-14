@@ -10,7 +10,7 @@ It follows section 19 of the Governed Turn Protocol (rules GTP-017 to GTP-026).
 npm install @xshieldai/flow
 ```
 
-## What it does (0.1.0)
+## What it does (0.1.1)
 
 | Function | Rule | What it does |
 |---|---|---|
