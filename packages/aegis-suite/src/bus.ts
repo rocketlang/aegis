@@ -14,11 +14,34 @@
 //                  consumer choice.
 // @rule:ACC-YK-006 — Schema forward-compatible-additive only.
 
-import { Database } from 'bun:sqlite';
+import { createRequire } from 'module';
 import { mkdirSync, existsSync } from 'fs';
 import { dirname, join } from 'path';
 import { homedir } from 'os';
-import type { AccReceipt, EventBus } from './wire';
+import type { AccReceipt, EventBus } from './wire.js';
+
+// The few SQLite calls the writer makes, which bun:sqlite and node:sqlite both provide.
+interface SqlStatement { run(...params: unknown[]): unknown; get(...params: unknown[]): unknown }
+interface SqlDb { exec(sql: string): void; query(sql: string): SqlStatement; close(): void }
+
+// Bun has bun:sqlite; Node has node:sqlite from 22.5. Loaded when a writer is made, never at import,
+// so the package imports under any Node; only persistence needs Bun or Node 22.5+. Until 0.4.0 the
+// file imported bun:sqlite at the top, and plain Node could not import the package at all.
+export function openSqlite(path: string): SqlDb {
+  const req = createRequire(import.meta.url);
+  if ((process.versions as Record<string, string | undefined>).bun) {
+    const { Database } = req('bun:sqlite');
+    return new Database(path) as SqlDb;
+  }
+  let DatabaseSync: new (p: string) => { exec(s: string): void; prepare(s: string): SqlStatement; close(): void };
+  try {
+    ({ DatabaseSync } = req('node:sqlite'));
+  } catch {
+    throw new Error(`aegis-suite: saving events needs Bun or Node 22.5+ (node:sqlite); this is Node ${process.versions.node}. Pass { persist: false } to wire the bus without saving.`);
+  }
+  const db = new DatabaseSync(path);
+  return { exec: (s) => db.exec(s), query: (s) => db.prepare(s), close: () => db.close() };
+}
 
 export function defaultAccEventsDbPath(): string {
   const aegisDir = process.env.AEGIS_DIR ?? join(homedir(), '.aegis');
@@ -83,14 +106,14 @@ export interface SqliteEventWriterOpts {
 }
 
 export class SqliteEventWriter {
-  private db: Database;
-  private insertStmt: ReturnType<Database['query']>;
+  private db: SqlDb;
+  private insertStmt: SqlStatement;
   public readonly path: string;
 
   constructor(opts: SqliteEventWriterOpts = {}) {
     this.path = opts.path ?? defaultAccEventsDbPath();
     mkdirSync(dirname(this.path), { recursive: true });
-    this.db = new Database(this.path);
+    this.db = openSqlite(this.path);
     this.db.exec('PRAGMA journal_mode = WAL;');
     this.db.exec(SCHEMA);
     this.insertStmt = this.db.query(`

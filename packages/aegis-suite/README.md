@@ -1,7 +1,8 @@
 # @xshieldai/aegis-suite
 
-> **🔍 Verification status (2026-10-11 IST — v0.3.1)**
-> - **Tests:** ⚠️ `wireAllToBus()` helper has no standalone tests yet. Bundled primitives' test status: **4 of 6** bundled packages have automated tests today (aegis-guard: 184, chitta-detect: 134, lakshmanrekha: 125, hanumang-mandate: 98 — **541 tests total** across primitives at their current versions, all passing on `bun test`).
+> **🔍 Verification status (2026-10-14 IST — v0.4.0)**
+> - **New in 0.4.0:** **plain Node can import it**, and with Node 22.5+ it saves events too. Until 0.3.1 its event store imported `bun:sqlite` at load time and the bundled primitives shipped TypeScript, so only Bun could use it. It now ships compiled JavaScript; the store opens `bun:sqlite` under Bun and `node:sqlite` under Node 22.5+, only when a store is made. On older Node, wire with `{ persist: false }`: the bus works, nothing is saved. A store written under Node reads back under Bun (the dashboard's side). It asks for the primitives' Node-importable releases (table below).
+> - **Tests:** ✅ the event store has its own tests now ([tests/bus.test.ts](tests/bus.test.ts), 4, `bun test`); `wireAllToBus()` itself still has none. Bundled primitives: **4 of 6** have automated tests (aegis-guard: 184, chitta-detect: 134, lakshmanrekha: 125, hanumang-mandate: 106, **549 in all** at their current versions, passing on `bun test`).
 > - **Examples:** ✅ runnable quickstart, in the repository (not in the npm package): [examples/quickstart.ts](https://github.com/rocketlang/aegis/blob/master/packages/aegis-suite/examples/quickstart.ts) — `bun run examples/quickstart.ts` calls `wireAllToBus()` then exercises each primitive, showing receipts unified into one stream (primitive name in `[brackets]` per line). Run it from the repository root. It mints nothing: since aegis-guard 0.6.0 an ordinary process verifies and does not mint, so the example shows a refusal. Writes to `~/.aegis/acc-events.db` for later inspection.
 > - **Live demo:** ⚠️ planned (Tier 3)
 > - **Phase-1 limits:** documented in "Phase-1 limits (v0.2.0)" section below (SQLite WAL checkpointing, in-process vs cross-process visibility, etc.)
@@ -24,10 +25,10 @@ That's it. You now have all six primitives. Import from each sub-package by name
 |---|---|---|
 | [`@xshieldai/aegis`](https://www.npmjs.com/package/@xshieldai/aegis) | Agent **spend** governance: budget caps, kill-switch, DAN gate, HanumanG 7-axis spawn check | `^2.17.2` |
 | [`@xshieldai/agent-kernel`](https://www.npmjs.com/package/@xshieldai/agent-kernel) | Agent **behavior**: seccomp-bpf, Falco, syscall mediation, exec allowlist, egress firewall | `^2.0.2` |
-| [`@xshieldai/aegis-guard`](https://www.npmjs.com/package/@xshieldai/aegis-guard) | Five Locks SDK: approval-token, nonce, idempotency, SENSE, quality-evidence | `^0.6.1` |
-| [`@xshieldai/chitta-detect`](https://www.npmjs.com/package/@xshieldai/chitta-detect) | Memory poisoning detection: trust / imperative / tool-output / capability-expansion / fingerprint scanners | `^0.3.1` |
-| [`@xshieldai/lakshmanrekha`](https://www.npmjs.com/package/@xshieldai/lakshmanrekha) | LLM endpoint probe suite: 8 deterministic attack probes + replayable refusal classifier + multi-provider runner | `^0.4.1` |
-| [`@xshieldai/hanumang-mandate`](https://www.npmjs.com/package/@xshieldai/hanumang-mandate) | Mudrika delegation-credential verifier + 7-axis posture scorer | `^0.3.1` |
+| [`@xshieldai/aegis-guard`](https://www.npmjs.com/package/@xshieldai/aegis-guard) | Five Locks SDK: approval-token, nonce, idempotency, SENSE, quality-evidence | `^0.6.2` |
+| [`@xshieldai/chitta-detect`](https://www.npmjs.com/package/@xshieldai/chitta-detect) | Memory poisoning detection: trust / imperative / tool-output / capability-expansion / fingerprint scanners | `^0.3.2` |
+| [`@xshieldai/lakshmanrekha`](https://www.npmjs.com/package/@xshieldai/lakshmanrekha) | LLM endpoint probe suite: 8 deterministic attack probes + replayable refusal classifier + multi-provider runner | `^0.4.2` |
+| [`@xshieldai/hanumang-mandate`](https://www.npmjs.com/package/@xshieldai/hanumang-mandate) | Mudrika delegation-credential verifier + 7-axis posture scorer | `^0.4.0` |
 
 ### Changed in 0.3.1 (11 October 2026)
 
