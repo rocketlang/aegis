@@ -77,6 +77,8 @@ describe("the pages", () => {
     expect(html).toContain("Subagent");
     expect(html).not.toContain(HOSTILE);
     expect(html).toContain("&lt;img src=x onerror=alert(1)&gt;");
+    // P3: a flow with no mandate says so, never shows a made-up root
+    expect(html).toContain("no root of authority recorded for this flow");
   });
 
   test("JSON: the list and one flow", async () => {

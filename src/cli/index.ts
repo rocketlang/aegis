@@ -62,6 +62,8 @@ async function main() {
       return (await import("./commands/approver-daemon")).default(args);
     case "anumati":
       return (await import("./commands/anumati")).default(args);
+    case "mandate":
+      return (await import("./commands/mandate")).default(args);
     case "pramana":
       return (await import("./commands/pramana")).default(args);
     case "attest":

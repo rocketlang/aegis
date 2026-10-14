@@ -15,6 +15,7 @@
 import type { FastifyInstance } from "fastify";
 import { buildFlowTree, readFlowEvents, summariseFlows, type FlowBranch } from "../../acc/flow-events";
 import type { AccReceipt } from "../../acc/types";
+import { judgeMandate, loadMandateForSession } from "../../kavach/mandate";
 
 const esc = (s: unknown): string =>
   String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c] as string);
@@ -105,8 +106,16 @@ function renderFlow(flowId: string): string {
     return page("Flow", `<h1>Flow</h1><div class="empty">No events for <code>${esc(flowId)}</code>.</div>`);
   }
   const tree = buildFlowTree(events);
+  // P3: the flow's root of authority (GTP-017). A Claude Code flow is cc:<session>.
+  const session = flowId.startsWith("cc:") ? flowId.slice(3) : "";
+  const m = session ? loadMandateForSession(session) : null;
+  const status = judgeMandate(m);
+  const mandateLine = m
+    ? `<p class="sub">Mandate <code>${esc(m.mudrika_id)}</code> · ${verdictTag(status === "valid" ? "ALLOWED" : status.toUpperCase()).replace(">ALLOWED<", ">VALID<")} · principal <code>${esc(m.principal_id.replace(/\d(?=\d{4})/g, "•"))}</code> · mask ${m.trust_mask} · expires ${when(new Date(Date.parse(m.issued_at) + m.ttl_seconds * 1000).toISOString())}</p>`
+    : `<p class="sub">Mandate: <span class="v no">${esc(status)}</span> (no root of authority recorded for this flow)</p>`;
   return page(`Flow ${flowId}`, `<h1>Flow <code>${esc(flowId)}</code></h1>
 <p class="sub">${events.length} tool call${events.length === 1 ? "" : "s"} in ${tree.length} branch${tree.length === 1 ? "" : "es"}, ${when(events[0].emitted_at)} to ${when(events[events.length - 1].emitted_at)}.</p>
+${mandateLine}
 ${tree.map(renderBranch).join("\n")}
 <p class="note">A subagent sits under the branch whose tool call spawned it, as Claude Code recorded it in the subagent's own file; calls recorded before 2026-10-15 carry no link.</p>`);
 }
