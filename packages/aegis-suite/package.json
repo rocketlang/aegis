@@ -48,7 +48,7 @@
     "@xshieldai/aegis-guard": "^0.6.1",
     "@xshieldai/chitta-detect": "^0.3.1",
     "@xshieldai/lakshmanrekha": "^0.4.1",
-    "@xshieldai/hanumang-mandate": "^0.3.1"
+    "@xshieldai/hanumang-mandate": "^0.4.0"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",

@@ -74,7 +74,7 @@
     "@fastify/static": "^10.1.6",
     "@xshieldai/aegis-guard": "^0.6.0",
     "@xshieldai/chitta-detect": "^0.3.0",
-    "@xshieldai/hanumang-mandate": "^0.3.0",
+    "@xshieldai/hanumang-mandate": "^0.4.0",
     "@xshieldai/lakshmanrekha": "^0.4.0",
     "fastify": "^5.12.5"
   },

@@ -10,7 +10,7 @@
         "@fastify/static": "^10.1.6",
         "@xshieldai/aegis-guard": "^0.6.0",
         "@xshieldai/chitta-detect": "^0.3.0",
-        "@xshieldai/hanumang-mandate": "^0.3.0",
+        "@xshieldai/hanumang-mandate": "^0.4.0",
         "@xshieldai/lakshmanrekha": "^0.4.0",
         "fastify": "^5.12.5",
       },
@@ -59,7 +59,7 @@
 
     "@xshieldai/chitta-detect": ["@xshieldai/chitta-detect@0.3.1", "", {}, "sha512-c1fOdRlvOB+3hQwadKtTNn9HFWOoSze9Fw764A0IyyujUOL9FVY/ZzAku2/GiDwTT5kEm4LPej4fthOgjMldIg=="],
 
-    "@xshieldai/hanumang-mandate": ["@xshieldai/hanumang-mandate@0.3.1", "", {}, "sha512-nJnEI++1I2y8WabAdXVBhXJ0AFS3IL58vgueVcb+/fSWcRPtOs6uWBY8EuTzHnpNn20+uG7jRItd2HimIg6X3Q=="],
+    "@xshieldai/hanumang-mandate": ["@xshieldai/hanumang-mandate@0.4.0", "", {}, "sha512-Kt42gLoNWBZthJbWFfsDY4W+BxIM2LwVeCeCutyh+JlxlifO/4Az4SR6tyBO0b1QTOgv6Tq3tvq1FEk0jL8EHg=="],
 
     "@xshieldai/lakshmanrekha": ["@xshieldai/lakshmanrekha@0.4.1", "", {}, "sha512-iHVyzOxGtihRX0l6FRR+/xYfiSA5NhbgBso8pOoCoidRxhEjglNj0Jr+WpRR/EMAZh65QULD4vD1b1ekTjL/2g=="],
 
