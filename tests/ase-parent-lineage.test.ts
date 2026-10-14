@@ -68,10 +68,8 @@ describe.skipIf(unsafe)("ASE parent lineage", () => {
   });
 
   // AFG-005: missing lineage is never read as a root.
-  // KNOWN HOLE, confirmed 2026-10-14: today the route answers 200 with perm_mask 65535 (the whole request),
-  // because the parent is intersected only `if (parent)`. Marked test.failing so CI stays green while the
-  // fix waits for the founder's ruling; when the route refuses, this flips red: change it to test().
-  test.failing("a child naming a parent that does not exist is refused, not given its whole request", async () => {
+  // Was a hole until 2026-10-14: the route answered 200 with perm_mask 65535 (the whole request).
+  test("a child naming a parent that does not exist is refused, not given its whole request", async () => {
     const child = await issue({ service_key: "lineage-test", parent_session_id: "ses_does_not_exist", perm_mask: 0xffff });
     // On failure this shows what the child was given: { status, perm_mask }.
     expect({ status: child.statusCode, perm_mask: child.json().perm_mask }).toEqual({ status: 422, perm_mask: undefined });

@@ -108,15 +108,19 @@ export function registerAseRoutes(app: FastifyInstance): void {
 
     if (parentSessionId) {
       const parent = loadEnvelopeBySessionId(parentSessionId);
-      if (parent) {
-        // @rule:KAV-065 child perm_mask = parent.effective AND requested
-        permMask = parent.perm_mask & permMask;
-        classMask = parent.class_mask & classMask;
-        // @rule:KAV-079 — child cannot exceed parent
-        if ((permMask & ~parent.perm_mask) !== 0) {
-          reply.code(422);
-          return { ok: false, error: "KAV-079: child perm_mask exceeds parent — spawn invariant violated", _meta: meta(start) };
-        }
+      // @rule:AFG-005 a named parent that is not found is refused, never read as a root
+      // (until 2026-10-14 such a child was issued its whole requested mask, unnarrowed)
+      if (!parent) {
+        reply.code(422);
+        return { ok: false, error: "AFG-005: parent_session_id names no known session — refusing to issue a child without its parent", _meta: meta(start) };
+      }
+      // @rule:KAV-065 child perm_mask = parent.effective AND requested
+      permMask = parent.perm_mask & permMask;
+      classMask = parent.class_mask & classMask;
+      // @rule:KAV-079 — child cannot exceed parent
+      if ((permMask & ~parent.perm_mask) !== 0) {
+        reply.code(422);
+        return { ok: false, error: "KAV-079: child perm_mask exceeds parent — spawn invariant violated", _meta: meta(start) };
       }
     }
 
