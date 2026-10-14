@@ -39,7 +39,7 @@ function validMudrika(over: Partial<MudrikaPayload> = {}): MudrikaPayload {
   };
 }
 
-// ─── §1 verifyMudrika (HNG-S-008 / HNG-S-009 / HNG-S-010) ─────────────────────
+// ─── §1 verifyMudrika (HNG-S-008 / HNG-S-019 / HNG-S-020) ─────────────────────
 
 describe('§1 verifyMudrika — structural + TTL + range', () => {
   beforeEach(() => setEventBus(null));
@@ -88,7 +88,7 @@ describe('§1 verifyMudrika — structural + TTL + range', () => {
     expect(r.outcome).toBe('PASS');
   });
 
-  it('HM-007: TTL already expired → EXPIRED outcome (HNG-S-009)', () => {
+  it('HM-007: TTL already expired → EXPIRED outcome (HNG-S-008)', () => {
     const m = validMudrika({
       issued_at: new Date(Date.now() - 7200 * 1000).toISOString(),
       ttl_seconds: 3600,  // expired 1 hour ago
@@ -464,7 +464,7 @@ describe('§4 ACC bus emission', () => {
     verifyMudrika(m, m.agent_id);
     expect(received[0].event_type).toBe('mudrika.rejected');
     expect(received[0].verdict).toBe('EXPIRED');
-    expect(received[0].rules_fired).toContain('HNG-S-009');
+    expect(received[0].rules_fired).toContain('HNG-S-008');
   });
 
   it('HM-044: scoreAxis emits posture.axis_scored per call', () => {

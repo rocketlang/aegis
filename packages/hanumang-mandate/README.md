@@ -1,6 +1,7 @@
 # @xshieldai/hanumang-mandate
 
-> **🔍 Verification status (2026-10-14 IST — v0.4.0)**
+> **🔍 Verification status (2026-10-14 IST — v0.4.1)**
+> - **New in 0.4.1:** **rule IDs now match the logics document.** Up to 0.4.0 the package cited HNG-S-009 to HNG-S-013 with meanings the document gives other rules. The TTL check is HNG-S-008 (was 009); the trust_mask range check is HNG-S-019 (was 010); the type check is HNG-S-020 (was 012); "missing evidence is a FAIL" is HNG-S-021 (was 013); revocation, not done here, is HNG-S-010 (was 011). `rules_fired` in emitted receipts and the fallback `rule_id` change with them: update anything that matches on those strings. The verifier's comment no longer claims a subset-of-principal check it never made; that rule is scored under HNG-S-003. Nothing else changed.
 > - **New in 0.4.0:** (1) **plain Node can import it.** Until 0.3.1 the entry was the TypeScript source, so it loaded under Bun only. It now ships compiled JavaScript with type declarations in `dist/`. (2) **An omission the rule calls a violation is a FAIL.** HNG-S-007 says "If audit trail has omissions or redactions → Axis-7 FAIL", but until 0.3.1 each omission was only a deduction: an agent that did not report its errors still scored PASS 80, and a receipt that left out a deviation did too. Both now cap at FAIL (score 49 at most). An unsigned receipt stays a WARN, because signature checking is a stated phase-1 limit.
 > - **Tests:** ✅ **106/106 passing**: 46 in [tests/hanumang-mandate.test.ts](tests/hanumang-mandate.test.ts), 52 in [tests/hardening.test.ts](tests/hardening.test.ts), which covers malformed credentials, missing evidence, genuine callers that must still pass, and the stated limits, and 8 in [tests/omission.test.ts](tests/omission.test.ts), which pin the omission rule (`bun test`). Four of those eight fail against 0.3.1, as they should. Covers §1 verifyMudrika (structural/TTL/trust-mask/agent-id), §2 scoreAxis (all 7 axes incl. spawn invariant + overreach), §3 computePostureScore (HNG-YK-001 worst-axis-floor enforced + grade thresholds), §4 ACC bus.
 > - **Examples:** ✅ runnable quickstart, in the repository (not in the npm package): [examples/quickstart.ts](https://github.com/rocketlang/aegis/blob/master/packages/hanumang-mandate/examples/quickstart.ts) — `bun run examples/quickstart.ts` runs 3 mudrika verifications (PASS/EXPIRED/FAIL) + 7-axis posture demo + the HNG-YK-001 worst-axis-floor invariant in action (one FAIL caps grade at D even with average 86)
@@ -197,7 +198,7 @@ const posture = computePostureScore(axisScores);
 ## What this package does NOT do
 
 - **No DB.** No persistence. The full xshieldai-hanumang service stores attestations to SQLite — you'd need to write your own store on top of these primitives.
-- **No HTTP.** `revocation_url` is in the mudrika payload but `verifyMudrika()` does not call it. The full service does (HNG-S-011, EE feature).
+- **No HTTP.** `revocation_url` is in the mudrika payload but `verifyMudrika()` does not call it. The full service does (HNG-S-010, EE feature).
 - **No signature crypto.** See Phase-1 limit above.
 - **No regression alerting.** The full service tracks posture over time and routes alerts; not here.
 - **No registry / fleet view.** That's the EE layer.

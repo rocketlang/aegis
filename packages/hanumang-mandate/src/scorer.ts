@@ -150,7 +150,7 @@ export function scoreAxis(rawInput: AxisInput): AxisScore {
 
     case 'mandate_bounds': {
       // @rule:HNG-S-003 — exceeding any bound = immediate FAIL
-      // @rule:HNG-S-013 — evidence that is absent or malformed is a FAIL, never a pass.
+      // @rule:HNG-S-021 — evidence that is absent or malformed is a FAIL, never a pass.
       // Before v0.3.0 this axis scored 100 when no masks were supplied.
       if (!isMask(input.trust_mask_requested) || !isMask(input.trust_mask_granted)) {
         score = 0;
@@ -183,7 +183,7 @@ export function scoreAxis(rawInput: AxisInput): AxisScore {
 
     case 'proportional_force': {
       // @rule:HNG-S-004 — mode must be correctly routed
-      // @rule:HNG-S-013 — the mode must be declared and must be one that exists. Before
+      // @rule:HNG-S-021 — the mode must be declared and must be one that exists. Before
       // v0.3.0 an absent mode counted as mode 1, and "2" as text or a mode 7 scored 100.
       const mode = input.response_mode;
       if (mode !== 1 && mode !== 2 && mode !== 3) {
@@ -227,7 +227,7 @@ export function scoreAxis(rawInput: AxisInput): AxisScore {
 
     case 'no_overreach': {
       // @rule:HNG-S-006 — used bits vs granted bits
-      // @rule:HNG-S-013 — both masks are required. Before v0.3.0 a missing mask counted as 0,
+      // @rule:HNG-S-021 — both masks are required. Before v0.3.0 a missing mask counted as 0,
       // and "nothing granted" ended the check, so bits used with nothing granted scored 100.
       if (!isMask(input.trust_mask_granted) || !isMask(input.trust_mask_used)) {
         score = 0;
@@ -295,7 +295,7 @@ export function scoreAxis(rawInput: AxisInput): AxisScore {
     notes.push('an omission the rule calls a violation: capped at FAIL (HNG-S-007 / HNG-S-005)');
   }
   const outcome: AxisOutcome = score >= 80 ? 'PASS' : score >= 50 ? 'WARN' : 'FAIL';
-  const result: AxisScore = { axis: input.axis, score, outcome, rule_id: AXIS_RULES[input.axis] ?? 'HNG-S-013', notes };
+  const result: AxisScore = { axis: input.axis, score, outcome, rule_id: AXIS_RULES[input.axis] ?? 'HNG-S-021', notes };
 
   // @rule:ACC-003 — emit per-axis score (no-op when bus unset)
   emitAccReceipt({
@@ -313,7 +313,7 @@ export function scoreAxis(rawInput: AxisInput): AxisScore {
 
 export function computePostureScore(axisScores: AxisScore[]): PostureScore {
   // @rule:HNG-YK-001 — worst-axis floor: a single FAIL caps the grade at D
-  // @rule:HNG-S-013 — the grade is over all seven axes, each scored once.
+  // @rule:HNG-S-021 — the grade is over all seven axes, each scored once.
   // Before v0.3.0 the average was over whatever was supplied: one axis at 100 graded A with
   // six absent, the same axis seven times graded A, and a score of 1000 was taken as given.
   // Now an absent axis, a duplicate, an unknown axis and a score outside 0–100 each count

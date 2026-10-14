@@ -5,9 +5,10 @@
 // HanumanG — Mudrika verification engine
 // @rule:HNG-S-001 — mudrika is the mandatory delegation credential; no mudrika = refuse
 // @rule:HNG-S-008 — mudrika structure: principal_id, agent_id, trust_mask, scope_key, ttl, pramana_chain
-// @rule:HNG-S-009 — mudrika TTL must not be expired at verification time
-// @rule:HNG-S-010 — trust_mask in mudrika must be ≤ trust_mask of principal (spawn invariant)
-// @rule:HNG-S-011 — revocation_url must be reachable; REVOKED mudrikas refuse immediately
+// @rule:HNG-S-008 — and its TTL must not be expired at verification time (the rule's validation clause)
+// @rule:HNG-S-019 — trust_mask is a 32-bit unsigned integer. The subset-of-principal rule is scored
+//                  under HNG-S-003 (mandate bounds); this verifier is not given the principal's mask.
+// @rule:HNG-S-010 — revocation must be checked; REVOKED mudrikas refuse immediately (not in this package: no HTTP)
 //
 // PHASE-1 LIMIT: verifyMudrika() validates STRUCTURE + TTL + trust_mask range only.
 // It does NOT cryptographically verify the `signature` field. Phase-2 will add
@@ -83,7 +84,7 @@ export function verifyMudrika(raw: unknown, expected_agent_id?: string): VerifyR
     return fail('missing_required_fields', t0);
   }
 
-  // @rule:HNG-S-012 — a field of the wrong type is a refusal, never a value to carry on with.
+  // @rule:HNG-S-020 — a field of the wrong type is a refusal, never a value to carry on with.
   // Before v0.3.0 only presence was checked: a trust_mask of NaN or "admin" passed, and
   // a ttl_seconds of 1e18 or "forever" made the function throw instead of answer.
   for (const f of ['mudrika_id', 'principal_id', 'agent_id', 'task_id', 'scope_key', 'issued_at'] as const) {
@@ -113,7 +114,7 @@ export function verifyMudrika(raw: unknown, expected_agent_id?: string): VerifyR
     }
   }
 
-  // TTL check — @rule:HNG-S-009
+  // TTL check — @rule:HNG-S-008
   const issuedAt = new Date(m.issued_at).getTime();
   if (isNaN(issuedAt)) return fail('invalid_issued_at', t0);
   // A credential dated in the future is not yet valid, and with a long ttl would never
@@ -138,14 +139,15 @@ export function verifyMudrika(raw: unknown, expected_agent_id?: string): VerifyR
       event_type: 'mudrika.rejected',
       agent_id: m.agent_id,
       verdict: 'EXPIRED',
-      rules_fired: ['HNG-S-009'],
+      rules_fired: ['HNG-S-008'],
       summary: `mudrika ${m.mudrika_id ?? '?'} expired at ${expiresAt.toISOString()}`,
     });
     return expiredResult;
   }
 
-  // Spawn invariant — child trust_mask ≤ declared maximum (32-bit)
-  // @rule:HNG-S-010 + BitMask OS spawn invariant
+  // trust_mask range (32-bit). Until 0.4.0 this comment called it the spawn invariant (child ≤ parent);
+  // the code never compared against the principal's mask. That rule is scored under HNG-S-003.
+  // @rule:HNG-S-019
   const trust_mask = m.trust_mask ?? 0;
   if (trust_mask < 0 || trust_mask > 0xffffffff) {
     return fail('trust_mask_out_of_range', t0);
@@ -173,7 +175,7 @@ export function verifyMudrika(raw: unknown, expected_agent_id?: string): VerifyR
     event_type: 'mudrika.verified',
     agent_id: m.agent_id,
     verdict: 'PASS',
-    rules_fired: ['HNG-S-008', 'HNG-S-009', 'HNG-S-010'],
+    rules_fired: ['HNG-S-008', 'HNG-S-019', 'HNG-S-020'],
     summary: `mudrika ${m.mudrika_id} verified for ${m.principal_id} → ${m.agent_id} scope=${m.scope_key}`,
     payload: {
       trust_mask,
@@ -205,7 +207,7 @@ function fail(reason: string, t0: number): VerifyResult {
     receipt_id: `hanumang-mudrika-fail-${t0}`,
     event_type: 'mudrika.rejected',
     verdict: 'FAIL',
-    rules_fired: ['HNG-S-008', 'HNG-S-009', 'HNG-S-010'],
+    rules_fired: ['HNG-S-008', 'HNG-S-019', 'HNG-S-020'],
     summary: `mudrika rejected: ${reason}`,
   });
 

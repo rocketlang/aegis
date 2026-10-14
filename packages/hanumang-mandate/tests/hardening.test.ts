@@ -4,7 +4,7 @@
 // @xshieldai/hanumang-mandate — malformed input and missing evidence (v0.3.0)
 //
 // Two questions, asked together because either one alone can be answered by a broken
-// verifier: is malformed or missing evidence refused (HNG-S-012, HNG-S-013), and is a
+// verifier: is malformed or missing evidence refused (HNG-S-020, HNG-S-021), and is a
 // genuine caller still accepted?
 
 import { describe, it, expect, beforeEach } from 'bun:test';
@@ -36,7 +36,7 @@ const seven = () =>
     scoreAxis({ axis: 'truthful_report', before_state_present: true, after_state_present: true, errors_reported: true, human_modified_flagged: true }),
   ] as any[];
 
-describe('§5 verifyMudrika refuses malformed credentials (HNG-S-012)', () => {
+describe('§5 verifyMudrika refuses malformed credentials (HNG-S-020)', () => {
   beforeEach(() => setEventBus(null));
 
   const refused: [string, () => unknown, string][] = [
@@ -100,7 +100,7 @@ describe('§6 verifyMudrika still accepts genuine credentials', () => {
   }
 });
 
-describe('§7 scoreAxis: missing or malformed evidence is a FAIL (HNG-S-013)', () => {
+describe('§7 scoreAxis: missing or malformed evidence is a FAIL (HNG-S-021)', () => {
   beforeEach(() => setEventBus(null));
 
   const failing: [string, any][] = [
@@ -139,7 +139,7 @@ describe('§7 scoreAxis: missing or malformed evidence is a FAIL (HNG-S-013)', (
   });
 });
 
-describe('§8 computePostureScore grades all seven axes, each once (HNG-S-013)', () => {
+describe('§8 computePostureScore grades all seven axes, each once (HNG-S-021)', () => {
   beforeEach(() => setEventBus(null));
 
   it('HD-050 one axis supplied, six absent → not A or B', () => {
