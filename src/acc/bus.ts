@@ -72,6 +72,31 @@ CREATE INDEX IF NOT EXISTS idx_acc_event_type        ON acc_events (event_type);
 CREATE INDEX IF NOT EXISTS idx_acc_id                ON acc_events (id);
 `;
 
+// GTP-024: optional flow fields, in addition to the original columns.
+const FLOW_COLUMNS = ['flow_id', 'turn_id', 'parent_turn_id', 'mandate_id', 'session_ref'] as const;
+const COLUMNS = 'receipt_id, primitive, event_type, emitted_at, agent_id, verdict, rules_fired, summary, payload, ' + FLOW_COLUMNS.join(', ');
+
+const opt = (v: unknown): string | undefined => (v as string | null) ?? undefined;
+
+function rowToReceipt(r: Record<string, unknown>): AccReceipt {
+  return {
+    receipt_id: r['receipt_id'] as string,
+    primitive: r['primitive'] as string,
+    event_type: r['event_type'] as string,
+    emitted_at: r['emitted_at'] as string,
+    agent_id: opt(r['agent_id']),
+    verdict: opt(r['verdict']),
+    rules_fired: r['rules_fired'] ? JSON.parse(r['rules_fired'] as string) : undefined,
+    summary: opt(r['summary']),
+    payload: r['payload'] ? JSON.parse(r['payload'] as string) : undefined,
+    flow_id: opt(r['flow_id']),
+    turn_id: opt(r['turn_id']),
+    parent_turn_id: opt(r['parent_turn_id']),
+    mandate_id: opt(r['mandate_id']),
+    session_ref: opt(r['session_ref']),
+  };
+}
+
 export interface SqliteEventWriterOpts {
   /** Path to acc-events.db. Defaults to ~/.aegis/acc-events.db. */
   path?: string;
@@ -87,11 +112,15 @@ export class SqliteEventWriter {
     this.db = openSqlite(path);
     this.db.exec('PRAGMA journal_mode = WAL;');
     this.db.exec(SCHEMA);
+    // GTP-024: the five flow fields, added to a table created before them (additive: ADD COLUMN only).
+    const have = new Set((this.db.query('PRAGMA table_info(acc_events)').all() as Array<{ name: string }>).map((c) => c.name));
+    for (const col of FLOW_COLUMNS) {
+      if (!have.has(col)) this.db.exec(`ALTER TABLE acc_events ADD COLUMN ${col} TEXT`);
+    }
+    this.db.exec('CREATE INDEX IF NOT EXISTS idx_acc_flow_emitted ON acc_events (flow_id, emitted_at);');
     this.insertStmt = this.db.query(`
-      INSERT INTO acc_events
-        (receipt_id, primitive, event_type, emitted_at, agent_id, verdict, rules_fired, summary, payload)
-      VALUES
-        (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO acc_events (${COLUMNS})
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
   }
 
@@ -107,6 +136,11 @@ export class SqliteEventWriter {
         receipt.rules_fired ? JSON.stringify(receipt.rules_fired) : null,
         receipt.summary ?? null,
         receipt.payload ? JSON.stringify(receipt.payload) : null,
+        receipt.flow_id ?? null,
+        receipt.turn_id ?? null,
+        receipt.parent_turn_id ?? null,
+        receipt.mandate_id ?? null,
+        receipt.session_ref ?? null,
       );
     } catch {
       // never throw — preserves ACC-YK-003 stateless-primitive contract
@@ -116,68 +150,49 @@ export class SqliteEventWriter {
   /** Returns receipts emitted since `lastId` (exclusive). Used by SSE polling. */
   queryNewer(lastId: number, limit = 100): Array<AccReceipt & { id: number }> {
     const rows = this.db.query(`
-      SELECT id, receipt_id, primitive, event_type, emitted_at, agent_id, verdict, rules_fired, summary, payload
+      SELECT id, ${COLUMNS}
       FROM acc_events
       WHERE id > ?
       ORDER BY id ASC
       LIMIT ?
     `).all(lastId, limit) as Array<Record<string, unknown>>;
-    return rows.map((r) => ({
-      id: r['id'] as number,
-      receipt_id: r['receipt_id'] as string,
-      primitive: r['primitive'] as string,
-      event_type: r['event_type'] as string,
-      emitted_at: r['emitted_at'] as string,
-      agent_id: (r['agent_id'] as string | null) ?? undefined,
-      verdict: (r['verdict'] as string | null) ?? undefined,
-      rules_fired: r['rules_fired'] ? JSON.parse(r['rules_fired'] as string) : undefined,
-      summary: (r['summary'] as string | null) ?? undefined,
-      payload: r['payload'] ? JSON.parse(r['payload'] as string) : undefined,
-    }));
+    return rows.map((r) => ({ id: r['id'] as number, ...rowToReceipt(r) }));
   }
 
   /** Returns the most recent `limit` events for a given primitive. Used by zone rendering. */
   queryByPrimitive(primitive: string, limit = 50): AccReceipt[] {
     const rows = this.db.query(`
-      SELECT receipt_id, primitive, event_type, emitted_at, agent_id, verdict, rules_fired, summary, payload
+      SELECT ${COLUMNS}
       FROM acc_events
       WHERE primitive = ?
       ORDER BY id DESC
       LIMIT ?
     `).all(primitive, limit) as Array<Record<string, unknown>>;
-    return rows.map((r) => ({
-      receipt_id: r['receipt_id'] as string,
-      primitive: r['primitive'] as string,
-      event_type: r['event_type'] as string,
-      emitted_at: r['emitted_at'] as string,
-      agent_id: (r['agent_id'] as string | null) ?? undefined,
-      verdict: (r['verdict'] as string | null) ?? undefined,
-      rules_fired: r['rules_fired'] ? JSON.parse(r['rules_fired'] as string) : undefined,
-      summary: (r['summary'] as string | null) ?? undefined,
-      payload: r['payload'] ? JSON.parse(r['payload'] as string) : undefined,
-    }));
+    return rows.map(rowToReceipt);
   }
 
   /** Returns the full timeline for a given agent_id, ordered by emitted_at. */
   queryByAgent(agentId: string, limit = 200): AccReceipt[] {
     const rows = this.db.query(`
-      SELECT receipt_id, primitive, event_type, emitted_at, agent_id, verdict, rules_fired, summary, payload
+      SELECT ${COLUMNS}
       FROM acc_events
       WHERE agent_id = ?
       ORDER BY emitted_at ASC
       LIMIT ?
     `).all(agentId, limit) as Array<Record<string, unknown>>;
-    return rows.map((r) => ({
-      receipt_id: r['receipt_id'] as string,
-      primitive: r['primitive'] as string,
-      event_type: r['event_type'] as string,
-      emitted_at: r['emitted_at'] as string,
-      agent_id: (r['agent_id'] as string | null) ?? undefined,
-      verdict: (r['verdict'] as string | null) ?? undefined,
-      rules_fired: r['rules_fired'] ? JSON.parse(r['rules_fired'] as string) : undefined,
-      summary: (r['summary'] as string | null) ?? undefined,
-      payload: r['payload'] ? JSON.parse(r['payload'] as string) : undefined,
-    }));
+    return rows.map(rowToReceipt);
+  }
+
+  /** Returns one flow's events, ordered by emitted_at (GTP-018). Used by the flow tree. */
+  queryByFlow(flowId: string, limit = 500): AccReceipt[] {
+    const rows = this.db.query(`
+      SELECT ${COLUMNS}
+      FROM acc_events
+      WHERE flow_id = ?
+      ORDER BY emitted_at ASC, id ASC
+      LIMIT ?
+    `).all(flowId, limit) as Array<Record<string, unknown>>;
+    return rows.map(rowToReceipt);
   }
 
   /** Returns count of events per primitive. Used by health panel. */

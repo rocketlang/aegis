@@ -63,6 +63,20 @@ export interface AccReceipt {
 
   /** Optional opaque payload. Consumer-defined shape. */
   payload?: Record<string, unknown>;
+
+  // ── Flow fields (GTP-024, governed-turn-protocol spec §19). All optional; added 2.21.0. ──
+  // Same shape as @xshieldai/flow's FlowFields. An event without them stays valid.
+
+  /** The flow this event belongs to: GTP's `chain`, one per root of authority (GTP-017/018). */
+  flow_id?: string;
+  /** The turn (one governed action) this event is about. */
+  turn_id?: string;
+  /** The turn or agent that turn descends from; absent on the first turn of a flow. */
+  parent_turn_id?: string;
+  /** The Mudrika mandate at the root of the flow, when known. */
+  mandate_id?: string;
+  /** The session the turn ran under: an ASE seal or a nallasetu credential reference. */
+  session_ref?: string;
 }
 
 /**

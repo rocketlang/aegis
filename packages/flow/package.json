@@ -1,0 +1,44 @@
+{
+  "name": "@xshieldai/flow",
+  "version": "0.1.0",
+  "description": "One agentic flow, end to end: GTP flow identity for tool calls, subagents and events (flow, turn, parent, mandate, session), narrowing that only shrinks (child = parent & requested), refusal of a missing parent, and a mapper from Claude Code hook input. Pure functions, no I/O. Part of the xShieldAI Posture Suite.",
+  "license": "AGPL-3.0-only",
+  "type": "module",
+  "author": "Capt. Anil Sharma <capt.anil.sharma@powerpbox.org>",
+  "homepage": "https://github.com/rocketlang/aegis/tree/master/packages/flow",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/rocketlang/aegis.git",
+    "directory": "packages/flow"
+  },
+  "bugs": {
+    "url": "https://github.com/rocketlang/aegis/issues"
+  },
+  "keywords": ["xshieldai", "agentic-flow", "agent-governance", "governed-turn-protocol", "delegation", "least-privilege", "claude-code-hooks", "agent-safety"],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": ["dist/", "src/", "tests/", "README.md", "LICENSE"],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit",
+    "test": "bun test",
+    "prepublishOnly": "node ../../scripts/publish-guard.mjs"
+  },
+  "devDependencies": {
+    "typescript": "^5.4.0",
+    "@types/node": "^20.0.0"
+  },
+  "engines": {
+    "bun": ">=1.0.0",
+    "node": ">=18.0.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}
