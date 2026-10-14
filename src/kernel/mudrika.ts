@@ -63,6 +63,11 @@ function sign(payload: string): string {
   return createHmac("sha256", getSecret()).update(payload).digest("base64url");
 }
 
+/** The same per-machine HMAC, for other signed records on this box (the flow mandate, GTP-017). */
+export function signWithMachineSecret(payload: string): string {
+  return sign(payload);
+}
+
 function buildToken(
   uri: string, agentId: string, sessionId: string,
   domain: string, issuedAt: number, expiresAt: number
