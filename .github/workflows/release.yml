@@ -52,6 +52,26 @@ jobs:
           fi
           echo "tree clean at $(git rev-parse HEAD)"
 
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.9
+
+      # Since 2.20.0 the library entry points ship a Node build in lib/ (gitignored, built here).
+      # Under Bun the `bun` export condition still points at the TypeScript source.
+      - name: Build the library for Node
+        run: bun run build:node
+
+      # Install the packed tarball the way a Node user would and import every library entry point.
+      - name: Refuse if plain Node cannot import the library
+        run: |
+          mkdir "$RUNNER_TEMP/packed" "$RUNNER_TEMP/consumer"
+          npm pack --ignore-scripts --pack-destination "$RUNNER_TEMP/packed" > /dev/null
+          cd "$RUNNER_TEMP/consumer" && npm init -y > /dev/null
+          npm install --ignore-scripts --omit=optional "$(ls "$RUNNER_TEMP"/packed/*.tgz)"
+          for e in "" /lite /sdk /acc/bus /acc/types; do
+            node --input-type=module -e "const m = await import('@xshieldai/aegis$e'); console.log('@xshieldai/aegis$e imports under plain Node;', Object.keys(m).length, 'exports')"
+          done
+
       # The shasum printed here is what a stranger gets from `npm pack` on a clean checkout
       # of the same commit. It is the number to compare with the registry listing.
       - name: Show what would ship

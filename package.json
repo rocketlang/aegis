@@ -1,17 +1,37 @@
 {
   "name": "@xshieldai/aegis",
-  "version": "2.19.1",
-  "description": "AEGIS / KavachOS \u2014 Agentic runtime governance: budget enforcement, DAN gate (human-in-loop), seccomp-bpf kernel enforcement, Falco anomaly detection + Agentic Control Center (cockpit page rendering all @rocketlang/* primitive events in one view, PRAMANA Merkle audit, per-agent timeline).",
+  "version": "2.20.0",
+  "description": "AEGIS / KavachOS — Agentic runtime governance: budget enforcement, DAN gate (human-in-loop), seccomp-bpf kernel enforcement, Falco anomaly detection + Agentic Control Center (cockpit page rendering all @rocketlang/* primitive events in one view, PRAMANA Merkle audit, per-agent timeline).",
   "license": "AGPL-3.0-only",
   "type": "module",
-  "main": "./index.ts",
+  "main": "./lib/index.js",
   "module": "./index.ts",
   "exports": {
-    ".": "./index.ts",
-    "./lite": "./src/sdk/lite.ts",
-    "./sdk": "./src/sdk/index.ts",
-    "./acc/bus": "./src/acc/bus.ts",
-    "./acc/types": "./src/acc/types.ts"
+    ".": {
+      "types": "./index.ts",
+      "bun": "./index.ts",
+      "import": "./lib/index.js"
+    },
+    "./lite": {
+      "types": "./src/sdk/lite.ts",
+      "bun": "./src/sdk/lite.ts",
+      "import": "./lib/src/sdk/lite.js"
+    },
+    "./sdk": {
+      "types": "./src/sdk/index.ts",
+      "bun": "./src/sdk/index.ts",
+      "import": "./lib/src/sdk/index.js"
+    },
+    "./acc/bus": {
+      "types": "./src/acc/bus.ts",
+      "bun": "./src/acc/bus.ts",
+      "import": "./lib/src/acc/bus.js"
+    },
+    "./acc/types": {
+      "types": "./src/acc/types.ts",
+      "bun": "./src/acc/types.ts",
+      "import": "./lib/src/acc/types.js"
+    }
   },
   "author": "Capt. Anil Sharma <capt.anil.sharma@powerpbox.org>",
   "homepage": "https://github.com/rocketlang/aegis",
@@ -44,6 +64,7 @@
     "kavachos": "bin/kavachos.js"
   },
   "files": [
+    "lib/",
     "bin/",
     "src/",
     "index.ts",
@@ -66,7 +87,8 @@
     "kavachos": "bun run src/kavachos-cli.ts",
     "start": "bun run src/monitor/index.ts & bun run src/dashboard/server.ts",
     "test:agents": "bun src/test-agents/runner.ts",
-    "prepublishOnly": "node scripts/publish-guard.mjs"
+    "prepublishOnly": "node scripts/publish-guard.mjs",
+    "build:node": "rm -rf lib && bun build index.ts src/sdk/lite.ts src/sdk/index.ts src/acc/bus.ts src/acc/types.ts --target=node --format=esm --splitting --packages=external --outdir=lib --root=."
   },
   "dependencies": {
     "@fastify/cors": "^11.3.1",

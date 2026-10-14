@@ -9,7 +9,7 @@
 //                  buses (Redis, NATS, Kafka) are consumer choice.
 // @rule:ACC-YK-006 — Receipt shape is forward-compatible-additive only.
 
-import { Database } from 'bun:sqlite';
+import { openSqlite, type SqlDb, type SqlStatement } from '../core/sqlite.js'; // bun:sqlite under Bun, node:sqlite under Node 22.5+
 import { mkdirSync, existsSync } from 'fs';
 import { dirname, join } from 'path';
 import { homedir } from 'os';
@@ -78,13 +78,13 @@ export interface SqliteEventWriterOpts {
 }
 
 export class SqliteEventWriter {
-  private db: Database;
-  private insertStmt: ReturnType<Database['query']>;
+  private db: SqlDb;
+  private insertStmt: SqlStatement;
 
   constructor(opts: SqliteEventWriterOpts = {}) {
     const path = opts.path ?? defaultAccEventsDbPath();
     mkdirSync(dirname(path), { recursive: true });
-    this.db = new Database(path);
+    this.db = openSqlite(path);
     this.db.exec('PRAGMA journal_mode = WAL;');
     this.db.exec(SCHEMA);
     this.insertStmt = this.db.query(`

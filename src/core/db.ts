@@ -2,7 +2,7 @@
 // Copyright (c) 2026 Capt. Anil Sharma (rocketlang). All rights reserved.
 // See LICENSE for details.
 
-import { Database } from "bun:sqlite";
+import { openSqlite, type SqlDb } from "./sqlite.js"; // bun:sqlite under Bun, node:sqlite under Node 22.5+
 import { getDbPath, ensureAegisDir } from "./config";
 import type { UsageRecord, SessionInfo, BudgetState, AlertEvent, WindowBudget, KavachApproval, KavachDecision } from "./types";
 // @rule:KAV-089 — DAN Gate approvals sealed as PRAMANA receipts (lazy import avoids circular dep)
@@ -19,19 +19,19 @@ function sealApprovalReceipt(approvalId: string, sessionId: string, decidedBy: s
   } catch { /* non-fatal — witnessing is best-effort; audit log is primary record */ }
 }
 
-let _db: Database | null = null;
+let _db: SqlDb | null = null;
 
-export function getDb(): Database {
+export function getDb(): SqlDb {
   if (_db) return _db;
   ensureAegisDir();
-  _db = new Database(getDbPath(), { create: true });
+  _db = openSqlite(getDbPath());
   _db.exec("PRAGMA journal_mode = WAL");
   _db.exec("PRAGMA busy_timeout = 5000");
   initSchema(_db);
   return _db;
 }
 
-function initSchema(db: Database): void {
+function initSchema(db: SqlDb): void {
   db.exec(`
     CREATE TABLE IF NOT EXISTS usage_log (
       id INTEGER PRIMARY KEY AUTOINCREMENT,

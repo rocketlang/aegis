@@ -4,6 +4,16 @@ All notable changes to AEGIS will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [2.20.0] — 2026-10-14
+
+Plain Node can use the library. Nothing changes under Bun.
+
+- **The five library entry points (`.`, `./lite`, `./sdk`, `./acc/bus`, `./acc/types`) import under plain Node.** Until 2.19.1 they were TypeScript, and two of them imported `bun:sqlite` at load time, so only Bun could import the package. The release now builds them for Node into `lib/`. Under Bun the `bun` export condition still points at the TypeScript source, exactly as before.
+- **SQLite on both runtimes.** `src/core/sqlite.ts` opens `bun:sqlite` under Bun, unchanged, and `node:sqlite` under Node 22.5+, wrapped to keep Bun's conventions: bindings may be one array, true/false bind as 1/0, undefined binds as NULL, and `get()` with no row is `null`. The driver loads when a database is opened, so on Node older than 22.5 the library imports and only database use fails, with a message that says so.
+- **The CLIs (`aegis`, `aegis-monitor`, `aegis-dashboard`, `kavachos`) still need Bun**, as their launchers say: they use Bun's server, process and file APIs throughout.
+- Depends on the Node-importable primitives: hanumang-mandate 0.4.x, aegis-guard 0.6.2, chitta-detect 0.3.2, lakshmanrekha 0.4.2.
+- Found while testing this release: aegis keeps `aegis.db` under `$HOME/.aegis` whatever `AEGIS_DIR` says (that variable moves only the ACC event store). A test that sets only `AEGIS_DIR` writes into the real database. Test under a scratch `HOME`.
+
 ## [2.19.1] — 2026-10-12
 
 Our own review, the last items. Nothing here was reported from outside.

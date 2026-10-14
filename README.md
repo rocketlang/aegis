@@ -99,6 +99,11 @@ aegis init
 aegis status
 ```
 
+**Runtimes.** The `aegis` commands (`aegis`, `aegis-monitor`, `aegis-dashboard`, `kavachos`) need
+[Bun](https://bun.sh). The library does not: since 2.20.0, `import { aegis, lite } from '@xshieldai/aegis'`
+(and `/lite`, `/sdk`, `/acc/bus`, `/acc/types`) works under plain Node. Parts that keep data in SQLite
+need Node 22.5+ (`node:sqlite`); on older Node they say so when used, and the rest works.
+
 That's it. AEGIS is now watching every tool call.
 
 ---
