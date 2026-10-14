@@ -13,8 +13,8 @@
 // The flow-field mapping mirrors @xshieldai/flow's fromClaudeHook until that package is published and
 // aegis can depend on it (founder ruling 2026-10-15: the flow package is the home).
 
-import { chmodSync, existsSync } from "fs";
-import { join } from "path";
+import { chmodSync, existsSync, readFileSync, statSync } from "fs";
+import { basename, dirname, join } from "path";
 import { homedir } from "os";
 import { SqliteEventWriter } from "./bus";
 import type { AccReceipt } from "./types";
@@ -47,13 +47,53 @@ export interface ToolDecision {
   category?: string;
 }
 
+// ── P2: which tool call spawned a subagent (GTP-018) ────────────────────────────────────────────────
+// Claude Code records it itself: beside the session transcript <session>.jsonl it keeps
+// <session>/subagents/agent-<agent_id>.meta.json with the spawning call's toolUseId and the depth.
+// Read, never inferred: no file, or anything unexpected in it, gives no link.
+
+const SAFE_ID = /^[A-Za-z0-9_-]{1,128}$/;
+
+export interface SpawnLink { spawned_by: string; spawn_depth?: number }
+
+export type MetaReader = (path: string) => string | null;
+
+export const readSmallFile: MetaReader = (path) => {
+  try { return statSync(path).size <= 64 * 1024 ? readFileSync(path, "utf-8") : null; } catch { return null; }
+};
+
+export function subagentMetaPath(transcriptPath: unknown, agentId: unknown): string | null {
+  if (typeof transcriptPath !== "string" || !transcriptPath.startsWith("/") || !transcriptPath.endsWith(".jsonl")) return null;
+  if (typeof agentId !== "string" || !SAFE_ID.test(agentId)) return null;
+  const session = basename(transcriptPath, ".jsonl");
+  if (!SAFE_ID.test(session)) return null;
+  return join(dirname(transcriptPath), session, "subagents", `agent-${agentId}.meta.json`);
+}
+
+export function spawnLink(input: Record<string, unknown>, read: MetaReader = readSmallFile): SpawnLink | null {
+  const path = subagentMetaPath(input.transcript_path, input.agent_id);
+  if (!path) return null;
+  const text = read(path);
+  if (!text) return null;
+  try {
+    const meta = JSON.parse(text) as { toolUseId?: unknown; spawnDepth?: unknown };
+    if (typeof meta.toolUseId !== "string" || !SAFE_ID.test(meta.toolUseId)) return null;
+    const link: SpawnLink = { spawned_by: `tool:${meta.toolUseId}` };
+    if (typeof meta.spawnDepth === "number" && Number.isInteger(meta.spawnDepth) && meta.spawnDepth >= 0) link.spawn_depth = meta.spawnDepth;
+    return link;
+  } catch {
+    return null;
+  }
+}
+
 /** The event for one tool-call decision, or null when there is nothing to record (no session, not PreToolUse). */
-export function toolDecisionEvent(input: Record<string, unknown>, d: ToolDecision, now = new Date()): AccReceipt | null {
+export function toolDecisionEvent(input: Record<string, unknown>, d: ToolDecision, now = new Date(), read: MetaReader = readSmallFile): AccReceipt | null {
   const event = str(input.hook_event_name);
   if (event !== undefined && event !== "PreToolUse") return null;
   const flow = flowFieldsFromHook(input);
   if (!flow.flow_id) return null;
   const tool = str(input.tool_name) ?? "unknown";
+  const link = flow.parent_turn_id?.startsWith("agent:") ? spawnLink(input, read) : null;
   const verdict = d.verdict ?? (d.exitCode === 2 ? "BLOCKED" : d.exitCode === 0 ? "ALLOWED" : `EXIT_${d.exitCode}`);
   return {
     receipt_id: `aegis-tool-${now.getTime().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
@@ -64,7 +104,12 @@ export function toolDecisionEvent(input: Record<string, unknown>, d: ToolDecisio
     verdict,
     rules_fired: d.ruleId ? [d.ruleId] : undefined,
     summary: tool.slice(0, 120),
-    payload: { hook: "PreToolUse", ...(d.category ? { category: d.category } : {}), ...(str(input.agent_type) ? { agent_type: str(input.agent_type) } : {}) },
+    payload: {
+      hook: "PreToolUse",
+      ...(d.category ? { category: d.category } : {}),
+      ...(str(input.agent_type) ? { agent_type: str(input.agent_type) } : {}),
+      ...(link ? link : {}),
+    },
     ...flow,
   };
 }
@@ -122,6 +167,11 @@ export interface FlowBranch {
   parent: string;
   kind: "prompt" | "subagent" | "other";
   agent_type?: string;
+  /** For a subagent: the tool call that spawned it (`tool:<id>`), from Claude Code's own record (P2). */
+  spawned_by?: string;
+  /** For a subagent: the branch that holds that tool call (a prompt, or another subagent). */
+  spawned_in?: string;
+  spawn_depth?: number;
   first_at: string;
   turns: AccReceipt[];
 }
@@ -142,11 +192,33 @@ export function buildFlowTree(events: AccReceipt[]): FlowBranch[] {
       b = { parent, kind, first_at: e.emitted_at, turns: [] };
       by.set(parent, b);
     }
-    const at = (e.payload as { agent_type?: unknown } | undefined)?.agent_type;
-    if (b.kind === "subagent" && !b.agent_type && typeof at === "string") b.agent_type = at;
+    const p = (e.payload ?? {}) as { agent_type?: unknown; spawned_by?: unknown; spawn_depth?: unknown };
+    if (b.kind === "subagent") {
+      if (!b.agent_type && typeof p.agent_type === "string") b.agent_type = p.agent_type;
+      if (!b.spawned_by && typeof p.spawned_by === "string") b.spawned_by = p.spawned_by;
+      if (b.spawn_depth === undefined && typeof p.spawn_depth === "number") b.spawn_depth = p.spawn_depth;
+    }
     b.turns.push(e);
   }
-  return [...by.values()];
+  // Resolve where each subagent was spawned: the branch whose turns include the spawning call.
+  const holder = new Map<string, string>();
+  for (const b of by.values()) for (const t of b.turns) if (t.turn_id) holder.set(t.turn_id, b.parent);
+  for (const b of by.values()) if (b.spawned_by) { const h = holder.get(b.spawned_by); if (h) b.spawned_in = h; }
+  // Order: each branch, followed by the subagents spawned in it (depth-first), then any not placed.
+  const all = [...by.values()];
+  const children = new Map<string, FlowBranch[]>();
+  for (const b of all) if (b.spawned_in) (children.get(b.spawned_in) ?? children.set(b.spawned_in, []).get(b.spawned_in)!).push(b);
+  const out: FlowBranch[] = [];
+  const seen = new Set<string>();
+  const visit = (b: FlowBranch): void => {
+    if (seen.has(b.parent)) return;
+    seen.add(b.parent);
+    out.push(b);
+    for (const c of children.get(b.parent) ?? []) visit(c);
+  };
+  for (const b of all) if (!b.spawned_in) visit(b);
+  for (const b of all) visit(b);
+  return out;
 }
 
 /** Reads the private store. Opens it only to read; returns [] if it does not exist yet. */

@@ -45,6 +45,7 @@ function page(title: string, body: string): string {
   .branch { margin: 18px 0 6px; padding: 8px 12px; background: #f4f6f8; border-left: 4px solid #0a3d62; font-size: 13px; }
   .branch.subagent { border-left-color: #ff6b00; }
   .empty { background: #fff8e1; border-left: 4px solid #ff6b00; padding: 14px 18px; border-radius: 4px; }
+  .muted { color: #888; font-style: italic; }
   .note { color: #888; font-size: 12px; font-style: italic; margin-top: 18px; }
   @media (max-width: 640px) { .hide-sm { display: none; } }
 </style></head><body>
@@ -78,6 +79,12 @@ function renderBranch(b: FlowBranch): string {
     ? `Subagent <code>${esc(b.parent.slice(6))}</code>${b.agent_type ? ` (${esc(b.agent_type)})` : ""}`
     : b.kind === "prompt" ? `Prompt <code>${esc(b.parent.slice(7))}</code>` : esc(b.parent);
   const blocked = b.turns.filter((t) => t.verdict && t.verdict !== "ALLOWED").length;
+  // P2: where a subagent came from, as Claude Code recorded it (no link recorded = said so, not guessed)
+  const origin = b.kind !== "subagent" ? ""
+    : b.spawned_by
+      ? ` · spawned by <code>${esc(b.spawned_by)}</code>${b.spawned_in ? ` in <code>${esc(b.spawned_in)}</code>` : ""}`
+      : ` · <span class="muted">spawning call not recorded</span>`;
+  const indent = b.kind === "subagent" ? Math.min(b.spawn_depth ?? 1, 4) * 24 : 0;
   const rows = b.turns.map((t: AccReceipt) => `
     <tr>
       <td class="t">${when(t.emitted_at)}</td>
@@ -86,8 +93,10 @@ function renderBranch(b: FlowBranch): string {
       <td>${(t.rules_fired ?? []).map((r) => `<code>${esc(r)}</code>`).join(" ")}</td>
       <td class="hide-sm"><code>${esc(t.turn_id ?? "")}</code></td>
     </tr>`).join("");
-  return `<div class="branch ${b.kind}">${label} · ${b.turns.length} tool call${b.turns.length === 1 ? "" : "s"}${blocked ? ` · <span class="v no">${blocked} blocked</span>` : ""}</div>
-<table><thead><tr><th>Time</th><th>Tool</th><th>Decision</th><th>Rule</th><th class="hide-sm">Turn</th></tr></thead><tbody>${rows}</tbody></table>`;
+  return `<div style="margin-left:${indent}px">
+<div class="branch ${b.kind}">${label}${origin} · ${b.turns.length} tool call${b.turns.length === 1 ? "" : "s"}${blocked ? ` · <span class="v no">${blocked} blocked</span>` : ""}</div>
+<table><thead><tr><th>Time</th><th>Tool</th><th>Decision</th><th>Rule</th><th class="hide-sm">Turn</th></tr></thead><tbody>${rows}</tbody></table>
+</div>`;
 }
 
 function renderFlow(flowId: string): string {
@@ -99,7 +108,7 @@ function renderFlow(flowId: string): string {
   return page(`Flow ${flowId}`, `<h1>Flow <code>${esc(flowId)}</code></h1>
 <p class="sub">${events.length} tool call${events.length === 1 ? "" : "s"} in ${tree.length} branch${tree.length === 1 ? "" : "es"}, ${when(events[0].emitted_at)} to ${when(events[events.length - 1].emitted_at)}.</p>
 ${tree.map(renderBranch).join("\n")}
-<p class="note">A subagent is shown as its own branch: the hook input does not yet say which prompt started it.</p>`);
+<p class="note">A subagent sits under the branch whose tool call spawned it, as Claude Code recorded it in the subagent's own file; calls recorded before 2026-10-15 carry no link.</p>`);
 }
 
 export function registerFlowRoutes(app: FastifyInstance): void {
