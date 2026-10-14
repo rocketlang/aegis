@@ -110,7 +110,7 @@ const ZONES: ZoneSpec[] = [
 function renderZone(spec: ZoneSpec, writer: SqliteEventWriter | null): string {
   let events: AccReceipt[] = [];
   if (writer) {
-    try { events = writer.queryByPrimitive(spec.primitive, 20); } catch { events = []; }
+    try { events = publicOnly(writer.queryByPrimitive(spec.primitive, 20)); } catch { events = []; }
   }
 
   let body: string;
@@ -202,7 +202,7 @@ function renderPrimitiveProcessList(writer: SqliteEventWriter | null): string {
     let last_event_at: string | null = null;
     if (writer && n > 0) {
       try {
-        const recent = writer.queryByPrimitive(p, 1);
+        const recent = publicOnly(writer.queryByPrimitive(p, 1));
         last_event_at = recent[0]?.emitted_at ?? null;
       } catch { /* */ }
     }
@@ -693,6 +693,11 @@ function renderAgentTimeline(agentId: string, events: AccReceipt[]): string {
 
 interface SseClient { lastId: number; reply: FastifyReply; }
 
+// GTP-024 / layer C (2026-10-15): these pages and their stream are public, with no login. An event that
+// carries a flow id describes real agent work and is never shown here, wherever it was written. Real flows
+// live in the private store (flow-events.db) behind the login.
+const publicOnly = <T extends { flow_id?: string }>(events: T[]): T[] => events.filter((e) => !e.flow_id);
+
 function setupSse(_app: FastifyInstance, writer: SqliteEventWriter | null, reply: FastifyReply): void {
   reply.raw.writeHead(200, {
     'Content-Type': 'text/event-stream',
@@ -714,6 +719,7 @@ function setupSse(_app: FastifyInstance, writer: SqliteEventWriter | null, reply
       const fresh = writer.queryNewer(lastId, 50);
       for (const r of fresh) {
         lastId = (r as { id: number }).id;
+        if (r.flow_id) continue; // layer C: advance past it, never send it
         const data = JSON.stringify({
           receipt_id: r.receipt_id, primitive: r.primitive, event_type: r.event_type,
           emitted_at: r.emitted_at, agent_id: r.agent_id ?? null, verdict: r.verdict ?? null,
@@ -772,7 +778,7 @@ export function registerAccRoutes(app: FastifyInstance): void {
     const writer = getWriter();
     let events: AccReceipt[] = [];
     if (writer) {
-      try { events = writer.queryByAgent(agentId, 500); } catch { events = []; }
+      try { events = publicOnly(writer.queryByAgent(agentId, 500)); } catch { events = []; }
     }
     reply.header("Content-Type", "text/html; charset=utf-8");
     return renderAgentTimeline(agentId, events);
@@ -804,12 +810,12 @@ export function registerAccRoutes(app: FastifyInstance): void {
       const limit = Math.min(parseInt(req.query.limit ?? "50", 10) || 50, 500);
       try {
         if (req.query.primitive) {
-          return { events: writer.queryByPrimitive(req.query.primitive, limit) };
+          return { events: publicOnly(writer.queryByPrimitive(req.query.primitive, limit)) };
         }
         if (req.query.agent_id) {
-          return { events: writer.queryByAgent(req.query.agent_id, limit) };
+          return { events: publicOnly(writer.queryByAgent(req.query.agent_id, limit)) };
         }
-        return { events: writer.queryNewer(0, limit) };
+        return { events: publicOnly(writer.queryNewer(0, limit)) };
       } catch {
         return { events: [], error: "query failed" };
       }

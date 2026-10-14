@@ -37,12 +37,15 @@ import { readValve } from "../../kavach/gate-valve";
 import { emitReceipt } from "../../kavach/pramana-emit";
 import type { ReceiptVerdict } from "../../../ee/kavach/pramana-receipts";
 import { precededByForSession } from "../../shield/provenance";
+import { recordToolDecision } from "../../acc/flow-events";
 
 // Session id for the current hook invocation — captured once, read by emitBlock
 // when it records the PRAMANA receipt. Each hook run is its own process.
 let _shieldSession = "unknown";
 // AF-T-710 — set only for an exfil BLOCK; rides into the receipt context and the banner.
 let _precededBy: string | null = null;
+// GTP-018/024 — the last block emitBlock recorded, read once when the process exits (P1 flow events).
+let _lastBlock: { ruleId: string; verdict: string; category: string } | null = null;
 
 function readStdin(): string {
   try {
@@ -76,6 +79,13 @@ export default async function checkShield(_args: string[]): Promise<void> {
       process.stderr.write("[SHIELD] input was not a JSON object — this call was NOT checked\n");
       process.exit(0);
     }
+
+    // GTP-018/024 (P1): every exit below is this call's decision (0 allow, 2 block). Record it once,
+    // privately, as a flow event. Synchronous, never throws, never changes the exit code.
+    const decided = toolInput;
+    process.once("exit", (code) => {
+      recordToolDecision(decided, { exitCode: code, ruleId: _lastBlock?.ruleId, verdict: _lastBlock?.verdict, category: _lastBlock?.category });
+    });
 
     const toolName = (toolInput.tool_name as string) || "";
     const sessionId = (toolInput.session_id as string) || process.env.CLAUDE_SESSION_ID || "unknown";
@@ -235,6 +245,7 @@ export default async function checkShield(_args: string[]): Promise<void> {
 }
 
 function emitBlock(source: string, ruleId: string, reason: string, category: string, verdict: ReceiptVerdict = "BLOCKED"): void {
+  _lastBlock = { ruleId, verdict, category };
   // @rule:KAV-046 — record the shield decision as a tamper-evident PRAMANA receipt.
   emitReceipt(
     "INJECTION_SHIELD",
