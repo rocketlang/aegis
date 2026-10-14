@@ -36,6 +36,8 @@
 
 import type { FastifyInstance } from "fastify";
 import { getDb } from "../../core/db";
+import { loadConfig } from "../../core/config";
+import { judgeMandate, loadMandateById } from "../../kavach/mandate";
 import {
   computeSealedHash,
   storeEnvelope,
@@ -82,6 +84,7 @@ export function registerAseRoutes(app: FastifyInstance): void {
       declared_caps?: string[];
       budget_usd?: number;
       parent_session_id?: string;
+      mandate_id?: string;
       perm_mask?: number;
       class_mask?: number;
       trust_mask?: number;
@@ -104,6 +107,24 @@ export function registerAseRoutes(app: FastifyInstance): void {
 
     // @rule:ASE-005 — if parent_session_id provided, intersect masks
     let permMask = typeof body.perm_mask === "number" ? body.perm_mask : trustMask;
+
+    // @rule:GTP-017 only a mandate creates a root envelope; @rule:GTP-019 its ceiling is the mandate's mask.
+    // Founder ruling 2026-10-15 (2a): applied in enforce mode; in monitor mode the envelope is issued as
+    // before and the answer says what enforce would have done.
+    let mandateNote: { mandate_id: string | null; mandate_status: string; would_cap_perm_mask?: number } | null = null;
+    if (!parentSessionId) {
+      const mandateId = typeof body.mandate_id === "string" ? body.mandate_id : null;
+      const mandate = mandateId ? loadMandateById(mandateId) : null;
+      const status = judgeMandate(mandate);
+      const enforce = loadConfig().enforcement?.mode === "enforce";
+      if (enforce && status !== "valid") {
+        reply.code(403);
+        return { ok: false, error: `${status === "missing" ? "GTP-017" : "GTP-022"}: a root envelope needs a valid mandate (mandate ${status})`, _meta: meta(start) };
+      }
+      const capped = mandate && status === "valid" ? (permMask & mandate.trust_mask) >>> 0 : undefined;
+      if (enforce && capped !== undefined) permMask = capped;
+      mandateNote = { mandate_id: mandateId, mandate_status: status, ...(!enforce && capped !== undefined && capped !== permMask ? { would_cap_perm_mask: capped } : {}) };
+    }
     let classMask = typeof body.class_mask === "number" ? body.class_mask : 0xFFFF;
 
     if (parentSessionId) {
@@ -194,6 +215,7 @@ export function registerAseRoutes(app: FastifyInstance): void {
       class_mask: classMask,
       trust_mask: trustMask,
       declared_caps: declaredCaps,
+      ...(mandateNote ?? {}),
       _meta: { ...meta(start), trust_mask_applied: trustMask },
     };
   });
