@@ -55,6 +55,25 @@ r.verdict  // { status: "PASS" | "PAUSED" | "REFUSED", httpCode, code, rule, det
 
 `signEnvelope({ method, path, headers, privateKeyPem, keyid })` signs an envelope. It signs at the current time with a random nonce unless you pass `created` (seconds) and `nonce`; a checker accepts a `created` only within 300 s of its own clock, and a nonce only once. `verifyTurn(envelope, context)` is the decision alone (capability, authority, intent, reversibility, commit), for a caller that has done identity itself.
 
+### The body is signed too (0.2.0)
+
+Pass `body` to `signEnvelope` and the envelope carries a `content-digest` field (`sha-256=:…:`, as in RFC 9530) inside the signature. Pass the same `body` to `checkTurn(env, substrate, { body })` and a missing or different digest is refused (GTP-004). Objects are hashed as JSON with their keys sorted, so key order does not matter; text and bytes are hashed as they are.
+
+### Over MCP (0.2.0)
+
+The envelope rides in a `tools/call` request's `params._meta["io.xshieldai/gtp"]`, signed for exactly that tool and those arguments.
+
+```js
+import { signMcpCall, checkMcpCall } from "@xshieldai/governed-turn-verify";
+
+// the caller
+const params = signMcpCall({ name: "vessel.read", arguments: { imo: "9000001" }, fields, privateKeyPem, keyid });
+// the MCP server, before running the tool
+const r = await checkMcpCall(params, substrate);
+```
+
+`checkMcpCall` refuses an envelope signed for another tool, one whose claimed capability is not the tool called, and one whose arguments changed. Then it judges the turn like any other. A call with no envelope gets 428 at L1 and above, and is only recorded at L0. The caller has to be a client that adds `_meta`. An agent harness that sends its own MCP requests, such as Claude Code today, does not, so its calls carry no envelope.
+
 ### At a hook: `gtp-check`
 
 ```sh
