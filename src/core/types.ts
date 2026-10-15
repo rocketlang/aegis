@@ -62,6 +62,9 @@ export interface AegisConfig {
     // GTP-017/022: "enforce" makes a missing, revoked or expired mandate a refusal, and only while
     // enforcement.mode is also "enforce". Absent or anything else: mandates are issued and recorded only.
     mandate?: "enforce" | "record";
+    // GTP-025: what a new mandate requires before its flow closes ("none-declared" | "receipts" |
+    // "receipts-strict"). Absent or unknown: "receipts". Refused only under the same opt-in as above.
+    mandate_return_proof?: string;
     // Per-level timeout in seconds (silence = BLOCK)
     timeout_level1_s: number;
     timeout_level2_s: number;

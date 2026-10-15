@@ -381,6 +381,15 @@ From 2.21.0 `aegis check-shield` gives each Claude Code session a **mandate** at
 - **To make mandates refuse**, set both `enforcement.mode: "enforce"` and `kavach.mandate: "enforce"`. Then a call with no mandate is refused (GTP-017), and so is one whose mandate is revoked or expired (GTP-022).
 - **Before you turn that on:** a mandate is not renewed inside a session, so a session that runs past 24 hours is refused until a new session starts. Check the masks with `aegis mandate list` too.
 - `aegis mandate list | show <id> | revoke <id> [reason]`. Revoking writes into the aegis directory, which the shield keeps tool calls out of, so a person runs it from their own terminal.
+- **The end of a turn (Stop hook, `aegis flow-close`).** The agent's last message is graded with [show-me-the-receipts](https://github.com/xshieldai/show-me-the-receipts), from the session record only: no command is run. The grade is judged against what the mandate requires, and a signed flow receipt is written to `~/.aegis/flow-receipts/` (owner-only). The mandate's `required_return_proof` is one of:
+
+  | Value | Required before the flow closes |
+  |---|---|
+  | `receipts` | No claim is FALSE or STALE, and the message is not a bare "done" that names nothing checkable. This is the default for new mandates. |
+  | `receipts-strict` | As `receipts`, and every checkable claim is PROVEN. |
+  | `none-declared` | Nothing. |
+
+  Set the value for new mandates with `kavach.mandate_return_proof`. Under the same two `"enforce"` settings, a flow whose proof is missing sends the agent back once to prove or correct its claim (GTP-025); otherwise the receipt records the flow as open. Wire the hook in `~/.claude/settings.json` under `"Stop"`, with the command `aegis flow-close`.
 
 #### The destructive-command gate
 

@@ -64,6 +64,8 @@ async function main() {
       return (await import("./commands/anumati")).default(args);
     case "mandate":
       return (await import("./commands/mandate")).default(args);
+    case "flow-close":
+      return (await import("./commands/flow-close")).default();
     case "pramana":
       return (await import("./commands/pramana")).default(args);
     case "attest":

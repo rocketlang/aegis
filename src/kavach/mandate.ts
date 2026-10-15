@@ -29,6 +29,18 @@ import { signWithMachineSecret } from "../kernel/mudrika";
 
 export const MANDATE_TTL_SECONDS = 24 * 60 * 60;
 
+/**
+ * What a flow must show before it closes as done (GTP-025, P5). Judged at the end of a turn by
+ * `aegis flow-close` against the receipts grade of the agent's last message (no command is run):
+ *   none-declared    nothing is required; the flow closes and the receipt says so
+ *   receipts         no claim is FALSE or STALE, and no bare "done" that names nothing checkable
+ *   receipts-strict  as receipts, and every checkable claim is PROVEN (none left with no receipt)
+ */
+export const RETURN_PROOFS = ["none-declared", "receipts", "receipts-strict"] as const;
+export type ReturnProof = (typeof RETURN_PROOFS)[number];
+export const DEFAULT_RETURN_PROOF: ReturnProof = "receipts";
+export const isReturnProof = (v: unknown): v is ReturnProof => typeof v === "string" && (RETURN_PROOFS as readonly string[]).includes(v);
+
 /** True only when the box enforces and has opted in to mandate refusals (founder ruling 2026-10-15). */
 export function mandateEnforced(config: { enforcement?: { mode?: string }; kavach?: { mandate?: string } }): boolean {
   return config.enforcement?.mode === "enforce" && config.kavach?.mandate === "enforce";
@@ -129,7 +141,7 @@ export function loadMandateForSession(sessionId: string): Mandate | null {
   try { return loadMandateById(readFileSync(sessionPointer(sessionId), "utf8").trim()); } catch { return null; }
 }
 
-export function issueMandate(sessionId: string, opts: { trustMask: number; scopeKey: string; principal: string; now?: Date }): Mandate {
+export function issueMandate(sessionId: string, opts: { trustMask: number; scopeKey: string; principal: string; now?: Date; returnProof?: ReturnProof }): Mandate {
   if (!SAFE_ID.test(sessionId)) throw new Error("GTP-017: session id is not a safe identifier; no mandate issued");
   const m: Mandate = {
     mudrika_version: "v1",
@@ -141,7 +153,7 @@ export function issueMandate(sessionId: string, opts: { trustMask: number; scope
     scope_key: opts.scopeKey,
     issued_at: (opts.now ?? new Date()).toISOString(),
     ttl_seconds: MANDATE_TTL_SECONDS,
-    required_return_proof: "none-declared",
+    required_return_proof: opts.returnProof ?? DEFAULT_RETURN_PROOF,
     revocation_url: "aegis://mandates/revoked.jsonl",
     pramana_chain: [],
   };

@@ -38,7 +38,7 @@ import { emitReceipt } from "../../kavach/pramana-emit";
 import type { ReceiptVerdict } from "../../../ee/kavach/pramana-receipts";
 import { precededByForSession } from "../../shield/provenance";
 import { recordToolDecision } from "../../acc/flow-events";
-import { mandateForCall, principalFromApprovers, issueMandate, mandateEnforced } from "../../kavach/mandate";
+import { mandateForCall, principalFromApprovers, issueMandate, mandateEnforced, isReturnProof } from "../../kavach/mandate";
 import { deriveTrustFromGitRemote } from "../../core/ase";
 import { execFileSync } from "child_process";
 
@@ -107,7 +107,8 @@ export default async function checkShield(_args: string[]): Promise<void> {
             remote = execFileSync("git", ["-C", typeof toolInput.cwd === "string" && toolInput.cwd ? toolInput.cwd : process.cwd(), "remote", "get-url", "origin"], { encoding: "utf8", timeout: 1500, stdio: ["ignore", "pipe", "ignore"] }).trim() || null;
           } catch { /* not a repo: the fallback trust */ }
           const { service_key, trust_mask } = deriveTrustFromGitRemote(remote);
-          issueMandate(callSession, { trustMask: trust_mask, scopeKey: service_key, principal });
+          const wanted = (config.kavach as { mandate_return_proof?: unknown } | undefined)?.mandate_return_proof;
+          issueMandate(callSession, { trustMask: trust_mask, scopeKey: service_key, principal, returnProof: isReturnProof(wanted) ? wanted : undefined });
           mandate = mandateForCall(callSession);
         }
       }

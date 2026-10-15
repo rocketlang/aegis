@@ -4,6 +4,16 @@ All notable changes to AEGIS will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [Unreleased]
+
+### Added — the end of a flow is checked against its mandate (GTP-025, P5)
+
+- **`aegis flow-close`, a Claude Code Stop hook.** At the end of every turn it grades the agent's last message with show-me-the-receipts (0.5.0, MIT, now a dependency). It grades from the session record only: no command is run, and `receipts.config.json` is ignored here. It judges the grade against the flow's mandate and writes a signed flow receipt to `~/.aegis/flow-receipts/` (owner-only). The receipt holds the mandate, the flow's tool calls, refusals and subagents, the proof result, and hanumang's return-with-proof axis.
+- **A mandate now says what proof it requires.** `required_return_proof` is `receipts` by default for new mandates (it was `none-declared`), or `receipts-strict`, or `none-declared`. Set it with `kavach.mandate_return_proof`.
+- **Refusing is opt-in, as for mandates.** Only when both `enforcement.mode` and `kavach.mandate` are `"enforce"` is the agent sent back, once, when its last message has a FALSE or STALE claim or a bare "done". After that it is let go and the receipt says the flow is open. Otherwise the result is only recorded. A flow with no mandate is recorded open and never blocked. Any fault in the hook lets the agent stop.
+- The hook is not wired by `aegis init`: add it under `"Stop"` in `~/.claude/settings.json`.
+- Not yet: anchoring the flow receipt in a public log, and showing it on `/flows/:id`.
+
 ## [2.21.0] — 2026-10-15
 
 Whole-flow guardrails, first three phases (governed-turn-protocol §19, GTP-017…024). Nothing new refuses unless you turn it on.
