@@ -53,7 +53,7 @@ const s = await checkTurn(envelopeFromJson(payload.gtp), substrate);
 r.verdict  // { status: "PASS" | "PAUSED" | "REFUSED", httpCode, code, rule, detail }
 ```
 
-`signEnvelope({ method, path, headers, privateKeyPem, keyid, created, nonce })` signs an envelope. `verifyTurn(envelope, context)` is the decision alone (capability, authority, intent, reversibility, commit), for a caller that has done identity itself.
+`signEnvelope({ method, path, headers, privateKeyPem, keyid })` signs an envelope. It signs at the current time with a random nonce unless you pass `created` (seconds) and `nonce`; a checker accepts a `created` only within 300 s of its own clock, and a nonce only once. `verifyTurn(envelope, context)` is the decision alone (capability, authority, intent, reversibility, commit), for a caller that has done identity itself.
 
 ### At a hook: `gtp-check`
 

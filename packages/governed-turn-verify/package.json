@@ -1,6 +1,6 @@
 {
   "name": "@xshieldai/governed-turn-verify",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "The verifier of the Governed Turn Protocol (GTP): one function that judges an agent's turn by its signed envelope, the same whether the envelope came in HTTP headers or as JSON to a hook. Signature, a key bound to one driver, freshness and replay, then mask intersection, attenuation, intent, reversibility and commit. No model, no fetching. Part of the xShieldAI Posture Suite.",
   "license": "AGPL-3.0-only",
   "type": "module",

@@ -12,7 +12,7 @@
 // There is no "approved" input anywhere. A turn is exactly as powerful as its masks say (GTP-INV-6).
 // Extracted from the GTP reference gate (gtp-gate), whose tests it carries.
 
-import { createPrivateKey, createPublicKey, sign as edSign, verify as edVerify } from "node:crypto";
+import { createPrivateKey, createPublicKey, randomUUID, sign as edSign, verify as edVerify } from "node:crypto";
 
 // ── types ─────────────────────────────────────────────────────────────────────────────────────────
 
@@ -188,11 +188,17 @@ export function signatureBase(method: string, path: string, fields: Fields, { cr
   return lines.join("\n");
 }
 
-/** Sign an envelope: returns the fields with `signature-input` and `signature` added. */
-export function signEnvelope(a: { method: string; path: string; headers: Fields; privateKeyPem: string; keyid: string; created: number; nonce: string }): Fields {
-  const base = signatureBase(a.method, a.path, a.headers, { created: a.created, nonce: a.nonce, keyid: a.keyid });
+/**
+ * Sign an envelope: returns the fields with `signature-input` and `signature` added. `created` defaults to
+ * now (seconds) and `nonce` to a random UUID: a checker accepts `created` only within its window (300 s by
+ * default, GTP-YK-003) and a nonce only once, so a fixed value works once at most.
+ */
+export function signEnvelope(a: { method: string; path: string; headers: Fields; privateKeyPem: string; keyid: string; created?: number; nonce?: string }): Fields {
+  const created = a.created ?? Math.floor(Date.now() / 1000);
+  const nonce = a.nonce ?? randomUUID();
+  const base = signatureBase(a.method, a.path, a.headers, { created, nonce, keyid: a.keyid });
   const sig = edSign(null, Buffer.from(base), createPrivateKey(a.privateKeyPem)).toString("base64");
-  return { ...a.headers, "signature-input": `created=${a.created}; nonce="${a.nonce}"; keyid="${a.keyid}"`, signature: sig };
+  return { ...a.headers, "signature-input": `created=${created}; nonce="${nonce}"; keyid="${a.keyid}"`, signature: sig };
 }
 
 /** Check the signature against a public key. @rule:GTP-011 */

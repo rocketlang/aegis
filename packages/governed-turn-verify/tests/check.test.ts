@@ -127,6 +127,16 @@ describe("checkTurn", () => {
     expect(r.enforced).toBe(false);
   });
 
+  test("signEnvelope signs now with a fresh nonce when none is given (0.1.1)", async () => {
+    const fields: Fields = { "gtp-version": "0.4", "gtp-driver": `type=agent; id="aos"; keyid="ed25519:agent"`, "gtp-session": `cred="agent_viewer"`, "gtp-capability": `service=fr8x; slug="loadboard.read"; verb=can_read; bit=12` };
+    const a = signEnvelope({ method: "POST", path: "/api/turn", headers: fields, privateKeyPem: agentKey.priv, keyid: "ed25519:agent" });
+    const b = signEnvelope({ method: "POST", path: "/api/turn", headers: fields, privateKeyPem: agentKey.priv, keyid: "ed25519:agent" });
+    expect(a["signature-input"]).not.toBe(b["signature-input"]);
+    const sub = substrate({ now: undefined });
+    expect((await checkTurn({ method: "POST", path: "/api/turn", fields: a }, sub)).verdict.status).toBe("PASS");
+    expect((await checkTurn({ method: "POST", path: "/api/turn", fields: b }, sub)).verdict.status).toBe("PASS");
+  });
+
   test("envelopeFromJson refuses what is not an envelope", () => {
     expect(envelopeFromJson(null)).toBeNull();
     expect(envelopeFromJson({ method: "POST", path: "/x" })).toBeNull();
