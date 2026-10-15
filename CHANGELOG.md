@@ -19,6 +19,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   An agent that unsets `AEGIS_FLOW` leaves the flow and starts a new root, which is recorded. Containing that is the kernel launcher's job.
 - All three were shown by a failing test before the fix.
 
+### Added — flow receipts form a signed chain (gap 3, the part on this machine)
+
+- Every flow receipt now names the one before it: `chain: {seq, prev}`, where `prev` is the SHA-256 of the previous receipt file. It is signed with that link in it, and listed in `~/.aegis/flow-receipts/chain.jsonl`. Sessions closing at the same moment take turns through a short lock, so the chain never forks. If the lock stays busy, the receipt is written unchained and says so; it never holds an agent up.
+- **`aegis flow-receipts verify`** walks the chain: order, links, file hashes, the link inside each receipt, and signatures. It names each break (exit 0 holds, 1 broken). **`aegis flow-receipts head`** prints the newest link.
+- **What this does not give:** the chain is kept and signed on this machine. Cutting off its end (the newest receipts and their index lines together) leaves a shorter chain that still verifies. Publishing the head in a public log is what closes that, and it is not wired: which log and which key are the operator's choice.
+
 ## [2.22.0] — 2026-10-15
 
 ### Added — the end of a flow is checked against its mandate (GTP-025, P5)

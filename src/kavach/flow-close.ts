@@ -13,13 +13,14 @@
 // missing says the flow is still open. Whether the agent is also sent back to prove it is the caller's
 // decision (refusing is opt-in: mandateEnforced).
 
-import { existsSync, mkdirSync, writeFileSync } from "fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "fs";
 import { join } from "path";
 import { scoreAxis } from "@xshieldai/hanumang-mandate";
 import { grade, toHanumanG } from "show-me-the-receipts";
 import { getAegisDir } from "../core/config";
 import { signWithMachineSecret } from "../kernel/mudrika";
 import { readFlowEvents, summariseFlows } from "../acc/flow-events";
+import { appendToChain } from "./receipt-chain";
 import { DEFAULT_RETURN_PROOF, isReturnProof, judgeMandate, loadMandateForSession } from "./mandate";
 import type { Mandate, ReturnProof } from "./mandate";
 
@@ -70,6 +71,8 @@ export interface FlowReceipt {
   proof: ProofResult | null;
   /** hanumang return_with_proof (HNG-S-005), with this receipt as the filed, signed return receipt. */
   hng_return_with_proof: { score: number; outcome: string; notes: string[] } | null;
+  /** Its place in the receipt chain: sequence number and the SHA-256 of the previous receipt (gap 3). */
+  chain?: { seq: number; prev: string } | null;
   signature?: string;
 }
 
@@ -136,13 +139,20 @@ export function closeFlow(input: FlowCloseInput, gradeFn: (path: string, opts: o
       proof,
       hng_return_with_proof: hng,
     };
+    const name = `${session}.${Date.now().toString(36)}.json`;
+    // Chained: each receipt names the previous one and is signed with that link in it (receipt-chain.ts).
+    const chained = appendToChain(name, receipt as unknown as Record<string, unknown>);
+    if (chained) {
+      return { receipt: JSON.parse(readFileSync(chained.path, "utf8")) as FlowReceipt, path: chained.path };
+    }
+    // The chain was busy past its wait: write the receipt unchained and say so, never trap the agent.
+    receipt.chain = null;
     receipt.signature = signWithMachineSecret(receiptCanonical(receipt));
-
     const dir = join(getAegisDir(), "flow-receipts");
     if (!existsSync(dir)) mkdirSync(dir, { recursive: true, mode: 0o700 });
-    const path = join(dir, `${session}.${Date.now().toString(36)}.json`);
+    const path = join(dir, name);
     writeFileSync(path, JSON.stringify(receipt, null, 2), { mode: 0o600 });
-    return { receipt, path };
+    return { receipt, path, reason: "receipt written UNCHAINED: the chain lock was busy" };
   } catch (e) {
     return { receipt: null, path: null, reason: `flow-close fault: ${String((e as Error)?.message ?? e).slice(0, 120)}` };
   }

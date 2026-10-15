@@ -68,6 +68,8 @@ async function main() {
       return (await import("./commands/flow-close")).default();
     case "flow-start":
       return (await import("./commands/flow-start")).default();
+    case "flow-receipts":
+      return (await import("./commands/flow-receipts")).default(args);
     case "pramana":
       return (await import("./commands/pramana")).default(args);
     case "attest":
