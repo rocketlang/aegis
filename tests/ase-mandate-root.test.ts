@@ -6,7 +6,7 @@
 // every request, so one HOME switches between modes.
 
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "fs";
 import { tmpdir } from "os";
 import { join } from "path";
 
@@ -15,11 +15,6 @@ process.env.HOME = home;
 process.env.AEGIS_DIR = join(home, ".aegis");
 process.env.KAVACHOS_MUDRIKA_SECRET = "t";
 mkdirSync(join(home, ".aegis"), { recursive: true });
-const mode = (m: "enforce" | "enforce-no-optin" | "monitor") => writeFileSync(join(home, ".aegis", "config.json"), JSON.stringify({
-  enforcement: { mode: m === "monitor" ? "monitor" : "enforce" },
-  kavach: m === "enforce" ? { enabled: true, mandate: "enforce" } : { enabled: true },
-}));
-
 const { default: Fastify } = await import("fastify");
 const { registerAseRoutes } = await import("../src/dashboard/routes/ase");
 const { getAegisDir } = await import("../src/core/config");
@@ -27,6 +22,16 @@ const M = await import("../src/kavach/mandate");
 
 const unsafe = !getAegisDir().startsWith(home) && !process.env.CI;
 if (unsafe) console.warn(`[ase-mandate-root] SKIPPED: aegis dir resolves to ${getAegisDir()}; run this file on its own`);
+
+// The config module fixes its directory when first loaded. In one combined `bun test` run (CI) an
+// earlier file has already fixed it to that file's scratch HOME, so write the config where the route
+// reads it, and put back what was there afterwards.
+const configPath = join(getAegisDir(), "config.json");
+const configBefore = existsSync(configPath) ? readFileSync(configPath, "utf8") : null;
+const mode = (m: "enforce" | "enforce-no-optin" | "monitor") => writeFileSync(configPath, JSON.stringify({
+  enforcement: { mode: m === "monitor" ? "monitor" : "enforce" },
+  kavach: m === "enforce" ? { enabled: true, mandate: "enforce" } : { enabled: true },
+}));
 
 const app = Fastify();
 registerAseRoutes(app);
@@ -36,7 +41,11 @@ beforeAll(async () => {
   await app.listen({ port: 0, host: "127.0.0.1" });
   base = `http://127.0.0.1:${(app.server.address() as { port: number }).port}`;
 });
-afterAll(async () => { await app.close(); rmSync(home, { recursive: true, force: true }); });
+afterAll(async () => {
+  await app.close();
+  if (!unsafe) { if (configBefore === null) rmSync(configPath, { force: true }); else writeFileSync(configPath, configBefore); }
+  rmSync(home, { recursive: true, force: true });
+});
 
 async function issue(body: Record<string, unknown>) {
   const r = await fetch(`${base}/api/v1/aegis/session`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
