@@ -60,14 +60,19 @@ describe.skipIf(unsafe)("mandate (GTP-017/019/022)", () => {
     expect(M.judgeMandate(m, new Date(Date.parse(m.issued_at) + 86400 * 1000))).toBe("expired");
   });
 
-  test("revoked by a person: every later call sees it, and a session start replaces it", () => {
+  // GTP-022: a revocation ends the flow. Until 15 October a session start (a resume of the same session)
+  // replaced a revoked mandate, so a revocation lasted only until the next resume. Found while building
+  // flow-start; this test was the old one, turned round.
+  test("revoked by a person: every later call sees it, and a session start does NOT replace it", () => {
     const m = M.loadMandateForSession("sess-A")!;
     M.revokeMandate(m.mudrika_id, "test", "flow test");
     expect(M.mandateForCall("sess-A").status).toBe("revoked");
-    const renewed = M.ensureMandateForSession("sess-A", { trustMask: 0b0001, scopeKey: "aegis" });
-    expect(renewed.issued).toBe(true);
-    expect(renewed.mandate!.mudrika_id).not.toBe(m.mudrika_id);
-    expect(M.judgeMandate(M.loadMandateById(m.mudrika_id))).toBe("revoked");
+    const again = M.ensureMandateForSession("sess-A", { trustMask: 0b0001, scopeKey: "aegis" });
+    expect(again.issued).toBe(false);
+    expect(again.status).toBe("revoked");
+    expect(M.loadMandateForSession("sess-A")!.mudrika_id).toBe(m.mudrika_id);
+    // a new session is a new flow, and gets its own mandate
+    expect(M.ensureMandateForSession("sess-A2", { trustMask: 0b0001, scopeKey: "aegis" }).issued).toBe(true);
   });
 
   test("no principal, no mandate; an unsafe session id is refused", () => {
