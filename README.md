@@ -373,6 +373,15 @@ The hook runs before every tool call:
 - **The permission-mask check on spawning (Level 0) is off unless `kavach.perm_mask_levels` is `"live"`**, the same switch the destructive gate uses.
 - **A hook script written before 2.6.0 does not pass the payload to `check-budget`.** Add `printf '%s' "$INPUT" |` in front of it, or remove the script and run `aegis init` again.
 
+#### Mandates and flows (2.21.0)
+
+From 2.21.0 `aegis check-shield` gives each Claude Code session a **mandate** at its first tool call: a signed record of who authorised the session (the first owner in the approvers file, `AOS_APPROVERS_FILE`), with a trust mask and a 24-hour life. Every tool call is judged against it. Each decision is written to a private, owner-only store, `~/.aegis/flow-events.db`; it holds the tool name, the verdict and the rule, never the tool's input. `AEGIS_FLOW_EVENTS=off` turns that store off. The dashboard shows each session as a tree at `/flows`; on a dashboard with a password set, only after login.
+
+- **By default a mandate only records.** With no approvers file there is no mandate, and that is recorded too. Nothing is refused.
+- **To make mandates refuse**, set both `enforcement.mode: "enforce"` and `kavach.mandate: "enforce"`. Then a call with no mandate is refused (GTP-017), and so is one whose mandate is revoked or expired (GTP-022).
+- **Before you turn that on:** a mandate is not renewed inside a session, so a session that runs past 24 hours is refused until a new session starts. Check the masks with `aegis mandate list` too.
+- `aegis mandate list | show <id> | revoke <id> [reason]`. Revoking writes into the aegis directory, which the shield keeps tool calls out of, so a person runs it from their own terminal.
+
 #### The destructive-command gate
 
 `aegis check-destructive` reads a shell command before it runs and exits 0 (go ahead) or 2 (stop). `aegis init` installs its rules at `~/.aegis/destructive-rules.json` and wires it into the hook script. (A hook script written by an earlier version does not call it; add the line, or remove the script and run `aegis init` again.)

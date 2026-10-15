@@ -4,6 +4,38 @@ All notable changes to AEGIS will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [2.21.0] — 2026-10-15
+
+Whole-flow guardrails, first three phases (governed-turn-protocol §19, GTP-017…024). Nothing new refuses unless you turn it on.
+
+### Fixed — a child envelope could name a parent that does not exist
+
+- **`POST /api/v1/aegis/session` with a `parent_session_id` that matched no envelope** issued the child with the whole mask it asked for (a request for `0xffff` got `65535`), because the narrowing by the parent was skipped when the parent was not found. It is now refused with 422 (GTP-021). A child whose parent exists is narrowed by it, as before.
+
+### Added — every tool call is a recorded step of a flow
+
+- **`aegis check-shield` records each decision** (allowed or stopped, and the rule) as a flow event in `~/.aegis/flow-events.db`, owner-only. One Claude Code session is one flow, one tool call one turn, and a subagent hangs under the tool call that spawned it. The tool's input, paths and reasons are never stored. `AEGIS_FLOW_EVENTS=off` turns it off. It costs a few milliseconds per call.
+- **The public cockpit stream never serves an event that belongs to a flow.**
+- **`/flows` and `/flows/:id`** (and `/api/flows`, `/api/flows/:id`) show the flows as trees. On a dashboard with a password set they need a login, like every page that is not public.
+- ACC events take five optional fields (`flow_id`, `turn_id`, `parent_turn_id`, `mandate_id`, `session_ref`). The store adds the columns; existing events stay valid.
+
+### Added — a mandate as the root of each flow (records only, unless you opt in)
+
+- At a session's first tool call the shield issues a **mandate**: who authorised the flow (the first owner in the approvers file named by `AOS_APPROVERS_FILE`), a trust mask from the repository's remote, a 24-hour life. It is signed with this machine's Mudrika secret and kept under `~/.aegis/mandates/` (folder 700, files 600). It is never reissued inside the same session.
+- Every later call is judged against it, and the verdict is recorded with the flow event.
+- A root envelope (`POST /api/v1/aegis/session` with no parent) can name it as `mandate_id`; the answer says the mandate's status and the mask it would cap to.
+- **`aegis mandate list | show <id> | revoke <id> [reason]`.** Revoking is a person's act: it writes into the aegis directory, which the shield keeps tool calls out of.
+
+### Behaviour you must opt in to
+
+- **Mandates refuse only when both `enforcement.mode` and `kavach.mandate` are `"enforce"`.** Then a call with no mandate is refused (GTP-017), and so is one whose mandate is revoked or expired (GTP-022). A root envelope without a valid mandate is refused, and one with a mandate is capped to its mask (GTP-019). Without `kavach.mandate`, a box in enforce mode behaves exactly as on 2.20.x. This is so an upgrade never starts refusing a box that has no approvers file.
+- **Before you turn it on:** a session that runs past 24 hours is refused until a new session starts, because the mandate is not renewed mid-session. Read the masks with `aegis mandate list` first; a repository the box does not know gets the most conservative mask.
+
+### Not in this release
+
+- The session-start hook does not issue the mandate yet, so a root envelope requested at session start cannot name it.
+- aegis mirrors the judging rule of `@xshieldai/flow` (0.1.3) rather than depending on it.
+
 ## [2.20.1] — 2026-10-14
 
 The README, which is the npm page. No code changes.
