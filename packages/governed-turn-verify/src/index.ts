@@ -12,7 +12,7 @@
 // There is no "approved" input anywhere. A turn is exactly as powerful as its masks say (GTP-INV-6).
 // Extracted from the GTP reference gate (gtp-gate), whose tests it carries.
 
-import { createPrivateKey, createPublicKey, randomUUID, sign as edSign, verify as edVerify } from "node:crypto";
+import { createHash, createPrivateKey, createPublicKey, randomUUID, sign as edSign, verify as edVerify } from "node:crypto";
 
 // ── types ─────────────────────────────────────────────────────────────────────────────────────────
 
@@ -156,7 +156,20 @@ export function refusalBody(turnId: string, verdict: Verdict): Record<string, un
 export const GTP_FIELDS = [
   "gtp-version", "gtp-turn", "gtp-driver", "gtp-principal", "gtp-session",
   "gtp-capability", "gtp-authority", "gtp-intent", "gtp-reversibility", "gtp-commit",
+  // GTP-004: the signature covers the body through its digest (named as in RFC 9530). Optional on the
+  // wire, so envelopes signed without it still verify; a checker given a body requires it.
+  "content-digest",
 ] as const;
+
+/** The body's digest as the envelope carries it: `sha-256=:<base64>:`. Text and bytes are hashed as they are;
+ * anything else as JSON with every object's keys sorted, so both sides compute the same value. */
+export function contentDigest(body: unknown): string {
+  const stable = (v: unknown): string => Array.isArray(v) ? `[${v.map(stable).join(",")}]`
+    : v && typeof v === "object" ? `{${Object.keys(v).sort().map((k) => `${JSON.stringify(k)}:${stable((v as Record<string, unknown>)[k])}`).join(",")}}`
+    : JSON.stringify(v ?? null);
+  const bytes = typeof body === "string" ? Buffer.from(body, "utf8") : body instanceof Uint8Array ? Buffer.from(body) : Buffer.from(stable(body), "utf8");
+  return `sha-256=:${createHash("sha256").update(bytes).digest("base64")}:`;
+}
 
 export type Fields = Record<string, string | undefined>;
 
@@ -177,7 +190,8 @@ export function parseDict(s: string | undefined | null): Record<string, string> 
 
 /** Is a GTP envelope present? (step 0, classify) */
 export function hasEnvelope(fields: Fields): boolean {
-  return GTP_FIELDS.some((f) => fields[f] != null);
+  // Only the GTP fields make an envelope: a request with nothing but a Content-Digest header has none.
+  return GTP_FIELDS.some((f) => f.startsWith("gtp-") && fields[f] != null);
 }
 
 /** The signature base string for a method, path, fields and binding parameters. */
@@ -193,12 +207,14 @@ export function signatureBase(method: string, path: string, fields: Fields, { cr
  * now (seconds) and `nonce` to a random UUID: a checker accepts `created` only within its window (300 s by
  * default, GTP-YK-003) and a nonce only once, so a fixed value works once at most.
  */
-export function signEnvelope(a: { method: string; path: string; headers: Fields; privateKeyPem: string; keyid: string; created?: number; nonce?: string }): Fields {
+export function signEnvelope(a: { method: string; path: string; headers: Fields; privateKeyPem: string; keyid: string; created?: number; nonce?: string; body?: unknown }): Fields {
   const created = a.created ?? Math.floor(Date.now() / 1000);
   const nonce = a.nonce ?? randomUUID();
-  const base = signatureBase(a.method, a.path, a.headers, { created, nonce, keyid: a.keyid });
+  // With a body, its digest joins the signed fields (GTP-004).
+  const headers: Fields = a.body !== undefined ? { ...a.headers, "content-digest": contentDigest(a.body) } : a.headers;
+  const base = signatureBase(a.method, a.path, headers, { created, nonce, keyid: a.keyid });
   const sig = edSign(null, Buffer.from(base), createPrivateKey(a.privateKeyPem)).toString("base64");
-  return { ...a.headers, "signature-input": `created=${created}; nonce="${nonce}"; keyid="${a.keyid}"`, signature: sig };
+  return { ...headers, "signature-input": `created=${created}; nonce="${nonce}"; keyid="${a.keyid}"`, signature: sig };
 }
 
 /** Check the signature against a public key. @rule:GTP-011 */
@@ -313,7 +329,7 @@ const identityRefusal = (detail: string): Verdict => ({ ok: false, status: "REFU
  * Check one envelope end to end. The same call serves an HTTP gate (envelopeFromHeaders) and a hook or
  * other local position (envelopeFromJson), so a turn is judged the same at every hop (INF-GTP-010).
  */
-export async function checkTurn(env: LocalEnvelope, sub: Substrate): Promise<CheckResult> {
+export async function checkTurn(env: LocalEnvelope, sub: Substrate, opts: { body?: unknown } = {}): Promise<CheckResult> {
   const level: Level = sub.level ?? "L1";
   const enforced = level !== "L0";
   const now = sub.now ?? Date.now();
@@ -336,6 +352,12 @@ export async function checkTurn(env: LocalEnvelope, sub: Substrate): Promise<Che
   const sig = verifySignature({ method: env.method, path: env.path, headers: env.fields, publicKeyPem: key.publicKey });
   if (!sig.ok) return done(identityRefusal(sig.reason ?? "bad signature"), turnId, who);
   if (sig.keyid !== p.driver.keyid) return done(identityRefusal(`signed with ${sig.keyid}, envelope names ${p.driver.keyid}`), turnId, who);
+  // GTP-004: given the body, the signature must cover it, through the digest it signed.
+  if (opts.body !== undefined) {
+    const signedDigest = env.fields["content-digest"];
+    if (!signedDigest) return done({ ok: false, status: "REFUSED", httpCode: 400, code: "GTP_ENVELOPE_MALFORMED", rule: "GTP-004", detail: "the signature does not cover the body (no content-digest)" }, turnId, who);
+    if (signedDigest !== contentDigest(opts.body)) return done({ ok: false, status: "REFUSED", httpCode: 401, code: "GTP_BODY_CHANGED", rule: "GTP-004", detail: "the body is not the one that was signed" }, turnId, who);
+  }
   // step 3: a key speaks only for the driver it is registered to (a key registered to none identifies nobody)
   if (key.driverId !== p.driver.id || key.driverType !== p.driver.type)
     return done(identityRefusal(`key ${p.driver.keyid} is registered to ${key.driverType}:${key.driverId}, not ${p.driver.type}:${p.driver.id}`), turnId, who);
@@ -363,3 +385,39 @@ export async function checkTurn(env: LocalEnvelope, sub: Substrate): Promise<Che
 }
 
 export default verifyTurn;
+
+// ── MCP carriage (GTP §19.4, GTP-023): the same envelope, in a tools/call request's _meta ─────────────
+
+/** Where the envelope rides in `params._meta` (a reverse-DNS key, as MCP asks of _meta keys). */
+export const MCP_META_KEY = "io.xshieldai/gtp";
+
+/** The request line an MCP tool call is signed for: method POST, this path. */
+export const mcpCallPath = (tool: string): string => `/mcp/tools/call/${encodeURIComponent(tool)}`;
+
+export interface McpCallParams { name: string; arguments?: Record<string, unknown>; _meta?: Record<string, unknown> }
+
+/** Client side: the params of one tools/call, signed for exactly this tool and these arguments. */
+export function signMcpCall(a: { name: string; arguments?: Record<string, unknown>; fields: Fields; privateKeyPem: string; keyid: string; created?: number; nonce?: string; meta?: Record<string, unknown> }): McpCallParams {
+  const args = a.arguments ?? {};
+  const path = mcpCallPath(a.name);
+  const fields = signEnvelope({ method: "POST", path, headers: a.fields, privateKeyPem: a.privateKeyPem, keyid: a.keyid, created: a.created, nonce: a.nonce, body: args });
+  const envelope: LocalEnvelope = { method: "POST", path, fields };
+  return { name: a.name, arguments: args, _meta: { ...(a.meta ?? {}), [MCP_META_KEY]: envelope } };
+}
+
+/**
+ * Server side: judge one tools/call. The envelope must have been signed for THIS tool (its request line and
+ * the capability it claims both name the tool) and for THESE arguments (the content digest), then the turn is
+ * judged as any other (checkTurn). No envelope: 428 at L1 and above, recorded at L0.
+ */
+export async function checkMcpCall(params: McpCallParams, sub: Substrate): Promise<CheckResult> {
+  const name = typeof params?.name === "string" ? params.name : "";
+  const env = envelopeFromJson(params?._meta?.[MCP_META_KEY]);
+  if (!env) return checkTurn({ method: "POST", path: mcpCallPath(name), fields: {} }, sub);
+  const level: Level = sub.level ?? "L1";
+  const refuse = (detail: string): CheckResult => ({ verdict: { ok: false, status: "REFUSED", httpCode: 400, code: "GTP_ENVELOPE_MALFORMED", rule: "GTP-004", detail }, turnId: "", enforced: level !== "L0" });
+  if (env.method !== "POST" || env.path !== mcpCallPath(name)) return refuse(`the envelope was signed for ${env.method} ${env.path}, not for tool ${name}`);
+  const claimed = parseEnvelope(env.fields).capability?.slug;
+  if (claimed !== name) return refuse(`the envelope claims capability ${claimed ?? "(none)"} for tool ${name}`);
+  return checkTurn(env, sub, { body: params.arguments ?? {} });
+}

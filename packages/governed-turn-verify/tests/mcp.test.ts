@@ -43,6 +43,11 @@ describe("GTP-004: the body is covered by the signature", () => {
   });
 });
 
+test("a request carrying only a Content-Digest header has no envelope (428, not 'unidentified')", async () => {
+  const r = await V.checkTurn({ method: "POST", path: "/x", fields: { "content-digest": "sha-256=:AAAA:" } }, substrate());
+  expect(r.verdict.httpCode).toBe(428);
+});
+
 describe("MCP carriage (GTP §19.4): the envelope in _meta, bound to the tool and its arguments", () => {
   const call = (name = "vessel.read", args: Record<string, unknown> = { imo: "9000001" }) =>
     (V as any).signMcpCall({ name, arguments: args, fields: fields(), privateKeyPem: priv, keyid: "ed25519:agent" });
@@ -81,5 +86,36 @@ describe("MCP carriage (GTP §19.4): the envelope in _meta, bound to the tool an
     const r = await (V as any).checkMcpCall(params, substrate());
     expect(r.verdict.status).toBe("REFUSED");
     expect(r.verdict.rule).toBe("GTP-004");
+  });
+});
+
+describe("over the wire: a JSON-RPC tools/call to a small MCP server", () => {
+  test("the envelope in _meta survives serialisation; arguments reordered still pass, changed ones do not", async () => {
+    const { createServer } = await import("node:http");
+    const sub = substrate();
+    const server = createServer((req, res) => {
+      let raw = "";
+      req.on("data", (c) => (raw += c));
+      req.on("end", async () => {
+        const msg = JSON.parse(raw);
+        const r = await (V as any).checkMcpCall(msg.params, sub);
+        res.setHeader("content-type", "application/json");
+        res.end(JSON.stringify(r.verdict.status === "PASS"
+          ? { jsonrpc: "2.0", id: msg.id, result: { content: [{ type: "text", text: "ok" }] } }
+          : { jsonrpc: "2.0", id: msg.id, error: { code: -32001, message: `${r.verdict.rule}: ${r.verdict.detail}` } }));
+      });
+    });
+    await new Promise<void>((ok) => server.listen(0, "127.0.0.1", ok));
+    const url = `http://127.0.0.1:${(server.address() as { port: number }).port}`;
+    const rpc = async (params: unknown) => (await fetch(url, { method: "POST", body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/call", params }) })).json() as Promise<any>;
+    const params = (V as any).signMcpCall({ name: "vessel.read", arguments: { imo: "9000001", fields: ["eta", "port"] }, fields: fields(), privateKeyPem: priv, keyid: "ed25519:agent" });
+    expect((await rpc(params)).result?.content?.[0]?.text).toBe("ok");
+    const reordered = (V as any).signMcpCall({ name: "vessel.read", arguments: { fields: ["eta", "port"], imo: "9000001" }, fields: fields(), privateKeyPem: priv, keyid: "ed25519:agent" });
+    reordered.arguments = { imo: "9000001", fields: ["eta", "port"] }; // same arguments, keys in another order
+    expect((await rpc(reordered)).result?.content?.[0]?.text).toBe("ok");
+    const changed = (V as any).signMcpCall({ name: "vessel.read", arguments: { imo: "9000001" }, fields: fields(), privateKeyPem: priv, keyid: "ed25519:agent" });
+    changed.arguments = { imo: "9000002" };
+    expect((await rpc(changed)).error?.message).toContain("GTP-004");
+    server.close();
   });
 });
