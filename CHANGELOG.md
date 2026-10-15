@@ -4,7 +4,7 @@ All notable changes to AEGIS will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
-## [Unreleased]
+## [2.23.0] — 2026-10-15
 
 ### Fixed — every session shared one envelope, and a revocation lasted only until a resume
 
@@ -23,7 +23,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 - Every flow receipt now names the one before it: `chain: {seq, prev}`, where `prev` is the SHA-256 of the previous receipt file. It is signed with that link in it, and listed in `~/.aegis/flow-receipts/chain.jsonl`. Sessions closing at the same moment take turns through a short lock, so the chain never forks. If the lock stays busy, the receipt is written unchained and says so; it never holds an agent up.
 - **`aegis flow-receipts verify`** walks the chain: order, links, file hashes, the link inside each receipt, and signatures. It names each break (exit 0 holds, 1 broken). **`aegis flow-receipts head`** prints the newest link.
-- **What this does not give:** the chain is kept and signed on this machine. Cutting off its end (the newest receipts and their index lines together) leaves a shorter chain that still verifies. Publishing the head in a public log is what closes that, and it is not wired: which log and which key are the operator's choice.
+- **Publishing the head: `aegis flow-receipts anchor --key <file>`** sends the chain's head to Sigstore's public transparency log (Rekor), as one `hashedrekord` entry signed with a key of your own. `aegis flow-receipts keygen --out <file>` makes that key (ECDSA P-256, owner-only, refuses to overwrite) and prints the public half to publish. The command:
+  - refuses a chain that does not verify, a key others can read, or a missing key;
+  - checks that the log's reply holds our hash under our key before recording it;
+  - never sends the same head twice;
+  - with `--dry-run`, sends nothing.
+
+  Once a head is published, `verify` also fails if the chain no longer holds it at its place. Every entry is permanent and public.
+- **What this does not give:** the chain is kept and signed on this machine. Cutting off its end leaves a shorter chain that still verifies, back to the last published head. A key on this machine is as safe as the machine. The entry format was carried over from a sender tested only against a stand-in log; Sigstore's acceptance is shown by the first real anchor, and the command checks the reply either way.
 
 ## [2.22.0] — 2026-10-15
 

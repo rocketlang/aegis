@@ -43,6 +43,13 @@ export function canonicalOf(r: Record<string, unknown>): string {
   return stable(rest);
 }
 
+/** Heads published in a public log (public-anchor.ts writes them). */
+export interface AnchorRecord { seq: number; hash: string; uuid: string; log_index: number | null; integrated_time: number | null; log: string; at: string }
+export const anchorsPath = (): string => join(receiptsDir(), "anchors.jsonl");
+export function readAnchors(): AnchorRecord[] {
+  try { return readFileSync(anchorsPath(), "utf8").split("\n").filter((l) => l.trim()).map((l) => JSON.parse(l) as AnchorRecord); } catch { return []; }
+}
+
 function readIndex(): IndexLine[] {
   try {
     return readFileSync(indexPath(), "utf8").split("\n").filter((l) => l.trim()).map((l) => JSON.parse(l) as IndexLine);
@@ -111,6 +118,12 @@ export function verifyChain(): ChainCheck {
     const got = Buffer.from(typeof r.signature === "string" ? r.signature : "");
     if (got.length !== want.length || !timingSafeEqual(got, want)) problems.push(`${at}: signature does not verify`);
   });
+  // A head once published must still be in the chain, at its place: otherwise the chain was cut or rewritten
+  // after it was anchored. (This reads the local list of anchors; the log itself holds them for good.)
+  for (const a of readAnchors()) {
+    const line = index[a.seq - 1];
+    if (!line || line.hash !== a.hash) problems.push(`anchored head seq ${a.seq} (${a.hash.slice(0, 12)}, log entry ${a.log_index ?? a.uuid}) is no longer in the chain at its place`);
+  }
   const last = index[index.length - 1];
   return { ok: problems.length === 0, count: index.length, head: last ? { seq: last.seq, hash: last.hash } : null, problems };
 }
