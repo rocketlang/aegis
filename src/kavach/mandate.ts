@@ -164,15 +164,21 @@ export function issueMandate(sessionId: string, opts: { trustMask: number; scope
   return m;
 }
 
-/** At a session start: keep a valid mandate, otherwise issue a new one. No principal, no mandate. */
-export function ensureMandateForSession(sessionId: string, opts: { trustMask: number; scopeKey: string; principal?: string | null }): { mandate: Mandate | null; issued: boolean; status: MandateStatus } {
+/**
+ * At a session start (or resume): keep a valid mandate; issue one when there is none; renew one that has
+ * expired (founder ruling 2026-10-15: 24 hours, renewed at session start). A revoked or malformed mandate is
+ * NEVER replaced for the same session: a revocation ends that flow (GTP-022), and a new session is a new
+ * flow. No principal, no mandate.
+ */
+export function ensureMandateForSession(sessionId: string, opts: { trustMask: number; scopeKey: string; principal?: string | null; returnProof?: ReturnProof }): { mandate: Mandate | null; issued: boolean; status: MandateStatus; renewed?: string } {
   const current = loadMandateForSession(sessionId);
   const status = judgeMandate(current);
   if (current && status === "valid") return { mandate: current, issued: false, status };
+  if (current && (status === "revoked" || status === "malformed")) return { mandate: current, issued: false, status };
   const principal = opts.principal === undefined ? principalFromApprovers() : opts.principal;
   if (!principal) return { mandate: null, issued: false, status: "missing" };
-  const m = issueMandate(sessionId, { trustMask: opts.trustMask, scopeKey: opts.scopeKey, principal });
-  return { mandate: m, issued: true, status: "valid" };
+  const m = issueMandate(sessionId, { trustMask: opts.trustMask, scopeKey: opts.scopeKey, principal, returnProof: opts.returnProof });
+  return { mandate: m, issued: true, status: "valid", ...(current && status === "expired" ? { renewed: current.mudrika_id } : {}) };
 }
 
 /** A person's act (GTP-022). Appends; never edits or removes a line. */

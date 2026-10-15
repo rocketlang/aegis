@@ -4,6 +4,14 @@ All notable changes to AEGIS will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [Unreleased]
+
+### Fixed — every session shared one envelope, and a revocation lasted only until a resume
+
+- **No session had a root envelope of its own.** The session hook recorded the envelope in one file for the whole machine (`~/.aegis/ase_session_id`) and asked for a new one only while that file was missing. Once it existed, every later session reused that one envelope. **`aegis flow-start`**, a new SessionStart hook, gives each Claude Code session its own root envelope, requested naming the session's mandate (GTP-017/019), kept at `~/.aegis/flows/<session>.json`. The older hook and its budget check are unchanged.
+- **A session start replaced a revoked mandate.** `ensureMandateForSession` issued a new mandate whenever the current one was not valid, revoked included. So resuming the session undid a person's revocation. A revoked or malformed mandate is now never replaced for the same session (GTP-022). An expired one is still renewed at session start, and a new session still gets its own.
+- Both were shown by a failing test before the fix.
+
 ## [2.22.0] — 2026-10-15
 
 ### Added — the end of a flow is checked against its mandate (GTP-025, P5)
