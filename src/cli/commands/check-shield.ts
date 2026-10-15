@@ -38,7 +38,7 @@ import { emitReceipt } from "../../kavach/pramana-emit";
 import type { ReceiptVerdict } from "../../../ee/kavach/pramana-receipts";
 import { precededByForSession } from "../../shield/provenance";
 import { recordToolDecision } from "../../acc/flow-events";
-import { mandateForCall, principalFromApprovers, issueMandate, mandateEnforced, isReturnProof } from "../../kavach/mandate";
+import { mandateForCall, ensureMandateForSession, mandateEnforced, isReturnProof } from "../../kavach/mandate";
 import { deriveTrustFromGitRemote } from "../../core/ase";
 import { execFileSync } from "child_process";
 
@@ -97,25 +97,27 @@ export default async function checkShield(_args: string[]): Promise<void> {
     // @rule:GTP-022 a call whose mandate is not valid is refused when the box enforces AND has opted in
     // with kavach.mandate "enforce"; otherwise it is recorded (founder rulings 2026-10-15, 2a and a).
     const callSession = typeof toolInput.session_id === "string" ? toolInput.session_id : "";
+    let carriedRefusal: string | undefined;
     try {
       mandate = mandateForCall(callSession);
       if (mandate.status === "missing" && callSession) {
-        const principal = principalFromApprovers();
-        if (principal) {
-          let remote: string | null = null;
-          try {
-            remote = execFileSync("git", ["-C", typeof toolInput.cwd === "string" && toolInput.cwd ? toolInput.cwd : process.cwd(), "remote", "get-url", "origin"], { encoding: "utf8", timeout: 1500, stdio: ["ignore", "pipe", "ignore"] }).trim() || null;
-          } catch { /* not a repo: the fallback trust */ }
-          const { service_key, trust_mask } = deriveTrustFromGitRemote(remote);
-          const wanted = (config.kavach as { mandate_return_proof?: unknown } | undefined)?.mandate_return_proof;
-          issueMandate(callSession, { trustMask: trust_mask, scopeKey: service_key, principal, returnProof: isReturnProof(wanted) ? wanted : undefined });
-          mandate = mandateForCall(callSession);
-        }
+        let remote: string | null = null;
+        try {
+          remote = execFileSync("git", ["-C", typeof toolInput.cwd === "string" && toolInput.cwd ? toolInput.cwd : process.cwd(), "remote", "get-url", "origin"], { encoding: "utf8", timeout: 1500, stdio: ["ignore", "pipe", "ignore"] }).trim() || null;
+        } catch { /* not a repo: the fallback trust */ }
+        const { service_key, trust_mask } = deriveTrustFromGitRemote(remote);
+        const wanted = (config.kavach as { mandate_return_proof?: unknown } | undefined)?.mandate_return_proof;
+        // @rule:GTP-020 @rule:GTP-021 a session started under another flow (AEGIS_FLOW, carried into the
+        // subprocess) is that flow's child: narrowed from its mandate; a parent that cannot be found or is no
+        // longer valid issues nothing, never a fresh root.
+        const r = ensureMandateForSession(callSession, { trustMask: trust_mask, scopeKey: service_key, returnProof: isReturnProof(wanted) ? wanted : undefined, flowEnv: process.env.AEGIS_FLOW });
+        carriedRefusal = r.refused;
+        mandate = mandateForCall(callSession);
       }
     } catch { /* a mandate fault never blocks in monitor mode; enforce below sees status as it is */ }
     if (mandateEnforced(config) && toolInput.hook_event_name !== "PostToolUse" && mandate.status !== "valid") {
-      const rule = mandate.status === "missing" ? "GTP-017" : "GTP-022";
-      emitBlock("MANDATE", rule, `this flow's mandate is ${mandate.status}${mandate.mandate_id ? ` (${mandate.mandate_id})` : ""}`, "mandate");
+      const rule = carriedRefusal?.startsWith("GTP-021") ? "GTP-021" : carriedRefusal ? "GTP-022" : mandate.status === "missing" ? "GTP-017" : "GTP-022";
+      emitBlock("MANDATE", rule, carriedRefusal ?? `this flow's mandate is ${mandate.status}${mandate.mandate_id ? ` (${mandate.mandate_id})` : ""}`, "mandate");
       process.exit(2);
     }
 

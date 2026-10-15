@@ -16,7 +16,10 @@ export default async function flowStart(): Promise<void> {
   try { input = JSON.parse(readFileSync(0, "utf8") || "{}"); } catch { /* fd 0: stdin may be a socket */ }
   let returnProof: unknown;
   try { returnProof = (loadConfig().kavach as { mandate_return_proof?: unknown } | undefined)?.mandate_return_proof; } catch { /* defaults */ }
-  const { note } = await startFlow(input, { aegisUrl: process.env.AEGIS_URL ?? `http://localhost:${DASHBOARD_PORT}`, returnProof });
+  const { note } = await startFlow(input, {
+    aegisUrl: process.env.AEGIS_URL ?? `http://localhost:${DASHBOARD_PORT}`, returnProof,
+    flowEnv: process.env.AEGIS_FLOW, envFile: process.env.CLAUDE_ENV_FILE,
+  });
   process.stderr.write(`[flow-start] ${note}\n`);
   process.exit(0);
 }

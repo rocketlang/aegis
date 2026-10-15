@@ -129,6 +129,30 @@ describe.skipIf(unsafe)("aegis flow-start (SessionStart)", () => {
     expect(((env.perm_mask as number) & ~mandate.trust_mask) >>> 0).toBe(0);
   });
 
+  test("a child session (AEGIS_FLOW) gets its envelope as a child of its parent's, narrowed by it", async () => {
+    const parent = await startFlow({ session_id: "fs-p", cwd: "/tmp" }, deps());
+    sent.length = 0;
+    const child = await startFlow({ session_id: "fs-c", cwd: "/tmp" }, { ...deps(), flowEnv: `fs-p:${parent.root!.mandate_id}` });
+    expect(child.root?.parent_session).toBe("fs-p");
+    expect(sent).toHaveLength(1);
+    expect(sent[0].parent_session_id).toBe(parent.root!.envelope_session_id);
+    expect(sent[0].mandate_id).toBeUndefined();
+    const p = await (await fetch(`${base}/api/v1/aegis/session/${encodeURIComponent(parent.root!.envelope_session_id!)}`)).json() as { perm_mask: number };
+    const c = await (await fetch(`${base}/api/v1/aegis/session/${encodeURIComponent(child.root!.envelope_session_id!)}`)).json() as { perm_mask: number };
+    expect(typeof c.perm_mask).toBe("number");
+    expect((c.perm_mask & ~p.perm_mask) >>> 0).toBe(0);
+  });
+
+  test("a child whose parent has no root envelope is not made a root", async () => {
+    const parent = await startFlow({ session_id: "fs-p2", cwd: "/tmp" }, { aegisUrl: "http://127.0.0.1:9", remoteOf: () => null });
+    expect(parent.root?.envelope_session_id).toBeNull();
+    sent.length = 0;
+    const child = await startFlow({ session_id: "fs-c2", cwd: "/tmp" }, { ...deps(), flowEnv: `fs-p2:${parent.root!.mandate_id}` });
+    expect(sent).toHaveLength(0);
+    expect(child.root?.envelope_session_id).toBeNull();
+    expect(child.note).toContain("parent flow has no root envelope");
+  });
+
   test("the hook itself never stops a session and prints nothing on stdout", () => {
     const h = mkdtempSync(join(home, "cli-"));
     const r = spawnSync("bun", ["run", join(import.meta.dir, "..", "src/cli/index.ts"), "flow-start"], {

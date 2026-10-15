@@ -10,7 +10,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 - **No session had a root envelope of its own.** The session hook recorded the envelope in one file for the whole machine (`~/.aegis/ase_session_id`) and asked for a new one only while that file was missing. Once it existed, every later session reused that one envelope. **`aegis flow-start`**, a new SessionStart hook, gives each Claude Code session its own root envelope, requested naming the session's mandate (GTP-017/019), kept at `~/.aegis/flows/<session>.json`. The older hook and its budget check are unchanged.
 - **A session start replaced a revoked mandate.** `ensureMandateForSession` issued a new mandate whenever the current one was not valid, revoked included. So resuming the session undid a person's revocation. A revoked or malformed mandate is now never replaced for the same session (GTP-022). An expired one is still renewed at session start, and a new session still gets its own.
-- Both were shown by a failing test before the fix.
+- **A child agent started from the session's shell became a new root.** Its mandate was issued fresh: wider than its parent's, still valid after the parent's was revoked. A child naming a parent that did not exist was made a root as well. That was the route for laundering an action through another agent. Now `aegis flow-start` hands the flow to the session's later shell commands: it appends `export AEGIS_FLOW='<session>:<mandate id>'` to the file Claude Code names in `CLAUDE_ENV_FILE`. A session started with `AEGIS_FLOW` set is that flow's child:
+  - its mandate is the parent's mask AND its own, for the parent's principal, and names its parent (GTP-020);
+  - a mandate is valid only while every mandate above it is, so revoking the parent refuses the child's next call in enforce mode (GTP-022);
+  - a parent that cannot be found issues nothing (GTP-021);
+  - the child's root envelope is requested as a child of the parent's envelope.
+
+  An agent that unsets `AEGIS_FLOW` leaves the flow and starts a new root, which is recorded. Containing that is the kernel launcher's job.
+- All three were shown by a failing test before the fix.
 
 ## [2.22.0] — 2026-10-15
 

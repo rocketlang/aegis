@@ -59,6 +59,9 @@ export interface Mandate {
   required_return_proof: string;
   revocation_url: string;
   pramana_chain: string[];
+  /** Set when this flow was started under another (carried in AEGIS_FLOW): the parent's mandate. */
+  parent_mandate_id?: string;
+  parent_session?: string;
   signature?: string;
 }
 
@@ -117,8 +120,23 @@ export function revokedIds(): Set<string> {
   return out;
 }
 
-export function judgeMandate(m: Mandate | null, now = new Date(), revoked: ReadonlySet<string> = revokedIds()): MandateStatus {
+/**
+ * A mandate is valid only while every mandate above it is (INF-GTP-008: authority is a tree that can only
+ * shrink from its root, and cutting the root cuts the tree). A child whose parent is revoked is revoked;
+ * whose parent expired, expired; whose parent cannot be found or read, malformed.
+ */
+export function judgeMandate(m: Mandate | null, now = new Date(), revoked: ReadonlySet<string> = revokedIds(), depth = 0): MandateStatus {
   if (!m) return "missing";
+  const own = judgeOne(m, now, revoked);
+  if (own !== "valid" || m.parent_mandate_id === undefined) return own;
+  if (depth >= 8 || typeof m.parent_mandate_id !== "string") return "malformed";
+  const parent = loadMandateById(m.parent_mandate_id);
+  if (!parent) return "malformed";
+  const up = judgeMandate(parent, now, revoked, depth + 1);
+  return up === "missing" ? "malformed" : up;
+}
+
+function judgeOne(m: Mandate, now: Date, revoked: ReadonlySet<string>): MandateStatus {
   const issued = Date.parse(m.issued_at);
   const isMask = Number.isInteger(m.trust_mask) && m.trust_mask >= 0 && m.trust_mask <= 0xffffffff;
   if (typeof m.mudrika_id !== "string" || !SAFE_ID.test(m.mudrika_id) || !isMask || !Number.isFinite(issued) ||
@@ -141,21 +159,24 @@ export function loadMandateForSession(sessionId: string): Mandate | null {
   try { return loadMandateById(readFileSync(sessionPointer(sessionId), "utf8").trim()); } catch { return null; }
 }
 
-export function issueMandate(sessionId: string, opts: { trustMask: number; scopeKey: string; principal: string; now?: Date; returnProof?: ReturnProof }): Mandate {
+export function issueMandate(sessionId: string, opts: { trustMask: number; scopeKey: string; principal: string; now?: Date; returnProof?: ReturnProof; parent?: ParentFlow }): Mandate {
   if (!SAFE_ID.test(sessionId)) throw new Error("GTP-017: session id is not a safe identifier; no mandate issued");
+  const parent = opts.parent?.mandate;
   const m: Mandate = {
     mudrika_version: "v1",
     mudrika_id: `mdr_${(opts.now ?? new Date()).getTime().toString(36)}_${randomBytes(6).toString("hex")}`,
-    principal_id: opts.principal,
+    // a child acts for its parent's principal, within its parent's mask (GTP-020: child = parent AND own)
+    principal_id: parent ? parent.principal_id : opts.principal,
     agent_id: `cc:${sessionId}`,
     task_id: sessionId,
-    trust_mask: opts.trustMask >>> 0,
+    trust_mask: (parent ? (opts.trustMask & parent.trust_mask) : opts.trustMask) >>> 0,
     scope_key: opts.scopeKey,
     issued_at: (opts.now ?? new Date()).toISOString(),
     ttl_seconds: MANDATE_TTL_SECONDS,
     required_return_proof: opts.returnProof ?? DEFAULT_RETURN_PROOF,
     revocation_url: "aegis://mandates/revoked.jsonl",
     pramana_chain: [],
+    ...(parent ? { parent_mandate_id: parent.mudrika_id, parent_session: opts.parent!.session } : {}),
   };
   m.signature = signWithMachineSecret(canonical(m));
   mandatesDir(true);
@@ -170,15 +191,46 @@ export function issueMandate(sessionId: string, opts: { trustMask: number; scope
  * NEVER replaced for the same session: a revocation ends that flow (GTP-022), and a new session is a new
  * flow. No principal, no mandate.
  */
-export function ensureMandateForSession(sessionId: string, opts: { trustMask: number; scopeKey: string; principal?: string | null; returnProof?: ReturnProof }): { mandate: Mandate | null; issued: boolean; status: MandateStatus; renewed?: string } {
+export function ensureMandateForSession(sessionId: string, opts: { trustMask: number; scopeKey: string; principal?: string | null; returnProof?: ReturnProof; flowEnv?: unknown }): { mandate: Mandate | null; issued: boolean; status: MandateStatus; renewed?: string; refused?: string } {
   const current = loadMandateForSession(sessionId);
   const status = judgeMandate(current);
   if (current && status === "valid") return { mandate: current, issued: false, status };
   if (current && (status === "revoked" || status === "malformed")) return { mandate: current, issued: false, status };
-  const principal = opts.principal === undefined ? principalFromApprovers() : opts.principal;
+  const carried = parentFlowFromEnv(opts.flowEnv, sessionId);
+  if (carried && "error" in carried) return { mandate: null, issued: false, status: "missing", refused: carried.error };
+  if (carried && carried.status !== "valid") return { mandate: null, issued: false, status: carried.status, refused: `parent flow ${carried.session} is ${carried.status}` };
+  const principal = carried ? carried.mandate.principal_id : opts.principal === undefined ? principalFromApprovers() : opts.principal;
   if (!principal) return { mandate: null, issued: false, status: "missing" };
-  const m = issueMandate(sessionId, { trustMask: opts.trustMask, scopeKey: opts.scopeKey, principal, returnProof: opts.returnProof });
+  const m = issueMandate(sessionId, { trustMask: opts.trustMask, scopeKey: opts.scopeKey, principal, returnProof: opts.returnProof, parent: carried ?? undefined });
   return { mandate: m, issued: true, status: "valid", ...(current && status === "expired" ? { renewed: current.mudrika_id } : {}) };
+}
+
+// ── carriage into a subprocess (GTP §19.4) ──────────────────────────────────────────────────────────
+
+/** A parent flow, as carried in AEGIS_FLOW='<parent session>:<mandate id>'. */
+export interface ParentFlow { session: string; mandate: Mandate; status: MandateStatus }
+
+const FLOW_REF = /^([A-Za-z0-9_-]{1,128}):(mdr_[A-Za-z0-9_-]{1,96})$/;
+
+/**
+ * Read AEGIS_FLOW. Unset or empty: no parent (null). Naming this same session: no parent (the parent's own
+ * shell is not its child). Anything else must name a mandate that exists and was issued to the named session,
+ * or it is an error: a child naming a parent that cannot be found is never made a root (GTP-021).
+ */
+export function parentFlowFromEnv(value: unknown, ownSession: string): ParentFlow | { error: string } | null {
+  if (typeof value !== "string" || value.trim() === "") return null;
+  const hit = FLOW_REF.exec(value.trim());
+  if (!hit) return { error: "GTP-021: AEGIS_FLOW is not '<session>:<mandate id>'" };
+  const [, session, id] = hit;
+  if (session === ownSession) return null;
+  const mandate = loadMandateById(id);
+  if (!mandate || mandate.agent_id !== `cc:${session}`) return { error: `GTP-021: AEGIS_FLOW names a parent mandate that does not exist for session ${session}` };
+  return { session, mandate, status: judgeMandate(mandate) };
+}
+
+/** The line a SessionStart hook appends to CLAUDE_ENV_FILE so later shell commands carry the flow. */
+export function flowEnvLine(sessionId: string, mandateId: string): string | null {
+  return FLOW_REF.test(`${sessionId}:${mandateId}`) ? `export AEGIS_FLOW='${sessionId}:${mandateId}'\n` : null;
 }
 
 /** A person's act (GTP-022). Appends; never edits or removes a line. */
