@@ -1,12 +1,13 @@
 # Publish one of the packages under packages/ with npm provenance.
 #
-# One workflow for seven packages, so the checks are written once:
+# One workflow for eight packages, so the checks are written once:
 #
 #   tag                            package                        directory
 #   aegis-guard-v<version>         @xshieldai/aegis-guard         packages/aegis-guard
 #   aegis-suite-v<version>         @xshieldai/aegis-suite         packages/aegis-suite
 #   chitta-detect-v<version>       @xshieldai/chitta-detect       packages/chitta-detect
 #   flow-v<version>                @xshieldai/flow                packages/flow
+#   governed-turn-verify-v<version> @xshieldai/governed-turn-verify packages/governed-turn-verify
 #   hanumang-mandate-v<version>    @xshieldai/hanumang-mandate    packages/hanumang-mandate
 #   lakshmanrekha-v<version>       @xshieldai/lakshmanrekha       packages/lakshmanrekha
 #   n8n-nodes-kavachos-v<version>  @xshieldai/n8n-nodes-kavachos  packages/n8n-nodes-kavachos
@@ -36,6 +37,7 @@ on:
       - 'aegis-suite-v*'
       - 'chitta-detect-v*'
       - 'flow-v*'
+      - 'governed-turn-verify-v*'
       - 'hanumang-mandate-v*'
       - 'lakshmanrekha-v*'
       - 'n8n-nodes-kavachos-v*'
@@ -50,6 +52,7 @@ on:
           - aegis-suite
           - chitta-detect
           - flow
+          - governed-turn-verify
           - hanumang-mandate
           - lakshmanrekha
           - n8n-nodes-kavachos
@@ -86,7 +89,7 @@ jobs:
         run: |
           if [ "$GITHUB_REF_TYPE" = "tag" ]; then KEY="${GITHUB_REF_NAME%-v*}"; else KEY="$CHOICE"; fi
           case "$KEY" in
-            aegis-guard|aegis-suite|chitta-detect|flow|hanumang-mandate|lakshmanrekha|n8n-nodes-kavachos) DIR="packages/$KEY" ;;
+            aegis-guard|aegis-suite|chitta-detect|flow|governed-turn-verify|hanumang-mandate|lakshmanrekha|n8n-nodes-kavachos) DIR="packages/$KEY" ;;
             *) echo "no package is released under the name '$KEY' — refusing"; exit 1 ;;
           esac
           NAME=$(node -p "require('./$DIR/package.json').name")

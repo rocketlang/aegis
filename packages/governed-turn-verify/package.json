@@ -1,0 +1,47 @@
+{
+  "name": "@xshieldai/governed-turn-verify",
+  "version": "0.1.0",
+  "description": "The verifier of the Governed Turn Protocol (GTP): one function that judges an agent's turn by its signed envelope, the same whether the envelope came in HTTP headers or as JSON to a hook. Signature, a key bound to one driver, freshness and replay, then mask intersection, attenuation, intent, reversibility and commit. No model, no fetching. Part of the xShieldAI Posture Suite.",
+  "license": "AGPL-3.0-only",
+  "type": "module",
+  "author": "Capt. Anil Sharma <capt.anil.sharma@powerpbox.org>",
+  "homepage": "https://github.com/rocketlang/aegis/tree/master/packages/governed-turn-verify",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/rocketlang/aegis.git",
+    "directory": "packages/governed-turn-verify"
+  },
+  "bugs": {
+    "url": "https://github.com/rocketlang/aegis/issues"
+  },
+  "keywords": ["xshieldai", "governed-turn-protocol", "agent-governance", "agent-identity", "ed25519", "least-privilege", "claude-code-hooks", "agent-safety"],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "bin": {
+    "gtp-check": "./dist/cli.js"
+  },
+  "files": ["dist/", "src/", "tests/", "README.md", "LICENSE"],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json && chmod +x dist/cli.js",
+    "typecheck": "tsc --noEmit",
+    "test": "bun test",
+    "prepublishOnly": "node ../../scripts/publish-guard.mjs"
+  },
+  "devDependencies": {
+    "typescript": "^5.4.0",
+    "@types/node": "^20.0.0"
+  },
+  "engines": {
+    "bun": ">=1.0.0",
+    "node": ">=18.0.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}
