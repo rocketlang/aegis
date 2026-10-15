@@ -137,7 +137,10 @@ describe("checkTurn", () => {
 // ── P4 exit: one envelope, two positions ─────────────────────────────────────────────────────────
 
 const dir = mkdtempSync(join(tmpdir(), "gtp-verify-"));
-const cli = join(import.meta.dir, "..", "dist", "cli.js");
+// The shipped command (dist/cli.js, under plain Node) when it is built, as in the release workflow, which
+// builds first; otherwise the same source under Bun, as in the repository's own CI, which does not.
+const built = join(import.meta.dir, "..", "dist", "cli.js");
+const cli = existsSync(built) ? ["node", built] : ["bun", join(import.meta.dir, "..", "src", "cli.ts")];
 let server: Server;
 let url = "";
 // The HTTP position: a gate that reads the envelope from headers and answers with the verdict's code.
@@ -156,16 +159,12 @@ function hook(env: LocalEnvelope, nonces?: string): { code: number | null; out: 
   const s = substrate();
   const file = join(dir, "substrate.json");
   writeFileSync(file, JSON.stringify({ keyRegistry: s.keyRegistry, sessions: s.sessions, catalog: s.catalog, level: "L1" }));
-  const r = spawnSync("node", [cli], { input: JSON.stringify({ gtp: env }), env: { ...process.env, GTP_SUBSTRATE: file, ...(nonces ? { GTP_NONCES: nonces } : {}) }, encoding: "utf8" });
+  const r = spawnSync(cli[0], cli.slice(1), { input: JSON.stringify({ gtp: env }), env: { ...process.env, GTP_SUBSTRATE: file, ...(nonces ? { GTP_NONCES: nonces } : {}) }, encoding: "utf8" });
   return { code: r.status, out: r.stdout };
 }
 const live = (o: Parameters<typeof envelope>[0] = {}) => envelope({ created: Math.floor(Date.now() / 1000), ...o });
 
 describe("one envelope, two positions (P4 exit)", () => {
-  test("the built command exists (run `npm run build` first)", () => {
-    expect(existsSync(cli)).toBe(true);
-  });
-
   test("the same signed envelope is accepted over HTTP and through the hook", async () => {
     const e = live();
     const http = await fetch(`${url}${e.path}`, { method: e.method, headers: e.fields as Record<string, string> });
@@ -192,7 +191,7 @@ describe("one envelope, two positions (P4 exit)", () => {
   });
 
   test("the hook says it could not check (3) without a substrate", () => {
-    const r = spawnSync("node", [cli], { input: "{}", env: { ...process.env, GTP_SUBSTRATE: "" }, encoding: "utf8" });
+    const r = spawnSync(cli[0], cli.slice(1), { input: "{}", env: { ...process.env, GTP_SUBSTRATE: "" }, encoding: "utf8" });
     expect(r.status).toBe(3);
   });
 });
