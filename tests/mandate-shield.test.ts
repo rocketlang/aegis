@@ -14,10 +14,13 @@ import { spawnSync } from "child_process";
 const root = mkdtempSync(join(tmpdir(), "aegis-mandate-shield-"));
 afterAll(() => rmSync(root, { recursive: true, force: true }));
 
-function box(mode: "enforce" | "monitor", withApprover = true): { home: string; env: Record<string, string> } {
+// "enforce" = the box enforces and has opted in to mandate refusals; "enforce-no-optin" = the box enforces
+// but never set kavach.mandate (every box upgraded from 2.20.x).
+function box(mode: "enforce" | "enforce-no-optin" | "monitor", withApprover = true): { home: string; env: Record<string, string> } {
   const home = mkdtempSync(join(root, `${mode}-`));
   mkdirSync(join(home, ".aegis"), { recursive: true });
-  writeFileSync(join(home, ".aegis", "config.json"), JSON.stringify({ enforcement: { mode }, kavach: { enabled: true } }));
+  const kavach = mode === "enforce" ? { enabled: true, mandate: "enforce" } : { enabled: true };
+  writeFileSync(join(home, ".aegis", "config.json"), JSON.stringify({ enforcement: { mode: mode === "monitor" ? "monitor" : "enforce" }, kavach }));
   const approvers = join(home, "approvers.json");
   writeFileSync(approvers, JSON.stringify(withApprover ? { owners: { telegram: ["555000111"] } } : { owners: {} }));
   return { home, env: { ...process.env as Record<string, string>, HOME: home, AEGIS_DIR: join(home, ".aegis"), AOS_APPROVERS_FILE: approvers, KAVACHOS_MUDRIKA_SECRET: "t", AEGIS_FLOW_EVENTS: "on" } };
@@ -54,6 +57,19 @@ describe("mandate in the shield", () => {
     const r = call(env, "S3");
     expect(r.code).toBe(2);
     expect(r.err).toContain("GTP-017");
+  });
+
+  test("enforce without the opt-in (an upgraded box): no approver is allowed, not refused", () => {
+    const { env } = box("enforce-no-optin", false);
+    expect(call(env, "S5").code).toBe(0);
+  });
+
+  test("enforce without the opt-in: a revoked mandate is recorded, not refused", () => {
+    const { home, env } = box("enforce-no-optin");
+    expect(call(env, "S6").code).toBe(0);
+    const id = sessionPointer(home, "S6");
+    appendFileSync(join(home, ".aegis", "mandates", "revoked.jsonl"), JSON.stringify({ mudrika_id: id, revoked_at: new Date().toISOString(), by: "test" }) + "\n");
+    expect(call(env, "S6").code).toBe(0);
   });
 
   test("monitor: a revoked mandate is recorded, not refused", () => {

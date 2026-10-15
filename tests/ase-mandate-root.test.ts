@@ -15,7 +15,10 @@ process.env.HOME = home;
 process.env.AEGIS_DIR = join(home, ".aegis");
 process.env.KAVACHOS_MUDRIKA_SECRET = "t";
 mkdirSync(join(home, ".aegis"), { recursive: true });
-const mode = (m: "enforce" | "monitor") => writeFileSync(join(home, ".aegis", "config.json"), JSON.stringify({ enforcement: { mode: m }, kavach: { enabled: true } }));
+const mode = (m: "enforce" | "enforce-no-optin" | "monitor") => writeFileSync(join(home, ".aegis", "config.json"), JSON.stringify({
+  enforcement: { mode: m === "monitor" ? "monitor" : "enforce" },
+  kavach: m === "enforce" ? { enabled: true, mandate: "enforce" } : { enabled: true },
+}));
 
 const { default: Fastify } = await import("fastify");
 const { registerAseRoutes } = await import("../src/dashboard/routes/ase");
@@ -77,6 +80,13 @@ describe.skipIf(unsafe)("root envelope and mandate", () => {
     const m = M.issueMandate("root-3", { trustMask: 0b0011, scopeKey: "t", principal: "owner:test" });
     const r = await issue({ service_key: "t", mandate_id: m.mudrika_id, perm_mask: 0b1111, trust_mask: 0b1111 });
     expect(r.json).toMatchObject({ perm_mask: 0b1111, mandate_status: "valid", would_cap_perm_mask: 0b0011 });
+  });
+
+  test("enforce without the opt-in: no mandate is issued as before (an upgraded box is not refused)", async () => {
+    mode("enforce-no-optin");
+    const r = await issue({ service_key: "t", perm_mask: 0b1111, trust_mask: 0b1111 });
+    expect(r.status).toBe(200);
+    expect(r.json).toMatchObject({ perm_mask: 0b1111, mandate_status: "missing" });
   });
 
   test("a child is narrowed by its parent and needs no mandate of its own", async () => {

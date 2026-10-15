@@ -37,7 +37,7 @@
 import type { FastifyInstance } from "fastify";
 import { getDb } from "../../core/db";
 import { loadConfig } from "../../core/config";
-import { judgeMandate, loadMandateById } from "../../kavach/mandate";
+import { judgeMandate, loadMandateById, mandateEnforced } from "../../kavach/mandate";
 import {
   computeSealedHash,
   storeEnvelope,
@@ -109,14 +109,14 @@ export function registerAseRoutes(app: FastifyInstance): void {
     let permMask = typeof body.perm_mask === "number" ? body.perm_mask : trustMask;
 
     // @rule:GTP-017 only a mandate creates a root envelope; @rule:GTP-019 its ceiling is the mandate's mask.
-    // Founder ruling 2026-10-15 (2a): applied in enforce mode; in monitor mode the envelope is issued as
-    // before and the answer says what enforce would have done.
+    // Founder rulings 2026-10-15 (2a, a): applied when the box enforces and kavach.mandate is "enforce";
+    // otherwise the envelope is issued as before and the answer says what enforce would have done.
     let mandateNote: { mandate_id: string | null; mandate_status: string; would_cap_perm_mask?: number } | null = null;
     if (!parentSessionId) {
       const mandateId = typeof body.mandate_id === "string" ? body.mandate_id : null;
       const mandate = mandateId ? loadMandateById(mandateId) : null;
       const status = judgeMandate(mandate);
-      const enforce = loadConfig().enforcement?.mode === "enforce";
+      const enforce = mandateEnforced(loadConfig());
       if (enforce && status !== "valid") {
         reply.code(403);
         return { ok: false, error: `${status === "missing" ? "GTP-017" : "GTP-022"}: a root envelope needs a valid mandate (mandate ${status})`, _meta: meta(start) };

@@ -38,7 +38,7 @@ import { emitReceipt } from "../../kavach/pramana-emit";
 import type { ReceiptVerdict } from "../../../ee/kavach/pramana-receipts";
 import { precededByForSession } from "../../shield/provenance";
 import { recordToolDecision } from "../../acc/flow-events";
-import { mandateForCall, principalFromApprovers, issueMandate } from "../../kavach/mandate";
+import { mandateForCall, principalFromApprovers, issueMandate, mandateEnforced } from "../../kavach/mandate";
 import { deriveTrustFromGitRemote } from "../../core/ase";
 import { execFileSync } from "child_process";
 
@@ -94,8 +94,8 @@ export default async function checkShield(_args: string[]): Promise<void> {
     // @rule:GTP-017 a flow's root is its mandate: issued at the session's first tool call when it has
     // none (the principal is the first owner in the approvers file). A revoked or expired mandate is
     // never replaced inside the same session: only a new session gets a new one.
-    // @rule:GTP-022 a call whose mandate is not valid is refused in enforce mode; in monitor mode it is
-    // recorded (founder ruling 2026-10-15, 2a).
+    // @rule:GTP-022 a call whose mandate is not valid is refused when the box enforces AND has opted in
+    // with kavach.mandate "enforce"; otherwise it is recorded (founder rulings 2026-10-15, 2a and a).
     const callSession = typeof toolInput.session_id === "string" ? toolInput.session_id : "";
     try {
       mandate = mandateForCall(callSession);
@@ -112,7 +112,7 @@ export default async function checkShield(_args: string[]): Promise<void> {
         }
       }
     } catch { /* a mandate fault never blocks in monitor mode; enforce below sees status as it is */ }
-    if (enforce && toolInput.hook_event_name !== "PostToolUse" && mandate.status !== "valid") {
+    if (mandateEnforced(config) && toolInput.hook_event_name !== "PostToolUse" && mandate.status !== "valid") {
       const rule = mandate.status === "missing" ? "GTP-017" : "GTP-022";
       emitBlock("MANDATE", rule, `this flow's mandate is ${mandate.status}${mandate.mandate_id ? ` (${mandate.mandate_id})` : ""}`, "mandate");
       process.exit(2);

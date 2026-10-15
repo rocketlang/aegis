@@ -59,6 +59,9 @@ export interface AegisConfig {
     notify_email: string;
     notify_via_webhook: boolean;
     webhook_url: string;
+    // GTP-017/022: "enforce" makes a missing, revoked or expired mandate a refusal, and only while
+    // enforcement.mode is also "enforce". Absent or anything else: mandates are issued and recorded only.
+    mandate?: "enforce" | "record";
     // Per-level timeout in seconds (silence = BLOCK)
     timeout_level1_s: number;
     timeout_level2_s: number;

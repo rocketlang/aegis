@@ -5,13 +5,15 @@
 //
 //   aegis mandate list              every mandate, newest first, with its status
 //   aegis mandate show <id>         one mandate (the principal's identifier is shown in part)
-//   aegis mandate revoke <id> [why] revoke it: every later call in that flow is refused in enforce mode
-//                                   (recorded in monitor mode), and it is never reissued in that session
+//   aegis mandate revoke <id> [why] revoke it: every later call in that flow is refused when the box
+//                                   enforces mandates (enforcement.mode and kavach.mandate both "enforce"),
+//                                   recorded otherwise, and it is never reissued in that session
 //
 // @rule:GTP-022 revocation is a person's act. It writes into the aegis directory, which the shield keeps
 // tool calls out of: run it from your own terminal. Exit: 0 done · 1 not found / bad input.
 
-import { judgeMandate, listMandates, loadMandateById, revokeMandate, revokedIds } from "../../kavach/mandate";
+import { judgeMandate, listMandates, loadMandateById, mandateEnforced, revokeMandate, revokedIds } from "../../kavach/mandate";
+import { loadConfig } from "../../core/config";
 import type { Mandate } from "../../kavach/mandate";
 
 const partial = (p: string): string => p.replace(/\d(?=\d{4})/g, "•");
@@ -36,7 +38,9 @@ export default async function mandate(args: string[]): Promise<void> {
     if (revoked.has(m.mudrika_id)) { console.log(`${m.mudrika_id} was already revoked`); return; }
     const by = process.env.SUDO_USER ?? process.env.USER ?? "unknown";
     revokeMandate(m.mudrika_id, by, rest.join(" "));
-    console.log(`revoked ${m.mudrika_id} (${m.agent_id}). In enforce mode every later call in that flow is refused (GTP-022); in monitor mode it is recorded.`);
+    console.log(`revoked ${m.mudrika_id} (${m.agent_id}). ${mandateEnforced(loadConfig())
+      ? "This box enforces mandates: every later call in that flow is refused (GTP-022)."
+      : "This box does not enforce mandates (enforcement.mode and kavach.mandate must both be \"enforce\"): later calls in that flow are recorded as revoked, not refused."}`);
     return;
   }
   console.error("usage: aegis mandate [list | show <id> | revoke <id> [reason]]");

@@ -10,6 +10,9 @@
 // Founder rulings 2026-10-15: the principal is the first owner in the approvers file; a mandate lives
 // 24 hours and is issued again at a session start when the last one is missing or no longer valid;
 // refusals follow the box's enforcement mode (monitor = recorded, enforce = refused).
+// Founder ruling 2026-10-15 (before 2.21.0): refusing is a separate opt-in, `kavach.mandate: "enforce"`,
+// on top of `enforcement.mode: "enforce"`, so an upgrade never starts refusing a box that never set up
+// an approvers file. Without it every mandate is still issued, judged and recorded.
 //
 // The record has the field names of a hanumang Mudrika (@xshieldai/hanumang-mandate). It is signed with
 // this machine's Mudrika secret over its own fields, stored owner-only under <aegis dir>/mandates/,
@@ -25,6 +28,11 @@ import { getAegisDir } from "../core/config";
 import { signWithMachineSecret } from "../kernel/mudrika";
 
 export const MANDATE_TTL_SECONDS = 24 * 60 * 60;
+
+/** True only when the box enforces and has opted in to mandate refusals (founder ruling 2026-10-15). */
+export function mandateEnforced(config: { enforcement?: { mode?: string }; kavach?: { mandate?: string } }): boolean {
+  return config.enforcement?.mode === "enforce" && config.kavach?.mandate === "enforce";
+}
 
 export interface Mandate {
   mudrika_version: "v1";
