@@ -138,6 +138,22 @@ describe("aegis outward-send, end to end against the fake mailer", () => {
     expect([bare.code, got.length]).toEqual([2, 0]);
     expect(bare.j.refusals.join()).toContain("ANU-014");
   });
+  it("two mandates for one identity: the one whose lane fits is used, not the first in the file", async () => {
+    reset();
+    mkdirSync(AEGIS, { recursive: true });
+    const now = Date.now();
+    const m = (id: string, lanes: string[]) => ({
+      id, kind: "send", reason: "test", granted_by: "tester", granted_at: new Date(now).toISOString(),
+      expires_at: new Date(now + 3600e3).toISOString(),
+      limits: { identities: ["captain"], recipients: ["ops@known.example"], per_lane_per_day: 10, lanes },
+    });
+    writeFileSync(MANDATES, JSON.stringify([m("send-review", ["review"]), m("send-mari8x", ["mari8x"])]));
+    const r = await send(mail({ from: "captain" }), ["--dry-run"]);
+    expect([r.code, r.j?.verdict, r.j?.mandate_id]).toEqual([0, "PERMIT", "send-mari8x"]);
+    const other = await send(mail({ from: "captain", lane: "tms" }), ["--dry-run"]);
+    expect([other.code, other.j?.mandate_id]).toEqual([2, "send-review"]);
+    expect(other.j.refusals.join()).toContain("ANU-I-012.lane");
+  });
   it("--dry-run judges only: nothing sent, nothing ledgered", async () => {
     reset(); grant({});
     const r = await send(mail(), ["--dry-run"]);

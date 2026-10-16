@@ -64,7 +64,10 @@ export const sendPlugin: OutwardPlugin<SendProposal, SendLimits, SendHandoff> = 
   },
 
   pick(p, mandates: OutwardMandate<SendLimits>[]) {
-    return mandates.find((m) => m.limits.identities.some((i) => lc(i) === lc(p.from))) ?? null;
+    // Several mandates may name one identity (one per lane): take the one whose lanes cover this
+    // lane; failing that, the first for the identity, so the lane rule says why it was refused.
+    const mine = mandates.filter((m) => m.limits.identities.some((i) => lc(i) === lc(p.from)));
+    return mine.find((m) => !m.limits.lanes || m.limits.lanes.some((x) => lc(x) === lc(String(p.lane)))) ?? mine[0] ?? null;
   },
 
   permissives: [
