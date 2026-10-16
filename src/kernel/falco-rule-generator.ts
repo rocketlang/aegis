@@ -107,7 +107,7 @@ function generateBaseRules(trustMask: number): FalcoRule[] {
     rules.push({
       name: "kavachos_readonly_agent_network",
       desc: "Read-only agent (trust_mask=0) attempted network connection — violation of INF-KOS-001",
-      condition: "evt.type in (connect, sendto, sendmsg) and proc.env contains KAVACHOS_TRUST_MASK=0",
+      condition: "evt.type in (connect, sendto, sendmsg) and proc.env contains \"KAVACHOS_TRUST_MASK=0\"",
       output: "KavachOS: read-only agent network attempt BLOCKED (agent=%proc.name dst=%fd.rip pid=%proc.pid)",
       priority: "CRITICAL",
       tags: ["kavachos", "trust-mask-zero", "inf-kos-001"],
