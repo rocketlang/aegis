@@ -95,6 +95,25 @@ EE adds governance around the gate. It does not modify the gate's behaviour.
 
 ---
 
+## Acknowledgments
+
+**Andrey Lazarev** reviewed aegis independently in October 2026 and ran our tests on his own throwaway hosts.
+Each finding below is fixed in a published package, and each fix is tracked, with its commit and the test that
+judges it, at [ankr.in/xshield-self-audit.html#fixes](https://ankr.in/xshield-self-audit.html#fixes). The tests that
+reproduce his findings are public under [`red-team/`](red-team/).
+
+| Finding | Fixed in |
+|---|---|
+| Review point 1: the agent's own uid could approve its own destructive command | `@xshieldai/aegis` 2.9.0 · signing-key leg `@xshieldai/aegis-guard` 0.6.0 |
+| Review point 4: an approval bound to a label, not to the act | `@xshieldai/aegis-guard` 0.6.0 |
+| The Varuna listener accepted open, unauthenticated ingest | `@xshieldai/varuna` 0.2.0 |
+| Nallasetu attestations used a shared secret (forgery, repudiation) | `@xshieldai/nallasetu` 0.2.0 |
+| The egress firewall failed open when the cgroup join failed | `@xshieldai/agent-kernel` 2.2.0 |
+| The strict-exec allowlist could be raced between check and run | `@xshieldai/agent-kernel` 2.3.0 (Landlock) |
+| The uid-boundary test passed one check for the wrong reason (found on a throwaway host, 11 Oct) | `@xshieldai/aegis` 2.17.1 |
+| The read-only agent's Falco ruleset did not compile, so its monitoring never started (clean-bench run, 16 Oct) | `@xshieldai/agent-kernel` 2.6.2; cause closed in 2.6.3 |
+| A `*` prefix rule in the exec allowlist was matched as text, so `..` and symlinks escaped it (clean-bench run, 16 Oct) | `@xshieldai/agent-kernel` 2.6.2 |
+
 ## Reporting a security issue
 
 Email: **captain@ankr.in**
