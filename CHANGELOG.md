@@ -4,6 +4,14 @@ All notable changes to AEGIS will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [2.23.1] — 2026-10-16 (agent-kernel 2.6.2)
+
+### Fixed — from Andrey Lazarev's clean-bench run (16 October 2026)
+
+- **The Falco ruleset for a read-only agent (trust_mask=0) never loaded.** One rule put `KAVACHOS_TRUST_MASK=0` in its condition without quotes. Falco read `KAVACHOS_TRUST_MASK` as the value and stopped at `=0`, and one rule that does not compile rejects the whole file, so Falco did not start with that ruleset. Every other `proc.env` value was already quoted. Reproduced on Falco 0.43.1 as well as his 0.45. New test `tests/falco-env-quoted.test.ts`: every `proc.env` value in every generated ruleset is quoted, and `falco --validate` accepts each file when falco is installed.
+- **A `*` prefix rule in the exec allowlist was matched as text.** With `/opt/agent/*` allowed, `/opt/agent/../../usr/bin/EVIL` passed the seccomp check while the kernel ran `/usr/bin/EVIL`, and a symlink under the prefix escaped the same way. A prefix rule now passes only an absolute path in normal form whose real path lies under the prefix (or under the prefix directory's own target). Exact rules, which all the defaults are, and Landlock were not affected. New battery `red-team/exec-prefix-traversal`: 7/7 on the fix, 3 gaps on the code before it.
+- **Reproducing from outside.** `red-team/point1-uid-boundary.disposable.sh` now copies bun somewhere the test accounts can run it, and stops with a clear message if they cannot read the repo. The red-team README gives the install for anyone outside our network: `bun install --frozen-lockfile --omit optional` (three optional packages are private; each has a local floor).
+
 ## [2.23.0] — 2026-10-15
 
 ### Fixed — every session shared one envelope, and a revocation lasted only until a resume
