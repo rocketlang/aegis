@@ -367,6 +367,23 @@ export function bashFileVerdict(command: string, rules: ShieldRules, ctx?: PathC
     };
   }
 
+  // @rule:KAV-101 — granting an outward mandate (consent to send, spend…) is a person's act. As a tool
+  // call it would be the agent granting itself the consent the guard asks for. Revoking, listing and
+  // showing are not refused: taking consent away, or reading it, gives the agent nothing.
+  if (cmds.some((c) => {
+    if (SHOWS_ONLY.has(c.verb)) return false;
+    const words = [c.verb, ...c.args];
+    const at = words.indexOf("outward-mandate");
+    return at >= 0 && words.slice(at + 1).includes("grant");
+  })) {
+    return {
+      verdict: "QUARANTINE",
+      rule_id: "KAV-101",
+      reason: "`aegis outward-mandate grant` is run by a person in their own terminal, not through a tool call — an agent may not grant itself consent to send or spend",
+      category: "persistence",
+    };
+  }
+
   // /etc/passwd is world-readable and read by ordinary administration; the Read-tool rule
   // keeps it, the shell rule does not.
   const credRules = rules.credential_paths.filter((r) => r !== "/etc/passwd");

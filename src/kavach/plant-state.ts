@@ -348,6 +348,8 @@ export const TRIPWIRE_MODE_FILE = `${AEGIS_DIR}/tripwire-mode`;
 export const TRIPWIRE_MODE_SEAL_FILE = `${AEGIS_DIR}/tripwire-mode.seal.json`;
 // AF-T-707 — a publish mandate is a named consent; only `aegis publish-mandate` writes it.
 export const PUBLISH_MANDATES_FILE = `${AEGIS_DIR}/publish-mandates.json`;
+// ANU-012 — an outward mandate is a named consent; only `aegis outward-mandate` writes it.
+export const OUTWARD_MANDATES_FILE = `${AEGIS_DIR}/outward-mandates.json`;
 
 /** The files the permissive layer's own verdicts depend on — including its own controls.
  *  A layer whose mode switch is writable by the thing it governs has no mode switch. */
@@ -364,6 +366,7 @@ export const PROTECTED_SOURCES: readonly string[] = [
   TRIPWIRE_MODE_FILE,
   TRIPWIRE_MODE_SEAL_FILE,
   PUBLISH_MANDATES_FILE,
+  OUTWARD_MANDATES_FILE,
 ];
 
 export function isProtectedSource(path: string): boolean {
