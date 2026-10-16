@@ -48,7 +48,7 @@ export interface OutwardPermissive<P, L> {
   title: string;
   law: string;
   /** PERMIT with ask:true = everything holds, but the person decides this one (ANU-013). */
-  check(p: P, limits: L): { verdict: Verdict; detail: string; source?: string; ask?: boolean };
+  check(p: P, limits: L, env: { now: Date }): { verdict: Verdict; detail: string; source?: string; ask?: boolean };
 }
 
 export interface OutwardPlugin<P, L, H> {
@@ -64,7 +64,7 @@ export interface OutwardPlugin<P, L, H> {
   /** Claims that need a source (ANU-014). */
   claims?(p: P): Claim[];
   /** Budget key (e.g. the lane), units this act uses, and the cap and period from the limits (ANU-015). */
-  budget?(p: P, limits: L): { key: string; units: number; cap: number; period_ms: number };
+  budget?(p: P, limits: L): { key: string; units: number; cap: number; period_ms: number; law?: string };
   /** The whole act as the person will be shown it before approving. */
   render(p: P): string;
   /** What the effector is handed: only what this act needs (ANU-016). */
@@ -100,6 +100,8 @@ export interface OutwardDecision {
   results: PermissiveResult[];
   refusals: PermissiveResult[];
   observations: PermissiveResult[];
+  /** The PERMIT results that asked for the person (ANU-013). */
+  asked: PermissiveResult[];
   proposal_hash: string;
   /** Exactly what the person is shown; its hash is what an approval binds to. */
   shown: string;
@@ -118,6 +120,8 @@ export interface OutwardContext<L> {
   ledger: OutwardLedgerEntry[];
   /** How the session's GTP flow mandate judges (mandateForCall(session).status). */
   flowStatus: string;
+  /** Why the flow is not valid, in the caller's words (shown as the refusal detail). */
+  flowDetail?: string;
 }
 
 // ── Canonical bytes ──────────────────────────────────────────────────────────
@@ -147,13 +151,14 @@ export function judgeOutward<P, L, H>(plugin: OutwardPlugin<P, L, H>, proposal: 
   let shown = "";
   try { shown = `OUTWARD ${plugin.kind} · proposal ${hash}\n${plugin.render(proposal)}`; } catch { shown = `OUTWARD ${plugin.kind} · proposal ${hash}`; }
   let ask = false;
+  const asked: PermissiveResult[] = [];
   let mandate: OutwardMandate<L> | null = null;
   let budgetKey: string | null = null;
   let units = 0;
 
   // @rule:ANU-012 — the session's own authority first.
   if (ctx.flowStatus !== "valid") {
-    consent("Session flow mandate is valid", `the session's flow mandate is ${ctx.flowStatus}`, "aegis mandates");
+    consent("Session flow mandate is valid", ctx.flowDetail ?? `the session's flow mandate is ${ctx.flowStatus}`, "aegis mandates");
   }
 
   // @rule:ANU-012 — a live mandate for this kind, with limits that parse.
@@ -174,9 +179,10 @@ export function judgeOutward<P, L, H>(plugin: OutwardPlugin<P, L, H>, proposal: 
     // The plug-in's permissives (ANU-001 discipline: pure; throw = UNKNOWN).
     for (const pm of plugin.permissives) {
       try {
-        const r = pm.check(proposal, limits);
-        results.push({ id: pm.id, title: pm.title, law: pm.law, verdict: r.verdict, detail: r.detail, source: r.source, stage });
-        if (r.verdict === "PERMIT" && r.ask) ask = true;
+        const r = pm.check(proposal, limits, { now: ctx.now });
+        const res: PermissiveResult = { id: pm.id, title: pm.title, law: pm.law, verdict: r.verdict, detail: r.detail, source: r.source, stage };
+        results.push(res);
+        if (r.verdict === "PERMIT" && r.ask) { ask = true; asked.push(res); }
       } catch (e: any) {
         push(pm.id, pm.title, pm.law, "UNKNOWN", `permissive threw: ${e?.message ?? "unknown error"}`);
       }
@@ -200,7 +206,7 @@ export function judgeOutward<P, L, H>(plugin: OutwardPlugin<P, L, H>, proposal: 
         const used = budgetUsed(ctx.ledger, plugin.kind, b.key, ctx.now.getTime() - b.period_ms, hash);
         const over = used + b.units > b.cap;
         push("ANU-015", "Within budget for the period", "ANU-015 — done + approved-not-done count", over ? "REFUSE" : "PERMIT",
-          `${used} used + ${b.units} = ${used + b.units} of ${b.cap} for ${b.key}`, "outward.jsonl");
+          `${b.law ? `${b.law}: ` : ""}${used} used + ${b.units} = ${used + b.units} of ${b.cap} for ${b.key}`, "outward.jsonl");
       }
     } catch {
       push("ANU-015", "Within budget for the period", "ANU-015", "UNKNOWN", "budget could not be computed", "outward.jsonl");
@@ -212,7 +218,7 @@ export function judgeOutward<P, L, H>(plugin: OutwardPlugin<P, L, H>, proposal: 
   const observations = notPermitted.filter((r) => r.stage === "observe");
   const verdict = refusals.length === 0 ? "PERMIT" : "REFUSE";
   return {
-    kind: plugin.kind, verdict, ask: verdict === "PERMIT" && ask, stage, results, refusals, observations,
+    kind: plugin.kind, verdict, ask: verdict === "PERMIT" && ask, stage, results, refusals, observations, asked,
     proposal_hash: hash, shown, mandate_id: mandate?.id ?? null, budget_key: budgetKey, units, evaluated_at: ctx.now.toISOString(),
   };
 }
@@ -302,16 +308,34 @@ export type ExecuteResult =
   | { done: true; ref: string }
   | { done: false; reason: string; approval_code?: string };
 
+export type Preflight<H> = { ok: true; ask: boolean; handoff: H } | { ok: false; reason: string };
+
 /**
- * Hand a judged act to its effector. A REFUSE never reaches it. An ask reaches it only once the
- * person's approval of this exact shown text is consumed; otherwise the act is recorded as pending
- * and the code is returned for the person. In observe stage nothing here is skipped: observe changes
- * what refuses, never who must approve.
+ * Everything before the person and the effector, synchronous: the proposal is the one judged, the
+ * judgement permitted it, a judgement AGAIN on fresh state still permits it, and the hand-off builds.
+ */
+export function preflightOutward<P, L, H>(plugin: OutwardPlugin<P, L, H>, proposal: P, d: OutwardDecision, fresh: () => OutwardContext<unknown>): Preflight<H> {
+  if (proposalHash(plugin.kind, proposal) !== d.proposal_hash) return { ok: false, reason: "ANU-013: the proposal changed after it was judged" };
+  if (d.verdict !== "PERMIT") return { ok: false, reason: d.refusals.map((r) => r.detail).join("; ") };
+  let again: OutwardDecision;
+  try { again = judgeOutward(plugin, proposal, fresh()); } catch { return { ok: false, reason: "ANU-012: the act could not be judged again before hand-off" }; }
+  if (again.verdict !== "PERMIT") return { ok: false, reason: again.refusals.map((r) => r.detail).join("; ") };
+  try { return { ok: true, ask: d.ask || again.ask, handoff: plugin.handoff(proposal) }; }
+  catch (e: any) { return { ok: false, reason: e?.message ? String(e.message) : "ANU-016: hand-off could not be built" }; }
+}
+
+/**
+ * Hand a judged act to its effector. The act is judged AGAIN first, on fresh state (`fresh`): a
+ * mandate revoked, a flow ended or a budget spent since the first judgement stops it here. A REFUSE
+ * never reaches the effector. An ask reaches it only once the person's approval of this exact shown
+ * text is consumed; otherwise the code is returned for the person. In observe stage nothing here is
+ * skipped: observe changes what refuses, never who must approve.
  */
 export async function executeOutward<P, L, H>(
-  plugin: OutwardPlugin<P, L, H>, proposal: P, d: OutwardDecision, effector: Effector<H>, approvals: Approvals,
-  opts: { session?: string | null; now?: () => Date; ledger?: (e: OutwardLedgerEntry) => void } = {},
+  plugin: OutwardPlugin<P, L, H>, proposal: P, judged: OutwardDecision, effector: Effector<H>, approvals: Approvals,
+  opts: { fresh: () => OutwardContext<unknown>; session?: string | null; now?: () => Date; ledger?: (e: OutwardLedgerEntry) => void },
 ): Promise<ExecuteResult> {
+  const d = judged;
   const now = opts.now ?? (() => new Date());
   const write = opts.ledger ?? ((e: OutwardLedgerEntry) => ledgerOutward(e));
   const base = { kind: d.kind, session: opts.session ?? null, proposal_hash: d.proposal_hash, mandate_id: d.mandate_id, budget_key: d.budget_key, units: d.units };
@@ -320,9 +344,9 @@ export async function executeOutward<P, L, H>(
     return { done: false, reason, approval_code };
   };
 
-  if (proposalHash(plugin.kind, proposal) !== d.proposal_hash) return refuse("ANU-013: the proposal changed after it was judged");
-  if (d.verdict !== "PERMIT") return refuse(`refused: ${d.refusals.map((r) => r.id).join(", ")}`);
-  if (d.ask) {
+  const pre = preflightOutward(plugin, proposal, d, opts.fresh);
+  if (!pre.ok) return refuse(pre.reason);
+  if (pre.ask) {
     let ok = false;
     try { ok = await approvals.consume(d.shown); } catch { ok = false; } // an unreachable authority refuses (FP-010)
     if (!ok) {
@@ -332,10 +356,8 @@ export async function executeOutward<P, L, H>(
     }
     write({ ...base, ts: now().toISOString(), event: "approved" });
   }
-  let handoff: H;
-  try { handoff = plugin.handoff(proposal); } catch { return refuse("ANU-016: hand-off could not be built"); }
   let ref: string;
-  try { ({ ref } = await effector.deliver(handoff)); } catch (e: any) { return refuse(`effector ${effector.name} failed: ${e?.message ?? "unknown"}`); }
+  try { ({ ref } = await effector.deliver(pre.handoff)); } catch (e: any) { return refuse(`effector ${effector.name} failed: ${e?.message ?? "unknown"}`); }
   write({ ...base, ts: now().toISOString(), event: "executed", detail: `${effector.name} ref ${ref}` });
   return { done: true, ref };
 }

@@ -156,7 +156,7 @@ describe("executeOutward", () => {
   it("PERMIT without ask: handed to the effector, ledgered", async () => {
     const m = fakeMailer(); const log: Entry[] = [];
     const d = judge(mail());
-    const r = await K.executeOutward(enforced, mail(), d, m.effector, fakeApprovals(new Set()), { ledger: (e) => log.push(e) });
+    const r = await K.executeOutward(enforced, mail(), d, m.effector, fakeApprovals(new Set()), { fresh: () => ctx(), ledger: (e) => log.push(e) });
     expect(r).toEqual({ done: true, ref: "M1" });
     expect(Object.keys(m.sent[0]).sort()).toEqual(["bcc", "body", "cc", "from", "subject", "to"]);
     expect(log.map((e) => e.event)).toEqual(["executed"]);
@@ -164,7 +164,7 @@ describe("executeOutward", () => {
   it("REFUSE never reaches the effector", async () => {
     const m = fakeMailer();
     const d = judge(mail({ to: ["x@stranger.example"] }));
-    const r = await K.executeOutward(enforced, mail({ to: ["x@stranger.example"] }), d, m.effector, fakeApprovals(new Set()), { ledger: () => {} });
+    const r = await K.executeOutward(enforced, mail({ to: ["x@stranger.example"] }), d, m.effector, fakeApprovals(new Set()), { fresh: () => ctx({ mandates: [mandate({ ask_always: true })] }), ledger: () => {} });
     expect(r.done).toBe(false);
     expect(m.sent.length).toBe(0);
   });
@@ -172,24 +172,25 @@ describe("executeOutward", () => {
     const m = fakeMailer(); const approved = new Set<string>(); const ap = fakeApprovals(approved);
     const c = ctx({ mandates: [mandate({ ask_always: true })] });
     const d = judge(mail(), c);
-    const first = await K.executeOutward(enforced, mail(), d, m.effector, ap, { ledger: () => {} });
+    const fresh = () => c;
+    const first = await K.executeOutward(enforced, mail(), d, m.effector, ap, { fresh, ledger: () => {} });
     expect(first).toMatchObject({ done: false, approval_code: "code1" });
     approved.add(d.shown);
-    expect((await K.executeOutward(enforced, mail(), d, m.effector, ap, { ledger: () => {} })).done).toBe(true);
-    expect((await K.executeOutward(enforced, mail(), d, m.effector, ap, { ledger: () => {} })).done).toBe(false); // consumed once
+    expect((await K.executeOutward(enforced, mail(), d, m.effector, ap, { fresh, ledger: () => {} })).done).toBe(true);
+    expect((await K.executeOutward(enforced, mail(), d, m.effector, ap, { fresh, ledger: () => {} })).done).toBe(false); // consumed once
     expect(m.sent.length).toBe(1);
   });
   it("a proposal changed after judging is refused", async () => {
     const m = fakeMailer();
     const d = judge(mail());
-    const r = await K.executeOutward(enforced, mail({ to: ["ops@known-shipping.example", "a@partner.example"] }), d, m.effector, fakeApprovals(new Set()), { ledger: () => {} });
+    const r = await K.executeOutward(enforced, mail({ to: ["ops@known-shipping.example", "a@partner.example"] }), d, m.effector, fakeApprovals(new Set()), { fresh: () => ctx({ mandates: [mandate({ ask_always: true })] }), ledger: () => {} });
     expect(r.done).toBe(false);
     expect(m.sent.length).toBe(0);
   });
   it("an approval authority that throws refuses", async () => {
     const m = fakeMailer();
     const d = judge(mail(), ctx({ mandates: [mandate({ ask_always: true })] }));
-    const r = await K.executeOutward(enforced, mail(), d, m.effector, { record: async () => "c", consume: async () => { throw new Error("down"); } }, { ledger: () => {} });
+    const r = await K.executeOutward(enforced, mail(), d, m.effector, { record: async () => "c", consume: async () => { throw new Error("down"); } }, { fresh: () => ctx({ mandates: [mandate({ ask_always: true })] }), ledger: () => {} });
     expect(r.done).toBe(false);
   });
 });
@@ -198,7 +199,7 @@ describe("ANU-013 through aegis's own approval authority (scratch HOME)", () => 
   it("mode none: an ask can never be lifted", async () => {
     const m = fakeMailer(); const ap = await K.aegisApprovals();
     const d = judge(mail(), ctx({ mandates: [mandate({ ask_always: true })] }));
-    const r = await K.executeOutward(enforced, mail(), d, m.effector, ap, { ledger: () => {} });
+    const r = await K.executeOutward(enforced, mail(), d, m.effector, ap, { fresh: () => ctx({ mandates: [mandate({ ask_always: true })] }), ledger: () => {} });
     expect(r.done).toBe(false);
     expect(m.sent.length).toBe(0);
   });
@@ -208,12 +209,12 @@ describe("ANU-013 through aegis's own approval authority (scratch HOME)", () => 
       const auth = await import("../src/kavach/approval-authority");
       const m = fakeMailer(); const ap = await K.aegisApprovals();
       const d = judge(mail({ subject: "approve me" }), ctx({ mandates: [mandate({ ask_always: true })] }));
-      const first = await K.executeOutward(enforced, mail({ subject: "approve me" }), d, m.effector, ap, { ledger: () => {} });
+      const first = await K.executeOutward(enforced, mail({ subject: "approve me" }), d, m.effector, ap, { fresh: () => ctx({ mandates: [mandate({ ask_always: true })] }), ledger: () => {} });
       expect(first.done).toBe(false);
       const code = (first as any).approval_code;
       const ok = await auth.approvePendingAuthority(code);
       expect(ok?.rule).toBe("ANU-013");
-      expect((await K.executeOutward(enforced, mail({ subject: "approve me" }), d, m.effector, ap, { ledger: () => {} })).done).toBe(true);
+      expect((await K.executeOutward(enforced, mail({ subject: "approve me" }), d, m.effector, ap, { fresh: () => ctx({ mandates: [mandate({ ask_always: true })] }), ledger: () => {} })).done).toBe(true);
       expect(m.sent.length).toBe(1);
     } finally {
       delete process.env.AEGIS_ALLOW_INSECURE_LOCAL_APPROVAL;
