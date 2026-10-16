@@ -52,7 +52,7 @@ describe("ANU-012 — no live mandate, no outward act", () => {
     expect(judge(mail(), ctx({ flowStatus: "revoked" })).verdict).toBe("REFUSE");
   });
   it("ANU-012 enforces even when the plug-in is observe-staged", () => {
-    const d = K.judgeOutward(sendPlugin, mail(), ctx({ mandates: [] }));
+    const d = K.judgeOutward({ ...sendPlugin, stage: "observe" }, mail(), ctx({ mandates: [] }));
     expect(d.stage).toBe("observe");
     expect(d.verdict).toBe("REFUSE");
   });
@@ -118,14 +118,15 @@ describe("ANU-015 — budget counts done and approved-not-done", () => {
   });
 });
 
-describe("ANU-YK-002 — a new plug-in ships observe", () => {
-  it("the send plug-in's own rules report but do not refuse until promoted", () => {
+describe("ANU-YK-002 — observe, then promoted by the founder (2026-10-16)", () => {
+  it("send now enforces by default: its own rules refuse", () => {
     const d = K.judgeOutward(sendPlugin, mail({ to: ["someone@stranger.example"] }), ctx());
+    expect([sendPlugin.stage, d.verdict]).toEqual(["enforce", "REFUSE"]);
+  });
+  it("an observe-staged copy still only reports (the staging mechanism holds for the next plug-in)", () => {
+    const d = K.judgeOutward({ ...sendPlugin, stage: "observe" }, mail({ to: ["someone@stranger.example"] }), ctx());
     expect(d.verdict).toBe("PERMIT");
     expect(d.observations.map((r: any) => r.id)).toContain("ANU-I-012.recipients");
-  });
-  it("promoted, the same proposal refuses", () => {
-    expect(judge(mail({ to: ["someone@stranger.example"] })).verdict).toBe("REFUSE");
   });
 });
 

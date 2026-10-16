@@ -50,7 +50,7 @@ const strings = (v: unknown): v is string[] => Array.isArray(v) && v.every((x) =
 export const sendPlugin: OutwardPlugin<SendProposal, SendLimits, SendHandoff> = {
   kind: "send",
   law: "ANU-I-012 — send",
-  stage: "observe", // ANU-YK-002: promoted by the founder
+  stage: "enforce", // ANU-YK-002: promoted by the founder, 2026-10-16 ("switch send and spend to enforce")
 
   parseLimits(raw) {
     const r = raw as Partial<SendLimits> | null;

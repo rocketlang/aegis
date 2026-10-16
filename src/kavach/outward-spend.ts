@@ -67,7 +67,7 @@ export function makeSpendPlugin(cartHash: (c: Cart) => string): OutwardPlugin<Ca
   return {
     kind: "spend",
     law: "ANU-I-013 — spend (agent-spend-guard ASG-001..008)",
-    stage: "observe", // ANU-YK-002
+    stage: "enforce", // ANU-YK-002: promoted by the founder, 2026-10-16 ("switch send and spend to enforce")
 
     parseLimits(raw) {
       const r = raw as Partial<SpendLimits> | null;

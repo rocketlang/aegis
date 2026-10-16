@@ -104,7 +104,7 @@ describe("aegis outward-send, end to end against the fake mailer", () => {
     expect(got.length).toBe(1);
     expect(ledger().map((e) => e.event)).toEqual(["decided", "executed"]);
   });
-  it("an identity the mandate does not name: refused even in observe", async () => {
+  it("an identity the mandate does not name: refused", async () => {
     reset(); grant({});
     const r = await send(mail({ from: "captain" }));
     expect([r.code, got.length]).toEqual([2, 0]);
@@ -120,13 +120,23 @@ describe("aegis outward-send, end to end against the fake mailer", () => {
     expect([r.code, r.j?.ask, r.j?.sent, got.length]).toEqual([2, true, false, 0]);
     expect(r.j.next ?? r.j.reason).toBeTruthy();
   });
-  it("OBSERVE: a stranger with no ask rule is sent, but the would-refuse is reported and ledgered", async () => {
+  it("ENFORCED (founder, 2026-10-16): a stranger with no ask rule is refused, nothing sent, the refusal ledgered", async () => {
     reset(); grant({});
     const r = await send(mail({ to: ["someone@stranger.example"] }));
-    expect([r.code, r.j?.sent]).toEqual([0, true]);
-    expect(r.j.observations.join()).toContain("ANU-I-012.recipients");
-    expect(r.j.note).toContain("OBSERVE");
+    expect([r.code, r.j?.sent, r.j?.stage, got.length]).toEqual([2, false, "enforce", 0]);
+    expect(r.j.refusals.join()).toContain("ANU-I-012.recipients");
     expect(ledger()[0].results.some((x: any) => x.id === "ANU-I-012.recipients" && x.verdict === "REFUSE")).toBe(true);
+  });
+  it("ENFORCED: over the lane's daily cap is refused; a claim with no proof is refused", async () => {
+    reset(); grant({ per_lane_per_day: 1 });
+    expect((await send(mail())).code).toBe(0);
+    const second = await send(mail({ subject: "another" }));
+    expect([second.code, got.length]).toEqual([2, 1]);
+    expect(second.j.refusals.join()).toContain("ANU-015");
+    reset(); grant({});
+    const bare = await send(mail({ claims: [{ text: "cuts time by 30%" }] }));
+    expect([bare.code, got.length]).toEqual([2, 0]);
+    expect(bare.j.refusals.join()).toContain("ANU-014");
   });
   it("--dry-run judges only: nothing sent, nothing ledgered", async () => {
     reset(); grant({});

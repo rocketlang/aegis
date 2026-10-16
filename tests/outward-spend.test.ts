@@ -71,8 +71,9 @@ describe("ANU-I-013 — spend", () => {
     expect(first(judge(cart(), ctx({ mandates: [mandate({ period_cap: 100_000 })], ledger: [entry("x", "decided"), entry("y", "approved")] })))).toContain("ASG-YK-001");
     expect(judge(cart(), ctx({ mandates: [mandate({ period_cap: 100_000 })], ledger: [entry("x", "decided")] })).verdict).toBe("PERMIT");
   });
-  it("the plug-in ships observe (ANU-YK-002)", () => {
-    expect(K.judgeOutward(S.makeSpendPlugin(hash), cart({}, 90_000, "bookhaven", 3), ctx()).verdict).toBe("PERMIT");
+  it("promoted by the founder (ANU-YK-002, 2026-10-16): spend enforces by default; an observe copy only reports", () => {
+    expect(K.judgeOutward(S.makeSpendPlugin(hash), cart({}, 90_000, "bookhaven", 3), ctx()).verdict).toBe("REFUSE");
+    expect(K.judgeOutward({ ...S.makeSpendPlugin(hash), stage: "observe" }, cart({}, 90_000, "bookhaven", 3), ctx()).verdict).toBe("PERMIT");
   });
 });
 
