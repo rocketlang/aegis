@@ -117,6 +117,27 @@ describe("KAV-101 — granting is a person's act", () => {
   });
 });
 
+describe("KAV-101 — publish-mandate grant too (founder's word, 2026-10-16)", () => {
+  const rules = loadShieldRules();
+  const sh = (c: string) => bashFileVerdict(c, rules, { cwd: "/root", home: "/root" });
+  it("a publish grant arriving as a tool call is refused, and the reason names publish", () => {
+    for (const c of [
+      "aegis publish-mandate grant @xshieldai/aegis --reason release",
+      "cd /root/aegis && bun run src/cli/index.ts publish-mandate grant '*' --reason x --ttl-hours 1",
+    ]) {
+      const r = sh(c);
+      expect([c, r.rule_id]).toEqual([c, "KAV-101"]);
+      expect(r.reason).toContain("consent to publish");
+    }
+  });
+  it("publish list, revoke, and a commit message that mentions it are not refused", () => {
+    for (const c of [
+      "aegis publish-mandate list", "aegis publish-mandate revoke @xshieldai/aegis",
+      "git commit -m 'docs: run aegis publish-mandate grant before a release'", "printf '%s\\n' 'publish-mandate grant' | cat",
+    ]) expect([c, sh(c).rule_id]).not.toEqual([c, "KAV-101"]);
+  });
+});
+
 it("the mandates file is a protected source (ANU-I-005 refuses hand edits)", () => {
   expect(PS.isProtectedSource(PS.OUTWARD_MANDATES_FILE)).toBe(true);
 });

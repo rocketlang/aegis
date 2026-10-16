@@ -367,19 +367,22 @@ export function bashFileVerdict(command: string, rules: ShieldRules, ctx?: PathC
     };
   }
 
-  // @rule:KAV-101 — granting an outward mandate (consent to send, spend…) is a person's act. As a tool
-  // call it would be the agent granting itself the consent the guard asks for. Revoking, listing and
+  // @rule:KAV-101 — granting a mandate (consent to send, spend, publish…) is a person's act. As a tool
+  // call it would be the agent granting itself the consent the gate asks for. Revoking, listing and
   // showing are not refused: taking consent away, or reading it, gives the agent nothing.
-  if (cmds.some((c) => {
-    if (SHOWS_ONLY.has(c.verb)) return false;
+  // publish-mandate added 2026-10-16 on the founder's word (it had no such refusal before).
+  const GRANTS: Record<string, string> = { "outward-mandate": "send or spend", "publish-mandate": "publish" };
+  const granted = cmds.map((c) => {
+    if (SHOWS_ONLY.has(c.verb)) return null;
     const words = [c.verb, ...c.args];
-    const at = words.indexOf("outward-mandate");
-    return at >= 0 && words.slice(at + 1).includes("grant");
-  })) {
+    const which = Object.keys(GRANTS).find((g) => { const at = words.indexOf(g); return at >= 0 && words.slice(at + 1).includes("grant"); });
+    return which ?? null;
+  }).find((w) => w !== null);
+  if (granted) {
     return {
       verdict: "QUARANTINE",
       rule_id: "KAV-101",
-      reason: "`aegis outward-mandate grant` is run by a person in their own terminal, not through a tool call — an agent may not grant itself consent to send or spend",
+      reason: `\`aegis ${granted} grant\` is run by a person in their own terminal, not through a tool call — an agent may not grant itself consent to ${GRANTS[granted]}`,
       category: "persistence",
     };
   }
