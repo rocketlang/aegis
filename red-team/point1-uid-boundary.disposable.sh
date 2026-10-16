@@ -24,12 +24,14 @@ SOCKDIR=/run/${APPROVER}
 CONSUME="$SOCKDIR/consume.sock"
 APPROVE="$SOCKDIR/approve.sock"
 DAEMON_PID=""
+BUNDIR=""
 
 cleanup() {
   [ -n "$DAEMON_PID" ] && kill "$DAEMON_PID" 2>/dev/null
   rm -rf "$STORE" "$SOCKDIR"
   userdel "$APPROVER" 2>/dev/null; groupdel "$APPROVER" 2>/dev/null
   userdel "$AGENT" 2>/dev/null
+  [ -n "$BUNDIR" ] && rm -rf "$BUNDIR"
 }
 trap cleanup EXIT
 
@@ -38,6 +40,23 @@ echo "=== aegis red-team · point 1 — uid boundary (disposable host) ==="
 groupadd -f "$APPROVER"
 id -u "$APPROVER" >/dev/null 2>&1 || useradd -r -g "$APPROVER" -s /usr/sbin/nologin "$APPROVER"
 id -u "$AGENT"    >/dev/null 2>&1 || useradd -r -s /usr/sbin/nologin "$AGENT"
+
+# Both test accounts must be able to run bun and read the repo. bun installed under /root/.bun is not
+# reachable by another uid: the approver daemon died with "Permission denied" before it made its sockets
+# (found by Andrey Lazarev on a throwaway host, clean-bench run, 16 October 2026). Copy bun to a
+# world-executable place for this run instead, and stop with a clear message if the repo is unreadable.
+for u in "$APPROVER" "$AGENT"; do
+  if ! sudo -u "$u" "$BUN" --version >/dev/null 2>&1; then
+    BUNDIR="$(mktemp -d /tmp/aegis-point1-bun.XXXXXX)"; chmod 755 "$BUNDIR"
+    install -m 755 "$BUN" "$BUNDIR/bun"; BUN="$BUNDIR/bun"
+    echo "  note: bun was not runnable by $u; using a copy at $BUN for this run"
+    break
+  fi
+done
+for u in "$APPROVER" "$AGENT"; do
+  sudo -u "$u" "$BUN" --version >/dev/null 2>&1 || { echo "BROKE — $u cannot run bun at $BUN"; exit 3; }
+  sudo -u "$u" test -r "$ROOT/src/cli/index.ts" || { echo "BROKE — $u cannot read $ROOT (clone the repo where other users can read it, e.g. /opt or /tmp)"; exit 3; }
+done
 
 mkdir -p "$STORE" "$SOCKDIR"
 chown "$APPROVER:$APPROVER" "$STORE";   chmod 700 "$STORE"      # agent uid: no read, no write

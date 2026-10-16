@@ -15,6 +15,14 @@ URL: the version on the registry (with its provenance) and the commit that made 
 
 Exit codes: `0` all closed · `1` gap(s) reproduced (RED until fixed) · `3` broke (could not run).
 
+**Installing from outside our network.** `bun.lock` records three optional packages (`@ankr/approve`,
+`@ankr/document-issue`, `@ankr/mask-authorize`) from our own registry; they are not public. Each has a
+behaviour-identical local floor in this repo, so the batteries run without them. Install with:
+
+```
+bun install --frozen-lockfile --omit optional
+```
+
 ## Batteries
 
 ### `point1-self-approval` — the approval authority at the agent's own uid
@@ -57,6 +65,10 @@ running it on a throwaway VM (11 October 2026); with the folder at 711 he saw al
 reasons. The script now uses 711, lets the daemon set the socket modes itself (`--consume-mode 666`),
 stops with exit 3 if the agent cannot see the sockets, and accepts only a permission refusal on a socket
 the agent can see. **We have not run the corrected script ourselves**: it needs a disposable host.
+Andrey Lazarev ran it against commit d6f43bf with a real second uid (16 October 2026): green for the right
+reasons. His run also showed the script needs bun where the test accounts can run it; it now copies bun
+to a temporary world-executable directory when they cannot, and stops with exit 3 if they cannot read
+the repo (so clone it outside `/root`).
 
 ```
 sudo AEGIS_DISPOSABLE_HOST=1 ./red-team/point1-uid-boundary.disposable.sh
@@ -159,6 +171,25 @@ confined — safe on any host, no root.
 
 Status: **green** against this Landlock kernel (6.8). On a host without Landlock the launcher keeps the
 seccomp exec gate and says so (`KAVACHOS_LANDLOCK_REQUIRE=1` makes a missing Landlock fail closed).
+
+### `exec-prefix-traversal` — a `*` prefix rule matched as text
+With an allowlist entry `/opt/agent/*`, the seccomp gate compared the path as text, so
+`/opt/agent/../../usr/bin/EVIL` passed the rule while the kernel runs `/usr/bin/EVIL`; a symlink under the
+prefix pointing out of it escaped the same way. Found by Andrey Lazarev in his clean-bench run
+(16 October 2026). Exact rules (all the defaults) were never affected: a non-canonical form of an exact
+path is not in the set, so it is denied. Landlock was not affected either, because it binds the real file.
+The gate now matches a prefix rule only on a path in normal form whose real path is also under the prefix
+(or under the prefix directory's own target, when that directory is a symlink). Hermetic, executes nothing.
+
+```
+./red-team/exec-prefix-traversal.battery.sh
+```
+
+Status: **green** against the repo source; red against the code before the fix (3 of 7 cases). The
+seccomp gate still reads the path before the kernel does, so the race above applies to this check too;
+Landlock remains the layer that binds what runs. Interpreters on the default allowlist (`bash`, `sh`,
+`python3`, `curl`) are a separate, documented limit: allowlisting them binds *which* interpreter runs, not
+*what* it runs.
 
 ### `ledger-concealment` — the refusal log catches tampering, not just accidents
 **Credit: Shyan-Ming Perng (JieGou)**, *"The Log Only Keeps the Yes"* — a row the refused identity can

@@ -503,8 +503,18 @@ def _auto_decide_exec(
 
     if binary in allowed_paths:
         return True, f"ALLOW: {binary} in exec allowlist"
-    if any(binary.startswith(p) for p in prefixes):
-        return True, f"ALLOW: {binary} matches prefix allowlist"
+    # A prefix rule ('/opt/agent/*') is matched only on a path in normal form whose real path
+    # also lies under the prefix. Matched as text, '/opt/agent/../../usr/bin/EVIL' passed the rule
+    # while the kernel ran /usr/bin/EVIL (review finding, clean-bench run 2026-10-16); a symlink
+    # under the prefix escaped the same way. Exact rules need neither: a non-canonical form of an
+    # exact path is simply not in the set, so it is denied.
+    if prefixes and binary.startswith("/") and os.path.normpath(binary) == binary:
+        real = os.path.realpath(binary)
+        for p in prefixes:
+            # the prefix directory may itself be a symlink: accept a real path under its target too
+            real_p = os.path.join(os.path.realpath(p), "") if p.endswith("/") else os.path.realpath(p)
+            if binary.startswith(p) and (real.startswith(p) or real.startswith(real_p)):
+                return True, f"ALLOW: {binary} matches prefix allowlist"
 
     return False, f"DENY: {binary!r} not in exec allowlist for agent_type={allowlist.get('agent_type','?')}"
 
