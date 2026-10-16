@@ -4,6 +4,15 @@ All notable changes to AEGIS will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [2.23.2] — 2026-10-16 (agent-kernel 2.6.3)
+
+### Fixed — the cause behind the Falco finding in 2.23.1, not only the one line
+
+- **No condition value is typed by hand any more.** Every value in a Falco condition now goes through one helper, `q()`, which always quotes and escapes it (and refuses a line break); `desc` and `output` are written as escaped YAML strings. The rules match exactly what they matched before: with the quotes removed, every domain × mask file is identical to 2.23.1's. A test refuses a hand-written operand in the generator's conditions (12 in the code before this change) and checks that every `contains` / `startswith` / `endswith` / `!=` operand in every generated file is quoted.
+- **Every domain × mask is generated and checked.** `kavachos rules --self-check` generates each domain at trust_mask 0, 1 and all bits, and hands each file to `falco --validate` (exit 0 all accepted · 1 one rejected · 2 could not check, falco not installed). On Falco 0.43.1 all 15 files are accepted.
+- **The codex claim is earned.** `kavachos_falco_rules` said "✅ built … (maritime 7 rules, freight, general)": hand-written, while the mask-0 file could not load, "freight" was not a domain the generator knew, and the rule count depends on the mask. It now names the generator's real domains and its proof, and `tests/falco-claim.test.ts` fails if the line disagrees with the generator, states a rule count, or the self-check fails wherever falco is installed.
+- **An unknown domain is refused.** It used to fall through to the general rules without a word. `freight` is now an alias of `logistics`; any other unknown name is refused, naming the valid ones (`kavachos rules` exits 2). `kavachos generate` and `kavachos run --falco` refuse an unknown domain too, before anything runs.
+
 ## [2.23.1] — 2026-10-16 (agent-kernel 2.6.2)
 
 ### Fixed — from Andrey Lazarev's clean-bench run (16 October 2026)

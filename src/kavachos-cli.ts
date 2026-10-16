@@ -19,7 +19,7 @@
 // Single source of truth for the version inside the bundle. The build refuses to run
 // if this disagrees with package.json — it silently drifted from 2.0.0 for five months,
 // so `kavachos version` reported a release that was no longer being shipped.
-const KAVACHOS_VERSION = "2.6.2";
+const KAVACHOS_VERSION = "2.6.3";
 const command = Bun.argv[2] || "help";
 const subCommand = Bun.argv[3];
 const args = Bun.argv.slice(3);
@@ -433,8 +433,23 @@ async function cmdCheckpoint(args: string[]) {
 }
 
 // kavachos rules --domain=<domain> --trust-mask=<N> [--json]
+// kavachos rules --self-check [--json]   every domain × trust_mask file through falco --validate
 async function cmdRules(args: string[]) {
   const { generateFalcoRules } = await import("./kernel/falco-rule-generator");
+
+  if (args.includes("--self-check")) {
+    const { falcoSelfCheck } = await import("./kernel/falco-self-check");
+    const r = falcoSelfCheck();
+    if (args.includes("--json")) {
+      console.log(JSON.stringify(r, null, 2));
+    } else {
+      for (const f of r.files) console.log(`  ${f.ok === true ? "ok  " : f.ok === false ? "FAIL" : "??  "} ${f.domain} trust_mask=${f.trust_mask} rules=${f.rule_count}${f.error ? ` — ${f.error}` : ""}`);
+      console.log(r.verdict === "pass" ? `self-check: all ${r.files.length} files accepted by ${r.validated_by}`
+        : r.verdict === "fail" ? `self-check: ${r.files.filter((f) => f.ok === false).length} file(s) rejected by ${r.validated_by}`
+        : "self-check: COULD NOT CHECK — falco is not installed (set FALCO or put falco on PATH)");
+    }
+    process.exit(r.verdict === "pass" ? 0 : r.verdict === "fail" ? 1 : 2);
+  }
 
   const domain = parseDomain(args);
   const trustMask = parseTrustMask(args);
@@ -445,7 +460,7 @@ async function cmdRules(args: string[]) {
   if (jsonFlag) {
     console.log(JSON.stringify(rules, null, 2));
   } else {
-    console.log(`# KavachOS Falco Rules — domain=${domain} trust_mask=0x${trustMask.toString(16).padStart(8,"0")}`);
+    console.log(`# KavachOS Falco Rules — domain=${rules.domain}${rules.domain !== domain ? ` (asked for ${domain})` : ""} trust_mask=0x${trustMask.toString(16).padStart(8,"0")}`);
     console.log(`# Generated: ${rules.generated_at} | Rules: ${rules.rule_count}\n`);
     console.log(rules.rules);
   }
@@ -807,5 +822,5 @@ Rules:
 main().catch((err) => {
   const message = err instanceof Error ? err.message : String(err);
   console.error(`kavachos error: ${message}`);
-  process.exit(1);
+  process.exit(err instanceof Error && err.name === "UnknownFalcoDomainError" ? 2 : 1);
 });
