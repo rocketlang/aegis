@@ -4,7 +4,7 @@ All notable changes to AEGIS will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
-## [Unreleased]
+## [2.24.0] — 2026-10-17
 
 ### Added — `aegis rules status` and `aegis rules update` (KAV-102)
 
