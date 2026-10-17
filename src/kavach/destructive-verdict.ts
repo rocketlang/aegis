@@ -33,7 +33,7 @@ export interface DestructiveRules {
 }
 
 export type DestructiveVerdict =
-  | { kind: "match"; rule: DestructiveRule; via: "raw" | "normalized" | "built-in" }
+  | { kind: "match"; rule: DestructiveRule; via: "raw" | "normalized" | "parsed" | "built-in" }
   | { kind: "inert"; wouldMatch: DestructiveRule } // a keyword only DISPLAYED, never executed
   | { kind: "clear" };
 
@@ -140,6 +140,24 @@ export function structuralMatch(command: string): DestructiveRule | null {
   return null;
 }
 
+/**
+ * A third additional view: each simple command the shell would run, as `verb args…`, with
+ * quotes removed the way the shell removes them and a variable given its value earlier in
+ * the same line filled in. The rule patterns stop at ; & | so they cannot reach from one
+ * command into the next, but on the raw text a separator INSIDE quotes stops them too:
+ * `rm -rf "a;b" <data dir>` read as clear. Here the quoted argument is one word. Unioned
+ * like the views above: it can only add a match.
+ */
+export function perCommandMatch(command: string, rules: DestructiveRules): DestructiveRule | null {
+  for (const c of parseCommand(command)) {
+    if (!c.verb) continue;
+    // inside one command ; & | and newlines are ordinary characters of a word
+    const hit = firstMatch([c.verb, ...c.args].map((w) => w.replace(/[;&|\n]/g, "_")).join(" "), rules);
+    if (hit) return hit;
+  }
+  return null;
+}
+
 export function destructiveVerdict(command: string, rules: DestructiveRules): DestructiveVerdict {
   if (typeof command !== "string" || command.length === 0) return { kind: "clear" };
   if (command.length > MAX_COMMAND) return { kind: "match", rule: TOO_LONG, via: "built-in" };
@@ -155,6 +173,11 @@ export function destructiveVerdict(command: string, rules: DestructiveRules): De
   if (norm) {
     if (isInertDisplay(command)) return { kind: "inert", wouldMatch: norm };
     return { kind: "match", rule: norm, via: "normalized" };
+  }
+  const parsed = perCommandMatch(command, rules);
+  if (parsed) {
+    if (isInertDisplay(command)) return { kind: "inert", wouldMatch: parsed };
+    return { kind: "match", rule: parsed, via: "parsed" };
   }
   const built = structuralMatch(command);
   if (built) return { kind: "match", rule: built, via: "built-in" };

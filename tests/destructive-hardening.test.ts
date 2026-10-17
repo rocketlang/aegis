@@ -116,6 +116,23 @@ describe("§D3 the shipped patterns", () => {
     expect(destructiveVerdict(sql(DROP_T), broken).kind).toBe("match");
     for (const c of ["", null, undefined, 7, {}]) expect(destructiveVerdict(c as any, RULES).kind).toBe("clear");
   });
+
+  // 2026-10-17: a whole-line `.*` joined a harmless removal to a data path named later in
+  // the line; the bounded patterns do not, and each command is also read on its own.
+  const DATA = "/var/lib/" + "postgresql/16";
+  const RMRF = D("rm", "-rf");
+  it("DH-353: a removal and a data path in different commands of one line is clear", () => {
+    expect(kind(`T=/tmp/x; ${RMRF} $T; cd ${DATA}`)).toBe("clear");
+    expect(kind(`${RMRF} /tmp/x && cat >> notes.md <<'E'\nsee ${DATA}\nE`)).toBe("clear");
+  });
+  it("DH-354: a separator inside quotes does not hide the data path from the removal", () => {
+    expect(destructiveVerdict(`${RMRF} "a;b" ${DATA}`, RULES)).toMatchObject({ kind: "match", via: "parsed" });
+    expect(kind(`${RMRF} 'x|y' ${DATA}`)).toBe("match");
+  });
+  it("DH-355: a data path held in a variable set in the same line is removed only with approval", () => {
+    expect(kind(`T=${DATA}; ${RMRF} $T`)).toBe("match");
+    expect(kind(`for d in /tmp/a ${DATA}; do ${RMRF} "$d"; done`)).toBe("match");
+  });
 });
 
 // ─── §D4 approval ─────────────────────────────────────────────────────────────
@@ -216,7 +233,10 @@ describe("§D5 the rules files in the package are what the code uses", () => {
 // of limits cannot drift from the code without a test changing.
 
 describe("§D6 stated limits", () => {
-  it("LIMIT: a removal target held in a variable", () => expect(kind(D("rm", "-rf", '"$BUILD_DIR"/'))).toBe("clear"));
+  it("LIMIT: a removal target held in a variable set elsewhere", () => expect(kind(D("rm", "-rf", '"$BUILD_DIR"/'))).toBe("clear"));
+  it("LIMIT: a commit message naming a removal and a data path behind a quoted ; is stopped", () => {
+    expect(kind(`git commit -m "${D("rm", "-rf")} old; moved to /var/lib/${"postgresql"}"`)).toBe("match");
+  });
   it("LIMIT: a removal of a system directory other than / or home", () => expect(kind(D("rm", "-rf", "/usr"))).toBe("clear"));
   it("LIMIT: a removal target that arrives through xargs", () => expect(kind(`echo / | xargs ${D("rm", "-rf")}`)).toBe("clear"));
   it("LIMIT: a statement inside a file the command names", () => expect(kind("psql -d app -f drop.sql")).toBe("clear"));
