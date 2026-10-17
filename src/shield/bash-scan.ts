@@ -14,8 +14,11 @@
 // the files it redirects from and to.
 //
 // CEILING (state it, never round up): this reads the TEXT of a command. It does not run a
-// shell. A path or program held in a variable, built by string tricks, decoded at run time,
-// or inside a script file or an interpreter's own code (python -c, node -e) is not seen.
+// shell. A variable given its value in the same command line (`F=…`, `export F=…`,
+// `for f in …`) is followed where it is used (`$F`, `${F}`). A variable set anywhere else,
+// read from a file or the output of a command, a path built by string tricks, decoded at
+// run time, or inside a script file or an interpreter's own code (python -c, node -e) is
+// not seen.
 // It is a net for the plain cases, which are the common ones, not a sandbox. The kernel
 // faces (file and network capability) are the layer that does not depend on the text.
 
@@ -230,7 +233,49 @@ function build(words: string[]): SimpleCommand | null {
   return { verb: basename(plain[k]), args: plain.slice(k + 1), inputs, outputs };
 }
 
-function parseInto(text: string, depth: number, out: SimpleCommand[]): void {
+// ── variables given a value in the same command line ────────────────────────
+// `F=/x/.env; cat "$F"` reads /x/.env. The values a name may hold are tracked as the line
+// is read, and `$F` / `${F}` in a later word is replaced by them. A name never given a value
+// here stays as written ($HOME is resolved later, with the paths).
+
+type Vars = Map<string, string[]>;
+const MAX_VALUES = 16; // a word that would expand into more is cut here
+const ASSIGN = /^([A-Za-z_][A-Za-z0-9_]*)=(.*)$/s;
+const DECLARERS = new Set(["export", "declare", "local", "readonly", "typeset"]);
+
+function expandWord(word: string, vars: Vars): string[] {
+  if (!word.includes("$") || vars.size === 0) return [word];
+  const re = /\$(?:\{([A-Za-z_][A-Za-z0-9_]*)\}|([A-Za-z_][A-Za-z0-9_]*))/g;
+  let results = [""];
+  let last = 0;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(word)) !== null) {
+    const values = vars.get(m[1] ?? m[2]);
+    if (!values) continue;
+    const lit = word.slice(last, m.index);
+    const next: string[] = [];
+    for (const r of results) for (const v of values) if (next.length < MAX_VALUES) next.push(r + lit + v);
+    results = next;
+    last = m.index + m[0].length;
+  }
+  return results.map((r) => r + word.slice(last));
+}
+
+/** Record what a simple command assigns: `A=1 B=2`, `export A=1`, `for f in a b`. */
+function assignFrom(words: string[], vars: Vars): void {
+  if (words.length === 0) return;
+  const setFrom = (w: string) => {
+    const m = ASSIGN.exec(w);
+    if (m) vars.set(m[1], expandWord(m[2], vars));
+  };
+  if (words.every((w) => ASSIGN.test(w))) { for (const w of words) setFrom(w); return; }
+  if (DECLARERS.has(words[0])) { for (const w of words.slice(1)) if (!w.startsWith("-")) setFrom(w); return; }
+  if (words[0] === "for" && words.length >= 3 && /^[A-Za-z_][A-Za-z0-9_]*$/.test(words[1]) && words[2] === "in") {
+    vars.set(words[1], words.slice(3).flatMap((w) => expandWord(w, vars)).slice(0, MAX_VALUES));
+  }
+}
+
+function parseInto(text: string, depth: number, out: SimpleCommand[], vars: Vars = new Map()): void {
   if (depth > MAX_DEPTH || out.length > 2000) return;
   const bodies: string[] = [];
   const flat = liftSubstitutions(liftHereDocs(text, bodies), bodies);
@@ -238,6 +283,9 @@ function parseInto(text: string, depth: number, out: SimpleCommand[]): void {
   let dir: string | undefined;
   const flush = () => {
     if (words.length === 0) return;
+    const expanded = words.flatMap((w) => expandWord(w, vars));
+    assignFrom(words, vars);
+    words = expanded;
     const cmd = build(words);
     words = [];
     if (!cmd) return;
@@ -252,16 +300,16 @@ function parseInto(text: string, depth: number, out: SimpleCommand[]): void {
     // a shell given its program as text: bash -c "…", sh -lc '…'
     if (SHELLS.has(cmd.verb)) {
       const i = cmd.args.findIndex((a) => /^-[A-Za-z]*c$/.test(a));
-      if (i !== -1 && cmd.args[i + 1]) parseInto(cmd.args[i + 1], depth + 1, out);
+      if (i !== -1 && cmd.args[i + 1]) parseInto(cmd.args[i + 1], depth + 1, out, new Map(vars));
     }
-    if (cmd.verb === "eval" && cmd.args.length) parseInto(cmd.args.join(" "), depth + 1, out);
+    if (cmd.verb === "eval" && cmd.args.length) parseInto(cmd.args.join(" "), depth + 1, out, new Map(vars));
   };
   for (const t of tokenize(flat)) {
     if (t.t === "op") flush();
     else words.push(t.v);
   }
   flush();
-  for (const b of bodies) parseInto(b, depth + 1, out);
+  for (const b of bodies) parseInto(b, depth + 1, out, new Map(vars));
 }
 
 /** Every simple command in a command line, including the ones nested inside it. */
