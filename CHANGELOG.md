@@ -4,6 +4,19 @@ All notable changes to AEGIS will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [Unreleased]
+
+### Added — `aegis rules status` and `aegis rules update` (KAV-102)
+
+- **An upgrade now has a way to reach the installed rules.** `aegis init` copies `rules/destructive-rules.json` into the aegis home once and never again, so an install kept the rules it started with. On the author's box the copy stayed at the 2026-10-02 rules after 2.5.0 had bounded five patterns; their `.*` reached from one command into the next and harmless lines were refused.
+- `aegis rules status` compares the installed copy with the package's (exit 1 when they differ). `aegis rules update [--dry]` writes the package's patterns, drops the ones it has replaced (now listed in the rules file as `_retired_patterns`, taken from the file's history), keeps every pattern of the installer's own, and keeps the old file as `.bak-<time>`. A link, or a file that does not read as rules, is not replaced.
+- **The update is a person's act.** As a tool call it is refused by the shield (KAV-102): it would let an agent copy a rules file it can edit over the one it cannot.
+
+### Fixed
+
+- **The shell reader follows a variable given its value in the same command line** (`F=…`, `export F=…`, `for f in …`), so `F=<a .env>; python3 - "$F"` is a credential read (INF-KAV-001), and a data directory held that way is a destructive removal.
+- **The destructive gate also reads each command on its own** (KAV-052): a separator inside quotes no longer hides a data path from a removal.
+
 ## [2.23.2] — 2026-10-16 (agent-kernel 2.6.3)
 
 ### Fixed — the cause behind the Falco finding in 2.23.1, not only the one line

@@ -387,6 +387,25 @@ export function bashFileVerdict(command: string, rules: ShieldRules, ctx?: PathC
     };
   }
 
+  // @rule:KAV-102 — replacing the destructive gate's installed rules is a person's act. As a
+  // tool call it would let an agent copy a rules file it can edit (the package's) over the one
+  // the shield keeps it from editing (KAV-096). `aegis rules status` only reads, and is not refused.
+  const rulesUpdate = cmds.some((c) => {
+    if (SHOWS_ONLY.has(c.verb)) return false;
+    const words = [c.verb, ...c.args];
+    const at = words.indexOf("rules");
+    if (at < 0 || words[at + 1] !== "update") return false;
+    return words.slice(0, at).some((w) => w === "aegis" || /(?:^|\/)aegis(?:\/src\/cli\/index\.ts)?$|\/cli\/index\.ts$/.test(w));
+  });
+  if (rulesUpdate) {
+    return {
+      verdict: "QUARANTINE",
+      rule_id: "KAV-102",
+      reason: "`aegis rules update` is run by a person in their own terminal, not through a tool call — an agent may not replace the rules of the gate that guards it",
+      category: "persistence",
+    };
+  }
+
   // /etc/passwd is world-readable and read by ordinary administration; the Read-tool rule
   // keeps it, the shell rule does not.
   const credRules = rules.credential_paths.filter((r) => r !== "/etc/passwd");

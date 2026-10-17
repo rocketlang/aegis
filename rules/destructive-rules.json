@@ -120,5 +120,15 @@
     }
   ],
   "override_instructions": "Nothing typed into a command overrides these rules. When a command is refused the gate prints a code; a person runs `aegis approve-destructive <code>` in their own terminal, and the same command then goes through once, within ten minutes.",
-  "_note": "No text in a command overrides these rules. A person approves one refused command, once: aegis approve-destructive <code> (KAV-098)."
+  "_note": "No text in a command overrides these rules. A person approves one refused command, once: aegis approve-destructive <code> (KAV-098).",
+  "_retired_patterns_note": "Patterns an earlier version of this file shipped and this one replaced with a tighter form. `aegis rules update` replaces them in an installed copy; any other pattern there that this file does not have is the installer's own and is kept. Every pattern ever shipped and no longer current is listed (from the file's git history).",
+  "_retired_patterns": [
+    "ALTER\\s+TABLE\\s+.*\\s+DROP\\s+COLUMN",
+    "DROP\\s+TABLE",
+    "TRUNCATE\\s+",
+    "docker\\s+compose\\s+.*\\s+-v\\b",
+    "pg_dump.*--clean|pg_restore.*--clean",
+    "prisma\\s+(migrate\\s+reset|db\\s+push(?!.*--accept-data-loss\\s+false))",
+    "rm\\s+-rf?\\s+.*(pg-clusters|postgresql|pg_wal|ankr-data|mnt/storage|var/lib/postgresql)"
+  ]
 }
