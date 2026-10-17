@@ -12,6 +12,9 @@ import { join } from "path";
 
 const home = mkdtempSync(join(tmpdir(), "aegis-ase-mandate-"));
 process.env.HOME = home;
+// Put back in afterAll: bun runs every test file in one process, and a leaked AEGIS_DIR sends
+// the next file's stores here (it broke the approval tests in destructive-hardening, 2026-10-17).
+const AEGIS_DIR_BEFORE = process.env.AEGIS_DIR;
 process.env.AEGIS_DIR = join(home, ".aegis");
 process.env.KAVACHOS_MUDRIKA_SECRET = "t";
 mkdirSync(join(home, ".aegis"), { recursive: true });
@@ -43,6 +46,7 @@ beforeAll(async () => {
 });
 afterAll(async () => {
   await app.close();
+  if (AEGIS_DIR_BEFORE === undefined) delete process.env.AEGIS_DIR; else process.env.AEGIS_DIR = AEGIS_DIR_BEFORE;
   if (!unsafe) { if (configBefore === null) rmSync(configPath, { force: true }); else writeFileSync(configPath, configBefore); }
   rmSync(home, { recursive: true, force: true });
 });

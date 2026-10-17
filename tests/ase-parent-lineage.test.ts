@@ -19,6 +19,9 @@ import { join } from "path";
 
 const scratchHome = mkdtempSync(join(tmpdir(), "aegis-ase-lineage-"));
 process.env.HOME = scratchHome;
+// Put back in afterAll: bun runs every test file in one process, and a leaked AEGIS_DIR sends
+// the next file's stores here (it broke the approval tests in destructive-hardening, 2026-10-17).
+const AEGIS_DIR_BEFORE = process.env.AEGIS_DIR;
 process.env.AEGIS_DIR = join(scratchHome, ".aegis");
 
 const { default: Fastify } = await import("fastify");
@@ -43,6 +46,7 @@ beforeAll(async () => {
 });
 afterAll(async () => {
   await app.close();
+  if (AEGIS_DIR_BEFORE === undefined) delete process.env.AEGIS_DIR; else process.env.AEGIS_DIR = AEGIS_DIR_BEFORE;
   rmSync(scratchHome, { recursive: true, force: true });
 });
 
