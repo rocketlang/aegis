@@ -62,7 +62,11 @@ function box(mode: Mode, returnProof?: string) {
   writeFileSync(join(home, ".aegis", "config.json"), JSON.stringify({ enforcement: { mode: mode === "monitor" ? "monitor" : "enforce" }, kavach }));
   const approvers = join(home, "approvers.json");
   writeFileSync(approvers, JSON.stringify({ owners: { telegram: ["555000111"] } }));
-  const env = { ...(process.env as Record<string, string>), HOME: home, AEGIS_DIR: join(home, ".aegis"), AOS_APPROVERS_FILE: approvers, KAVACHOS_MUDRIKA_SECRET: "t", AEGIS_FLOW_EVENTS: "on" };
+  const env: Record<string, string> = { ...(process.env as Record<string, string>), HOME: home, AEGIS_DIR: join(home, ".aegis"), AOS_APPROVERS_FILE: approvers, KAVACHOS_MUDRIKA_SECRET: "t", AEGIS_FLOW_EVENTS: "on" };
+  // Run from inside a governed session, the parent's AEGIS_FLOW would name a mandate this throwaway
+  // home does not hold (GTP-021) and every call would be refused; its env file is not ours to write.
+  delete env.AEGIS_FLOW;
+  delete env.CLAUDE_ENV_FILE;
   return { home, env };
 }
 
