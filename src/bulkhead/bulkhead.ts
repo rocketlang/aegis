@@ -12,7 +12,7 @@ import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync, appendF
 import { join } from "path";
 import { randomBytes } from "crypto";
 import { BellBook, canonical, sha256 } from "./bell-book";
-import { findDoor, loadDoors, type DoorTable } from "./doors";
+import { epochOf, findDoor, loadDoors, type DoorTable } from "./doors";
 import { DEFAULTS, KINDS, type Delivered, type Door, type Envelope, type Identity, type Kind, type SendInput, type SendResult, type Taint } from "./types";
 
 // How the bulkhead learns who is speaking. The default (identity.ts) checks the agent's aegis
@@ -24,13 +24,15 @@ export interface IdentityResolver {
 
 export type AlarmHook = (alarm: { from: string; text: string; rule?: string }) => void;
 
+interface Closure { by: string; reason: string; at: string; epoch?: number }
+
 interface SentRecord { hash: string; depth: number; from: string; to: string; door: string | null; subject: string; kind: Kind }
 
 interface State {
   queue: Record<string, Envelope[]>;
   taints: Taint[];
-  closed_doors: Record<string, { by: string; reason: string; at: string }>;
-  closed_compartments: Record<string, { by: string; reason: string; at: string }>;
+  closed_doors: Record<string, Closure>;
+  closed_compartments: Record<string, Closure>;
   sent: Record<string, SentRecord>;
   door_times: Record<string, number[]>;
   pair_times: Record<string, number[]>;
@@ -125,7 +127,8 @@ export class Bulkhead {
       doorKey = door.id;
     }
 
-    // Closed compartments and tripped doors stay shut until a person opens them (BLK-008).
+    // Closed compartments and tripped doors stay shut until a person opens them (BLK-008, BLK-012).
+    this.liftOpened();
     for (const c of [who.compartment, target.compartment]) {
       if (this.state.closed_compartments[c]) return this.refuse("BLK-008", `compartment ${c} is closed: ${this.state.closed_compartments[c].reason}`, { ...base, door: doorKey });
     }
@@ -198,7 +201,7 @@ export class Bulkhead {
   // @rule:BLK-008 a tripped door stays closed until a person re-opens it
   // @rule:BLK-010 a tripped door sounds the general alarm
   private trip(doorKey: string, reason: string, base: Record<string, unknown>): SendResult {
-    this.state.closed_doors[doorKey] = { by: "damage-control", reason, at: new Date(this.now()).toISOString() };
+    this.state.closed_doors[doorKey] = { by: "damage-control", reason, at: new Date(this.now()).toISOString(), epoch: epochOf(this.doors(), doorKey) };
     this.save();
     this.book.append("tripped", { door: doorKey, reason, ...base });
     this.alarm("bulkhead", `door ${doorKey} tripped and closed: ${reason}`, "BLK-010");
@@ -250,27 +253,30 @@ export class Bulkhead {
 
   // ── a person's controls ─────────────────────────────────────────────────────
 
+  // @rule:BLK-012 closing is open to anyone, an agent included: it is the safe direction
   closeCompartment(compartment: string, by: string, reason: string): void {
-    this.state.closed_compartments[compartment] = { by, reason, at: new Date(this.now()).toISOString() };
+    this.state.closed_compartments[compartment] = { by, reason, at: new Date(this.now()).toISOString(), epoch: epochOf(this.doors(), compartment) };
     this.save();
     this.book.append("compartment_closed", { compartment, by, reason });
   }
 
-  openCompartment(compartment: string, by: string): boolean {
-    if (!this.state.closed_compartments[compartment]) return false;
-    delete this.state.closed_compartments[compartment];
-    this.save();
-    this.book.append("compartment_opened", { compartment, by });
-    return true;
-  }
-
-  openDoor(doorKey: string, by: string): boolean {
-    if (!this.state.closed_doors[doorKey]) return false;
-    delete this.state.closed_doors[doorKey];
-    delete this.state.door_times[doorKey];
-    this.save();
-    this.book.append("door_opened", { door: doorKey, by });
-    return true;
+  // @rule:BLK-012 opening is a person's act: a closure is lifted only when a person has raised the
+  // door's or compartment's open epoch in doors.json above the epoch it was closed under.
+  private liftOpened(): void {
+    const table = this.doors();
+    let changed = false;
+    for (const [kind, map] of [["door", this.state.closed_doors], ["compartment", this.state.closed_compartments]] as const) {
+      for (const [id, c] of Object.entries(map)) {
+        const e = epochOf(table, id);
+        if (e > (c.epoch ?? 0)) {
+          delete map[id];
+          if (kind === "door") delete this.state.door_times[id];
+          this.book.append(kind === "door" ? "door_opened" : "compartment_opened", { [kind]: id, by: "doors.json open epoch", epoch: e });
+          changed = true;
+        }
+      }
+    }
+    if (changed) this.save();
   }
 
   // @rule:BLK-007 the general alarm is never refused and carries no request to any agent
@@ -282,6 +288,7 @@ export class Bulkhead {
   }
 
   status(): { closed_doors: State["closed_doors"]; closed_compartments: State["closed_compartments"]; queued: number; taints: number; door_errors: string[] } {
+    this.liftOpened();
     const t = this.now();
     return {
       closed_doors: this.state.closed_doors,

@@ -48,6 +48,8 @@ async function main() {
       return (await import("./commands/check-anumati")).default(args);
     case "approve-destructive":
       return (await import("./commands/approve-destructive")).default(args);
+    case "bulkhead":
+      return (await import("../bulkhead/cli")).main(args);
     case "ledger-verify":
       return (await import("./commands/ledger-verify")).default(args);
     case "ledger-pin":

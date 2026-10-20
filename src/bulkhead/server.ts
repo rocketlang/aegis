@@ -20,10 +20,9 @@ export function handle(b: Bulkhead, req: any): unknown {
     case "drop": return b.dropTaint(req.token, String(req.message_id ?? ""));
     case "authority": return b.authority(String(req.agent_id ?? ""), Number(req.own_mask ?? 0));
     case "alarm": b.alarm(String(req.from ?? "unknown"), String(req.text ?? "")); return { ok: true };
-    // Person controls. In P1 anyone who can reach the socket can call these; P2 limits them to a person.
-    case "close": b.closeCompartment(String(req.compartment), String(req.by ?? "person"), String(req.reason ?? "closed by hand")); return { ok: true };
-    case "open-compartment": return { ok: b.openCompartment(String(req.compartment), String(req.by ?? "person")) };
-    case "open": return { ok: b.openDoor(String(req.door), String(req.by ?? "person")) };
+    // @rule:BLK-012 closing is open to anyone (the safe direction). There is no "open" here: opening is a
+    // person raising an open epoch in doors.json, which no tool call may write (KAV-096).
+    case "close": b.closeCompartment(String(req.compartment), String(req.by ?? "unknown"), String(req.reason ?? "closed by hand")); return { ok: true };
     case "status": return b.status();
     default: return { error: `unknown op ${req?.op}` };
   }

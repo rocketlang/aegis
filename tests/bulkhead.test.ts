@@ -20,7 +20,7 @@ process.env.AEGIS_DIR = join(scratchHome, ".aegis");
 
 const { Bulkhead } = await import("../src/bulkhead/bulkhead");
 const { BellBook, verifyBellBook } = await import("../src/bulkhead/bell-book");
-const { loadDoors } = await import("../src/bulkhead/doors");
+const { loadDoors, raiseOpenEpoch } = await import("../src/bulkhead/doors");
 const { serve, call } = await import("../src/bulkhead/server");
 
 afterAll(() => {
@@ -258,7 +258,7 @@ describe("BLK-008 / BLK-010 / BLK-YK-004 — damage control", () => {
     expect(alarms.map((a) => a.rule)).toContain("BLK-010");
     clock += 60 * 60_000; // an hour later the rate is fine, but the door is still shut
     expect(bh.send(tok("db-agent"), finding("app-agent", { subject: "later" }))).toMatchObject({ ok: false, rule: "BLK-008" });
-    expect(bh.openDoor("db-to-app", "founder")).toBe(true);
+    raiseOpenEpoch(join(dir, "doors.json"), "db-to-app"); // a person re-opens it (BLK-012)
     expect(bh.send(tok("db-agent"), finding("app-agent", { subject: "after opening" })).ok).toBe(true);
   });
   test("depth: a reply chain deeper than the door allows trips it", () => {
@@ -288,7 +288,7 @@ describe("BLK-008 / BLK-010 / BLK-YK-004 — damage control", () => {
     bh.closeCompartment("app", "founder", "app agent misbehaving");
     expect(bh.send(tok("db-agent"), finding("app-agent"))).toMatchObject({ ok: false, rule: "BLK-008" });
     expect(bh.send(tok("app-agent"), { to: "ops-agent", kind: "FINDING", subject: "x", body: {} })).toMatchObject({ ok: false, rule: "BLK-008" });
-    expect(bh.openCompartment("app", "founder")).toBe(true);
+    raiseOpenEpoch(join(dir, "doors.json"), "app");
     expect(bh.send(tok("db-agent"), finding("app-agent")).ok).toBe(true);
   });
 });
@@ -336,8 +336,14 @@ describe("BLK-T1.9 — the process on a unix socket", () => {
   });
 });
 
+// Issuing real tokens and swarms must land under the scratch HOME, never the live ~/.aegis: in a full-suite
+// run another file may have loaded aegis under the real HOME first (it did, 21 Oct 2026). Skip there.
+const { getDbPath, getAegisDir } = await import("../src/core/config");
+const identityUnsafe = (!getDbPath().startsWith(scratchHome) || !getAegisDir().startsWith(scratchHome)) && !process.env.CI;
+if (identityUnsafe) console.warn(`[bulkhead] identity test SKIPPED: aegis resolves to ${getAegisDir()}, not the scratch HOME; run this file on its own`);
+
 describe("INF-BLK-002 — the default identity: aegis delegation token + swarm", () => {
-  test("a real SDT in a swarm is proven; the same agent outside a swarm, or a forged token, is not", async () => {
+  (identityUnsafe ? test.skip : test)("a real SDT in a swarm is proven; the same agent outside a swarm, or a forged token, is not", async () => {
     const { issueSdt } = await import("../src/auth/sdt");
     const { createSwarm, enrollAgent } = await import("../src/sandbox/swarm");
     const { sdtIdentity } = await import("../src/bulkhead/identity");

@@ -367,6 +367,23 @@ export function bashFileVerdict(command: string, rules: ShieldRules, ctx?: PathC
     };
   }
 
+  // @rule:BLK-012 — re-opening a bulkhead door or compartment is a person's act. As a tool call it
+  // would be an agent opening the door that damage control (or a person) shut on it. Closing is not refused.
+  const bulkheadOpen = cmds.some((c) => {
+    if (SHOWS_ONLY.has(c.verb)) return false;
+    const words = [c.verb, ...c.args];
+    const at = words.findIndex((w) => w === "bulkhead" || /(?:^|\/)bulkhead\/cli\.ts$/.test(w));
+    return at >= 0 && words[at + 1] === "open";
+  });
+  if (bulkheadOpen) {
+    return {
+      verdict: "QUARANTINE",
+      rule_id: "BLK-012",
+      reason: "`aegis bulkhead open` is run by a person in their own terminal, not through a tool call — an agent may not re-open a door or compartment that was shut",
+      category: "persistence",
+    };
+  }
+
   // @rule:KAV-101 — granting a mandate (consent to send, spend, publish…) is a person's act. As a tool
   // call it would be the agent granting itself the consent the gate asks for. Revoking, listing and
   // showing are not refused: taking consent away, or reading it, gives the agent nothing.

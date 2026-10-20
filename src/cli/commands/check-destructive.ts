@@ -31,10 +31,10 @@
 
 import { readFileSync, existsSync } from "fs";
 import { join } from "path";
-import { DASHBOARD_PORT, loadConfig } from "../../core/config";
+import { DASHBOARD_PORT, getAegisDir, loadConfig } from "../../core/config";
 import { requiredBitsForTool } from "../../kavach/perm-mask";
 import { classifyResource, extractResourceFromToolInput } from "../../kavach/class-mask";
-import { checkValve, incrementLoopCount } from "../../kavach/gate-valve";
+import { checkValve, incrementLoopCount, readValve } from "../../kavach/gate-valve";
 import { checkMudrika } from "../../kavach/mudrika-validator";
 import { destructiveVerdict, type DestructiveRule, type DestructiveRules } from "../../kavach/destructive-verdict";
 import { recordRefusal } from "../../core/refusal-ledger";
@@ -139,6 +139,19 @@ export default async function checkDestructive(_args: string[]): Promise<void> {
         process.exit(2);
       }
       // ── End Level 0 + Level 1 ─────────────────────────────────────────────
+    }
+
+    // @rule:BLK-013 — an agent acting on a peer's message runs under the bulkhead's cap
+    // (receiver & every live taint's cap, BLK-004). No bulkhead state: nothing loaded, nothing changes.
+    // A state that exists but cannot be read refuses (inside bulkheadVerdict; a throw reaches ANU-004).
+    const bulkheadDir = process.env.AEGIS_BULKHEAD_DIR || join(getAegisDir(), "bulkhead");
+    if (existsSync(join(bulkheadDir, "state.json"))) {
+      const { bulkheadVerdict } = await import("../../bulkhead/gate");
+      const bv = bulkheadVerdict(bulkheadDir, agentId, () => readValve(agentId).effective_perm_mask, requiredBitsForTool(toolName, command));
+      if (!bv.allowed) {
+        process.stderr.write(`\n[BULKHEAD] BLOCKED (BLK-013) — ${bv.reason}\n[BULKHEAD] Rule: BLK-013 · drop the taint when the matter is closed: aegis bulkhead drop\n\n`);
+        process.exit(2);
+      }
     }
 
     // Level 2 only runs for Bash tool (DAN pattern matching)
