@@ -1,0 +1,299 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Capt. Anil Sharma (rocketlang). All rights reserved.
+//
+// aegis Bulkhead — the core. One instance owns the bell book and the state; agents never write either.
+// Logics: /root/proposals/aegis-bulkhead--logics--formal--2026-10-21.md
+//
+// The one idea (BLK-YK-001): a model may believe what a message says, so the bulkhead does not rely on
+// the receiver ignoring it. It caps what obeying could achieve: while an agent is tainted by a peer's
+// message, it acts under receiver & sender & both ceilings (BLK-004).
+
+import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync, appendFileSync } from "fs";
+import { join } from "path";
+import { randomBytes } from "crypto";
+import { BellBook, canonical, sha256 } from "./bell-book";
+import { findDoor, loadDoors, type DoorTable } from "./doors";
+import { DEFAULTS, KINDS, type Delivered, type Door, type Envelope, type Identity, type Kind, type SendInput, type SendResult, type Taint } from "./types";
+
+// How the bulkhead learns who is speaking. The default (identity.ts) checks the agent's aegis
+// delegation token and its swarm; tests pass their own.
+export interface IdentityResolver {
+  resolve(token: unknown): Identity | { error: string };
+  compartmentOf(agentId: string): { compartment: string; ceiling: number } | null;
+}
+
+export type AlarmHook = (alarm: { from: string; text: string; rule?: string }) => void;
+
+interface SentRecord { hash: string; depth: number; from: string; to: string; door: string | null; subject: string; kind: Kind }
+
+interface State {
+  queue: Record<string, Envelope[]>;
+  taints: Taint[];
+  closed_doors: Record<string, { by: string; reason: string; at: string }>;
+  closed_compartments: Record<string, { by: string; reason: string; at: string }>;
+  sent: Record<string, SentRecord>;
+  door_times: Record<string, number[]>;
+  pair_times: Record<string, number[]>;
+}
+
+const EMPTY: State = { queue: {}, taints: [], closed_doors: {}, closed_compartments: {}, sent: {}, door_times: {}, pair_times: {} };
+
+export interface BulkheadOptions {
+  dir: string;                       // holds doors.json (person-written), bell-book.jsonl, state.json, alarms.jsonl
+  identity: IdentityResolver;
+  onAlarm?: AlarmHook;
+  now?: () => number;                // tests move the clock
+}
+
+export class Bulkhead {
+  readonly dir: string;
+  readonly book: BellBook;
+  private state: State;
+  private identity: IdentityResolver;
+  private onAlarm?: AlarmHook;
+  private now: () => number;
+
+  constructor(opts: BulkheadOptions) {
+    this.dir = opts.dir;
+    if (!existsSync(this.dir)) mkdirSync(this.dir, { recursive: true });
+    this.book = new BellBook(join(this.dir, "bell-book.jsonl"));
+    this.identity = opts.identity;
+    this.onAlarm = opts.onAlarm;
+    this.now = opts.now ?? Date.now;
+    const sp = join(this.dir, "state.json");
+    this.state = existsSync(sp) ? { ...EMPTY, ...JSON.parse(readFileSync(sp, "utf-8")) } : structuredClone(EMPTY);
+  }
+
+  get doorsPath(): string { return join(this.dir, "doors.json"); }
+
+  // Re-read on every decision so a person's edit takes effect at once; the bulkhead never writes it.
+  private doors(): DoorTable { return loadDoors(this.doorsPath); }
+
+  private save(): void {
+    const sp = join(this.dir, "state.json");
+    writeFileSync(sp + ".tmp", JSON.stringify(this.state));
+    renameSync(sp + ".tmp", sp);
+  }
+
+  private refuse(rule: string, reason: string, fields: Record<string, unknown>): SendResult {
+    this.book.append("refused", { rule, reason, ...fields });
+    return { ok: false, rule, reason };
+  }
+
+  // ── send ────────────────────────────────────────────────────────────────────
+
+  send(token: unknown, input: SendInput): SendResult {
+    // @rule:BLK-YK-002 verify a peer by its token, never by its name
+    const who = this.identity.resolve(token);
+    if ("error" in who) return this.refuse("BLK-YK-002", `sender not proven: ${who.error}`, { to: input.to, kind: input.kind });
+
+    const base = { from: who.agent_id, to: input.to, kind: input.kind, subject: input.subject };
+
+    // @rule:BLK-003 only FINDING, REQUEST, ACK; there is no COMMAND kind
+    if (!(KINDS as readonly string[]).includes(input.kind)) return this.refuse("BLK-003", `kind ${input.kind} does not exist (only ${KINDS.join(", ")})`, base);
+    const kind = input.kind as Kind;
+
+    const target = this.identity.compartmentOf(input.to);
+    if (!target) return this.refuse("BLK-001", `receiver ${input.to} is in no compartment`, base);
+
+    // ACK travels back along the door the message came through (telegraph repeat-back).
+    let parent: SentRecord | undefined;
+    if (input.in_reply_to) {
+      parent = this.state.sent[input.in_reply_to];
+      if (!parent) return this.refuse("BLK-001", `in_reply_to ${input.in_reply_to} is not a message this bulkhead carried`, base);
+    }
+
+    let door: Door | null = null;
+    let doorKey: string;
+    if (kind === "ACK") {
+      if (!parent || parent.to !== who.agent_id || parent.from !== input.to) {
+        return this.refuse("BLK-011", "an ACK answers a message that was sent to the acker by the receiver of the ACK", base);
+      }
+      if (parent.door) {
+        door = this.doors().doors.find((d) => d.id === parent!.door) ?? null;
+        if (!door) return this.refuse("BLK-002", `door ${parent.door} is no longer declared`, base);
+        if (!door.kinds.includes("ACK")) return this.refuse("BLK-003", `door ${door.id} does not carry ACK`, base);
+      }
+      doorKey = parent.door ?? `inner:${who.compartment}`;
+    } else if (who.compartment === target.compartment) {
+      doorKey = `inner:${who.compartment}`;
+    } else {
+      // @rule:BLK-001 @rule:BLK-002 across a boundary only through a declared one-way door
+      door = findDoor(this.doors(), who.compartment, target.compartment);
+      if (!door) return this.refuse("BLK-002", `no door from ${who.compartment} to ${target.compartment}`, base);
+      if (!door.kinds.includes(kind)) return this.refuse("BLK-003", `door ${door.id} does not carry ${kind}`, { ...base, door: door.id });
+      doorKey = door.id;
+    }
+
+    // Closed compartments and tripped doors stay shut until a person opens them (BLK-008).
+    for (const c of [who.compartment, target.compartment]) {
+      if (this.state.closed_compartments[c]) return this.refuse("BLK-008", `compartment ${c} is closed: ${this.state.closed_compartments[c].reason}`, { ...base, door: doorKey });
+    }
+    if (this.state.closed_doors[doorKey]) return this.refuse("BLK-008", `door ${doorKey} is closed: ${this.state.closed_doors[doorKey].reason}`, { ...base, door: doorKey });
+
+    // Envelope content.
+    const body = input.body ?? {};
+    if (kind !== "ACK") {
+      if (typeof input.subject !== "string" || input.subject.length === 0 || input.subject.length > 200) return this.refuse("BLK-003", "subject must be 1–200 characters", base);
+      if (typeof body !== "object" || Array.isArray(body)) return this.refuse("BLK-003", "body must be an object", base);
+      if (door?.fields) {
+        const extra = Object.keys(body).filter((k) => !door!.fields!.includes(k));
+        if (extra.length) return this.refuse("BLK-003", `door ${door.id} does not carry field(s) ${extra.join(", ")}`, { ...base, door: door.id });
+      }
+      const size = Buffer.byteLength(canonical(body));
+      if (size > DEFAULTS.body_max_bytes) return this.refuse("BLK-003", `body is ${size} bytes; the cap is ${DEFAULTS.body_max_bytes}`, base);
+    } else if (Object.keys(body).length) {
+      return this.refuse("BLK-003", "an ACK carries no body", base);
+    }
+
+    // @rule:BLK-YK-004 damage control: depth, rate, ping-pong
+    const t = this.now();
+    const depth = parent ? parent.depth + 1 : 0;
+    const maxDepth = door?.max_depth ?? DEFAULTS.max_depth;
+    if (kind !== "ACK" && depth > maxDepth) return this.trip(doorKey, `reply chain depth ${depth} exceeds ${maxDepth}`, base);
+
+    const rate = door?.rate_per_min ?? DEFAULTS.rate_per_min;
+    const dt = (this.state.door_times[doorKey] ?? []).filter((x) => t - x < 60_000);
+    if (dt.length + 1 > rate) return this.trip(doorKey, `more than ${rate} messages in a minute`, base);
+
+    const subj = kind === "ACK" ? parent!.subject : input.subject;
+    const pairKey = [who.agent_id, input.to].sort().join("|") + "|" + subj;
+    const pp = door?.pingpong_max ?? DEFAULTS.pingpong_max;
+    const pt = (this.state.pair_times[pairKey] ?? []).filter((x) => t - x < DEFAULTS.pingpong_window_ms);
+    if (kind !== "ACK" && pt.length + 1 > pp) return this.trip(doorKey, `${who.agent_id} and ${input.to} exchanged more than ${pp} messages on "${subj}"`, base);
+
+    const env: Envelope = {
+      id: randomBytes(8).toString("hex"),
+      door: door?.id ?? null,
+      from: who.agent_id,
+      to: input.to,
+      kind,
+      subject: subj,
+      body,
+      ...(input.evidence_ref ? { evidence_ref: String(input.evidence_ref).slice(0, 500) } : {}),
+      ...(input.in_reply_to ? { in_reply_to: input.in_reply_to } : {}),
+      ...(kind === "ACK" && input.received_hash ? { received_hash: input.received_hash } : {}),
+      depth,
+      sent_at: new Date(t).toISOString(),
+      sender_mask: who.mask,
+      sender_ceiling: who.ceiling,
+    };
+    const hash = messageHash(env);
+
+    this.state.door_times[doorKey] = [...dt, t];
+    if (kind !== "ACK") this.state.pair_times[pairKey] = [...pt, t];
+    this.state.sent[env.id] = { hash, depth, from: env.from, to: env.to, door: env.door, subject: subj, kind };
+    (this.state.queue[env.to] ??= []).push(env);
+    this.save();
+    this.book.append("sent", { id: env.id, msg_hash: hash, door: env.door, from: env.from, to: env.to, kind, subject: subj, depth, evidence_ref: env.evidence_ref });
+
+    // @rule:BLK-011 repeat-back: an ACK whose hash differs from what was sent raises the alarm
+    if (kind === "ACK") {
+      if (!input.received_hash) this.alarm("bulkhead", `ACK from ${who.agent_id} for ${input.in_reply_to} carries no received hash`, "BLK-011");
+      else if (input.received_hash !== parent!.hash) this.alarm("bulkhead", `ACK from ${who.agent_id} for ${input.in_reply_to}: received hash differs from the message sent`, "BLK-011");
+    }
+    return { ok: true, id: env.id, hash, door: env.door };
+  }
+
+  // @rule:BLK-008 a tripped door stays closed until a person re-opens it
+  // @rule:BLK-010 a tripped door sounds the general alarm
+  private trip(doorKey: string, reason: string, base: Record<string, unknown>): SendResult {
+    this.state.closed_doors[doorKey] = { by: "damage-control", reason, at: new Date(this.now()).toISOString() };
+    this.save();
+    this.book.append("tripped", { door: doorKey, reason, ...base });
+    this.alarm("bulkhead", `door ${doorKey} tripped and closed: ${reason}`, "BLK-010");
+    return { ok: false, rule: "BLK-YK-004", reason: `door ${doorKey} tripped: ${reason}` };
+  }
+
+  // ── read / taint ────────────────────────────────────────────────────────────
+
+  // @rule:BLK-004 reading a message taints the receiver; INF-BLK-001 delivered as untrusted data
+  read(token: unknown): Delivered[] | { error: string } {
+    const who = this.identity.resolve(token);
+    if ("error" in who) return { error: `reader not proven: ${who.error}` };
+    const msgs = this.state.queue[who.agent_id] ?? [];
+    delete this.state.queue[who.agent_id];
+    const t = this.now();
+    const out: Delivered[] = [];
+    for (const m of msgs) {
+      const hash = this.state.sent[m.id]?.hash ?? messageHash(m);
+      out.push({ ...m, hash, untrusted: true });
+      this.book.append("delivered", { id: m.id, to: who.agent_id, msg_hash: hash });
+      if (m.kind === "ACK") continue; // an ACK asks nothing, so it carries no authority to cap
+      const cap = m.sender_mask & m.sender_ceiling & who.ceiling;
+      const taint: Taint = { agent_id: who.agent_id, message_id: m.id, cap, expires_at: t + DEFAULTS.taint_ms };
+      this.state.taints.push(taint);
+      this.book.append("taint", { agent_id: who.agent_id, message_id: m.id, cap, expires_at: new Date(taint.expires_at).toISOString() });
+    }
+    this.save();
+    return out;
+  }
+
+  // @rule:BLK-YK-003 a taint may be dropped early; the drop is written in the bell book
+  dropTaint(token: unknown, messageId: string): { ok: boolean; reason?: string } {
+    const who = this.identity.resolve(token);
+    if ("error" in who) return { ok: false, reason: `not proven: ${who.error}` };
+    const before = this.state.taints.length;
+    this.state.taints = this.state.taints.filter((x) => !(x.agent_id === who.agent_id && x.message_id === messageId));
+    if (this.state.taints.length === before) return { ok: false, reason: "no such taint" };
+    this.save();
+    this.book.append("taint_dropped", { agent_id: who.agent_id, message_id: messageId });
+    return { ok: true };
+  }
+
+  // @rule:BLK-004 effective authority = own mask & every live taint's cap
+  authority(agentId: string, ownMask: number): { mask: number; tainted_by: string[] } {
+    const t = this.now();
+    const live = this.state.taints.filter((x) => x.agent_id === agentId && x.expires_at > t);
+    return { mask: live.reduce((m, x) => m & x.cap, ownMask), tainted_by: live.map((x) => x.message_id) };
+  }
+
+  // ── a person's controls ─────────────────────────────────────────────────────
+
+  closeCompartment(compartment: string, by: string, reason: string): void {
+    this.state.closed_compartments[compartment] = { by, reason, at: new Date(this.now()).toISOString() };
+    this.save();
+    this.book.append("compartment_closed", { compartment, by, reason });
+  }
+
+  openCompartment(compartment: string, by: string): boolean {
+    if (!this.state.closed_compartments[compartment]) return false;
+    delete this.state.closed_compartments[compartment];
+    this.save();
+    this.book.append("compartment_opened", { compartment, by });
+    return true;
+  }
+
+  openDoor(doorKey: string, by: string): boolean {
+    if (!this.state.closed_doors[doorKey]) return false;
+    delete this.state.closed_doors[doorKey];
+    delete this.state.door_times[doorKey];
+    this.save();
+    this.book.append("door_opened", { door: doorKey, by });
+    return true;
+  }
+
+  // @rule:BLK-007 the general alarm is never refused and carries no request to any agent
+  alarm(from: string, text: string, rule?: string): void {
+    const a = { from, text: String(text).slice(0, 2000), ...(rule ? { rule } : {}) };
+    this.book.append("alarm", a);
+    appendFileSync(join(this.dir, "alarms.jsonl"), JSON.stringify({ at: new Date(this.now()).toISOString(), ...a }) + "\n");
+    try { this.onAlarm?.(a); } catch {}
+  }
+
+  status(): { closed_doors: State["closed_doors"]; closed_compartments: State["closed_compartments"]; queued: number; taints: number; door_errors: string[] } {
+    const t = this.now();
+    return {
+      closed_doors: this.state.closed_doors,
+      closed_compartments: this.state.closed_compartments,
+      queued: Object.values(this.state.queue).reduce((n, q) => n + q.length, 0),
+      taints: this.state.taints.filter((x) => x.expires_at > t).length,
+      door_errors: this.doors().errors,
+    };
+  }
+}
+
+export function messageHash(e: Envelope): string {
+  const { sender_mask, sender_ceiling, ...carried } = e;
+  return sha256(canonical(carried));
+}

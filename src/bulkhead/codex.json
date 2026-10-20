@@ -1,0 +1,69 @@
+{
+  "service": "aegis-bulkhead",
+  "name": "aegis Bulkhead",
+  "cluster": "xshieldai",
+  "description": "Governed communication between agents. Agents talk only through declared one-way doors; an action taken on a peer's message runs under the authority both agents hold; every message is written to a bell book kept by the bulkhead, not by the ",
+  "forja_version": "2.0",
+  "can_answer": [
+    "may agent A send this kind of message to agent B? -> door open / shut, with the rule",
+    "what authority does an agent hold while acting on a peer's message?",
+    "what was said between agents, and does the bell book still hold?"
+  ],
+  "can_do": [
+    "bulkhead.send",
+    "bulkhead.read",
+    "bulkhead.ack",
+    "bulkhead.drop_taint",
+    "bulkhead.close",
+    "bulkhead.open",
+    "bulkhead.verify"
+  ],
+  "emits": [
+    "bulkhead.message.sent",
+    "bulkhead.message.refused",
+    "bulkhead.door.tripped",
+    "bulkhead.alarm",
+    "bulkhead.taint.dropped"
+  ],
+  "depends_on": [
+    "aegis"
+  ],
+  "forja_state_path": "/api/v2/forja/state",
+  "forja_trust_path": "/api/v2/forja/trust",
+  "forja_sense_path": "/api/v2/forja/sense/emit",
+  "forja_proof_path": "/api/v2/forja/proof",
+  "trust_mask": 1,
+  "k_mask": 15,
+  "req_mask": 1099841543,
+  "req_mask_schema": "ankr-req-32bit-v1",
+  "req_mask_source": "declared",
+  "req_mask_bits": [
+    0,
+    1,
+    2,
+    14,
+    17,
+    18,
+    19,
+    23,
+    24,
+    30
+  ],
+  "claude_ankr_mask": 0,
+  "claude_ankr_mask_schema": "claude-ankr-5bit-v1",
+  "claw_mask": 0,
+  "claw_mask_schema": "claw-design-16bit-v1",
+  "capability_captured": false,
+  "capability_captured_schema": "ankr-archmask-v1",
+  "proof_config": {
+    "stub": true
+  },
+  "slug_registry": {
+    "schema": "qrc-forge-registry-v1",
+    "service": "aegis-bulkhead",
+    "bit_next": 0,
+    "slugs": {}
+  },
+  "status": "firmed via doc-forge 2026-10-21",
+  "created": "2026-10-21"
+}
