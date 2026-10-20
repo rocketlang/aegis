@@ -17,7 +17,7 @@
 
 import { randomUUID } from "crypto";
 import type { AuthorizeRequest, AuthorizeResponse } from "./types";
-import { validateChain, isExpired } from "./sdt";
+import { validateChain, isExpired, getSdtById, computeChainHash } from "./sdt";
 import { getDb } from "../core/db";
 import { addAlert } from "../core/db";
 
@@ -108,6 +108,23 @@ export async function authorize(req: AuthorizeRequest): Promise<AuthorizeRespons
     const auditId = sealAudit(agentId, req.resource, req.action, false, reason, effectiveMask, latency);
     return { status: "denied", authorized: false, reason, audit_id: auditId, depth: token.delegation.depth, effective_mask: effectiveMask };
   };
+
+  // ── Condition 0: the presented token is the one aegis issued ──────────────
+  // @rule:AGS-016 @rule:INF-AGS-007 every limit below is read from the token, so an agent that edits its own token
+  // (mask, task_scope, human_in_loop_required, max_transaction_value, max_depth, expiry) would set its
+  // own limits. validateChain only checks that the parent covers the child. Compare with the stored copy.
+  const issued = getSdtById(token.token_id);
+  if (!issued) {
+    return deny("TOKEN_NOT_ISSUED");
+  }
+  if (computeChainHash(issued) !== computeChainHash(token)) {
+    try {
+      addAlert("sdt_token_altered", "critical",
+        `SDT presented by agent ${agentId} differs from the token aegis issued — possible forged token`,
+        agentId);
+    } catch {}
+    return deny("TOKEN_ALTERED");
+  }
 
   // ── Condition 1: chain_hash valid and unbroken ─────────────────────────────
   // @rule:AGS-005 @rule:AGS-012 @rule:INF-AGS-001 @rule:INF-AGS-003
