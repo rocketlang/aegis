@@ -147,7 +147,7 @@ export function enrollAgent(
     swarm_id: swarmId,
     agent_id: agentId,
     effective_perm_mask: effectiveMask,
-    invariant_satisfied,
+    invariant_satisfied: invariantSatisfied,
     rule_ref: "KAV-090",
   };
 }
