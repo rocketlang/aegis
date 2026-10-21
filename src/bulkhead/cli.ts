@@ -10,6 +10,8 @@
 //   close <compartment> "<reason>"         close every door of a compartment (anyone may close)
 //   open  <door-or-compartment>            a PERSON re-opens it: raises its open epoch in doors.json (BLK-012)
 //   status
+//   anchor                                 ask the ledger authority to sign the book's head (BLK-020); exit 0 anchored · 1 not
+//   verify --anchors [--ledger <path>]     also check each anchor against the signed ledger, under the pinned key
 //   evidence <message_id>                  P4: distinct data paths confirming it, contradictions beside the count (BLK-019)
 //   verify                                 re-walk the bell book and each party's copy: exit 0 holds · 1 broken · 3 broke
 //
@@ -25,7 +27,7 @@
 import { existsSync, readdirSync, readFileSync, writeFileSync } from "fs";
 import { join } from "path";
 import { getAegisDir } from "../core/config";
-import { verifyBellBook } from "./bell-book";
+import { verifyAnchors, verifyBellBook } from "./bell-book";
 import { loadDoors, raiseOpenEpoch } from "./doors";
 import { keygen, partiesDir, signTerms, termsOf } from "./parties";
 import { call } from "./server";
@@ -61,6 +63,11 @@ export async function main(argv: string[]): Promise<void> {
       }
       case "status": return print(await call(dir, { op: "status" }));
       case "evidence": return print(await call(dir, { op: "evidence", message_id: a }));
+      case "anchor": {
+        const r = await call(dir, { op: "anchor" });
+        print(r);
+        process.exit(r?.ok ? 0 : 1);
+      }
       case "verify": {
         const v = verifyBellBook(join(dir, "bell-book.jsonl"));
         // @rule:BLK-016 each party's copy is its own chain, walked the same way
@@ -70,8 +77,21 @@ export async function main(argv: string[]): Promise<void> {
           const f = join(pd, p, "bell-book.jsonl");
           if (existsSync(f)) copies[p] = verifyBellBook(f);
         }
-        print(Object.keys(copies).length ? { ...v, copies } : v);
-        process.exit(v.holds && Object.values(copies).every((c) => c.holds) ? 0 : 1);
+        // --anchors: each anchor against the signed ledger, under the pinned key (BLK-020)
+        let anchors: ReturnType<typeof verifyAnchors> | undefined;
+        if (argv.includes("--anchors")) {
+          const { pinnedLedgerKey } = await import("../core/refusal-ledger");
+          const { verifyRowSig } = await import("../core/ledger-sign");
+          const li = argv.indexOf("--ledger");
+          const ledgerPath = li > 0 ? argv[li + 1] : "/var/lib/aegis-approver/store/refusals.signed.jsonl";
+          const key = pinnedLedgerKey();
+          if (!key || key === "unreadable") { console.error("no ledger key is pinned (/etc/aegis/ledger-signing.pub): anchors cannot be checked"); process.exit(2); }
+          if (!existsSync(ledgerPath)) { console.error(`no signed ledger at ${ledgerPath}`); process.exit(2); }
+          const lrows = readFileSync(ledgerPath, "utf-8").split("\n").filter(Boolean).map((l) => JSON.parse(l));
+          anchors = verifyAnchors(join(dir, "bell-book.jsonl"), lrows, (r) => verifyRowSig(r as any, key));
+        }
+        print({ ...v, ...(Object.keys(copies).length ? { copies } : {}), ...(anchors ? { anchors } : {}) });
+        process.exit(v.holds && Object.values(copies).every((c) => c.holds) && (anchors ?? []).every((x) => x.holds) ? 0 : 1);
       }
       case "party-terms": {
         const door = loadDoors(join(dir, "doors.json")).doors.find((d) => d.id === a);
@@ -91,7 +111,7 @@ export async function main(argv: string[]): Promise<void> {
         return print(signTerms(json(a), readFileSync(b, "utf-8")));
       }
       default:
-        console.error("usage: aegis bulkhead serve|send|read|drop|close|open|status|evidence|verify|party-terms|party-keygen|party-sign");
+        console.error("usage: aegis bulkhead serve|send|read|drop|close|open|status|evidence|anchor|verify|party-terms|party-keygen|party-sign");
         process.exit(2);
     }
   } catch (e) {

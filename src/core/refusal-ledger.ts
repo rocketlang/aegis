@@ -170,7 +170,7 @@ export function checkAuthorityReply(
   if (!verifyRowSig(row, pinnedKey)) return no("the row's signature is not by that key");
   if (row.seq !== v.seq) return no("the row's number is not the number given");
   if (row.gate !== (clipTo(req.gate, 80) ?? "unknown") || (row.rule ?? null) !== clipTo(req.rule, 60)
-    || row.kind !== (req.kind === "override" ? "override" : "refused") || (row.session ?? null) !== clipTo(req.session, 80)) {
+    || row.kind !== expectedKind(req.kind) || (row.session ?? null) !== clipTo(req.session, 80)) {
     return no("the row is not the refusal that was asked for");
   }
   if (receipt.nonce !== nonce) return no("the receipt is for another ask");
@@ -179,8 +179,11 @@ export function checkAuthorityReply(
   return { seq: row.seq, check: "verified", row_hash: receipt.row_hash };
 }
 
+// The kind a row comes back with, as the authority stores it (core/ledger-authority.ts, record).
+const expectedKind = (k: string): string => (k === "override" || k === "bell-book" ? k : "refused");
+
 /** Ask the authority to record a refusal. undefined = no authority configured. Never throws. */
-export function askAuthority(r: { gate: string; rule?: string | null; kind?: "refused" | "override" }): AuthorityAnswer | undefined {
+export function askAuthority(r: { gate: string; rule?: string | null; kind?: "refused" | "override" | "bell-book"; session?: string }): AuthorityAnswer | undefined {
   let pinned: string | null = null;
   try { pinned = pinnedLedgerKey(); } catch { pinned = "unreadable"; }
   const socket = ledgerSocket();
@@ -192,15 +195,37 @@ export function askAuthority(r: { gate: string; rule?: string | null; kind?: "re
   }
   try {
     const nonce = randomBytes(16).toString("hex");
-    const asked = { gate: r.gate, rule: r.rule ?? null, kind: r.kind || "refused", session: sessionId() };
+    const asked = { gate: r.gate, rule: r.rule ?? null, kind: r.kind || "refused", session: r.session ?? sessionId() };
     const req = { op: "refusal", ...asked, nonce };
-    const child = spawnSync(process.execPath, ["-e", ASK_AUTHORITY], {
-      input: JSON.stringify({ socket, req }), encoding: "utf8", timeout: 5000, stdio: ["pipe", "pipe", "ignore"],
-    });
-    return checkAuthorityReply(asked, nonce, JSON.parse(String(child.stdout || "")), pinned);
+    return checkAuthorityReply(asked, nonce, askOnce(socket, req), pinned);
   } catch (e) {
     return { error: `authority could not be asked: ${(e as Error).message}` };
   }
+}
+
+function askOnce(socket: string, req: Record<string, unknown>): any {
+  const child = spawnSync(process.execPath, ["-e", ASK_AUTHORITY], {
+    input: JSON.stringify({ socket, req }), encoding: "utf8", timeout: 5000, stdio: ["pipe", "pipe", "ignore"],
+  });
+  return JSON.parse(String(child.stdout || ""));
+}
+
+/**
+ * aegis Bulkhead (BLK-020): ask the authority to sign "this bell book stood at row N with head H" as a
+ * row of its own kind. An authority before 2.27.0 signs any kind but "override" as a REFUSAL, which
+ * would put a false refusal in the signed ledger for good; so it is asked first whether it knows the
+ * kind, and nothing is sent unless it says so. Never throws.
+ */
+export function askAuthorityBellBook(rows: number, head: string): AuthorityAnswer {
+  const socket = ledgerSocket();
+  if (!socket) return { error: "no ledger authority is configured on this box (no socket, no pointer file)" };
+  let status: any;
+  try { status = askOnce(socket, { op: "ledger-status" }); } catch (e) { return { error: `authority could not be asked: ${(e as Error).message}` }; }
+  if (!status?.ok) return { error: `authority gave no status: ${String(status?.error ?? "no answer")}` };
+  if (status.value?.bell_book !== true) {
+    return { error: "the authority does not sign bell-book rows (it is older than aegis 2.27.0, and would sign this as a refusal) — nothing was sent" };
+  }
+  return askAuthority({ gate: "bulkhead", rule: null, kind: "bell-book", session: `rows=${rows} head=${head}` })!;
 }
 
 export function recordRefusal(r: { gate: string; rule?: string | null; kind?: "refused" | "override" }): boolean {

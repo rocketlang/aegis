@@ -66,6 +66,8 @@ export interface BulkheadOptions {
   identity: IdentityResolver;
   onAlarm?: AlarmHook;
   now?: () => number;                // tests move the clock
+  // BLK-020: how to ask the ledger authority to sign the book's head. Default: core/refusal-ledger.
+  askAnchor?: (rows: number, head: string) => { seq: number; check: string; row_hash?: string } | { error: string };
 }
 
 export class Bulkhead {
@@ -75,8 +77,10 @@ export class Bulkhead {
   private identity: IdentityResolver;
   private onAlarm?: AlarmHook;
   private now: () => number;
+  private askAnchor?: BulkheadOptions["askAnchor"];
 
   constructor(opts: BulkheadOptions) {
+    this.askAnchor = opts.askAnchor;
     this.dir = opts.dir;
     if (!existsSync(this.dir)) mkdirSync(this.dir, { recursive: true });
     this.book = new BellBook(join(this.dir, "bell-book.jsonl"));
@@ -402,6 +406,24 @@ export class Bulkhead {
       }
     }
     if (changed) this.save();
+  }
+
+  // @rule:BLK-020 anchor: the ledger authority signs "this book stood at row N with head H" as a row of its own,
+  // which the daily public anchor of the ledger then covers. The signed answer is written into the book.
+  anchor(): { ok: true; authority_seq: number; rows: number; head: string; check: string } | { ok: false; error: string } {
+    const rows = this.book.rows, head = this.book.head;
+    if (rows === 0) return { ok: false, error: "the bell book is empty: nothing to anchor" };
+    // Nothing new since the last anchor: ask the ledger for nothing (anyone who reaches the socket may ask).
+    if (this.book.lastEvent === "anchored") return { ok: false, error: "nothing new since the last anchor" };
+    const ask = this.askAnchor ?? ((n: number, h: string) => require("../core/refusal-ledger").askAuthorityBellBook(n, h));
+    let ans: ReturnType<NonNullable<BulkheadOptions["askAnchor"]>>;
+    try { ans = ask(rows, head); } catch (e) { ans = { error: (e as Error).message }; }
+    if ("error" in ans) {
+      this.book.append("anchor_failed", { rows, head, error: String(ans.error).slice(0, 500) });
+      return { ok: false, error: ans.error };
+    }
+    this.book.append("anchored", { rows, head, authority_seq: ans.seq, check: ans.check, ...(ans.row_hash ? { ledger_row_hash: ans.row_hash } : {}) });
+    return { ok: true, authority_seq: ans.seq, rows, head, check: ans.check };
   }
 
   // @rule:BLK-007 the general alarm is never refused and carries no request to any agent

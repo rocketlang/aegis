@@ -25,6 +25,7 @@ export function handle(b: Bulkhead, req: any): unknown {
     case "close": b.closeCompartment(String(req.compartment), String(req.by ?? "unknown"), String(req.reason ?? "closed by hand")); return { ok: true };
     case "status": return b.status();
     case "evidence": return b.evidence(String(req.message_id ?? ""));
+    case "anchor": return b.anchor();
     default: return { error: `unknown op ${req?.op}` };
   }
 }

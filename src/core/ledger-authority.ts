@@ -93,6 +93,9 @@ export interface RefusalAsk {
 
 const clip = ledgerField;
 
+/** The one session a bell-book row may carry: the bell book's row count and the hash of its last row. */
+export const BELL_BOOK_SESSION = /^rows=[1-9][0-9]{0,11} head=[0-9a-f]{64}$/;
+
 export class LedgerAuthority {
   readonly ledgerPath: string;
   readonly publicKeyPath: string;
@@ -171,9 +174,14 @@ export class LedgerAuthority {
   /** Number, sign and append one refusal. Throws if it cannot be written — the caller reports that. */
   record(ask: RefusalAsk): SignedRow {
     const t = this.tail();
+    // A bell-book row (aegis Bulkhead, BLK-020) says only "this bell book stood at row N with head H". It is
+    // never a refusal, so it is held to its one shape: an asker cannot use the kind to sign free text.
+    if (ask.kind === "bell-book" && (ask.gate !== "bulkhead" || ask.rule !== undefined && ask.rule !== null || typeof ask.session !== "string" || !BELL_BOOK_SESSION.test(ask.session))) {
+      throw new Error('a bell-book row has gate "bulkhead", no rule, and session "rows=<n> head=<64 hex>"');
+    }
     const payload: LedgerPayload = {
       ts: this.now().toISOString(),
-      kind: ask.kind === "override" ? "override" : "refused",
+      kind: ask.kind === "override" ? "override" : ask.kind === "bell-book" ? "bell-book" : "refused",
       gate: clip(ask.gate, 80) ?? "unknown",
       rule: clip(ask.rule, 60),
       session: clip(ask.session, 80),
@@ -213,7 +221,7 @@ export class LedgerAuthority {
     rows: number; max_seq: number; public_key: string; ledger: string; source: string;
     verified_at_start: boolean; start_detail: string | null;
     witness: string | null; witness_holds: number | null;
-    receipts: true;
+    receipts: true; bell_book: true;
   } {
     return {
       rows: this.rows.length,
@@ -228,6 +236,9 @@ export class LedgerAuthority {
       // This authority answers a refusal with the signed row and a receipt (since 2.16.3). An older one
       // has no such field, and a gate with a pinned key refuses its answers: `aegis ledger-pin` looks here.
       receipts: true,
+      // Since 2.27.0 it signs bell-book rows as their own kind. An older one signs ANY kind but "override" as
+      // a refusal, so the bulkhead asks here first and anchors nothing unless this field is true.
+      bell_book: true,
     };
   }
 

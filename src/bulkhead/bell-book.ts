@@ -38,6 +38,7 @@ export type VerifyResult =
 export class BellBook {
   private seq = 0;
   private last = GENESIS;
+  lastEvent: string | null = null;
 
   constructor(readonly path: string) {
     if (existsSync(path)) {
@@ -45,8 +46,13 @@ export class BellBook {
       if (!v.holds) throw new Error(`BLK-006: bell book broken at row ${v.broken_at}: ${v.reason} — not appending to a broken book`);
       this.seq = v.rows;
       this.last = v.last_hash;
+      const lines = readFileSync(path, "utf-8").trimEnd().split("\n");
+      this.lastEvent = v.rows ? (JSON.parse(lines[lines.length - 1]) as BellRow).event : null;
     }
   }
+
+  get rows(): number { return this.seq; }
+  get head(): string { return this.last; }
 
   append(event: string, fields: Record<string, unknown>): BellRow {
     const row = { ...fields, seq: this.seq + 1, at: new Date().toISOString(), event, prev_hash: this.last } as Omit<BellRow, "hash">;
@@ -55,6 +61,7 @@ export class BellBook {
     appendFileSync(this.path, JSON.stringify(full) + "\n");
     this.seq = full.seq;
     this.last = hash;
+    this.lastEvent = event;
     return full;
   }
 }
@@ -73,4 +80,30 @@ export function verifyBellBook(path: string): VerifyResult {
     prev = hash;
   }
   return { holds: true, rows: lines.length, last_hash: prev };
+}
+
+// @rule:BLK-020 each "anchored" row names the ledger row the authority signed for this book; check that the
+// book still holds the row it named, and that the signed ledger holds the bell-book row for it, under its key.
+export interface AnchorCheck { authority_seq: number; rows: number; holds: boolean; reason?: string }
+
+export function verifyAnchors(
+  bookPath: string,
+  ledgerRows: Array<Record<string, unknown>>,
+  verifySig: (row: Record<string, unknown>) => boolean,
+): AnchorCheck[] {
+  if (!existsSync(bookPath)) return [];
+  const rows = readFileSync(bookPath, "utf-8").split("\n").filter(Boolean).map((l) => JSON.parse(l) as BellRow);
+  const out: AnchorCheck[] = [];
+  for (const a of rows.filter((r) => r.event === "anchored")) {
+    const n = Number(a.rows), seq = Number(a.authority_seq);
+    const no = (reason: string) => out.push({ authority_seq: seq, rows: n, holds: false, reason });
+    const named = rows[n - 1];
+    if (!named || named.hash !== a.head) { no(`the book's row ${n} is not the one that was anchored`); continue; }
+    const lr = ledgerRows.find((r) => r.seq === seq);
+    if (!lr) { no(`the signed ledger has no row ${seq}`); continue; }
+    if (lr.kind !== "bell-book" || lr.gate !== "bulkhead" || lr.session !== `rows=${n} head=${a.head}`) { no(`ledger row ${seq} is not this book's anchor`); continue; }
+    if (!verifySig(lr)) { no(`ledger row ${seq} is not signed by the pinned key`); continue; }
+    out.push({ authority_seq: seq, rows: n, holds: true });
+  }
+  return out;
 }
