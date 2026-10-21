@@ -206,3 +206,31 @@ describe.skipIf(boxPinsAKey)("wired: aegis bulkhead anchor through a real author
     }
   });
 });
+
+describe("BLK-020 — a new book's first row says what opened it", () => {
+  test("an empty book gets one 'opened' row, which the first anchor stands on; the state file is not written", () => {
+    const la = authority();
+    const dir = mkdtempSync(join(scratchHome, "bh-"));
+    const doors = JSON.stringify({ home: "ankr", doors: [] });
+    writeFileSync(join(dir, "doors.json"), doors);
+    const bh = new Bulkhead({ dir, identity, askAnchor: askVia(la) });
+    expect(bh.markOpened("9.9.9")).toBe(true);
+    const row = JSON.parse(readFileSync(join(dir, "bell-book.jsonl"), "utf-8").trim());
+    expect(row).toMatchObject({ event: "opened", aegis_version: "9.9.9", home: "ankr", doors_sha256: require("crypto").createHash("sha256").update(doors).digest("hex") });
+    // the live gate looks for state.json: opening alone must not make it appear (BLK-013 stays inert)
+    expect(require("fs").existsSync(join(dir, "state.json"))).toBe(false);
+    expect(bh.anchor()).toMatchObject({ ok: true, rows: 1, check: "verified" });
+  });
+  test("a book with rows is left as it is, and a restart writes nothing", () => {
+    const { dir, bh, book } = bulkhead();
+    const before = readFileSync(book, "utf-8");
+    expect(bh.markOpened("9.9.9")).toBe(false);
+    expect(new Bulkhead({ dir, identity }).markOpened("9.9.9")).toBe(false);
+    expect(readFileSync(book, "utf-8")).toBe(before);
+  });
+  test("no doors file: the row says so (null), it does not invent one", () => {
+    const dir = mkdtempSync(join(scratchHome, "bh-"));
+    new Bulkhead({ dir, identity }).markOpened("9.9.9");
+    expect(JSON.parse(readFileSync(join(dir, "bell-book.jsonl"), "utf-8").trim())).toMatchObject({ event: "opened", doors_sha256: null, home: "home" });
+  });
+});

@@ -50,6 +50,8 @@ export async function main(argv: string[]): Promise<void> {
         const { sdtIdentity } = await import("./identity");
         const { serve } = await import("./server");
         const bh = new Bulkhead({ dir, identity: await sdtIdentity(), onAlarm: (x) => process.stderr.write(`[bulkhead] ALARM ${x.rule ?? ""} ${x.text}\n`) });
+        const version = JSON.parse(readFileSync(join(import.meta.dir, "..", "..", "package.json"), "utf-8")).version;
+        if (bh.markOpened(version)) process.stderr.write(`[bulkhead] new bell book: row 1 "opened" (aegis ${version})\n`);
         serve(bh);
         process.stderr.write(`[bulkhead] serving on ${join(dir, "bulkhead.sock")} (doors: ${bh.doorsPath})\n`);
         return;

@@ -527,6 +527,16 @@ export class Bulkhead {
     if (changed) this.save();
   }
 
+  // @rule:BLK-020 a new book's first row says what opened it, so the first anchor stands on a true row,
+  // not on a made-up act. Written once, only into an empty book; a book with rows is left as it is.
+  // The state file is not written, so the live gate still sees no bulkhead until the first real act.
+  markOpened(version: string): boolean {
+    if (this.book.rows !== 0) return false;
+    const doors = existsSync(this.doorsPath) ? sha256(readFileSync(this.doorsPath, "utf-8")) : null;
+    this.book.append("opened", { aegis_version: version, doors_sha256: doors, home: this.doors().home });
+    return true;
+  }
+
   // @rule:BLK-020 anchor: the ledger authority signs "this book stood at row N with head H" as a row of its own,
   // which the daily public anchor of the ledger then covers. The signed answer is written into the book.
   anchor(): { ok: true; authority_seq: number; rows: number; head: string; check: string } | { ok: false; error: string } {
