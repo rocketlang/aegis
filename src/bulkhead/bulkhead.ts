@@ -19,7 +19,7 @@ export interface PartyStatus {
   key: string | null;        // fingerprint of the placed public key; null = none placed
   doors: Array<{ id: string; holds: boolean; reason?: string; valid_until?: string }>;
 }
-import { DEFAULTS, KINDS, type Delivered, type Door, type Envelope, type Identity, type Kind, type SendInput, type SendResult, type Taint } from "./types";
+import { DEFAULTS, KINDS, VERDICTS, type Verdict, type Delivered, type Door, type Envelope, type Identity, type Kind, type SendInput, type SendResult, type Taint } from "./types";
 
 // How the bulkhead learns who is speaking. The default (identity.ts) checks the agent's aegis
 // delegation token and its swarm; tests pass their own.
@@ -32,7 +32,22 @@ export type AlarmHook = (alarm: { from: string; text: string; rule?: string }) =
 
 interface Closure { by: string; reason: string; at: string; epoch?: number }
 
-interface SentRecord { hash: string; depth: number; from: string; to: string; door: string | null; subject: string; kind: Kind }
+interface SentRecord {
+  hash: string; depth: number; from: string; to: string; door: string | null; subject: string; kind: Kind;
+  parent?: string; evidence_path?: string; check?: boolean; verdict?: Verdict;
+  claim?: string;            // same sender, subject, body and path = the same claim, sent to several checkers
+}
+
+export interface EvidenceCount {
+  message_id: string;
+  copies: number;                                 // the claim as sent to each checker
+  proposer_paths: string[];                      // paths named in the chain that was checked
+  confirming_paths: string[];                     // distinct, the proposer's excluded (BLK-019)
+  count: number;
+  confirmations: Array<{ id: string; from: string; path: string }>;
+  contradictions: Array<{ id: string; from: string; path: string }>;
+  cannot_check: Array<{ id: string; from: string }>;
+}
 
 interface State {
   queue: Record<string, Envelope[]>;
@@ -195,6 +210,31 @@ export class Bulkhead {
       return this.refuse("BLK-003", "an ACK carries no body", base);
     }
 
+    // @rule:BLK-018 a message may name only an evidence path its compartment declares
+    const evPath = input.evidence_path;
+    if (evPath !== undefined) {
+      if (kind === "ACK") return this.refuse("BLK-018", "an ACK names no evidence path", base);
+      const declared = this.doors().data_paths[who.compartment] ?? [];
+      if (typeof evPath !== "string" || !declared.includes(evPath)) {
+        return this.refuse("BLK-018", `compartment ${who.compartment} declares no data path ${String(evPath)}`, { ...base, door: door?.id ?? null });
+      }
+    }
+    // @rule:BLK-017 on a check door the reply answers a message to the checker, carries a verdict, and
+    // (unless it cannot check) names a data path no message in the checked chain has named
+    let verdict: Verdict | undefined;
+    if (door?.check && kind !== "ACK") {
+      const shut = (reason: string) => this.refuse("BLK-017", reason, { ...base, door: door!.id });
+      if (kind !== "FINDING") return shut(`check door ${door.id} carries the checker's FINDING only`);
+      if (!parent || parent.to !== who.agent_id) return shut(`a reply on check door ${door.id} answers a message sent to the checker`);
+      verdict = body.verdict as Verdict;
+      if (!(VERDICTS as readonly string[]).includes(String(verdict))) return shut(`a reply on check door ${door.id} carries verdict ${VERDICTS.join(" | ")}`);
+      if (verdict !== "cannot_check") {
+        if (!evPath) return shut(`a ${verdict} reply on check door ${door.id} names its data path`);
+        const named = this.chainPaths(input.in_reply_to!);
+        if (named.includes(evPath)) return shut(`data path ${evPath} was already named in the chain being checked: no independent check`);
+      }
+    }
+
     // @rule:BLK-YK-004 damage control: depth, rate, ping-pong
     const t = this.now();
     const depth = parent ? parent.depth + 1 : 0;
@@ -220,6 +260,7 @@ export class Bulkhead {
       subject: subj,
       body,
       ...(input.evidence_ref ? { evidence_ref: String(input.evidence_ref).slice(0, 500) } : {}),
+      ...(evPath ? { evidence_path: evPath } : {}),
       ...(input.in_reply_to ? { in_reply_to: input.in_reply_to } : {}),
       ...(kind === "ACK" && input.received_hash ? { received_hash: input.received_hash } : {}),
       depth,
@@ -231,10 +272,16 @@ export class Bulkhead {
 
     this.state.door_times[doorKey] = [...dt, t];
     if (kind !== "ACK") this.state.pair_times[pairKey] = [...pt, t];
-    this.state.sent[env.id] = { hash, depth, from: env.from, to: env.to, door: env.door, subject: subj, kind };
+    this.state.sent[env.id] = {
+      hash, depth, from: env.from, to: env.to, door: env.door, subject: subj, kind,
+      ...(input.in_reply_to ? { parent: input.in_reply_to } : {}),
+      ...(evPath ? { evidence_path: evPath } : {}),
+      ...(verdict ? { check: true, verdict } : {}),
+      ...(kind !== "ACK" ? { claim: sha256(canonical({ from: env.from, subject: subj, body, evidence_path: evPath ?? null, parent: input.in_reply_to ?? null })) } : {}),
+    };
     (this.state.queue[env.to] ??= []).push(env);
     this.save();
-    this.log("sent", { id: env.id, msg_hash: hash, door: env.door, from: env.from, to: env.to, kind, subject: subj, depth, evidence_ref: env.evidence_ref });
+    this.log("sent", { id: env.id, msg_hash: hash, door: env.door, from: env.from, to: env.to, kind, subject: subj, depth, evidence_ref: env.evidence_ref, evidence_path: evPath, verdict });
 
     // @rule:BLK-011 repeat-back: an ACK whose hash differs from what was sent raises the alarm
     if (kind === "ACK") {
@@ -288,6 +335,38 @@ export class Bulkhead {
     this.save();
     this.book.append("taint_dropped", { agent_id: who.agent_id, message_id: messageId });
     return { ok: true };
+  }
+
+  // ── second opinion (P4) ─────────────────────────────────────────────────────
+
+  // Every data path named by a message and the messages it answers, up to the root of the chain.
+  private chainPaths(id: string): string[] {
+    const out: string[] = [];
+    const seen = new Set<string>();
+    for (let cur: string | undefined = id; cur && !seen.has(cur); cur = this.state.sent[cur]?.parent) {
+      seen.add(cur);
+      const p = this.state.sent[cur]?.evidence_path;
+      if (p) out.push(p);
+    }
+    return out;
+  }
+
+  // @rule:BLK-019 the count is distinct confirming paths, the proposer's excluded; contradictions beside it
+  // @rule:BLK-YK-006 count evidence paths, not agreeing agents
+  // @rule:INF-BLK-006 a path is what the checker named, not proof it read it; two paths can share an upstream
+  evidence(messageId: string): EvidenceCount | { error: string } {
+    const root = this.state.sent[messageId];
+    if (!root) return { error: `no message ${messageId} in this bulkhead` };
+    // Every copy of the same claim (one per checker) counts together.
+    const copies = new Set(Object.entries(this.state.sent).filter(([id, r]) => id === messageId || (root.claim && r.claim === root.claim)).map(([id]) => id));
+    const proposer = [...new Set([...copies].flatMap((id) => this.chainPaths(id)))];
+    const replies = Object.entries(this.state.sent).filter(([, r]) => r.parent !== undefined && copies.has(r.parent) && r.check);
+    const confirmations = replies.filter(([, r]) => r.verdict === "confirms" && r.evidence_path && !proposer.includes(r.evidence_path))
+      .map(([id, r]) => ({ id, from: r.from, path: r.evidence_path! }));
+    const contradictions = replies.filter(([, r]) => r.verdict === "contradicts").map(([id, r]) => ({ id, from: r.from, path: r.evidence_path ?? "" }));
+    const cannot_check = replies.filter(([, r]) => r.verdict === "cannot_check").map(([id, r]) => ({ id, from: r.from }));
+    const confirming_paths = [...new Set(confirmations.map((c) => c.path))].sort();
+    return { message_id: messageId, copies: copies.size, proposer_paths: proposer, confirming_paths, count: confirming_paths.length, confirmations, contradictions, cannot_check };
   }
 
   // @rule:BLK-004 effective authority = own mask & every live taint's cap

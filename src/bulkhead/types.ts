@@ -19,7 +19,12 @@ export interface Door {
   max_depth?: number;        // default 4
   pingpong_max?: number;     // default 6: messages between one pair on one subject per window
   valid_until?: string;      // ISO time; required on a door between parties, and signed by them (BLK-014)
+  check?: boolean;           // P4: a check door; replies on it carry a verdict and an independent data path (BLK-017)
 }
+
+// @rule:BLK-017 a checker's verdict on the message it answers
+export const VERDICTS = ["confirms", "contradicts", "cannot_check"] as const;
+export type Verdict = (typeof VERDICTS)[number];
 
 // Who an agent is, as proven by its delegation token (BLK-YK-002).
 export interface Identity {
@@ -35,6 +40,7 @@ export interface SendInput {
   subject: string;
   body?: Record<string, unknown>;
   evidence_ref?: string;
+  evidence_path?: string;    // P4: the declared data path the evidence came from (BLK-018)
   in_reply_to?: string;
   received_hash?: string;    // ACK only: hash of the message the receiver got
 }
@@ -48,9 +54,10 @@ export interface Envelope {
   subject: string;
   body: Record<string, unknown>;
   evidence_ref?: string;
+  evidence_path?: string;
   in_reply_to?: string;
   received_hash?: string;
-  depth: number;             // computed by the bulkhead, never taken from the sender
+  depth: number;            // computed by the bulkhead, never taken from the sender
   sent_at: string;
   // carried for the taint, not part of what the receiver may change
   sender_mask: number;

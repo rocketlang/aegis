@@ -10,6 +10,7 @@
 //   close <compartment> "<reason>"         close every door of a compartment (anyone may close)
 //   open  <door-or-compartment>            a PERSON re-opens it: raises its open epoch in doors.json (BLK-012)
 //   status
+//   evidence <message_id>                  P4: distinct data paths confirming it, contradictions beside the count (BLK-019)
 //   verify                                 re-walk the bell book and each party's copy: exit 0 holds · 1 broken · 3 broke
 //
 // Doors between parties (P3, BLK-014..016):
@@ -59,6 +60,7 @@ export async function main(argv: string[]): Promise<void> {
         return print({ ok: true, id: a, open_epoch: epoch, note: "takes effect on the bulkhead's next decision" });
       }
       case "status": return print(await call(dir, { op: "status" }));
+      case "evidence": return print(await call(dir, { op: "evidence", message_id: a }));
       case "verify": {
         const v = verifyBellBook(join(dir, "bell-book.jsonl"));
         // @rule:BLK-016 each party's copy is its own chain, walked the same way
@@ -89,7 +91,7 @@ export async function main(argv: string[]): Promise<void> {
         return print(signTerms(json(a), readFileSync(b, "utf-8")));
       }
       default:
-        console.error("usage: aegis bulkhead serve|send|read|drop|close|open|status|verify|party-terms|party-keygen|party-sign");
+        console.error("usage: aegis bulkhead serve|send|read|drop|close|open|status|evidence|verify|party-terms|party-keygen|party-sign");
         process.exit(2);
     }
   } catch (e) {

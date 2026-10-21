@@ -24,6 +24,7 @@ export function handle(b: Bulkhead, req: any): unknown {
     // person raising an open epoch in doors.json, which no tool call may write (KAV-096).
     case "close": b.closeCompartment(String(req.compartment), String(req.by ?? "unknown"), String(req.reason ?? "closed by hand")); return { ok: true };
     case "status": return b.status();
+    case "evidence": return b.evidence(String(req.message_id ?? ""));
     default: return { error: `unknown op ${req?.op}` };
   }
 }

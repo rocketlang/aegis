@@ -16,9 +16,11 @@ export interface DoorTable {
   // P3: which compartments belong to which party; a compartment no party lists is the home party's
   home: string;
   parties: Record<string, { compartments: string[] }>;
+  // P4: the data paths each compartment reads from, declared by a person (BLK-018)
+  data_paths: Record<string, string[]>;
 }
 
-const EMPTY_TABLE = (errors: string[] = []): DoorTable => ({ doors: [], errors, open_epochs: {}, home: "home", parties: {} });
+const EMPTY_TABLE = (errors: string[] = []): DoorTable => ({ doors: [], errors, open_epochs: {}, home: "home", parties: {}, data_paths: {} });
 
 export function epochOf(table: DoorTable, id: string): number {
   const n = table.open_epochs[id];
@@ -34,7 +36,7 @@ export function loadDoors(path: string): DoorTable {
   }
   const list = Array.isArray(raw) ? raw : (raw as { doors?: unknown })?.doors;
   if (!Array.isArray(list)) return EMPTY_TABLE(["doors file must be an array or { doors: [...] }"]);
-  const obj = Array.isArray(raw) ? {} : (raw as { open_epochs?: unknown; home?: unknown; parties?: unknown });
+  const obj = Array.isArray(raw) ? {} : (raw as { open_epochs?: unknown; home?: unknown; parties?: unknown; data_paths?: unknown });
   const oe = obj.open_epochs;
   const open_epochs: Record<string, number> = oe && typeof oe === "object" && !Array.isArray(oe) ? (oe as Record<string, number>) : {};
   const doors: Door[] = [];
@@ -56,6 +58,14 @@ export function loadDoors(path: string): DoorTable {
   const twice = new Set([...owner].filter(([, o]) => o.length > 1).map(([c]) => c));
   for (const c of twice) errors.push(`compartment ${c} is listed by parties ${owner.get(c)!.join(" and ")}: its doors are shut`);
   const partyOfC = (c: string) => owner.get(c)?.[0] ?? home;
+
+  const data_paths: DoorTable["data_paths"] = {};
+  if (obj.data_paths && typeof obj.data_paths === "object" && !Array.isArray(obj.data_paths)) {
+    for (const [c, ps] of Object.entries(obj.data_paths as Record<string, unknown>)) {
+      if (!Array.isArray(ps)) { errors.push(`data_paths ${c}: must be a list`); continue; }
+      data_paths[c] = ps.filter((p): p is string => typeof p === "string" && p.length > 0 && p.length <= 200);
+    }
+  }
   list.forEach((d: any, i: number) => {
     const where = `door #${i + 1}${d?.id ? ` (${d.id})` : ""}`;
     if (!d || typeof d.id !== "string" || !d.id) return errors.push(`${where}: id required`);
@@ -66,6 +76,11 @@ export function loadDoors(path: string): DoorTable {
     const bad = d.kinds.filter((k: string) => !(KINDS as readonly string[]).includes(k));
     if (bad.length) return errors.push(`${where}: unknown kind ${bad.join(", ")} (only ${KINDS.join(", ")}; there is no COMMAND)`);
     if (twice.has(d.from) || twice.has(d.to)) return errors.push(`${where}: joins a compartment two parties claim`);
+    if (d.check) {
+      // @rule:BLK-017 a check door carries the checker's FINDING, and its verdict must be able to pass
+      if (!d.kinds.includes("FINDING")) return errors.push(`${where}: a check door carries FINDING`);
+      if (Array.isArray(d.fields) && !d.fields.includes("verdict")) return errors.push(`${where}: a check door's fields must include verdict`);
+    }
     if (partyOfC(d.from) !== partyOfC(d.to)) {
       // @rule:BLK-015 a door between parties carries only the fields it lists; no list = shut
       if (!Array.isArray(d.fields) || d.fields.length === 0) return errors.push(`${where}: a door between parties must list its fields (BLK-015)`);
@@ -76,7 +91,7 @@ export function loadDoors(path: string): DoorTable {
     ids.add(d.id);
     doors.push(d as Door);
   });
-  return { doors, errors, open_epochs, home, parties };
+  return { doors, errors, open_epochs, home, parties, data_paths };
 }
 
 // One-way: a door from A to B never lets B speak to A.
