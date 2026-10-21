@@ -4,6 +4,16 @@ All notable changes to AEGIS will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [2.27.1] — 2026-10-21
+
+### Added
+
+- **A new bell book's first row says what opened it.** On first start, `aegis bulkhead serve` writes one `opened` row into an empty bell book: the aegis version, the doors file's sha256 (or null) and the home party. So the first anchor stands on a true row. A book that already has rows is left as it is, and opening writes no state file, so the live gate is unchanged until the first real message.
+
+### Fixed
+
+- A test in `outward-send` depended on the order test files ran in; CI failed on 2.26.0 and 2.27.0 for that reason alone.
+
 ## [2.27.0] — 2026-10-21
 
 ### Added — Bulkhead: bell book anchored through the ledger authority (BLK-020)
