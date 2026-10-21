@@ -18,7 +18,7 @@ export interface Door {
   rate_per_min?: number;     // default 30
   max_depth?: number;        // default 4
   pingpong_max?: number;     // default 6: messages between one pair on one subject per window
-  parties?: string[];        // P3, cross-party doors
+  valid_until?: string;      // ISO time; required on a door between parties, and signed by them (BLK-014)
 }
 
 // Who an agent is, as proven by its delegation token (BLK-YK-002).

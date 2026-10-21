@@ -13,6 +13,12 @@ import { join } from "path";
 import { randomBytes } from "crypto";
 import { BellBook, canonical, sha256 } from "./bell-book";
 import { epochOf, findDoor, loadDoors, type DoorTable } from "./doors";
+import { checkParties, fingerprint, foreignParties, partiesDir } from "./parties";
+
+export interface PartyStatus {
+  key: string | null;        // fingerprint of the placed public key; null = none placed
+  doors: Array<{ id: string; holds: boolean; reason?: string; valid_until?: string }>;
+}
 import { DEFAULTS, KINDS, type Delivered, type Door, type Envelope, type Identity, type Kind, type SendInput, type SendResult, type Taint } from "./types";
 
 // How the bulkhead learns who is speaking. The default (identity.ts) checks the agent's aegis
@@ -77,8 +83,44 @@ export class Bulkhead {
     renameSync(sp + ".tmp", sp);
   }
 
+  // @rule:BLK-016 a row about a door between parties is also written to each other party's own copy.
+  // The home book is always written first; a copy that cannot be written raises the alarm.
+  private partyBooks = new Map<string, BellBook>();
+  private partyBook(party: string): BellBook {
+    let b = this.partyBooks.get(party);
+    if (!b) {
+      const d = join(partiesDir(this.dir), party);
+      if (!existsSync(d)) mkdirSync(d, { recursive: true });
+      b = new BellBook(join(d, "bell-book.jsonl")); // throws on a broken copy (BLK-006)
+      this.partyBooks.set(party, b);
+    }
+    return b;
+  }
+
+  private log(event: string, fields: Record<string, unknown>): void {
+    this.book.append(event, fields);
+    const id = typeof fields.door === "string" ? fields.door : null;
+    const door = id ? this.doors().doors.find((d) => d.id === id) : undefined;
+    if (!door) return;
+    for (const p of foreignParties(this.doors(), door)) {
+      try { this.partyBook(p).append(event, fields); } catch (e) {
+        this.alarm("bulkhead", `party ${p}'s bell-book copy could not be written: ${(e as Error).message}`, "BLK-016");
+      }
+    }
+  }
+
+  // A door between parties opens only on both keys (BLK-014), and only while every copy can be written (BLK-016).
+  private checkDoor(door: Door): { rule: string; reason: string } | null {
+    const c = checkParties(this.dir, this.doors(), door, this.now());
+    if (!c.ok) return c;
+    for (const p of c.parties) {
+      try { this.partyBook(p); } catch (e) { return { rule: "BLK-016", reason: `party ${p}'s bell-book copy is broken: ${(e as Error).message}` }; }
+    }
+    return null;
+  }
+
   private refuse(rule: string, reason: string, fields: Record<string, unknown>): SendResult {
-    this.book.append("refused", { rule, reason, ...fields });
+    this.log("refused", { rule, reason, ...fields });
     return { ok: false, rule, reason };
   }
 
@@ -125,6 +167,10 @@ export class Bulkhead {
       if (!door) return this.refuse("BLK-002", `no door from ${who.compartment} to ${target.compartment}`, base);
       if (!door.kinds.includes(kind)) return this.refuse("BLK-003", `door ${door.id} does not carry ${kind}`, { ...base, door: door.id });
       doorKey = door.id;
+    }
+    if (door) {
+      const shut = this.checkDoor(door);
+      if (shut) return this.refuse(shut.rule, shut.reason, { ...base, door: door.id });
     }
 
     // Closed compartments and tripped doors stay shut until a person opens them (BLK-008, BLK-012).
@@ -188,7 +234,7 @@ export class Bulkhead {
     this.state.sent[env.id] = { hash, depth, from: env.from, to: env.to, door: env.door, subject: subj, kind };
     (this.state.queue[env.to] ??= []).push(env);
     this.save();
-    this.book.append("sent", { id: env.id, msg_hash: hash, door: env.door, from: env.from, to: env.to, kind, subject: subj, depth, evidence_ref: env.evidence_ref });
+    this.log("sent", { id: env.id, msg_hash: hash, door: env.door, from: env.from, to: env.to, kind, subject: subj, depth, evidence_ref: env.evidence_ref });
 
     // @rule:BLK-011 repeat-back: an ACK whose hash differs from what was sent raises the alarm
     if (kind === "ACK") {
@@ -203,7 +249,7 @@ export class Bulkhead {
   private trip(doorKey: string, reason: string, base: Record<string, unknown>): SendResult {
     this.state.closed_doors[doorKey] = { by: "damage-control", reason, at: new Date(this.now()).toISOString(), epoch: epochOf(this.doors(), doorKey) };
     this.save();
-    this.book.append("tripped", { door: doorKey, reason, ...base });
+    this.log("tripped", { door: doorKey, reason, ...base });
     this.alarm("bulkhead", `door ${doorKey} tripped and closed: ${reason}`, "BLK-010");
     return { ok: false, rule: "BLK-YK-004", reason: `door ${doorKey} tripped: ${reason}` };
   }
@@ -221,12 +267,12 @@ export class Bulkhead {
     for (const m of msgs) {
       const hash = this.state.sent[m.id]?.hash ?? messageHash(m);
       out.push({ ...m, hash, untrusted: true });
-      this.book.append("delivered", { id: m.id, to: who.agent_id, msg_hash: hash });
+      this.log("delivered", { id: m.id, door: m.door, to: who.agent_id, msg_hash: hash });
       if (m.kind === "ACK") continue; // an ACK asks nothing, so it carries no authority to cap
       const cap = m.sender_mask & m.sender_ceiling & who.ceiling;
       const taint: Taint = { agent_id: who.agent_id, message_id: m.id, cap, expires_at: t + DEFAULTS.taint_ms };
       this.state.taints.push(taint);
-      this.book.append("taint", { agent_id: who.agent_id, message_id: m.id, cap, expires_at: new Date(taint.expires_at).toISOString() });
+      this.log("taint", { agent_id: who.agent_id, message_id: m.id, door: m.door, cap, expires_at: new Date(taint.expires_at).toISOString() });
     }
     this.save();
     return out;
@@ -271,7 +317,7 @@ export class Bulkhead {
         if (e > (c.epoch ?? 0)) {
           delete map[id];
           if (kind === "door") delete this.state.door_times[id];
-          this.book.append(kind === "door" ? "door_opened" : "compartment_opened", { [kind]: id, by: "doors.json open epoch", epoch: e });
+          this.log(kind === "door" ? "door_opened" : "compartment_opened", { [kind]: id, by: "doors.json open epoch", epoch: e });
           changed = true;
         }
       }
@@ -287,15 +333,30 @@ export class Bulkhead {
     try { this.onAlarm?.(a); } catch {}
   }
 
-  status(): { closed_doors: State["closed_doors"]; closed_compartments: State["closed_compartments"]; queued: number; taints: number; door_errors: string[] } {
+  status(): { closed_doors: State["closed_doors"]; closed_compartments: State["closed_compartments"]; queued: number; taints: number; door_errors: string[]; parties: Record<string, PartyStatus> } {
     this.liftOpened();
     const t = this.now();
+    const table = this.doors();
+    const parties: Record<string, PartyStatus> = {};
+    for (const name of Object.keys(table.parties)) {
+      const pub = join(partiesDir(this.dir), name, "party.pub");
+      let key: string | null = null;
+      try { key = existsSync(pub) ? fingerprint(readFileSync(pub, "utf-8")) : null; } catch { key = "unreadable"; }
+      parties[name] = { key, doors: [] };
+    }
+    for (const d of table.doors) {
+      const fp = foreignParties(table, d);
+      if (fp.length === 0) continue;
+      const shut = this.checkDoor(d);
+      for (const p of fp) parties[p]?.doors.push(shut ? { id: d.id, holds: false, reason: shut.reason } : { id: d.id, holds: true, valid_until: d.valid_until });
+    }
     return {
       closed_doors: this.state.closed_doors,
       closed_compartments: this.state.closed_compartments,
       queued: Object.values(this.state.queue).reduce((n, q) => n + q.length, 0),
       taints: this.state.taints.filter((x) => x.expires_at > t).length,
-      door_errors: this.doors().errors,
+      door_errors: table.errors,
+      parties,
     };
   }
 }
