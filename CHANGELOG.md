@@ -4,6 +4,23 @@ All notable changes to AEGIS will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [2.26.0] — 2026-10-21
+
+### Added — Bulkhead: doors between parties (BLK-014..016)
+
+- **A door between two companies needs both keys.** The doors file names which compartments belong to which party. A door whose ends are in different parties holds only while the other party has signed (ed25519) the same terms we declare: door, kinds, fields and `valid_until`. Its public key must be placed by a person. This is checked at every send, so a removed declaration or a passed end date shuts the door at once.
+- **Such a door carries only the fields it lists.** A door between parties with no field list or no end date is shut.
+- **Each party keeps its own copy** of the bell-book rows about its doors, chained on its own. A broken copy shuts the door, and `aegis bulkhead verify` walks every copy.
+- `aegis bulkhead party-terms <door>` (us), and `party-keygen <prefix>` and `party-sign <terms> <key>` (the other party, on its own machine). `status` shows each party's key fingerprint and whether each of its doors holds.
+- Limit: on one host, root can still delete either side; the signature stops only a forged consent. There is no transport between hosts yet.
+
+### Added — Bulkhead: second opinion (BLK-017..019)
+
+- **Compartments declare their data paths**, and a message may name only a declared path (`evidence_path`).
+- **Check doors** (`check: true`): a checker's reply carries a verdict (confirms, contradicts or cannot_check). Unless it cannot check, it names a data path that no message up the chain has named, so a check from the proposer's own data is refused.
+- **`aegis bulkhead evidence <message>`** counts distinct confirming paths across every copy of the same claim, not agreeing agents. Contradictions are listed beside the count, never subtracted.
+- Limit: the bulkhead checks the path a checker names, not that it read it, and two paths can share a wrong upstream.
+
 ## [2.25.0] — 2026-10-21
 
 ### Security
