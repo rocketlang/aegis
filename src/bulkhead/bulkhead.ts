@@ -13,7 +13,8 @@ import { join } from "path";
 import { randomBytes } from "crypto";
 import { BellBook, canonical, sha256 } from "./bell-book";
 import { epochOf, findDoor, loadDoors, type DoorTable } from "./doors";
-import { checkParties, fingerprint, foreignParties, partiesDir } from "./parties";
+import { checkParties, fingerprint, foreignParties, parcelHash, partiesDir, signParcel, verifyParcelSig, type Parcel } from "./parties";
+import { PERM } from "../kavach/perm-mask";
 
 export interface PartyStatus {
   key: string | null;        // fingerprint of the placed public key; null = none placed
@@ -57,9 +58,15 @@ interface State {
   sent: Record<string, SentRecord>;
   door_times: Record<string, number[]>;
   pair_times: Record<string, number[]>;
+  // P5: where each pair of parties' parcel chain stands, sent and received (BLK-021)
+  parcels_out: Record<string, { seq: number; hash: string }>;
+  parcels_in: Record<string, { seq: number; hash: string }>;
 }
 
-const EMPTY: State = { queue: {}, taints: [], closed_doors: {}, closed_compartments: {}, sent: {}, door_times: {}, pair_times: {} };
+const EMPTY: State = { queue: {}, taints: [], closed_doors: {}, closed_compartments: {}, sent: {}, door_times: {}, pair_times: {}, parcels_out: {}, parcels_in: {} };
+
+// @rule:BLK-023 a party with no declared ceiling: its messages carry read-only authority at most
+export const DEFAULT_PARTY_CEILING = PERM.READ;
 
 export interface BulkheadOptions {
   dir: string;                       // holds doors.json (person-written), bell-book.jsonl, state.json, alarms.jsonl
@@ -149,14 +156,20 @@ export class Bulkhead {
     // @rule:BLK-YK-002 verify a peer by its token, never by its name
     const who = this.identity.resolve(token);
     if ("error" in who) return this.refuse("BLK-YK-002", `sender not proven: ${who.error}`, { to: input.to, kind: input.kind });
+    return this.accept(who, input);
+  }
 
+  // Every check a message passes, whether its sender is proven here by its token (send) or arrives in a
+  // signed parcel from another host as the remote agent the doors file declares (importParcel, BLK-022).
+  private accept(who: Identity, input: SendInput, fixed?: { id: string; sent_at: string }): SendResult {
     const base = { from: who.agent_id, to: input.to, kind: input.kind, subject: input.subject };
+    if (fixed && this.state.sent[fixed.id]) return this.refuse("BLK-021", `message ${fixed.id} was already carried`, base);
 
     // @rule:BLK-003 only FINDING, REQUEST, ACK; there is no COMMAND kind
     if (!(KINDS as readonly string[]).includes(input.kind)) return this.refuse("BLK-003", `kind ${input.kind} does not exist (only ${KINDS.join(", ")})`, base);
     const kind = input.kind as Kind;
 
-    const target = this.identity.compartmentOf(input.to);
+    const target = this.compartmentOf(input.to);
     if (!target) return this.refuse("BLK-001", `receiver ${input.to} is in no compartment`, base);
 
     // ACK travels back along the door the message came through (telegraph repeat-back).
@@ -256,7 +269,7 @@ export class Bulkhead {
     if (kind !== "ACK" && pt.length + 1 > pp) return this.trip(doorKey, `${who.agent_id} and ${input.to} exchanged more than ${pp} messages on "${subj}"`, base);
 
     const env: Envelope = {
-      id: randomBytes(8).toString("hex"),
+      id: fixed?.id ?? randomBytes(8).toString("hex"),
       door: door?.id ?? null,
       from: who.agent_id,
       to: input.to,
@@ -268,7 +281,7 @@ export class Bulkhead {
       ...(input.in_reply_to ? { in_reply_to: input.in_reply_to } : {}),
       ...(kind === "ACK" && input.received_hash ? { received_hash: input.received_hash } : {}),
       depth,
-      sent_at: new Date(t).toISOString(),
+      sent_at: fixed?.sent_at ?? new Date(t).toISOString(),
       sender_mask: who.mask,
       sender_ceiling: who.ceiling,
     };
@@ -303,6 +316,112 @@ export class Bulkhead {
     this.log("tripped", { door: doorKey, reason, ...base });
     this.alarm("bulkhead", `door ${doorKey} tripped and closed: ${reason}`, "BLK-010");
     return { ok: false, rule: "BLK-YK-004", reason: `door ${doorKey} tripped: ${reason}` };
+  }
+
+  // A receiver is a local agent (its token's compartment), or a remote agent the doors file declares for a party.
+  private compartmentOf(agentId: string): { compartment: string; ceiling: number } | null {
+    const local = this.identity.compartmentOf(agentId);
+    if (local) return local;
+    const table = this.doors();
+    for (const [name, p] of Object.entries(table.parties)) {
+      const c = p.agents[agentId];
+      if (c) return { compartment: c, ceiling: p.ceiling ?? DEFAULT_PARTY_CEILING };
+    }
+    return null;
+  }
+
+  // ── between hosts: parcels (P5) ─────────────────────────────────────────────
+
+  private parcelRow(party: string, event: string, fields: Record<string, unknown>): void {
+    this.book.append(event, { party, ...fields });
+    try { this.partyBook(party).append(event, { party, ...fields }); } catch (e) {
+      this.alarm("bulkhead", `party ${party}'s bell-book copy could not be written: ${(e as Error).message}`, "BLK-016");
+    }
+  }
+
+  // @rule:BLK-021 every message queued for a party's remote agents leaves in one parcel, signed with the
+  // home key, numbered and chained after the last parcel to that party. The parcel is kept in the party's
+  // outbox, so a lost one can be sent again as it is.
+  exportParcel(party: string): { ok: true; parcel: Parcel; path: string } | { ok: false; error: string } {
+    const table = this.doors();
+    const p = table.parties[party];
+    if (!p) return { ok: false, error: `no party ${party} in the doors file` };
+    const keyPath = join(this.dir, "home.key");
+    if (!existsSync(keyPath)) return { ok: false, error: `no home key at ${keyPath} (a person makes it: aegis bulkhead party-keygen ${join(this.dir, "home")})` };
+    const remote = Object.keys(p.agents);
+    const envelopes = remote.flatMap((a) => this.state.queue[a] ?? []);
+    if (envelopes.length === 0) return { ok: false, error: `nothing queued for party ${party}` };
+    const last = this.state.parcels_out[party] ?? { seq: 0, hash: "" };
+    const parcel = signParcel({
+      v: 1, from_party: table.home, to_party: party, seq: last.seq + 1, prev_hash: last.hash,
+      created_at: new Date(this.now()).toISOString(), envelopes: envelopes as unknown as Array<Record<string, unknown>>,
+    }, readFileSync(keyPath, "utf-8"));
+    const hash = parcelHash(parcel);
+    const outbox = join(partiesDir(this.dir), party, "outbox");
+    if (!existsSync(outbox)) mkdirSync(outbox, { recursive: true });
+    const path = join(outbox, `${table.home}-to-${party}-${String(parcel.seq).padStart(6, "0")}.parcel.json`);
+    writeFileSync(path, JSON.stringify(parcel) + "\n");
+    for (const a of remote) delete this.state.queue[a];
+    this.state.parcels_out[party] = { seq: parcel.seq, hash };
+    this.save();
+    for (const e of envelopes) this.log("exported", { id: e.id, door: e.door, to: e.to, parcel_seq: parcel.seq });
+    this.parcelRow(party, "parcel_out", { seq: parcel.seq, hash, messages: envelopes.length });
+    return { ok: true, parcel, path };
+  }
+
+  // @rule:BLK-021 a parcel is refused whole when it is unsigned, for another party, out of order or a repeat
+  // @rule:BLK-022 each message in it then passes every local check, as the remote agent the doors file declares
+  // @rule:BLK-023 its authority is capped by the ceiling declared for the sending party
+  importParcel(raw: unknown): { ok: true; from_party: string; seq: number; results: Array<{ id: string } & SendResult> } | { ok: false; rule: string; reason: string } {
+    const table = this.doors();
+    const no = (reason: string, fields: Record<string, unknown> = {}) => {
+      this.book.append("parcel_refused", { rule: "BLK-021", reason, ...fields });
+      return { ok: false as const, rule: "BLK-021", reason };
+    };
+    const parcel = raw as Parcel;
+    if (!parcel || parcel.v !== 1 || typeof parcel.from_party !== "string" || typeof parcel.to_party !== "string"
+      || !Number.isInteger(parcel.seq) || typeof parcel.prev_hash !== "string" || !Array.isArray(parcel.envelopes)) {
+      return no("not a parcel (v 1, from_party, to_party, seq, prev_hash, envelopes, sig)");
+    }
+    const from = parcel.from_party;
+    const where = { from_party: from, seq: parcel.seq };
+    if (parcel.to_party !== table.home) return no(`parcel is for party ${parcel.to_party}, not ${table.home}`, where);
+    const p = table.parties[from];
+    if (!p) return no(`no party ${from} in the doors file`, where);
+    const pubPath = join(partiesDir(this.dir), from, "party.pub");
+    if (!existsSync(pubPath)) return no(`no public key placed for party ${from}`, where);
+    if (!verifyParcelSig(parcel, readFileSync(pubPath, "utf-8"))) return no(`parcel is not signed by party ${from}'s placed key`, where);
+    const last = this.state.parcels_in[from] ?? { seq: 0, hash: "" };
+    if (parcel.seq <= last.seq) return no(`parcel ${parcel.seq} from ${from} was already taken (last ${last.seq})`, where);
+    if (parcel.seq !== last.seq + 1 || parcel.prev_hash !== last.hash) return no(`parcel ${parcel.seq} from ${from} is out of order: expected ${last.seq + 1} after the parcel last taken`, where);
+
+    const hash = parcelHash(parcel);
+    this.state.parcels_in[from] = { seq: parcel.seq, hash };
+    this.save();
+    this.parcelRow(from, "parcel_in", { seq: parcel.seq, hash, messages: parcel.envelopes.length });
+
+    const ceiling = p.ceiling ?? DEFAULT_PARTY_CEILING;
+    const results: Array<{ id: string } & SendResult> = [];
+    for (const raw of parcel.envelopes) {
+      const e = raw as Record<string, any>;
+      const id = String(e?.id ?? "");
+      const base = { from: String(e?.from ?? ""), to: String(e?.to ?? ""), kind: String(e?.kind ?? ""), subject: String(e?.subject ?? ""), parcel_seq: parcel.seq };
+      let r: SendResult;
+      if (!/^[0-9a-f]{16}$/.test(id) || !Number.isFinite(Date.parse(String(e?.sent_at)))) r = this.refuse("BLK-022", "a message in the parcel has no id or time", base);
+      else if (!p.agents[base.from]) r = this.refuse("BLK-022", `party ${from} declares no agent ${base.from}`, base);
+      else if (!this.identity.compartmentOf(base.to)) r = this.refuse("BLK-022", `receiver ${base.to} is not an agent of this host`, base);
+      else {
+        const who: Identity = { agent_id: base.from, mask: (Number(e.sender_mask) | 0) & ceiling, compartment: p.agents[base.from], ceiling };
+        const input: SendInput = {
+          to: base.to, kind: base.kind, subject: base.subject, body: e.body,
+          ...(e.evidence_ref ? { evidence_ref: e.evidence_ref } : {}), ...(e.evidence_path ? { evidence_path: e.evidence_path } : {}),
+          ...(e.in_reply_to ? { in_reply_to: e.in_reply_to } : {}), ...(e.received_hash ? { received_hash: e.received_hash } : {}),
+        };
+        r = this.accept(who, input, { id, sent_at: String(e.sent_at) });
+      }
+      results.push({ id, ...r });
+    }
+    return { ok: true, from_party: from, seq: parcel.seq, results };
   }
 
   // ── read / taint ────────────────────────────────────────────────────────────

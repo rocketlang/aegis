@@ -15,7 +15,8 @@ export interface DoorTable {
   open_epochs: Record<string, number>;
   // P3: which compartments belong to which party; a compartment no party lists is the home party's
   home: string;
-  parties: Record<string, { compartments: string[] }>;
+  // P5: the remote agents of a party (agent id → one of its compartments) and the ceiling its messages are held to
+  parties: Record<string, { compartments: string[]; agents: Record<string, string>; ceiling?: number }>;
   // P4: the data paths each compartment reads from, declared by a person (BLK-018)
   data_paths: Record<string, string[]>;
 }
@@ -51,7 +52,16 @@ export function loadDoors(path: string): DoorTable {
       if (name === home) { errors.push(`party ${name}: the home party lists no compartments (unlisted ones are home)`); continue; }
       if (!/^[a-z0-9][a-z0-9_-]{0,63}$/i.test(name)) { errors.push(`party ${name}: name must be letters, digits, - or _`); continue; }
       const cs = Array.isArray(p?.compartments) ? p.compartments.filter((c: unknown) => typeof c === "string") : [];
-      parties[name] = { compartments: cs };
+      const agents: Record<string, string> = {};
+      if (p?.agents && typeof p.agents === "object" && !Array.isArray(p.agents)) {
+        for (const [a, c] of Object.entries(p.agents as Record<string, unknown>)) {
+          if (typeof c === "string" && cs.includes(c)) agents[a] = c;
+          else errors.push(`party ${name}: agent ${a} names compartment ${String(c)}, which the party does not list`);
+        }
+      }
+      const ceiling = Number.isInteger(p?.ceiling) && p.ceiling >= 0 ? (p.ceiling as number) : undefined;
+      if (p?.ceiling !== undefined && ceiling === undefined) errors.push(`party ${name}: ceiling must be a whole number ≥ 0`);
+      parties[name] = { compartments: cs, agents, ...(ceiling !== undefined ? { ceiling } : {}) };
       for (const c of cs) owner.set(c, [...(owner.get(c) ?? []), name]);
     }
   }

@@ -10,6 +10,8 @@
 //   close <compartment> "<reason>"         close every door of a compartment (anyone may close)
 //   open  <door-or-compartment>            a PERSON re-opens it: raises its open epoch in doors.json (BLK-012)
 //   status
+//   export <party> [<out-dir>]             P5: every message queued for that party's agents, as one signed parcel (BLK-021)
+//   import <parcel.json>                   P5: take a parcel from another host; each message passes every local check (BLK-022)
 //   anchor                                 ask the ledger authority to sign the book's head (BLK-020); exit 0 anchored · 1 not
 //   verify --anchors [--ledger <path>]     also check each anchor against the signed ledger, under the pinned key
 //   evidence <message_id>                  P4: distinct data paths confirming it, contradictions beside the count (BLK-019)
@@ -63,6 +65,18 @@ export async function main(argv: string[]): Promise<void> {
       }
       case "status": return print(await call(dir, { op: "status" }));
       case "evidence": return print(await call(dir, { op: "evidence", message_id: a }));
+      case "export": {
+        // The parcel is kept in the party's outbox; with <out-dir> a copy is written there for the link to carry.
+        const r = await call(dir, { op: "export", party: a });
+        if (r?.ok && b) { writeFileSync(join(b, r.path.split("/").pop()), JSON.stringify(r.parcel) + "\n"); r.copied_to = b; }
+        print(r?.ok ? { ok: true, path: r.path, seq: r.parcel.seq, messages: r.parcel.envelopes.length, ...(r.copied_to ? { copied_to: r.copied_to } : {}) } : r);
+        process.exit(r?.ok ? 0 : 1);
+      }
+      case "import": {
+        const r = await call(dir, { op: "import", parcel: json(a) });
+        print(r);
+        process.exit(r?.ok ? 0 : 1);
+      }
       case "anchor": {
         const r = await call(dir, { op: "anchor" });
         print(r);
@@ -111,7 +125,7 @@ export async function main(argv: string[]): Promise<void> {
         return print(signTerms(json(a), readFileSync(b, "utf-8")));
       }
       default:
-        console.error("usage: aegis bulkhead serve|send|read|drop|close|open|status|evidence|anchor|verify|party-terms|party-keygen|party-sign");
+        console.error("usage: aegis bulkhead serve|send|read|drop|close|open|status|evidence|export|import|anchor|verify|party-terms|party-keygen|party-sign");
         process.exit(2);
     }
   } catch (e) {

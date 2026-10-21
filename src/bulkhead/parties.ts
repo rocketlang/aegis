@@ -117,3 +117,35 @@ export function checkParties(dir: string, table: DoorTable, door: Door, now: num
   }
   return { ok: true, parties };
 }
+
+// ── Parcels: messages between hosts, store and forward (P5) ─────────────────────────────────────
+// @rule:BLK-021 signed by the sending party's key, numbered and chained for each pair of parties
+// @rule:BLK-YK-007 a parcel waits for whatever link there is; the bulkhead opens no listening port
+// @rule:INF-BLK-007 a parcel proves which party's key signed it, not which of its agents wrote a message
+
+export interface Parcel {
+  v: 1;
+  from_party: string;
+  to_party: string;
+  seq: number;
+  prev_hash: string;          // hash of the parcel before it between these two parties; "" for the first
+  created_at: string;
+  envelopes: Array<Record<string, unknown>>;
+  sig: string;
+}
+
+export function parcelHash(p: Parcel): string {
+  return createHash("sha256").update(canonical(p)).digest("hex");
+}
+
+export function signParcel(p: Omit<Parcel, "sig">, privateKeyPem: string): Parcel {
+  const sig = sign(null, Buffer.from(canonical(p)), createPrivateKey(privateKeyPem)).toString("base64");
+  return { ...p, sig };
+}
+
+export function verifyParcelSig(p: Parcel, publicKeyPem: string): boolean {
+  try {
+    const { sig, ...rest } = p;
+    return typeof sig === "string" && verify(null, Buffer.from(canonical(rest)), createPublicKey(publicKeyPem), Buffer.from(sig, "base64"));
+  } catch { return false; }
+}

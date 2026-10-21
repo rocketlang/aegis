@@ -26,6 +26,8 @@ export function handle(b: Bulkhead, req: any): unknown {
     case "status": return b.status();
     case "evidence": return b.evidence(String(req.message_id ?? ""));
     case "anchor": return b.anchor();
+    case "export": return b.exportParcel(String(req.party ?? ""));
+    case "import": return b.importParcel(req.parcel);
     default: return { error: `unknown op ${req?.op}` };
   }
 }
