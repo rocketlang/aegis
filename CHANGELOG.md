@@ -4,6 +4,25 @@ All notable changes to AEGIS will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [2.25.0] — 2026-10-21
+
+### Security
+
+- **`authorize()` now accepts only a token aegis issued.** The presented SDT must equal the copy aegis stored when it issued it; any other token is refused (`TOKEN_NOT_ISSUED`, `TOKEN_ALTERED`) and raises a critical alert. Please upgrade.
+
+### Added — aegis Bulkhead: governed messages between agents (BLK-001..013)
+
+- **Agents can pass each other findings without passing on their power.** An agent that reads a message is capped, while the message is live, to what both it and the sender hold, and to each side's ceiling. Kinds are FINDING, REQUEST and ACK; there is no command kind.
+- **Doors are one-way and declared by a person** in `doors.json`; the bulkhead never writes that file. Every send, read and closure goes into a hash-chained bell book (`aegis bulkhead verify`). Rate, depth and ping-pong breakers close a door, and a closed door stays closed.
+- **Closing is anyone's; opening is a person's** (BLK-012): `aegis bulkhead open <door>` in a terminal. The shield refuses it as a tool call, and the bulkhead's files are the shield's own (KAV-096).
+- **The live gate enforces the cap** (BLK-013): `check-destructive` refuses a tainted agent's tool call outside its capped mask (exit 2, `Rule: BLK-013`). With no bulkhead state on the box nothing changes.
+- `aegis bulkhead serve|send|read|drop|close|open|status|verify`.
+
+### Fixed
+
+- **`enrollAgent` threw on every call** (it returned an undefined name). Swarm enrollment works again.
+- Tests that write stores skip unless aegis resolves under the test's scratch home, so a combined run can no longer write into the real `~/.aegis`.
+
 ## [2.24.0] — 2026-10-17
 
 ### Added — `aegis rules status` and `aegis rules update` (KAV-102)
