@@ -7,6 +7,7 @@ import { mkdtempSync } from "fs";
 import { tmpdir } from "os";
 import { join } from "path";
 
+const REAL_HOME = process.env.HOME;
 const HOME = mkdtempSync(join(process.env.TMPDIR ?? tmpdir(), "outward-send-"));
 process.env.HOME = HOME;
 delete process.env.AEGIS_APPROVER_CONSUME_SOCKET;
@@ -223,6 +224,9 @@ describe("ANU-013 through aegis's own approval authority (scratch HOME)", () => 
   });
 });
 
+// bun shares one module cache across test files: outward may already be loaded under an earlier
+// file's scratch HOME, so check that the box's own ~/.aegis is not the one, not which scratch HOME it is.
 it("the box's own ~/.aegis is not the one in use", () => {
-  expect(K.OUTWARD_LEDGER.startsWith(HOME)).toBe(true);
+  expect(K.OUTWARD_LEDGER.startsWith(join(REAL_HOME ?? "/root", ".aegis"))).toBe(false);
+  expect(K.OUTWARD_LEDGER.startsWith(join("/root", ".aegis"))).toBe(false);
 });
