@@ -4,6 +4,23 @@ All notable changes to AEGIS will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [2.27.0] — 2026-10-21
+
+### Added — Bulkhead: bell book anchored through the ledger authority (BLK-020)
+
+- **The ledger authority signs a "bell-book" row**: "this bell book stood at row N, last row hash H", gate `bulkhead`, nothing else. Any other content under that kind is refused. `ledger-status` reports `bell_book: true`.
+- **`aegis bulkhead anchor`** asks for that row and writes the signed answer into the bell book (`anchored`, or `anchor_failed`). It skips when nothing changed since the last anchor. `aegis bulkhead verify --anchors [--ledger <path>]` checks each anchor against the signed ledger under the pinned key.
+- **An older authority is never asked.** The bulkhead first asks `ledger-status` and sends nothing unless the authority says it supports bell-book rows, so an older authority cannot record the request as a refusal.
+- Limit: until the authority runs 2.27.0 or later, anchoring does nothing.
+
+### Added — Bulkhead: between hosts, store and forward (BLK-021..023)
+
+- **`aegis bulkhead export <party> [<out-dir>]`** packs every message waiting for that party's agents into one parcel, signed with the home key (`<dir>/home.key`), numbered and chained for each pair of parties, and kept in an outbox.
+- **`aegis bulkhead import <file>`** refuses a whole parcel that is unsigned, meant for another party, out of order or a repeat. Each message then passes every check a local message gets, as the declared remote agent.
+- **A party's messages are held to a ceiling** set in the doors file (`parties.<p>.ceiling`; default read-only), on top of the usual mask cap. Remote agents are declared per party (`parties.<p>.agents`).
+- The parcel is a file, so any link can carry it; the bulkhead opens no listening port.
+- Limit: a parcel proves which party's key signed it, not which of its agents wrote each message. A lost parcel holds up the ones after it until it is sent again from the outbox.
+
 ## [2.26.0] — 2026-10-21
 
 ### Added — Bulkhead: doors between parties (BLK-014..016)
