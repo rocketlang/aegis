@@ -4,6 +4,12 @@ All notable changes to AEGIS will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [2.27.3] — 2026-10-23
+
+### Fixed
+
+- **An expired flow mandate is renewed at the next call, not only at a session start.** A mandate lives 24 hours. Until now the shield's per-call check issued one only when a session had none, so a session that ran past 24 hours kept an expired mandate until it was resumed, and every outward act it proposed was refused (ANU-012), even mail to the person's own inbox. The per-call check now renews an expired mandate the same way. A revoked or malformed mandate is still never replaced inside the same session (GTP-022), and a child whose parent flow has expired is still refused (GTP-021).
+
 ## [2.27.2] — 2026-10-23
 
 ### Fixed
