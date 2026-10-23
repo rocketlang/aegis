@@ -4,6 +4,12 @@ All notable changes to AEGIS will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [2.27.2] — 2026-10-23
+
+### Fixed
+
+- **The send guard uses the mandate that covers the message.** When several send mandates name the same identity and lane, `aegis outward-send` used the first one in the file, whatever the recipients, so a standing mandate (for example, mail to the founder only) made a second mandate for the same sender unusable. It now picks, among the mandates for that identity and lane, the one that lists every recipient; failing that, one that asks the person about new recipients; failing that, the first, so the refusal says why. Recipients split across two mandates are still refused: no single grant covers the message, and grants are never combined.
+
 ## [2.27.1] — 2026-10-21
 
 ### Added
