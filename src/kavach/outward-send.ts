@@ -64,10 +64,16 @@ export const sendPlugin: OutwardPlugin<SendProposal, SendLimits, SendHandoff> = 
   },
 
   pick(p, mandates: OutwardMandate<SendLimits>[]) {
-    // Several mandates may name one identity (one per lane): take the one whose lanes cover this
-    // lane; failing that, the first for the identity, so the lane rule says why it was refused.
+    // Several mandates may name one identity: one per lane, or several in one lane (a standing
+    // founder-only mandate beside a batch, seen 23 Oct 2026). Take, among those whose lanes cover
+    // this lane, the one that lists EVERY recipient; failing that, one that asks the person about
+    // new recipients; failing that, the first for the lane (then the first for the identity), so
+    // the recipients or lane rule says why it was refused. One mandate must cover the whole
+    // message: recipients split across two grants are never stitched together.
     const mine = mandates.filter((m) => m.limits.identities.some((i) => lc(i) === lc(p.from)));
-    return mine.find((m) => !m.limits.lanes || m.limits.lanes.some((x) => lc(x) === lc(String(p.lane)))) ?? mine[0] ?? null;
+    const inLane = mine.filter((m) => !m.limits.lanes || m.limits.lanes.some((x) => lc(x) === lc(String(p.lane))));
+    const covers = (m: OutwardMandate<SendLimits>) => all(p).every((a) => typeof a === "string" && onList(a, m.limits.recipients));
+    return inLane.find(covers) ?? inLane.find((m) => m.limits.ask_on_new_recipient) ?? inLane[0] ?? mine[0] ?? null;
   },
 
   permissives: [
