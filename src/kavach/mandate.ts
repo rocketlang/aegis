@@ -186,8 +186,9 @@ export function issueMandate(sessionId: string, opts: { trustMask: number; scope
 }
 
 /**
- * At a session start (or resume): keep a valid mandate; issue one when there is none; renew one that has
- * expired (founder ruling 2026-10-15: 24 hours, renewed at session start). A revoked or malformed mandate is
+ * At a session start (or resume), and at any call that finds it expired: keep a valid mandate; issue one when
+ * there is none; renew one that has expired (founder rulings 2026-10-15: 24 hours, renewed at session start;
+ * 2026-10-23: renewed mid-session too, from the shield's per-call check). A revoked or malformed mandate is
  * NEVER replaced for the same session: a revocation ends that flow (GTP-022), and a new session is a new
  * flow. No principal, no mandate.
  */

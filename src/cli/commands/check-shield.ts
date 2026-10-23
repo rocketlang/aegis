@@ -92,15 +92,17 @@ export default async function checkShield(_args: string[]): Promise<void> {
     });
 
     // @rule:GTP-017 a flow's root is its mandate: issued at the session's first tool call when it has
-    // none (the principal is the first owner in the approvers file). A revoked or expired mandate is
-    // never replaced inside the same session: only a new session gets a new one.
+    // none (the principal is the first owner in the approvers file). An EXPIRED one is renewed at the next
+    // call too (founder ruling 2026-10-23: a long session lost its 24 hours partway and every send, even to
+    // his own inbox, was refused until a resume). A REVOKED or malformed one is never replaced inside the
+    // same session: only a new session gets a new one (GTP-022).
     // @rule:GTP-022 a call whose mandate is not valid is refused when the box enforces AND has opted in
     // with kavach.mandate "enforce"; otherwise it is recorded (founder rulings 2026-10-15, 2a and a).
     const callSession = typeof toolInput.session_id === "string" ? toolInput.session_id : "";
     let carriedRefusal: string | undefined;
     try {
       mandate = mandateForCall(callSession);
-      if (mandate.status === "missing" && callSession) {
+      if ((mandate.status === "missing" || mandate.status === "expired") && callSession) {
         let remote: string | null = null;
         try {
           remote = execFileSync("git", ["-C", typeof toolInput.cwd === "string" && toolInput.cwd ? toolInput.cwd : process.cwd(), "remote", "get-url", "origin"], { encoding: "utf8", timeout: 1500, stdio: ["ignore", "pipe", "ignore"] }).trim() || null;

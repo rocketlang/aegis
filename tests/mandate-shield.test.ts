@@ -57,6 +57,23 @@ describe("mandate in the shield", () => {
     expect(sessionPointer(home, "S2")).toBe(id);
   });
 
+  // Founder ruling 2026-10-23: an expired mandate is renewed at the next call inside the same session.
+  test("enforce: a mandate that expired mid-session is renewed at the next call, and the call is allowed", () => {
+    const { home, env } = box("enforce");
+    const issue = `const M = await import(${JSON.stringify(join(import.meta.dir, "..", "src/kavach/mandate.ts"))});
+      const m = M.issueMandate("S7", { trustMask: 1, scopeKey: "aegis", principal: "owner:telegram:555000111", now: new Date(Date.now() - 25 * 3600 * 1000) });
+      console.log(m.mudrika_id, M.mandateForCall("S7").status);`;
+    const r0 = spawnSync("bun", ["-e", issue], { env, encoding: "utf8", timeout: 30000 });
+    const [old, status] = r0.stdout.trim().split(" ");
+    expect(status).toBe("expired");
+    expect(call(env, "S7").code).toBe(0);
+    const now = sessionPointer(home, "S7");
+    expect(now).toMatch(/^mdr_/);
+    expect(now).not.toBe(old);
+    expect(call(env, "S7").code).toBe(0);
+    expect(sessionPointer(home, "S7")).toBe(now);
+  });
+
   test("enforce: no approver means no mandate, refused GTP-017", () => {
     const { env } = box("enforce", false);
     const r = call(env, "S3");
