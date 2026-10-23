@@ -154,6 +154,34 @@ describe("aegis outward-send, end to end against the fake mailer", () => {
     expect([other.code, other.j?.mandate_id]).toEqual([2, "send-review"]);
     expect(other.j.refusals.join()).toContain("ANU-I-012.lane");
   });
+  it("two mandates for one identity AND lane: the one whose list holds the recipients is used (23 Oct: a test mandate shadowed a batch)", async () => {
+    reset();
+    mkdirSync(AEGIS, { recursive: true });
+    const now = Date.now();
+    const m = (id: string, recipients: string[], extra: Record<string, unknown> = {}) => ({
+      id, kind: "send", reason: "test", granted_by: "tester", granted_at: new Date(now).toISOString(),
+      expires_at: new Date(now + 3600e3).toISOString(),
+      limits: { identities: ["xshield-go"], recipients, per_lane_per_day: 10, lanes: ["xshield"], ...extra },
+    });
+    const base = { from: "xshield-go", lane: "xshield", claims: [] };
+    writeFileSync(MANDATES, JSON.stringify([m("send-test", ["founder@own.example"]), m("send-batch", ["info@agency.example", "@other.example"])]));
+    const batch = await send(mail({ ...base, to: ["info@agency.example"] }), ["--dry-run"]);
+    expect([batch.code, batch.j?.verdict, batch.j?.mandate_id]).toEqual([0, "PERMIT", "send-batch"]);
+    const byDomain = await send(mail({ ...base, to: ["hello@other.example"] }), ["--dry-run"]);
+    expect([byDomain.code, byDomain.j?.mandate_id]).toEqual([0, "send-batch"]);
+    const founder = await send(mail({ ...base, to: ["founder@own.example"] }), ["--dry-run"]);
+    expect([founder.code, founder.j?.mandate_id]).toEqual([0, "send-test"]);
+    // Recipients split across two mandates: no single grant covers the message, so it is refused, not stitched together.
+    const split = await send(mail({ ...base, to: ["founder@own.example", "info@agency.example"] }), ["--dry-run"]);
+    expect(split.code).toBe(2);
+    expect(split.j.refusals.join()).toContain("ANU-I-012.recipients");
+    const stranger = await send(mail({ ...base, to: ["x@nowhere.example"] }), ["--dry-run"]);
+    expect([stranger.code, stranger.j?.mandate_id]).toEqual([2, "send-test"]);
+    // Nobody lists the address, but one mandate asks the person about new recipients: that one is used (ask, not refuse).
+    writeFileSync(MANDATES, JSON.stringify([m("send-test", ["founder@own.example"]), m("send-ask", ["a@b.example"], { ask_on_new_recipient: true })]));
+    const asked = await send(mail({ ...base, to: ["x@nowhere.example"] }), ["--dry-run"]);
+    expect([asked.j?.mandate_id, asked.j?.ask]).toEqual(["send-ask", true]);
+  });
   it("--dry-run judges only: nothing sent, nothing ledgered", async () => {
     reset(); grant({});
     const r = await send(mail(), ["--dry-run"]);
