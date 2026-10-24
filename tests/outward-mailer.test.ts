@@ -22,7 +22,9 @@ beforeAll(() => {
     port: 0,
     async fetch(req) {
       if (new URL(req.url).pathname !== "/send") return new Response("no", { status: 404 });
-      const b = (await req.json()) as Got;
+      const b = (await req.json()) as Got & { attachments?: { filename: string; path: string; seen?: string }[] };
+      // The guard removes its copies after the send: read them now, as the real mailer would.
+      for (const a of b.attachments ?? []) a.seen = readFileSync(a.path, "utf8");
       got.push(b);
       const body = answer.body ?? { ok: true, messageId: `<fake-${got.length}@test>`, to: b.to };
       return Response.json(body, { status: answer.status });
@@ -200,6 +202,70 @@ describe("aegis outward-send, end to end against the fake mailer", () => {
     expect([r.code, r.j?.sent]).toEqual([1, false]);
     expect(ledger().map((e) => e.event)).toEqual(["decided", "execute-refused"]);
   });
+  describe("attachments", () => {
+    const OUT = join(BASE, "outbox"), ELSE = join(BASE, "elsewhere");
+    mkdirSync(OUT, { recursive: true }); mkdirSync(ELSE, { recursive: true });
+    const file = (dir: string, name: string, text: string) => { const p = join(dir, name); writeFileSync(p, text); return p; };
+    const sha = (s: string) => new Bun.CryptoHasher("sha256").update(s).digest("hex");
+    const one = file(OUT, "prereg.json", '{"a":1}');
+
+    it("a mandate with attach_from and a file inside it, hash matching: sent, the mailer gets a copy with the same bytes", async () => {
+      reset(); grant({ attach_from: [OUT] });
+      const r = await send(mail({ attachments: [{ path: one, sha256: sha('{"a":1}') }] }));
+      expect([r.code, r.j?.sent]).toEqual([0, true]);
+      const a = (got[0] as any).attachments;
+      expect(a.length).toBe(1);
+      expect([a[0].filename, a[0].seen]).toEqual(["prereg.json", '{"a":1}']);
+      expect(a[0].path).not.toBe(one);            // the checked copy, not the original
+      expect(existsSync(a[0].path)).toBe(false);  // and the copy is gone after the send
+    });
+    it("no attach_from in the mandate: refused, nothing sent", async () => {
+      reset(); grant({});
+      const r = await send(mail({ attachments: [{ path: one, sha256: sha('{"a":1}') }] }));
+      expect([r.code, got.length]).toEqual([2, 0]);
+      expect(r.j.refusals.join()).toContain("does not allow attachments");
+    });
+    it("a file outside attach_from, or reached through a symlink out of it: refused", async () => {
+      reset(); grant({ attach_from: [OUT] });
+      const out = file(ELSE, "key.txt", "secret");
+      expect((await send(mail({ attachments: [{ path: out, sha256: sha("secret") }] }))).code).toBe(2);
+      const link = join(OUT, "link.txt");
+      rmSync(link, { force: true }); require("fs").symlinkSync(out, link);
+      const r = await send(mail({ attachments: [{ path: link, sha256: sha("secret") }] }));
+      expect([r.code, got.length]).toEqual([2, 0]);
+      expect(r.j.refusals.join()).toContain("not inside a directory");
+      const dots = await send(mail({ attachments: [{ path: join(OUT, "..", "elsewhere", "key.txt"), sha256: sha("secret") }] }));
+      expect([dots.code, got.length]).toEqual([2, 0]);
+    });
+    it("a file whose SHA-256 is not the proposal's: refused, nothing sent", async () => {
+      reset(); grant({ attach_from: [OUT] });
+      const r = await send(mail({ attachments: [{ path: one, sha256: sha("something else") }] }));
+      expect([r.code, got.length]).toEqual([2, 0]);
+      expect(r.j.refusals.join()).toContain("file changed");
+    });
+    it("a relative path, a directory, or a bad hash: refused", async () => {
+      reset(); grant({ attach_from: [OUT] });
+      for (const a of [{ path: "outbox/prereg.json", sha256: sha('{"a":1}') }, { path: OUT, sha256: sha("") }, { path: one, sha256: "ABC" }]) {
+        expect((await send(mail({ attachments: [a] }))).code).toBe(2);
+      }
+      expect(got.length).toBe(0);
+    });
+    it("the effector: a file changed after judging is not sent", async () => {
+      reset();
+      const p = file(OUT, "late.txt", "before");
+      await expect(mailerEffector(URL_).deliver({ from: "d", to: ["a@x.example"], cc: [], bcc: [], subject: "s", body: "b", attachments: [{ path: p, sha256: sha("after") }] })).rejects.toThrow("changed after it was judged");
+      expect(got.length).toBe(0);
+    });
+    it("a mandate whose attach_from is relative or the filesystem root is not valid", async () => {
+      const { sendPlugin } = await import("../src/kavach/outward-send");
+      const base = { identities: ["d"], recipients: ["a@x.example"], per_lane_per_day: 1 };
+      expect(sendPlugin.parseLimits({ ...base, attach_from: ["outbox"] })).toBeNull();
+      expect(sendPlugin.parseLimits({ ...base, attach_from: ["/"] })).toBeNull();
+      expect(sendPlugin.parseLimits({ ...base, attach_from: [OUT] })?.attach_from).toEqual([OUT]);
+      expect(sendPlugin.parseLimits(base)?.attach_from).toBeUndefined();
+    });
+  });
+
   it("a proposal that is not JSON: exit 3 (broke), nothing sent", async () => {
     reset();
     const proc = Bun.spawn(["bun", "run", join(ROOT, "src/cli/index.ts"), "outward-send", "--proposal", "{nope"], { env: { ...process.env, HOME: BASE, AEGIS_MAILER_URL: URL_ } as any, stdout: "pipe", stderr: "pipe" });

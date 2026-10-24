@@ -12,11 +12,19 @@
 // Where the mailer is: ports.json `backend.ankrMailer` (R-008). No port there = no send; never a
 // guessed one. AEGIS_MAILER_URL overrides it for tests; pointing it elsewhere can only divert a
 // message away from the mailer, never past the guard.
+//
+// Attachments: the mailer reads a file by its path. Each file is first copied into a private
+// directory and the copy's SHA-256 checked against the proposal's; the mailer is given the copy, so
+// a change to the original after that check cannot reach the mail. The copies are removed after.
+// Ceiling: the mailer runs on this box and could read another path if told to; the guard only ever
+// names the checked copy.
 
-import { readFileSync } from "fs";
+import { copyFileSync, mkdtempSync, readFileSync, rmSync } from "fs";
+import { tmpdir } from "os";
+import { basename, join } from "path";
 import { PORTS_JSON } from "./plant-state";
 import type { Effector } from "./outward";
-import type { SendHandoff } from "./outward-send";
+import { sha256File, type SendHandoff } from "./outward-send";
 
 export function mailerUrl(portsPath = PORTS_JSON): string {
   if (process.env.AEGIS_MAILER_URL) return process.env.AEGIS_MAILER_URL.replace(/\/$/, "");
@@ -31,18 +39,33 @@ export function mailerEffector(url: string, fetchImpl: typeof fetch = fetch): Ef
     name: "ankr-mailer",
     async deliver(h) {
       if (h.cc.length || h.bcc.length) throw new Error("ANU-016: ankr-mailer /send cannot carry cc or bcc; refused rather than sent without them");
-      const r = await fetchImpl(`${url}/send`, {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ to: h.to.length === 1 ? h.to[0] : h.to, subject: h.subject, text: h.body, account: h.from, noSignature: true }),
-        signal: AbortSignal.timeout(30_000),
-      });
-      let body: any = null;
-      try { body = await r.json(); } catch { /* not JSON */ }
-      if (r.status !== 200 || !body?.ok || typeof body.messageId !== "string") {
-        throw new Error(`ankr-mailer answered ${r.status}: ${String(body?.error ?? "no ok").slice(0, 200)}`);
+      const files = h.attachments ?? [];
+      const dir = files.length ? mkdtempSync(join(tmpdir(), "aegis-attach-")) : null; // mkdtemp makes it 0700
+      try {
+        const attachments = files.map((a, i) => {
+          const copy = join(dir!, `${i}-${basename(a.path)}`);
+          copyFileSync(a.path, copy);
+          if (sha256File(copy) !== a.sha256) throw new Error(`ANU-013: ${a.path} changed after it was judged; nothing sent`);
+          return { filename: basename(a.path), path: copy };
+        });
+        const r = await fetchImpl(`${url}/send`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            to: h.to.length === 1 ? h.to[0] : h.to, subject: h.subject, text: h.body, account: h.from, noSignature: true,
+            ...(attachments.length ? { attachments } : {}),
+          }),
+          signal: AbortSignal.timeout(30_000),
+        });
+        let body: any = null;
+        try { body = await r.json(); } catch { /* not JSON */ }
+        if (r.status !== 200 || !body?.ok || typeof body.messageId !== "string") {
+          throw new Error(`ankr-mailer answered ${r.status}: ${String(body?.error ?? "no ok").slice(0, 200)}`);
+        }
+        return { ref: body.messageId };
+      } finally {
+        if (dir) rmSync(dir, { recursive: true, force: true });
       }
-      return { ref: body.messageId };
     },
   };
 }

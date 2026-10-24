@@ -56,6 +56,7 @@ export function widthNotes(kind: string, limits: any): string[] {
     if (domains.length) notes.push(`${domains.join(", ")} permit ANYONE at ${domains.length > 1 ? "those domains" : "that domain"}.`);
     if (limits.ask_on_new_recipient) notes.push("a recipient not on the list will be asked about, not refused.");
     if (!limits.lanes) notes.push("no lanes named: any lane is allowed.");
+    if (limits.attach_from?.length) notes.push(`files may be attached from anywhere under ${limits.attach_from.join(", ")}, subfolders included.`);
   }
   if (kind === "spend") {
     if (limits.ask_above >= limits.per_purchase_cap) notes.push("ask_above is at or over the per-purchase cap: no purchase will ever be asked about.");
@@ -153,7 +154,10 @@ send:
     "per_lane_per_day": 10,                          (required)
     "lanes": ["mari8x"],                             optional; absent = any lane
     "ask_on_new_recipient": false,                   optional; true = ask instead of refuse
-    "ask_always": false }                            optional; true = every message waits for you
+    "ask_always": false,                             optional; true = every message waits for you
+    "attach_from": ["/home/me/outbox"] }             optional; absolute directories files may be attached
+                                                     from; absent = no attachments. A proposal names each
+                                                     file as {"path", "sha256"}; a changed file is refused.
 
 spend:
   { "mandate_id": "same as --id", "agent_id": "cc:<session>", "currency": "INR",

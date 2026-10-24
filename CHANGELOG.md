@@ -4,6 +4,12 @@ All notable changes to AEGIS will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [Unreleased]
+
+### Added
+
+- **The send guard can carry attachments.** A proposal for `aegis outward-send` may list files as `{"path", "sha256"}`. A send mandate allows them only when its limits name `attach_from`, absolute directories the files must lie in (symlinks are followed before the check, so a link cannot lead out). Each file must be a regular file under 10 MB, at most 10 files and 20 MB in all, and its SHA-256 must match the proposal's, both when it is judged and again before hand-off. The mailer is given a private copy whose hash was checked, never the original path, and the copy is removed after the send. A mandate without `attach_from` refuses any attachment, so existing mandates are unchanged.
+
 ## [2.27.3] — 2026-10-23
 
 ### Fixed
