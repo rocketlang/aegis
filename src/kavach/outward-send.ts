@@ -57,6 +57,8 @@ export interface SendProposal {
   body: string;
   claims?: Claim[];          // e.g. the outreach hold's claim_ref + proof_url
   attachments?: SendAttachment[];
+  why?: string;              // ANU-018: why this message, now; shown to the person, never sent
+  supersedes?: string;       // ANU-018: proposal hash of the draft this one replaces
 }
 
 export interface SendLimits {
@@ -172,12 +174,17 @@ export const sendPlugin: OutwardPlugin<SendProposal, SendLimits, SendHandoff> = 
 
   claims: (p) => p.claims ?? [],
 
+  memo: (p) => ({ why: p.why, supersedes: p.supersedes }),
+  // memoStage left at observe (ANU-YK-002): a send with no reason is noted, not refused, until the founder promotes it.
+
   budget: (p, l) => ({ key: `lane:${p.lane}`, units: 1, cap: l.per_lane_per_day, period_ms: 86_400_000 }),
 
   render(p) {
     const line = (k: string, v?: string[]) => (v && v.length ? `${k}: ${v.join(", ")}\n` : "");
     const files = (p.attachments ?? []).map((a) => `attach: ${a?.path} (sha256 ${String(a?.sha256).slice(0, 16)}…)\n`).join("");
-    return `send e-mail · lane ${p.lane}\nfrom: ${p.from}\n${line("to", p.to)}${line("cc", p.cc)}${line("bcc", p.bcc)}subject: ${p.subject}\n${files}---\n${p.body}`;
+    const memo = (typeof p.why === "string" && p.why.trim() ? `why: ${p.why.trim().replace(/\s+/g, " ")}\n` : "")
+      + (typeof p.supersedes === "string" ? `redraft of: ${p.supersedes}\n` : "");
+    return `send e-mail · lane ${p.lane}\nfrom: ${p.from}\n${line("to", p.to)}${line("cc", p.cc)}${line("bcc", p.bcc)}subject: ${p.subject}\n${files}${memo}---\n${p.body}`;
   },
 
   handoff: (p) => ({

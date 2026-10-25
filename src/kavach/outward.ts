@@ -12,6 +12,8 @@
 // @rule:ANU-015 a budget counts what was done and what was approved but not yet done
 // @rule:ANU-016 the effector is handed only what this act needs, and holds the credential
 // @rule:ANU-017 every outward decision is ledgered, PERMIT included
+// @rule:ANU-018 an act says why (its memo, bound into the hash); a redraft names the draft it replaces
+// @rule:ANU-019 a declined act stays declined; a changed draft is a new act
 // @rule:ANU-YK-002 a new plug-in ships observe
 //
 // Same discipline as anumati(): permissives are pure, cite their law and source; UNKNOWN refuses
@@ -65,6 +67,11 @@ export interface OutwardPlugin<P, L, H> {
   claims?(p: P): Claim[];
   /** Budget key (e.g. the lane), units this act uses, and the cap and period from the limits (ANU-015). */
   budget?(p: P, limits: L): { key: string; units: number; cap: number; period_ms: number; law?: string };
+  /** The act's memo (ANU-018): why this act, and the proposal hash of the draft it replaces, if any.
+   *  Both must be fields of the proposal, so the hash, and so the approval, covers them. */
+  memo?(p: P): { why?: unknown; supersedes?: unknown };
+  /** Stage of ANU-018 for this plug-in. Default observe (ANU-YK-002), whatever the plug-in's stage. */
+  memoStage?: Stage;
   /** The whole act as the person will be shown it before approving. */
   render(p: P): string;
   /** What the effector is handed: only what this act needs (ANU-016). */
@@ -75,7 +82,7 @@ export interface OutwardPlugin<P, L, H> {
 
 export interface OutwardLedgerEntry {
   ts: string;
-  event: "decided" | "approved" | "executed" | "execute-refused";
+  event: "decided" | "approved" | "declined" | "executed" | "execute-refused";
   kind: string;
   session: string | null;
   proposal_hash: string;
@@ -89,6 +96,10 @@ export interface OutwardLedgerEntry {
   units?: number;
   results?: PermissiveResult[];
   detail?: string;
+  /** ANU-018: the act's stated reason, when it gave a usable one. */
+  why?: string | null;
+  /** ANU-018: the proposal hash of the draft this one replaces. */
+  supersedes?: string | null;
 }
 
 export interface OutwardDecision {
@@ -108,8 +119,13 @@ export interface OutwardDecision {
   mandate_id: string | null;
   budget_key: string | null;
   units: number;
+  why: string | null;
+  supersedes: string | null;
   evaluated_at: string;
 }
+
+export const WHY_MAX = 1000;
+const HASH = /^[0-9a-f]{64}$/;
 
 export interface OutwardContext<L> {
   session_id: string | null;
@@ -213,13 +229,41 @@ export function judgeOutward<P, L, H>(plugin: OutwardPlugin<P, L, H>, proposal: 
     }
   }
 
+  // @rule:ANU-018 — the memo: why this act, and which draft it replaces. Mandate or not, so a refused
+  // act still records its reason.
+  let why: string | null = null;
+  let supersedes: string | null = null;
+  if (plugin.memo) {
+    const ms: Stage = plugin.memoStage ?? "observe";
+    const law = "ANU-018 — an act says why; a redraft names the draft it replaces";
+    let m: { why?: unknown; supersedes?: unknown } | null = null;
+    try { m = plugin.memo(proposal) ?? {}; } catch { push("ANU-018", "The act says why", law, "UNKNOWN", "the memo could not be read", undefined, ms); }
+    if (m) {
+      const w = typeof m.why === "string" ? m.why.trim() : "";
+      if (!w) push("ANU-018", "The act says why", law, "REFUSE", "no reason given for this act (why)", undefined, ms);
+      else if (w.length > WHY_MAX) push("ANU-018", "The act says why", law, "REFUSE", `the reason is ${w.length} characters, over ${WHY_MAX}`, undefined, ms);
+      else { why = w; push("ANU-018", "The act says why", law, "PERMIT", `why: ${w.length > 80 ? `${w.slice(0, 80)}…` : w}`, undefined, ms); }
+      if (m.supersedes !== undefined && m.supersedes !== null) {
+        const s = m.supersedes;
+        const seen = typeof s === "string" && ctx.ledger.some((e) => e.kind === plugin.kind && e.event === "decided" && e.proposal_hash === s);
+        const r: [Verdict, string] =
+          typeof s !== "string" || !HASH.test(s) ? ["REFUSE", "supersedes must be a proposal hash (64 lower-case hex characters)"]
+          : s === hash ? ["REFUSE", "a proposal cannot replace itself"]
+          : !seen ? ["REFUSE", `supersedes ${s.slice(0, 16)}…, a ${plugin.kind} proposal this ledger has not seen`]
+          : ["PERMIT", `redraft of ${s.slice(0, 16)}…`];
+        if (r[0] === "PERMIT") supersedes = s as string;
+        push("ANU-018.supersedes", "A redraft names the draft it replaces", law, r[0], r[1], "outward.jsonl", ms);
+      }
+    }
+  }
+
   const notPermitted = results.filter((r) => r.verdict !== "PERMIT");
   const refusals = notPermitted.filter((r) => r.stage !== "observe");
   const observations = notPermitted.filter((r) => r.stage === "observe");
   const verdict = refusals.length === 0 ? "PERMIT" : "REFUSE";
   return {
     kind: plugin.kind, verdict, ask: verdict === "PERMIT" && ask, stage, results, refusals, observations, asked,
-    proposal_hash: hash, shown, mandate_id: mandate?.id ?? null, budget_key: budgetKey, units, evaluated_at: ctx.now.toISOString(),
+    proposal_hash: hash, shown, mandate_id: mandate?.id ?? null, budget_key: budgetKey, units, why, supersedes, evaluated_at: ctx.now.toISOString(),
   };
 }
 
@@ -279,12 +323,27 @@ export function ledgerOutward(e: OutwardLedgerEntry, path = OUTWARD_LEDGER): voi
 }
 
 export function decidedEntry(d: OutwardDecision, session: string | null): OutwardLedgerEntry {
+  // An observed memo gap (ANU-018) does not make an act unclean: clean decides budget counting, and a
+  // send with no reason given still goes while the memo rule is in observe.
+  const observed = d.observations.filter((r) => !r.id.startsWith("ANU-018"));
   return {
     ts: d.evaluated_at, event: "decided", kind: d.kind, session, proposal_hash: d.proposal_hash, mandate_id: d.mandate_id,
-    verdict: d.verdict, ask: d.ask, clean: d.verdict === "PERMIT" && !d.ask && d.observations.length === 0,
-    stage: d.stage, budget_key: d.budget_key, units: d.units, results: d.results,
+    verdict: d.verdict, ask: d.ask, clean: d.verdict === "PERMIT" && !d.ask && observed.length === 0,
+    stage: d.stage, budget_key: d.budget_key, units: d.units, results: d.results, why: d.why, supersedes: d.supersedes,
   };
 }
+
+/**
+ * @rule:ANU-019 — the person says no to one exact act. Run by a person; an agent that writes it only
+ * stops its own act. Declining does not touch the approval authority: a code already approved for the
+ * act is still refused here, before hand-off.
+ */
+export function declinedEntry(kind: string, proposalHash: string, reason: string, session: string | null, now = new Date()): OutwardLedgerEntry {
+  return { ts: now.toISOString(), event: "declined", kind, session, proposal_hash: proposalHash, mandate_id: null, detail: reason };
+}
+
+export const isDeclined = (ledger: OutwardLedgerEntry[], kind: string, hash: string): boolean =>
+  ledger.some((e) => e.event === "declined" && e.kind === kind && e.proposal_hash === hash);
 
 // ── Ask and execute (ANU-013, ANU-016) ───────────────────────────────────────
 
@@ -318,7 +377,9 @@ export function preflightOutward<P, L, H>(plugin: OutwardPlugin<P, L, H>, propos
   if (proposalHash(plugin.kind, proposal) !== d.proposal_hash) return { ok: false, reason: "ANU-013: the proposal changed after it was judged" };
   if (d.verdict !== "PERMIT") return { ok: false, reason: d.refusals.map((r) => r.detail).join("; ") };
   let again: OutwardDecision;
-  try { again = judgeOutward(plugin, proposal, fresh()); } catch { return { ok: false, reason: "ANU-012: the act could not be judged again before hand-off" }; }
+  let ctx: OutwardContext<unknown>;
+  try { ctx = fresh(); again = judgeOutward(plugin, proposal, ctx); } catch { return { ok: false, reason: "ANU-012: the act could not be judged again before hand-off" }; }
+  if (isDeclined(ctx.ledger, plugin.kind, d.proposal_hash)) return { ok: false, reason: "ANU-019: the person declined this exact act" };
   if (again.verdict !== "PERMIT") return { ok: false, reason: again.refusals.map((r) => r.detail).join("; ") };
   try { return { ok: true, ask: d.ask || again.ask, handoff: plugin.handoff(proposal) }; }
   catch (e: any) { return { ok: false, reason: e?.message ? String(e.message) : "ANU-016: hand-off could not be built" }; }

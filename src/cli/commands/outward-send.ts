@@ -43,7 +43,7 @@ export function sessionFlow(env = process.env): { session: string | null; flowSt
 
 function summary(d: OutwardDecision): Record<string, unknown> {
   return {
-    verdict: d.verdict, ask: d.ask, stage: d.stage, proposal_hash: d.proposal_hash, mandate_id: d.mandate_id,
+    verdict: d.verdict, ask: d.ask, stage: d.stage, proposal_hash: d.proposal_hash, mandate_id: d.mandate_id, why: d.why, supersedes: d.supersedes,
     refusals: d.refusals.map((r) => `${r.id}: ${r.detail}`),
     observations: d.observations.map((r) => `${r.id}: ${r.detail}`),
     asked: d.asked.map((r) => `${r.id}: ${r.detail}`),
@@ -97,7 +97,7 @@ export default async function outwardSend(args: string[]): Promise<void> {
     else say({
       ...base, sent: false, reason: r.reason,
       approval_code: r.approval_code,
-      next: r.approval_code ? `a person approves in their own terminal: aegis approve-destructive ${r.approval_code} — then run this send again` : undefined,
+      next: r.approval_code ? `a person approves in their own terminal: aegis approve-destructive ${r.approval_code} — then run this send again; or says no: aegis outward-decline ${d.proposal_hash} --reason "<why not>"` : undefined,
     }, r.reason.startsWith("effector ") ? 1 : 2);
   } catch (e: any) {
     process.stderr.write(`outward-send broke: ${e?.message ?? e}\n`);

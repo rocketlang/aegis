@@ -118,6 +118,10 @@ async function main() {
       return (await import("./commands/outward-mandate")).default(args);
     case "outward-send":
       return (await import("./commands/outward-send")).default(args);
+    case "outward-decline":
+      return (await import("./commands/outward-decline")).default(args);
+    case "outward-record":
+      return (await import("./commands/outward-record")).default(args);
     case "touched":
       return (await import("./commands/touched")).default(args);
     case "ci-audit":
