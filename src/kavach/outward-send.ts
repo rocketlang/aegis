@@ -175,7 +175,7 @@ export const sendPlugin: OutwardPlugin<SendProposal, SendLimits, SendHandoff> = 
   claims: (p) => p.claims ?? [],
 
   memo: (p) => ({ why: p.why, supersedes: p.supersedes }),
-  // memoStage left at observe (ANU-YK-002): a send with no reason is noted, not refused, until the founder promotes it.
+  memoStage: "enforce", // ANU-YK-002: promoted by the founder, 2026-10-25 ("make 'why' required")
 
   budget: (p, l) => ({ key: `lane:${p.lane}`, units: 1, cap: l.per_lane_per_day, period_ms: 86_400_000 }),
 

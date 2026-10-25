@@ -39,7 +39,7 @@ describe("grant", () => {
   });
   it("the granted mandate is what the kernel reads: a listed mail is permitted", () => {
     const d = K.judgeOutward({ ...sendPlugin, stage: "enforce" }, {
-      channel: "email", lane: "mari8x", from: "desk-mari8x", to: ["ops@known.example"], subject: "s", body: "b",
+      channel: "email", lane: "mari8x", from: "desk-mari8x", to: ["ops@known.example"], subject: "s", body: "b", why: "w",
     }, { session_id: "s", now: new Date(), mandates: K.readOutwardMandates(FILE), ledger: [], flowStatus: "valid" });
     expect(d.verdict).toBe("PERMIT");
   });
@@ -81,7 +81,7 @@ describe("list, show, revoke", () => {
   });
   it("revoke removes it, records why, and an act judged under it is refused at hand-off", () => {
     const plugin = { ...sendPlugin, stage: "enforce" as const };
-    const mail = { channel: "email" as const, lane: "mari8x", from: "desk-mari8x", to: ["ops@known.example"], subject: "s", body: "b" };
+    const mail = { channel: "email" as const, lane: "mari8x", from: "desk-mari8x", to: ["ops@known.example"], subject: "s", body: "b", why: "w" };
     const fresh = () => ({ session_id: "s", now: new Date(), mandates: K.readOutwardMandates(FILE).filter((m) => m.id === "send-a"), ledger: [], flowStatus: "valid" });
     const judged = K.judgeOutward(plugin, mail, fresh());
     expect(judged.verdict).toBe("PERMIT");

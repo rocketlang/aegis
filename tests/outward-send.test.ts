@@ -30,7 +30,7 @@ const mandate = (over: Record<string, unknown> = {}, extra: Record<string, unkno
 });
 const mail = (over: Partial<SendProposal> = {}): SendProposal => ({
   channel: "email", lane: "mari8x", from: "desk-mari8x", to: ["ops@known-shipping.example"],
-  subject: "Voyage P&L check", body: "Hello, the summary you asked for is attached.", ...over,
+  subject: "Voyage P&L check", body: "Hello, the summary you asked for is attached.", why: "They asked for the P&L summary.", ...over,
 });
 const ctx = (over: Record<string, unknown> = {}) => ({
   session_id: "s1", now: NOW, mandates: [mandate()], ledger: [] as Entry[], flowStatus: "valid", ...over,
@@ -137,7 +137,7 @@ describe("ANU-011 kernel discipline", () => {
     expect(K.judgeOutward(broken as any, mail(), ctx()).refusals[0].verdict).toBe("UNKNOWN");
   });
   it("the proposal hash does not depend on key order", () => {
-    const a = mail(); const b = JSON.parse(JSON.stringify({ body: a.body, to: a.to, subject: a.subject, from: a.from, lane: a.lane, channel: a.channel }));
+    const a = mail(); const b = JSON.parse(JSON.stringify({ why: a.why, body: a.body, to: a.to, subject: a.subject, from: a.from, lane: a.lane, channel: a.channel }));
     expect(K.proposalHash("send", a)).toBe(K.proposalHash("send", b));
   });
 });

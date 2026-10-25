@@ -48,9 +48,13 @@ describe("ANU-018 — the act says why", () => {
       expect(d.why).toBeNull();
     }
   });
-  it("send ships it observe (ANU-YK-002): no reason is noted, the send still permits and still counts as clean", () => {
+  it("send enforces it (promoted 2026-10-25): no reason refuses", () => {
     const d = K.judgeOutward(sendPlugin, mail(), ctx());
-    expect([sendPlugin.memoStage ?? "observe", d.verdict]).toEqual(["observe", "PERMIT"]);
+    expect([sendPlugin.memoStage, d.verdict, ids(d.refusals)]).toEqual(["enforce", "REFUSE", ["ANU-018"]]);
+  });
+  it("observe-staged (as spend ships it): no reason is noted, the act still permits and still counts as clean", () => {
+    const d = K.judgeOutward({ ...sendPlugin, memoStage: "observe" }, mail(), ctx());
+    expect(d.verdict).toBe("PERMIT");
     expect(ids(d.observations)).toEqual(["ANU-018"]);
     expect(K.decidedEntry(d, null).clean).toBe(true);
   });

@@ -4,6 +4,18 @@ All notable changes to AEGIS will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [2.29.0] — 2026-10-25
+
+### Added
+
+- **An outward act says why (ANU-018).** A send proposal for `aegis outward-send` carries `why`, the reason for this message now, up to 1,000 characters. It is shown in the text the person approves and is part of the proposal hash, so a changed reason is a new act and an earlier approval does not carry over. It is recorded in `outward.jsonl` and never handed to the mailer. A redraft may name the draft it replaces with `supersedes` (that draft's proposal hash), which must be a proposal of the same kind already in the ledger. Spend carts take the same two fields.
+- **A declined act stays declined (ANU-019).** `aegis outward-decline <proposal_hash> --reason "..."` records a person's no to one exact act; that act is then refused before hand-off, even if its approval code was approved. Refused inside an agent session.
+- **`aegis outward-record [--days N] [--json]`.** Read-only: per kind and lane, how many proposals were sent or refused, and of those put to the person, how many were approved, declined, cleared by a later judgement (for example a widened mandate), lapsed (no answer within 40 minutes) or still waiting; how many were redrafts, and how many said why. One count per proposal. It loosens nothing.
+
+### Changed
+
+- **The send guard refuses a message with no reason.** ANU-018 is enforced for send (promoted by the founder on 25 Oct 2026). A proposal without `why` now exits 2 with "no reason given for this act (why)". Spend ships the rule in observe: a cart without a reason is noted, not refused.
+
 ## [2.28.0] — 2026-10-25
 
 ### Added

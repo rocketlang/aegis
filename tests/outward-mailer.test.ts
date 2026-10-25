@@ -48,7 +48,7 @@ const grant = (limits: Record<string, unknown>, extra: Record<string, unknown> =
 };
 const reset = () => { got.length = 0; answer = { status: 200, body: null }; rmSync(LEDGER, { force: true }); rmSync(MANDATES, { force: true }); };
 const mail = (over: Record<string, unknown> = {}) => ({
-  channel: "email", lane: "mari8x", from: "desk-mari8x", to: ["ops@known.example"], subject: "Voyage P&L", body: "The summary.",
+  channel: "email", lane: "mari8x", from: "desk-mari8x", to: ["ops@known.example"], subject: "Voyage P&L", body: "The summary.", why: "They asked for it.",
   claims: [{ text: "cuts reconciliation time", source_url: "https://ankr.in/proof/1" }], ...over,
 });
 async function send(p: unknown, flags: string[] = [], env: Record<string, string | undefined> = {}) {
