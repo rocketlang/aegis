@@ -24,6 +24,8 @@ export interface Cart {
   shipping: number;
   total: number;                      // the agent's figure; recomputed here
   best_deal?: { comparison: Quote[] };
+  why?: string;                       // ANU-018: why this purchase, now; shown to the person
+  supersedes?: string;                // ANU-018: proposal hash of the cart this one replaces
 }
 
 export interface SpendLimits {
@@ -162,9 +164,14 @@ export function makeSpendPlugin(cartHash: (c: Cart) => string): OutwardPlugin<Ca
     // ASG-YK-001: the period cap counts paid plus approved-not-paid (ANU-015 does the counting).
     budget: (c, l) => ({ key: `mandate:${l.mandate_id}`, units: ints(c).every(isWhole) ? cartTotal(c) : 0, cap: l.period_cap, period_ms: l.period_days * 86_400_000, law: "ASG-YK-001" }),
 
+    memo: (c) => ({ why: c.why, supersedes: c.supersedes }),
+    // memoStage left at observe (ANU-YK-002): spend has no live caller yet; the founder promotes it.
+
     render(c) {
       const lines = c.lines.map((x) => `  ${x.qty} × ${x.title} (${x.sku}) from ${x.merchant} @ ${x.unit_price} — quote ${x.quote?.url ?? "NONE"}`).join("\n");
-      return `spend · cart ${c.cart_id} · mandate ${c.mandate_id} · agent ${c.agent_id}\n${lines}\n  shipping ${c.shipping}\n  total ${c.total} ${c.currency}`;
+      const memo = (typeof c.why === "string" && c.why.trim() ? `\n  why: ${c.why.trim().replace(/\s+/g, " ")}` : "")
+        + (typeof c.supersedes === "string" ? `\n  redraft of: ${c.supersedes}` : "");
+      return `spend · cart ${c.cart_id} · mandate ${c.mandate_id} · agent ${c.agent_id}\n${lines}\n  shipping ${c.shipping}\n  total ${c.total} ${c.currency}${memo}`;
     },
 
     // ASG-001: a token request for one merchant and one amount.
