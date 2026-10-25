@@ -14,6 +14,7 @@
 // @rule:ANU-017 every outward decision is ledgered, PERMIT included
 // @rule:ANU-018 an act says why (its memo, bound into the hash); a redraft names the draft it replaces
 // @rule:ANU-019 a declined act stays declined; a changed draft is a new act
+// @rule:ANU-020 an act already executed is never executed again (founder 2026-10-26: "never resend an act already sent")
 // @rule:ANU-YK-002 a new plug-in ships observe
 //
 // Same discipline as anumati(): permissives are pure, cite their law and source; UNKNOWN refuses
@@ -175,6 +176,16 @@ export function judgeOutward<P, L, H>(plugin: OutwardPlugin<P, L, H>, proposal: 
   // @rule:ANU-012 — the session's own authority first.
   if (ctx.flowStatus !== "valid") {
     consent("Session flow mandate is valid", ctx.flowDetail ?? `the session's flow mandate is ${ctx.flowStatus}`, "aegis mandates");
+  }
+
+  // @rule:ANU-020 — a cheque is cashed once. Enforced whatever the plug-in's stage. A changed act (one
+  // word, the reason, a recipient) is a different hash and a new act. Found 26 Oct 2026: the budget
+  // leaves an act's own hash out of its count (so an approved act does not count against itself), so
+  // before this rule an identical act already sent could go again.
+  const sentAt = ctx.ledger.find((e) => e.event === "executed" && e.kind === plugin.kind && e.proposal_hash === hash)?.ts;
+  if (sentAt) {
+    push("ANU-020", "Not already sent", "ANU-020 — an act already executed is never executed again", "REFUSE",
+      `this exact ${plugin.kind} act was already executed at ${sentAt}; change it to send a new one`, "outward.jsonl", "enforce");
   }
 
   // @rule:ANU-012 — a live mandate for this kind, with limits that parse.

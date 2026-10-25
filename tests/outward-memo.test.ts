@@ -169,3 +169,47 @@ describe("the outward record", () => {
     expect(R.outwardRecord([{ junk: 1 } as any, null as any], { now })).toEqual([]);
   });
 });
+
+describe("ANU-020 — an act already sent is never sent again", () => {
+  const p = mail({ why: "w" });
+  const h = K.proposalHash("send", p);
+  const executed = (hash: string, kind = "send"): Entry => ({ ts: "2026-10-25T09:00:00Z", event: "executed", kind, session: null, proposal_hash: hash, mandate_id: "send-1" });
+  it("the same act already executed: REFUSE, whatever the plug-in's stage", () => {
+    for (const plugin of [sendPlugin, { ...sendPlugin, stage: "observe" as const }]) {
+      const d = K.judgeOutward(plugin, p, ctx({ ledger: [executed(h)] }));
+      expect(d.verdict).toBe("REFUSE");
+      expect(ids(d.refusals)).toContain("ANU-020");
+    }
+  });
+  it("a changed act, another act, or the same hash under another kind: not refused by ANU-020", () => {
+    for (const ledger of [[executed(K.proposalHash("send", mail({ why: "w", body: "Changed." })))], [executed(h, "spend")], []]) {
+      const d = K.judgeOutward(sendPlugin, p, ctx({ ledger }));
+      expect(ids(d.results)).not.toContain("ANU-020");
+      expect(d.verdict).toBe("PERMIT");
+    }
+  });
+  it("a delivery that failed (execute-refused) may be tried again", () => {
+    const failed: Entry = { ...executed(h), event: "execute-refused", detail: "effector ankr-mailer failed" };
+    expect(K.judgeOutward(sendPlugin, p, ctx({ ledger: [failed] })).verdict).toBe("PERMIT");
+  });
+  it("end to end: the first run sends, the identical second run is refused at hand-off and never reaches the mailer", async () => {
+    const m = fakeMailer();
+    const log: Entry[] = [];
+    const c = () => ctx({ ledger: [...log] });
+    const run = async () => K.executeOutward(sendPlugin, p, K.judgeOutward(sendPlugin, p, c()), m.effector, yes, { fresh: c, ledger: (e) => log.push(e) });
+    expect((await run()).done).toBe(true);
+    const second = await run();
+    expect(second.done).toBe(false);
+    expect((second as any).reason).toContain("already executed");
+    expect(m.sent.length).toBe(1);
+  });
+  it("a judgement made before the first send, handed off after it, is refused too (judged again on fresh state)", async () => {
+    const m = fakeMailer();
+    const log: Entry[] = [];
+    const c = () => ctx({ ledger: [...log] });
+    const early = K.judgeOutward(sendPlugin, p, c());
+    expect((await K.executeOutward(sendPlugin, p, early, m.effector, yes, { fresh: c, ledger: (e) => log.push(e) })).done).toBe(true);
+    expect((await K.executeOutward(sendPlugin, p, early, m.effector, yes, { fresh: c, ledger: (e) => log.push(e) })).done).toBe(false);
+    expect(m.sent.length).toBe(1);
+  });
+});

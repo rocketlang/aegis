@@ -4,6 +4,12 @@ All notable changes to AEGIS will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [2.29.1] — 2026-10-26
+
+### Fixed
+
+- **An outward act already sent is never sent again (ANU-020).** The budget check leaves an act's own proposal hash out of its count, so an act being approved does not count against itself. A side effect: an identical act that had already been executed could be executed again, for example when a caller lost its own record of having sent it. The kernel now refuses any act whose exact proposal hash has an `executed` row in `outward.jsonl`, for every kind and whatever the plug-in's stage, both when it is judged and again before hand-off. A delivery that failed (`execute-refused`) may still be tried again, and a changed act (one word, the reason, a recipient) is a new hash and a new act. Not covered: two runs of the same act at the same instant, before either has written its `executed` row; and an act whose `executed` row could not be written.
+
 ## [2.29.0] — 2026-10-25
 
 ### Added
