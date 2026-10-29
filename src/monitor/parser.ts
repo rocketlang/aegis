@@ -83,16 +83,34 @@ function parseClaudeCode(data: any, projectPath: string): ParsedLine {
 // Extract usage from OpenAI Codex CLI format
 // Codex writes to ~/.codex/sessions/YYYY/MM/DD/rollout-*.jsonl
 // Format: { timestamp, type: "event_msg", payload: { type: "token_count", info: { last_token_usage: {...} } } }
+// AEG-T037 (checked 29 Oct 2026 against the 40 Codex rollouts on this box): a token_count event never names its
+// model; the model is in the file's latest turn_context line. Remembered per file (bounded).
+const codexModel = new Map<string, string>();
+
 function parseOpenAI(data: any, projectPath: string): ParsedLine {
+  // One id for every line of a Codex file, from its name, so usage, activity and the session agree.
+  const fileSession = extractCodexSessionId(projectPath);
+
   // Codex session_meta line has id and model
   if (data.type === "session_meta") {
-    const sid = data.payload?.id || null;
+    const id = data.payload?.id;
+    const sid = fileSession || (typeof id === "string" ? `codex-${id.slice(0, 8)}` : null);
     return { usage: null, is_user_message: false, session_id: sid };
   }
 
-  // Codex user_message line = user activity
+  // Codex turn_context names the model for the turns that follow
+  if (data.type === "turn_context") {
+    const m = data.payload?.model;
+    if (typeof m === "string" && m) {
+      if (codexModel.size > 2000) codexModel.clear();
+      codexModel.set(projectPath, m);
+    }
+    return { usage: null, is_user_message: false, session_id: fileSession };
+  }
+
+  // Codex user_message line = user activity (its payload carries no session id)
   if (data.type === "user_message" || data.payload?.type === "user_message") {
-    return { usage: null, is_user_message: true, session_id: data.payload?.session_id || null };
+    return { usage: null, is_user_message: true, session_id: data.payload?.session_id || fileSession };
   }
 
   // Codex token_count event
@@ -103,17 +121,20 @@ function parseOpenAI(data: any, projectPath: string): ParsedLine {
     }
 
     const usage = info.last_token_usage;
-    const session_id = extractCodexSessionId(projectPath) || "codex-unknown";
-    const model = data.payload.model || "gpt-5-codex";
+    const session_id = fileSession || "codex-unknown";
+    const model = data.payload.model || codexModel.get(projectPath) || "gpt-5-codex";
 
     // OpenAI pricing approximations (as of 2026)
     const inputPrice = model.includes("o1") ? 15 : model.includes("o3") ? 10 : 2.50;
     const outputPrice = model.includes("o1") ? 60 : model.includes("o3") ? 40 : 10;
     const cachedPrice = inputPrice / 2;
 
+    // input_tokens includes the cached ones: charge the uncached part at the input rate and the cached part
+    // once, at the cached rate (before 29 Oct the cached part was charged twice).
+    const cached = Math.min(usage.cached_input_tokens || 0, usage.input_tokens || 0);
     const cost =
-      ((usage.input_tokens || 0) / 1_000_000) * inputPrice +
-      ((usage.cached_input_tokens || 0) / 1_000_000) * cachedPrice +
+      (((usage.input_tokens || 0) - cached) / 1_000_000) * inputPrice +
+      (cached / 1_000_000) * cachedPrice +
       ((usage.output_tokens || 0) / 1_000_000) * outputPrice +
       ((usage.reasoning_output_tokens || 0) / 1_000_000) * outputPrice;
 
