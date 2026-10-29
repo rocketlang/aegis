@@ -496,6 +496,7 @@ export function registerEnforcementRoutes(app: FastifyInstance): void {
 
     const rec = result.record!;
 
+    // @rule:AEG-E-017 a person's denial of a gate token is recorded as a BLOCK decision
     // Log denial as BLOCK decision with full context
     const denialDecision = {
       ...rec.original_decision,

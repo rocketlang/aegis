@@ -22,6 +22,7 @@ export function bulkheadVerdict(dir: string, agentId: string, ownMask: number | 
     const st = JSON.parse(readFileSync(sp, "utf-8"));
     taints = Array.isArray(st.taints) ? st.taints : [];
   } catch (e) {
+    // @rule:BLK-013 a bulkhead state that exists but cannot be read refuses
     return { allowed: false, reason: `bulkhead state ${sp} cannot be read (${(e as Error).message}); a gate that cannot read its state refuses` };
   }
   const live = taints.filter((t) => t && t.agent_id === agentId && Number(t.expires_at) > now);
@@ -29,6 +30,7 @@ export function bulkheadVerdict(dir: string, agentId: string, ownMask: number | 
   const own = typeof ownMask === "function" ? ownMask() : ownMask;
   const cap = live.reduce((m, t) => m & Number(t.cap), own);
   const tainted_by = live.map((t) => t.message_id);
+  // @rule:BLK-013 a tainted agent's tool needs bits outside the cap: refused
   if ((requiredBits & ~cap) !== 0) {
     return {
       allowed: false, cap, tainted_by,

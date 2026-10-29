@@ -50,7 +50,7 @@ export function scanDir(root: string): Point[] {
   const walk = (d: string) => {
     for (const e of readdirSync(d, { withFileTypes: true })) {
       const p = join(d, e.name);
-      if (e.isDirectory()) { if (e.name !== "node_modules") walk(p); }
+      if (e.isDirectory()) { if (e.name !== "node_modules" && e.name !== "test-agents") walk(p); }   // test-agents: scenario code, as tests
       else if (e.name.endsWith(".ts") && !e.name.endsWith(".test.ts") && !e.name.endsWith(".d.ts")) out.push(...scanText(relative(root, p), readFileSync(p, "utf8")));
     }
   };

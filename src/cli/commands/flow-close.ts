@@ -30,6 +30,7 @@ export default async function flowClose(): Promise<void> {
   const lines = receipt.proof.missing.map((m) => `- ${m}`);
   let enforced = false;
   try { enforced = mandateEnforced(loadConfig()); } catch { /* the defaults: record only */ }
+  // @rule:GTP-025 a flow whose mandate requires proof does not close on an unproven claim
   if (enforced && input.stop_hook_active !== true) {
     const reason = [
       `🧾 GTP-025: this flow's mandate (${receipt.mandate?.mandate_id}) requires "${receipt.proof.required}" before it closes, and your last message does not meet it:`,

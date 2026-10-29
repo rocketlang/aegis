@@ -302,6 +302,7 @@ export function evaluate(req: AegisEnforcementRequest): AegisEnforcementDecision
         aegis_gate_result: entry.aegis_gate.overall,
         enforcement_mode: mode,
         enforcement_phase: phase,
+        // @rule:KAV-083 Level 0: the service's trust_mask lacks the capability: block
         decision: "BLOCK" as GateDecision,
         reason: `[KAV-083 Level 0] ${l0.reason}`,
         pilot_scope: inPilot,
