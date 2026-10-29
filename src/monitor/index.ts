@@ -5,7 +5,8 @@
 // AEGIS Monitor Daemon
 // Watches session logs, accumulates spend, enforces budgets
 
-import { loadConfig, resolveWatchPaths } from "../core/config";
+import { loadConfig, resolveWatchPaths, getAegisDir } from "../core/config";
+import { join } from "path";
 import { addUsage, upsertSession, addToBudget, addAlert, setSessionStatus } from "../core/db";
 import { broadcast } from "../core/events";
 import { SessionWatcher } from "./watcher";
@@ -145,7 +146,9 @@ function checkHeartbeats(): void {
 
 // Start watching
 const watchPaths = resolveWatchPaths(config);
-const watcher = new SessionWatcher(onUsage, onUserActivity, config.monitor.poll_interval_ms);
+// AEG-T045: read positions persist across restarts (a restart catches up on its downtime, counting nothing twice)
+const watcher = new SessionWatcher(onUsage, onUserActivity, config.monitor.poll_interval_ms, join(getAegisDir(), "watcher-offsets.json"));
+for (const sig of ["SIGTERM", "SIGINT"] as const) process.on(sig, () => { watcher.stop(); process.exit(0); });
 watcher.start(watchPaths);
 
 // Heartbeat check interval

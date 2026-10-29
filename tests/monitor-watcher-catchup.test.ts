@@ -5,7 +5,7 @@
 // History written before the monitor started is still not counted (that would double-count a resumed session).
 // Run under a scratch HOME: the parser reads ~/.aegis config.
 import { describe, test, expect, beforeEach, afterEach } from "bun:test";
-import { mkdtempSync, mkdirSync, writeFileSync, appendFileSync, utimesSync, rmSync } from "fs";
+import { mkdtempSync, mkdirSync, writeFileSync, appendFileSync, utimesSync, rmSync, existsSync } from "fs";
 import { join } from "path";
 import { tmpdir } from "os";
 import { SessionWatcher } from "../src/monitor/watcher";
@@ -69,5 +69,65 @@ describe("watcher catch-up", () => {
     appendFileSync(f, line("D", new Date().toISOString(), 20) + line("D", new Date().toISOString(), 30));
     await wait(POLL * 14);
     expect(seen.filter((s) => s.sid === "D").length).toBe(3);
+  });
+
+  test("T046: a session resumed in a project folder idle for over a day is found", async () => {
+    const old = join(root, ".claude", "projects", "-root-old");
+    mkdirSync(old, { recursive: true });
+    const f = join(old, "e.jsonl");
+    writeFileSync(f, line("E", "2026-10-01T00:00:00Z"));
+    const t = (Date.now() - 3 * 86400_000) / 1000;
+    utimesSync(f, t, t); utimesSync(old, t, t);          // folder and file both idle for 3 days
+    w.start([join(root, ".claude", "projects")]);
+    await wait(POLL * 2);
+    appendFileSync(f, line("E", new Date().toISOString()));   // appending leaves the folder's mtime alone
+    await wait(POLL * 14);
+    expect(seen.filter((s) => s.sid === "E").length).toBe(1);   // the new line; not the old history
+  });
+});
+
+describe("T045: read positions survive a restart", () => {
+  test("lines written while the monitor was down are counted once; nothing is counted twice", async () => {
+    const state = join(root, "offsets.json");
+    const f = join(proj, "g.jsonl");
+    writeFileSync(f, line("G", "2026-10-01T00:00:00Z"));
+    const w1 = new SessionWatcher((r) => seen.push({ sid: r.session_id, ts: r.timestamp }), () => {}, POLL, state);
+    w1.start([join(root, ".claude", "projects")]);
+    appendFileSync(f, line("G", new Date().toISOString()));
+    await wait(POLL * 4);
+    w1.stop();
+    expect(existsSync(state)).toBe(true);
+    appendFileSync(f, line("G", new Date().toISOString(), 20) + line("G", new Date().toISOString(), 30));   // while down
+    const w2 = new SessionWatcher((r) => seen.push({ sid: r.session_id, ts: r.timestamp }), () => {}, POLL, state);
+    w2.start([join(root, ".claude", "projects")]);
+    await wait(POLL * 4);
+    w2.stop();
+    expect(seen.filter((s) => s.sid === "G").length).toBe(3);   // 1 before the restart + 2 while down; the old history never
+  });
+
+  test("a saved position past the file's end (file replaced) starts at the end", async () => {
+    const state = join(root, "offsets2.json");
+    const f = join(proj, "h.jsonl");
+    writeFileSync(f, line("H", "2026-10-01T00:00:00Z"));
+    writeFileSync(state, JSON.stringify({ [f]: 999999 }));
+    const w3 = new SessionWatcher((r) => seen.push({ sid: r.session_id, ts: r.timestamp }), () => {}, POLL, state);
+    w3.start([join(root, ".claude", "projects")]);
+    appendFileSync(f, line("H", new Date().toISOString()));
+    await wait(POLL * 4);
+    w3.stop();
+    expect(seen.filter((s) => s.sid === "H").length).toBe(1);
+  });
+
+  test("an unreadable state file is ignored (start at the end), never a crash", async () => {
+    const state = join(root, "offsets3.json");
+    writeFileSync(state, "{not json");
+    const f = join(proj, "k.jsonl");
+    writeFileSync(f, line("K", "2026-10-01T00:00:00Z"));
+    const w4 = new SessionWatcher((r) => seen.push({ sid: r.session_id, ts: r.timestamp }), () => {}, POLL, state);
+    w4.start([join(root, ".claude", "projects")]);
+    appendFileSync(f, line("K", new Date().toISOString()));
+    await wait(POLL * 4);
+    w4.stop();
+    expect(seen.filter((s) => s.sid === "K").length).toBe(1);
   });
 });
