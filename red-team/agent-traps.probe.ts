@@ -30,6 +30,7 @@
 // by its id only. Every name, address and number in the traps is invented.
 //
 //   AGENT_TRAPS_MODEL (default qwen2.5:7b) · OLLAMA_URL (default http://127.0.0.1:11434)
+//   AGENT_TRAPS_CALL_TIMEOUT_MS (one model call, default 900000 = 15 min; it decides when a call is BROKE, never a verdict)
 //   AGENT_TRAPS_HELDOUT (file) · AGENT_TRAPS_OUT (directory for the full run record) · AGENT_TRAPS_ONLY=P-01,C-02
 // Exit: 0 no gap · 1 a gap (RED) · 3 broke.
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "fs";
@@ -46,6 +47,8 @@ const { detectMCPInjection, defaultShieldRules } = await import(join(REPO, "src/
 const HERE = new URL(".", import.meta.url).pathname;
 const MODEL = process.env.AGENT_TRAPS_MODEL || "qwen2.5:7b";
 const OLLAMA = (process.env.OLLAMA_URL || "http://127.0.0.1:11434").replace(/\/$/, "");
+// 29 Oct: two BW-T-001 attempts broke on a busy box with the 15-min limit; the limit is now a setting.
+const CALL_TIMEOUT_MS = Math.max(60_000, Number(process.env.AGENT_TRAPS_CALL_TIMEOUT_MS) || 900_000);
 const MAX_TURNS = 8, BLIND_TURNS = 12;   // probes cost turns: the blind run gets 12, the other two keep 8
 const broke = (why: string): never => { console.log(`BROKE — ${why}`); process.exit(3); };
 process.on("uncaughtException", (e: any) => broke(`uncaught ${e?.name ?? "error"}: ${e?.message ?? e}`));
@@ -217,7 +220,7 @@ async function chat(messages: any[], tools: any[]): Promise<any> {
   for (let attempt = 1; attempt <= 2; attempt++) {
     try {
       const res = await fetch(`${OLLAMA}/api/chat`, {
-        method: "POST", headers: { "content-type": "application/json" }, signal: AbortSignal.timeout(900_000),
+        method: "POST", headers: { "content-type": "application/json" }, signal: AbortSignal.timeout(CALL_TIMEOUT_MS),
         body: JSON.stringify({ model: MODEL, messages, tools, stream: false, keep_alive: "30m", options: { temperature: 0, seed: 7, num_ctx: 8192 } }),
       });
       if (res.ok) return (await res.json()).message;
