@@ -17,6 +17,7 @@ interface FileState {
   path: string;
   offset: number;
   mtime: number;
+  since?: number;   // read from the top, but count only lines dated from this time (ms)
 }
 
 // Only track files modified within this window (default: 24 hours)
@@ -32,6 +33,10 @@ export class SessionWatcher {
   private pollTimer: ReturnType<typeof setInterval> | null = null;
   private watchPaths: string[] = [];
   private pollCount = 0;
+  private startedAt = 0;
+  private initialScanDone = false;
+  // Where reading stopped in files let go of as idle, so a resumed session picks up from there.
+  private letGo = new Map<string, number>();
 
   constructor(onUsage: UsageCallback, onUserActivity: UserActivityCallback, pollInterval: number = 2000) {
     this.onUsage = onUsage;
@@ -41,9 +46,11 @@ export class SessionWatcher {
 
   start(watchPaths: string[]): void {
     this.watchPaths = watchPaths;
+    this.startedAt = Date.now();
 
     // Initial scan — find RECENTLY-ACTIVE files only
     this.scanForActiveFiles();
+    this.initialScanDone = true;
 
     // Poll loop: read new data from tracked files, rescan directory periodically
     this.pollTimer = setInterval(() => {
@@ -93,8 +100,18 @@ export class SessionWatcher {
 
   private registerFile(path: string, size: number, mtime: number): void {
     if (this.files.has(path)) return;
-    // Start at current end — don't re-read historical data
-    this.files.set(path, { path, offset: size, mtime });
+    const left = this.letGo.get(path);
+    if (left !== undefined) {
+      this.letGo.delete(path);
+      this.files.set(path, { path, offset: left <= size ? left : size, mtime });
+      return;
+    }
+    // There when the monitor started: start at the end — history before the start is not ours to count.
+    if (!this.initialScanDone) { this.files.set(path, { path, offset: size, mtime }); return; }
+    // Found on a later rescan: it may have written for up to a rescan interval before we saw it. Read it
+    // from the top and count only lines dated from the monitor's start (a resumed old session's history
+    // is not counted twice).
+    this.files.set(path, { path, offset: 0, mtime, since: this.startedAt });
   }
 
   private pollTrackedFiles(): void {
@@ -108,6 +125,7 @@ export class SessionWatcher {
         // Unregister files that go stale (no activity for 1 hour)
         if (Date.now() - stat.mtimeMs > 60 * 60 * 1000) {
           toRemove.push(path);
+          this.letGo.set(path, state.offset);
         }
       } catch {
         toRemove.push(path);
@@ -123,12 +141,18 @@ export class SessionWatcher {
       const buf = readFileSync(path);
       const newData = buf.subarray(state.offset).toString("utf-8");
       state.offset = newSize;
+      const since = state.since;
+      delete state.since;
 
       const projectPath = this.extractProjectPath(path);
       const lines = newData.split("\n");
 
       for (const line of lines) {
         if (!line.trim()) continue;
+        if (since !== undefined) {
+          const ts = Date.parse(line.match(/"timestamp"\s*:\s*"([^"]+)"/)?.[1] ?? "");
+          if (!(ts >= since)) continue;   // undated or older than the start: not counted
+        }
         const parsed = parseLine(line, projectPath);
         if (parsed.usage) {
           this.onUsage(parsed.usage, projectPath);
