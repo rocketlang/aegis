@@ -53,6 +53,12 @@ const DEFAULT_CONFIG: AegisConfig = {
     timeout_seconds: 300,
     action: "alert",
   },
+  night: {
+    enabled: true,      // AEG-008: mandatory by rule; set false to silence it
+    start_hour: 0,
+    end_hour: 6,
+    timezone: "",       // "" = this box's timezone; or an IANA name, e.g. "Asia/Kolkata"
+  },
   pricing_mode: "api",
   max_plan_discount: 0.2,
   dashboard: {

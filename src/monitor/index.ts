@@ -10,6 +10,7 @@ import { addUsage, upsertSession, addToBudget, addAlert, setSessionStatus } from
 import { broadcast } from "../core/events";
 import { SessionWatcher } from "./watcher";
 import { BudgetEnforcer } from "./enforcer";
+import { NightWatch } from "./night";
 // [EE] Slack alerts — no-op when EE not licensed
 type _SendSlackAlertFn = (config: ReturnType<typeof loadConfig>, alert: any) => Promise<void>;
 let _sendSlackAlert: _SendSlackAlertFn | null = null;
@@ -27,6 +28,7 @@ const startTime = Date.now();
 const lastUserActivity = new Map<string, number>();
 // Track sessions already alerted as abandoned (avoid re-alerting every 30s)
 const abandonedAlerted = new Set<string>();
+const nightWatch = new NightWatch();
 
 // Forward enforcer events to SSE subscribers (dashboard, if connected)
 enforcer.on((event) => {
@@ -47,8 +49,21 @@ function onUsage(record: UsageRecord, projectPath: string): void {
   // 2. Enforce budget rules
   enforcer.check(record);
 
-  // 3. Broadcast to SSE
+  // 3. Night-time activity (AEG-008): one alert per session per night
+  checkNight(record);
+
+  // 4. Broadcast to SSE
   broadcast("usage_update", record);
+}
+
+// @rule:AEG-008 Night-time activity must trigger an alert
+function checkNight(record: UsageRecord): void {
+  const n = nightWatch.check(record.session_id, record.timestamp, config.night ?? {}, lastUserActivity.get(record.session_id));
+  if (!n) return;
+  const alert = { type: "night_activity" as const, severity: "warning" as const, message: n.message, session_id: record.session_id, timestamp: new Date().toISOString(), acknowledged: false };
+  addAlert(alert);
+  broadcast("night_activity", { session_id: record.session_id, night: n.night, message: n.message, timestamp: alert.timestamp });
+  process.stderr.write(`[AEGIS] Night activity — ${n.message}\n`);
 }
 
 // User activity handler — resets heartbeat clock for the session

@@ -30,6 +30,13 @@ export interface AegisConfig {
     timeout_seconds: number;
     action: "pause" | "kill" | "alert";
   };
+  // AEG-008: activity in this window raises one alert per session per night. timezone "" = the box's own.
+  night?: {
+    enabled: boolean;
+    start_hour: number;
+    end_hour: number;
+    timezone: string;
+  };
   pricing_mode: "api" | "max_plan";
   max_plan_discount: number; // multiplier, e.g. 0.2 means 20% of API price
   dashboard: {
@@ -149,7 +156,7 @@ export interface BudgetState {
 
 export interface AlertEvent {
   id?: number;
-  type: "budget_warning" | "budget_breach" | "spawn_limit" | "anomaly" | "heartbeat_timeout" | "kill" | "delegation_hil_required" | "sdt_hil_required" | "sdt_mask_overflow" | "sdt_zero_capability";
+  type: "budget_warning" | "budget_breach" | "spawn_limit" | "anomaly" | "heartbeat_timeout" | "night_activity" | "kill" | "delegation_hil_required" | "sdt_hil_required" | "sdt_mask_overflow" | "sdt_zero_capability";
   severity: "info" | "warning" | "critical";
   message: string;
   session_id?: string;
