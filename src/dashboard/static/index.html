@@ -167,7 +167,15 @@
 
       <div class="right-stack">
         <section class="card-section">
-          <h2>7-Day Trend</h2>
+          <h2 id="trend-title">7-Day Trend</h2>
+          <div class="trend-controls" role="group" aria-label="Trend range and measure">
+            <button type="button" class="trend-btn active" data-days="7">7d</button>
+            <button type="button" class="trend-btn" data-days="30">30d</button>
+            <button type="button" class="trend-btn" data-days="90">90d</button>
+            <span class="trend-sep"></span>
+            <button type="button" class="trend-btn active" data-metric="msgs">msgs</button>
+            <button type="button" class="trend-btn" data-metric="cost">cost</button>
+          </div>
           <div class="trend-bars" id="trend-bars"></div>
         </section>
         <section class="card-section">

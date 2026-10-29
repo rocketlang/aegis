@@ -150,10 +150,12 @@ export async function registerSystemRoutes(app: FastifyInstance): Promise<void> 
     return { providers: breakdown };
   });
 
-  // Spend trend — last 7 days
-  app.get("/api/trend", async () => {
+  // Spend trend — last N days (?days=1..365, default 7) (AEG-T028)
+  app.get<{ Querystring: { days?: string } }>("/api/trend", async (req) => {
     const db = getDb();
-    const sevenDaysAgo = new Date(Date.now() - 7 * 86400 * 1000).toISOString();
+    const n = Math.round(Number(req.query?.days ?? 7));
+    const span = Number.isFinite(n) ? Math.min(365, Math.max(1, n)) : 7;
+    const sevenDaysAgo = new Date(Date.now() - span * 86400 * 1000).toISOString();
     const rows = db.query(`
       SELECT
         SUBSTR(timestamp, 1, 10) as day,
@@ -165,7 +167,7 @@ export async function registerSystemRoutes(app: FastifyInstance): Promise<void> 
       GROUP BY day
       ORDER BY day
     `).all(sevenDaysAgo) as any[];
-    return { days: rows };
+    return { span, days: rows };
   });
 
   // Composite "system overview" — one call for dashboard efficiency

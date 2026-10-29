@@ -503,6 +503,18 @@ h2 {
   transition: height .4s ease;
 }
 .trend-bar:hover { filter: brightness(1.3); }
+.trend-bar.zero { background: var(--border); }
+.trend-bar { min-width: 0; }
+.trend-bar-label.first { left: 0; transform: none; }   /* the end labels stay inside the card */
+.trend-bar-label.last { left: auto; right: 0; transform: none; }
+.trend-bars.dense { gap: 1px; overflow: hidden; }   /* 30+ bars: 4px gaps alone would be wider than the card */
+.trend-controls { display: flex; gap: 4px; align-items: center; margin-bottom: 6px; }
+.trend-sep { width: 8px; }
+.trend-btn {
+  font-size: 9px; padding: 2px 6px; border-radius: 3px; cursor: pointer;
+  background: var(--surface-2); color: var(--text-dim); border: 1px solid var(--border);
+}
+.trend-btn.active { color: var(--text); border-color: var(--accent); }
 .trend-bar-label {
   position: absolute; bottom: -16px; left: 50%;
   transform: translateX(-50%);

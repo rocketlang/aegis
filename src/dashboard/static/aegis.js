@@ -54,7 +54,7 @@ async function fetchStatus() {
         fetch(`${API}/api/status`),
         fetch(`${API}/api/system`),
         fetch(`${API}/api/providers`),
-        fetch(`${API}/api/trend`),
+        fetch(trendUrl()),
       ]),
       loadValves(),
     ]);
@@ -116,21 +116,56 @@ function renderSystem(sys, providers) {
   }
 }
 
+// AEG-T028: range 7/30/90 days, measure messages or cost. Days with no usage show as empty bars, so the
+// time axis is never squeezed. Values are printed on the bars only when they fit (14 days or fewer);
+// every bar keeps its hover title.
+let trendDays = 7, trendMetric = 'msgs';
+function trendUrl() { return `${API}/api/trend?days=${trendDays}`; }
+
+async function refreshTrend() {
+  try { renderTrend(await (await fetch(trendUrl())).json()); } catch (e) { console.error('trend:', e); }
+}
+
+document.addEventListener('click', (e) => {
+  const btn = e.target.closest && e.target.closest('.trend-btn');
+  if (!btn) return;
+  if (btn.dataset.days) trendDays = Number(btn.dataset.days);
+  if (btn.dataset.metric) trendMetric = btn.dataset.metric;
+  document.querySelectorAll('.trend-btn[data-days]').forEach(b => b.classList.toggle('active', Number(b.dataset.days) === trendDays));
+  document.querySelectorAll('.trend-btn[data-metric]').forEach(b => b.classList.toggle('active', b.dataset.metric === trendMetric));
+  refreshTrend();
+});
+
 function renderTrend(trend) {
   const bars = document.getElementById('trend-bars');
-  const days = trend.days || [];
-  if (days.length === 0) {
+  const title = document.getElementById('trend-title');
+  const span = trend.span || 7;
+  if (title) title.textContent = `${span}-Day Trend · ${trendMetric === 'cost' ? 'cost (USD, estimate)' : 'messages'}`;
+  const byDay = new Map((trend.days || []).map(d => [d.day, d]));
+  if (byDay.size === 0) {
     bars.innerHTML = '<div class="empty-state" style="width:100%">No data yet</div>';
     return;
   }
-  const max = Math.max(...days.map(d => d.msgs || 0));
-  bars.innerHTML = days.map(d => {
-    const h = max > 0 ? Math.max(4, (d.msgs / max) * 100) : 4;
-    const label = d.day.slice(5); // MM-DD
+  const days = [];
+  for (let i = span - 1; i >= 0; i--) {
+    const day = new Date(Date.now() - i * 86400000).toISOString().slice(0, 10);
+    days.push(byDay.get(day) || { day, msgs: 0, tokens: 0, cost: 0 });
+  }
+  const val = d => trendMetric === 'cost' ? (d.cost || 0) : (d.msgs || 0);
+  const fmt = v => trendMetric === 'cost' ? '$' + (v >= 100 ? Math.round(v) : v.toFixed(2)) : String(v);
+  const max = Math.max(...days.map(val));
+  const every = Math.ceil(days.length / 7);   // about seven date labels, whatever the span
+  const showValues = days.length <= 14;
+  bars.classList.toggle('dense', days.length > 30);
+  bars.innerHTML = days.map((d, i) => {
+    const v = val(d);
+    const h = max > 0 && v > 0 ? Math.max(4, (v / max) * 100) : 3;
+    const last = i === days.length - 1;
+    const label = last || (i % every === 0 && days.length - 1 - i >= every) ? d.day.slice(5) : '';   // no regular label crowding the last
     return `
-      <div class="trend-bar" style="height: ${h}%" title="${d.day}: ${d.msgs} msgs, ${formatTokens(d.tokens)} tokens">
-        <div class="trend-bar-value">${d.msgs}</div>
-        <div class="trend-bar-label">${label}</div>
+      <div class="trend-bar${v > 0 ? '' : ' zero'}" style="height: ${h}%" title="${d.day}: ${d.msgs} msgs, ${formatTokens(d.tokens || 0)} tokens, $${(d.cost || 0).toFixed(2)}">
+        ${showValues && v > 0 ? `<div class="trend-bar-value">${fmt(v)}</div>` : ''}
+        ${label ? `<div class="trend-bar-label${i === 0 ? ' first' : i === days.length - 1 ? ' last' : ''}">${label}</div>` : ''}
       </div>
     `;
   }).join('');
@@ -905,7 +940,7 @@ fetchStatus = async function () {
         fetch(`${API}/api/status`),
         fetch(`${API}/api/system`),
         fetch(`${API}/api/providers`),
-        fetch(`${API}/api/trend`),
+        fetch(trendUrl()),
       ]),
       loadValves(),
     ]);
