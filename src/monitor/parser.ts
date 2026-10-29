@@ -135,8 +135,10 @@ function parseOpenAI(data: any, projectPath: string): ParsedLine {
     const cost =
       (((usage.input_tokens || 0) - cached) / 1_000_000) * inputPrice +
       (cached / 1_000_000) * cachedPrice +
-      ((usage.output_tokens || 0) / 1_000_000) * outputPrice +
-      ((usage.reasoning_output_tokens || 0) / 1_000_000) * outputPrice;
+      ((usage.output_tokens || 0) / 1_000_000) * outputPrice;
+    // reasoning_output_tokens are part of output_tokens, not extra: codex-rs's own TokenUsage::blended_total()
+    // is non-cached input + output_tokens, with no reasoning added (checked 29 Oct 2026). Before, they were
+    // counted twice, in tokens and in cost.
 
     return {
       usage: {
@@ -144,7 +146,7 @@ function parseOpenAI(data: any, projectPath: string): ParsedLine {
         timestamp: data.timestamp || new Date().toISOString(),
         model,
         input_tokens: (usage.input_tokens || 0) - (usage.cached_input_tokens || 0),
-        output_tokens: (usage.output_tokens || 0) + (usage.reasoning_output_tokens || 0),
+        output_tokens: usage.output_tokens || 0,
         cache_read_tokens: usage.cached_input_tokens || 0,
         cache_creation_tokens: 0,
         estimated_cost_usd: cost,

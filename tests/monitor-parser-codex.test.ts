@@ -46,4 +46,13 @@ describe("Codex parser", () => {
   test("a token event with no usage counts nothing (30 of the 32 real ones)", () => {
     expect(parseLine(tokens(null), FILE).usage).toBe(null);
   });
+
+  test("reasoning tokens are part of output, never counted twice (codex-rs blended_total)", () => {
+    const f = FILE.replace("019bc513", "019bc516");
+    parseLine(turn("gpt-4o"), f);
+    const u = parseLine(tokens({ input_tokens: 0, cached_input_tokens: 0, output_tokens: 1_000_000, reasoning_output_tokens: 400_000, total_tokens: 1_000_000 }), f).usage!;
+    expect(u.output_tokens).toBe(1_000_000);
+    expect(u.estimated_cost_usd).toBeCloseTo(10, 6);   // 1M output at 10, not 14
+  });
 });
+
