@@ -7,7 +7,9 @@
 // @rule:KAV-017 Per-agent cost attribution
 // @rule:KAV-003 Budget pool tree
 
+import { join } from "path";
 import { getCostTree, listAgentRows, getAgentCostProjection, type CostTreeNode } from "../../core/db";
+import { costByRepo } from "../../monitor/repo-attribution";
 
 function formatUsd(v: number): string {
   return `$${v.toFixed(4)}`;
@@ -50,7 +52,28 @@ function renderNode(node: CostTreeNode, indent = 0): string[] {
   return lines;
 }
 
+// aegis cost --by-repo [--days N] — cost by the repositories the sessions worked in (AEG-T044), read from the
+// transcripts still on disk. Estimates at API prices, as usage_log keeps them.
+function costByRepoReport(args: string[]): void {
+  const i = args.indexOf("--days");
+  const days = i >= 0 ? Number(args[i + 1]) : 30;
+  if (!Number.isFinite(days) || days <= 0) { console.error("[AEGIS] --days takes a number of days, e.g. --days 7"); process.exit(2); }
+  const home = process.env.HOME || "/root";
+  const roots = [join(home, ".claude", "projects")];
+  const { rows, total_usd, files } = costByRepo(roots, { sinceMs: Date.now() - days * 86_400_000 });
+  if (!rows.length) { console.log(`[AEGIS] No usage in the transcripts of the last ${days} day(s) under ${roots.join(", ")}.`); return; }
+  const lines = [``, `  AEGIS cost by repository — last ${days} day(s), ${files} transcript file(s), estimates at API prices`, ``];
+  lines.push(`  ${"cost".padStart(12)}  ${"share".padStart(6)}  ${"sessions".padStart(8)}  repository`);
+  for (const r of rows) {
+    lines.push(`  ${formatUsd(r.cost_usd).padStart(12)}  ${((r.cost_usd / total_usd) * 100).toFixed(1).padStart(5)}%  ${String(r.sessions).padStart(8)}  ${r.repo}`);
+  }
+  lines.push(``, `  total ${formatUsd(total_usd)}. A message is credited to the repositories its tool calls touched, else to the session's last one.`);
+  lines.push(`  Transcripts older than the CLI keeps (30 days by default) are not covered.`, ``);
+  process.stdout.write(lines.join("\n") + "\n");
+}
+
 export default function cost(args: string[]): void {
+  if (args.includes("--by-repo")) return costByRepoReport(args);
   const sessionId = args[0] || undefined;
   const tree = getCostTree(sessionId);
 
