@@ -53,6 +53,7 @@ export default async function checkSpawn(_args: string[]): Promise<void> {
     if (problem) process.stderr.write(`[AEGIS] ${problem} — running on the DEFAULT settings (mode: ${config.enforcement?.mode ?? "alert"})\n`);
 
     // --- Mudrika identity check (KOS-062) ---
+    // @rule:KOS-062 no valid mudrika = the spawn is denied
     {
       const agentId = callerId;
       const mudrika = checkMudrika(agentId);
@@ -63,6 +64,7 @@ export default async function checkSpawn(_args: string[]): Promise<void> {
     }
 
     // --- V2-048: L1 Soft Stop check before any spawn ---
+    // @rule:KAV-016 L1 soft stop: an agent with stop_requested spawns nothing
     {
       const agentId = callerId;
       try {
@@ -74,6 +76,7 @@ export default async function checkSpawn(_args: string[]): Promise<void> {
     }
 
     // --- Level 0: perm_mask SPAWN_AGENTS bit check (KAV-061) — only when switched on ---
+    // @rule:KAV-061 Level 0 perm_mask: no SPAWN_AGENTS bit, no spawn
     if (((config.kavach ?? {}) as Record<string, unknown>).perm_mask_levels === "live") {
       const agentId = callerId;
       const valveResult = checkValve(agentId, PERM.SPAWN_AGENTS, 0);
@@ -95,6 +98,7 @@ export default async function checkSpawn(_args: string[]): Promise<void> {
       if (agentRecord) {
         const loopCount = agentRecord.loop_count ?? 0;
         if (loopCount > 50) {
+          // @rule:INF-KAV-014 more than 50 tool calls without completing: quarantine the runaway agent
           if (enforce) {
             const result = transitionState(agentId, "QUARANTINED", {
               reason: `loop_count=${loopCount} > 50 — runaway agent detected`,
@@ -158,6 +162,7 @@ export default async function checkSpawn(_args: string[]): Promise<void> {
         );
       }
 
+      // @rule:KAV-015 HanumanG: an agent that fails an axis is not spawned (enforce mode)
       if (!hResult.passed && enforce) {
         process.stderr.write([
           ``,
@@ -228,6 +233,7 @@ export default async function checkSpawn(_args: string[]): Promise<void> {
     }
 
     // --- Spawn count check ---
+    // @rule:INF-AEG-002 spawn count at the session's limit: block the Agent tool
     const spawns = getSessionSpawnCount(sessionId);
     const limit = config.budget.spawn_limit_per_session;
 
@@ -243,6 +249,7 @@ export default async function checkSpawn(_args: string[]): Promise<void> {
       process.stderr.write(`AEGIS: ${spawns}/${limit} agent spawns used this session\n`);
     }
 
+    // @rule:INF-AEG-006 budget left below the cost-estimate threshold: block spawns
     const daily = getBudgetState("daily", config.budget.daily_limit_usd);
     if (daily.remaining_usd < config.budget.cost_estimate_threshold_usd && enforce) {
       process.stderr.write(`AEGIS: Only $${daily.remaining_usd.toFixed(2)} remaining — spawn BLOCKED\n`);
@@ -250,6 +257,7 @@ export default async function checkSpawn(_args: string[]): Promise<void> {
     }
 
     // --- V2-052: Tree depth enforcement (KAV-008, INF-KAV-004) ---
+    // @rule:KAV-008 @rule:INF-KAV-004 an agent at max delegation depth spawns nothing more
     // Count delegation chain length for this agent; block all further spawns if >= max_depth
     {
       const agentId = callerId;

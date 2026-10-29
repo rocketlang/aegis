@@ -158,6 +158,7 @@ export default async function checkShield(_args: string[]): Promise<void> {
 
     // --- MCP injection check — runs on all tool calls (KAV-069) ---
     // Scans tool_result / content arrays in any PreToolUse payload
+    // @rule:KAV-069 an injection in a tool result quarantines the call
     const mcpResult = detectMCPInjection(toolInput, rules);
     if (mcpResult.verdict === "QUARANTINE") {
       emitBlock("SHIELD", mcpResult.rule_id, mcpResult.reason, mcpResult.category, "QUARANTINED");
@@ -229,6 +230,7 @@ export default async function checkShield(_args: string[]): Promise<void> {
         emitBlock("SHIELD", scanResult.rule_id, scanResult.reason, scanResult.category, "QUARANTINED");
         process.exit(2);
       }
+      // @rule:KAV-014 LakshmanRekha: an injection pattern in the command blocks it (enforce mode)
       if (scanResult.verdict === "BLOCK" && enforce) {
         emitBlock("SHIELD", scanResult.rule_id, scanResult.reason, scanResult.category);
         process.exit(2);
@@ -238,6 +240,7 @@ export default async function checkShield(_args: string[]): Promise<void> {
       }
 
       // Exfil ring buffer check
+      // @rule:INF-KAV-005 a network tool right after a sensitive read is an exfiltration sequence: block (enforce mode)
       const exfilResult = detectExfilSequence(command, rules);
       if (exfilResult.verdict === "BLOCK") {
         // AF-T-710 — the receipt/banner names what the agent read just before this egress

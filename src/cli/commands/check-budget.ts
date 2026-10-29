@@ -37,6 +37,7 @@ export default function checkBudget(_args: string[]): void {
       try {
         const envelope = loadEnvelopeBySessionId(agentId);
         if (envelope?.expires_at && envelope.expires_at !== "task_end" && envelope.expires_at !== "") {
+          // @rule:BMOS-008 an expired session credential blocks every further tool call
           const expired = new Date(envelope.expires_at).getTime() < Date.now();
           if (expired) {
             const msg = `[BMOS:expiry] Session ${agentId} expired at ${envelope.expires_at} (BMOS-008)`;
@@ -54,6 +55,7 @@ export default function checkBudget(_args: string[]): void {
     // --- Session-level budget check ---
     const daily = getBudgetState("daily", config.budget.daily_limit_usd);
 
+    // @rule:AEG-010 at 100% of the daily budget, a hard stop
     if (daily.percent >= 100) {
       const msg = `AEGIS: Daily budget at ${daily.percent.toFixed(0)}% ($${daily.spent_usd.toFixed(2)}/$${daily.limit_usd})`;
       if (enforce) {
@@ -67,6 +69,7 @@ export default function checkBudget(_args: string[]): void {
     }
 
     const weekly = getBudgetState("weekly", config.budget.weekly_limit_usd);
+    // @rule:AEG-010 at 100% of the weekly budget, a hard stop
     if (weekly.percent >= 100) {
       if (enforce) {
         process.stderr.write(`AEGIS: Weekly budget exhausted — BLOCKED\n`);

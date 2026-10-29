@@ -4,7 +4,8 @@
 //
 // An ENFORCEMENT POINT is a source line where a guard refuses, blocks or holds:
 //   a verdict / action / decision of REFUSE, BLOCK, QUARANTINE, block or deny · `allowed: false` ·
-//   `ask: true` (held for a person) · `process.exit(2)` (a Claude Code hook blocking a tool call).
+//   `ask: true` (held for a person) · `process.exit(2)` in a hook (cli/commands/check-*.ts, hooks/): a Claude
+//   Code hook blocking a tool call. Elsewhere exit 2 is a CLI usage error, not a point.
 // Type declarations (a union such as "PERMIT" | "REFUSE"), comments and tests are not points.
 // A point is ANNOTATED when an `@rule:` comment is on its line or within the WINDOW lines above it (aegis
 // puts one rule comment over a block of checks). The window is a convention, not proof that the rule named
@@ -21,7 +22,9 @@ import { join, relative } from "path";
 export const WINDOW = 15;
 export const TARGET = 0.9;
 
-const POINT = /\b(verdict|action|decision)\s*:\s*["'](REFUSE|BLOCK|QUARANTINE|block|deny)["']|\ballowed\s*:\s*false\b|\bask\s*:\s*true\b|\bprocess\.exit\(\s*2\s*\)/;
+const POINT = /\b(verdict|action|decision)\s*:\s*["'](REFUSE|BLOCK|QUARANTINE|block|deny)["']|\ballowed\s*:\s*false\b|\bask\s*:\s*true\b/;
+const HOOK_BLOCK = /\bprocess\.exit\(\s*2\s*\)/;
+const isHook = (file: string) => /(^|\/)cli\/commands\/check-[^/]+\.ts$|(^|\/)hooks\//.test(file);
 const TYPE_UNION = /["'][A-Z_]+["']\s*\|\s*["'][A-Z_]+["']/;     // "PERMIT" | "REFUSE": a type, not a decision
 const COMMENT = /^\s*(\/\/|\*|\/\*)/;
 const RULE = /@rule:/;
@@ -32,7 +35,7 @@ export interface Point { file: string; line: number; text: string; annotated: bo
 export function scanText(file: string, text: string): Point[] {
   const lines = text.split("\n"), out: Point[] = [];
   lines.forEach((l, i) => {
-    if (COMMENT.test(l) || !POINT.test(l) || TYPE_UNION.test(l)) return;
+    if (COMMENT.test(l) || TYPE_UNION.test(l) || !(POINT.test(l) || (isHook(file) && HOOK_BLOCK.test(l)))) return;
     if (/^\s*(type|interface)\b/.test(l) || /:\s*(boolean|string)\s*[;,]/.test(l)) return;
     const from = Math.max(0, i - WINDOW);
     const window = lines.slice(from, i + 1);

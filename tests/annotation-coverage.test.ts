@@ -12,7 +12,8 @@ describe("annotation coverage", () => {
       'process.exit(2);',
       'const r = { action: "BLOCK" };',
     ].join("\n");
-    expect(scanText("f.ts", src).length).toBe(5);
+    expect(scanText("cli/commands/check-x.ts", src).length).toBe(5);
+    expect(scanText("cli/commands/cost.ts", 'console.error("usage"); process.exit(2);').length).toBe(0);   // a usage error, not a point
   });
 
   test("types, unions and comments are not points", () => {
@@ -32,7 +33,7 @@ describe("annotation coverage", () => {
     expect(scanText("f.ts", near)[0].annotated).toBe(true);
     const far = ['// @rule:KAV-007 tool allow-list', ...Array(WINDOW + 1).fill("x();"), 'return { allowed: false };'].join("\n");
     expect(scanText("f.ts", far)[0].annotated).toBe(false);
-    expect(scanText("f.ts", 'process.exit(2); // @rule:SHD-001')[0].annotated).toBe(true);
+    expect(scanText("hooks/h.ts", 'process.exit(2); // @rule:SHD-001')[0].annotated).toBe(true);
   });
 
   test("cited (wider): a law: field or a refusal text that starts with a rule id, without @rule:", () => {

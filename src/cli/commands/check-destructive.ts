@@ -114,6 +114,7 @@ export default async function checkDestructive(_args: string[]): Promise<void> {
       // Agents registered after Phase 4 always have a mudrika. Agents registered
       // before Phase 4 (no mudrika file) are allowed through — no mudrika file
       // means pre-Phase-4 spawn, not a spoofed identity.
+      // @rule:KOS-062 no valid mudrika = the call is denied
       const mudrika = checkMudrika(agentId);
       if (!mudrika.valid && mudrika.reason !== "no mudrika — agent not registered") {
         process.stderr.write(
@@ -127,6 +128,7 @@ export default async function checkDestructive(_args: string[]): Promise<void> {
       const resourcePath = extractResourceFromToolInput(toolName, toolInput.tool_input ?? {});
       const resourceClassBits = resourcePath ? classifyResource(resourcePath) : 0;
 
+      // @rule:KAV-061 @rule:KAV-062 @rule:KAV-YK-014 Level 0 perm_mask, then Level 1 class_mask: a closed valve blocks
       const valveResult = checkValve(agentId, requiredBits, resourceClassBits);
       incrementLoopCount(agentId);
 
@@ -220,6 +222,7 @@ export default async function checkDestructive(_args: string[]): Promise<void> {
             process.exit(0);
           }
 
+          // @rule:KAV-052 CRITICAL goes to the human gate: EXPLAIN, STOP or TIMEOUT all block
           if (result.decision === "EXPLAIN") {
             process.stderr.write(`[KAVACH] EXPLAIN requested — context sent. Action blocked pending review.\n`);
             process.stderr.write(`[KAVACH] Approval ID: ${result.approval_id}\n`);
@@ -232,6 +235,7 @@ export default async function checkDestructive(_args: string[]): Promise<void> {
           process.stderr.write(msg);
           process.exit(2);
 
+        // @rule:ANU-004 a gate that failed cannot judge: block
         } catch (gateErr: any) {
           // Gate failed internally — default safe = BLOCK
           process.stderr.write(`[KAVACH] Gate error: ${gateErr.message} — blocking by default\n`);
@@ -239,6 +243,7 @@ export default async function checkDestructive(_args: string[]): Promise<void> {
         }
 
       } else {
+        // @rule:KAV-052 a destructive command is intercepted before it runs
         // HIGH/MEDIUM, and CRITICAL unless the approval gate is switched on — immediate block.
         const msg = buildBlockMessage(rule, null, rule.reason, await recordPendingAuthority(command, rule.pattern, cwd));
         process.stderr.write(msg);
