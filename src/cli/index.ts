@@ -114,6 +114,8 @@ async function main() {
       return (await import("./commands/tripwire-mode")).default(args);
     case "publish-mandate":
       return (await import("./commands/publish-mandate")).default(args);
+    case "repeat-back":
+      return (await import("./commands/repeat-back")).default(args);
     case "outward-mandate":
       return (await import("./commands/outward-mandate")).default(args);
     case "outward-send":
