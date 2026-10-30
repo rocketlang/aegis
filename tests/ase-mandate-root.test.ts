@@ -8,7 +8,7 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "fs";
 import { tmpdir } from "os";
-import { join } from "path";
+import { dirname, join } from "path";
 
 const home = mkdtempSync(join(tmpdir(), "aegis-ase-mandate-"));
 process.env.HOME = home;
@@ -31,10 +31,11 @@ if (unsafe) console.warn(`[ase-mandate-root] SKIPPED: aegis dir resolves to ${ge
 // reads it, and put back what was there afterwards.
 const configPath = join(getAegisDir(), "config.json");
 const configBefore = existsSync(configPath) ? readFileSync(configPath, "utf8") : null;
-const mode = (m: "enforce" | "enforce-no-optin" | "monitor") => writeFileSync(configPath, JSON.stringify({
+// That earlier file may also have removed its scratch HOME by now, so make the directory first.
+const mode = (m: "enforce" | "enforce-no-optin" | "monitor") => (mkdirSync(dirname(configPath), { recursive: true }), writeFileSync(configPath, JSON.stringify({
   enforcement: { mode: m === "monitor" ? "monitor" : "enforce" },
   kavach: m === "enforce" ? { enabled: true, mandate: "enforce" } : { enabled: true },
-}));
+})));
 
 const app = Fastify();
 registerAseRoutes(app);
