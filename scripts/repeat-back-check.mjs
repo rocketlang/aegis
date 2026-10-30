@@ -6,6 +6,7 @@
 // The release gate's CI side (RPB-008, RPB-009). Run in a release workflow before publishing:
 //
 //   node scripts/repeat-back-check.mjs --package-dir <dir> [--pub .github/repeat-back.pub.pem] [--mode observe|enforce]
+//   node scripts/repeat-back-check.mjs --name <project> --version <v> ...   (no package.json: PyPI)
 //
 // It reads the annotated tag that triggered the run, checks the Repeat-back approval inside it
 // against the public key pinned in this repo, and refuses unless the approval names this commit,
@@ -64,7 +65,10 @@ function main() {
     if (type === "tag") text = execFileSync("git", ["tag", "-l", "--format=%(contents)", GITHUB_REF_NAME], { encoding: "utf8" });
   } catch (e) { text = ""; console.log(`Repeat-back: could not read the tag: ${e.message}`); }
 
-  const pkg = JSON.parse(readFileSync(join(dir, "package.json"), "utf8"));
+  // A Python project has no package.json: its workflow passes the name and version it resolved.
+  const pkg = arg("--name") && arg("--version")
+    ? { name: arg("--name"), version: arg("--version") }
+    : JSON.parse(readFileSync(join(dir, "package.json"), "utf8"));
   const publicPem = existsSync(pubPath) ? readFileSync(pubPath, "utf8") : "";
   const r = checkApproval({ text, publicPem, commit: GITHUB_SHA, name: pkg.name, version: pkg.version, repo: GITHUB_REPOSITORY });
 

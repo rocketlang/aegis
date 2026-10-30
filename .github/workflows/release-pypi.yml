@@ -85,6 +85,12 @@ jobs:
           fi
           echo "tree clean at $(git rev-parse HEAD)"
 
+      # Repeat-back (RPB-008/009): the tag must carry a person's signed approval of this exact
+      # commit, project and version. OBSERVE until a person promotes it: change to --mode enforce.
+      # node is on the runner image; the check has no dependencies.
+      - name: Repeat-back — the tag carries a signed approval of this exact release
+        run: node scripts/repeat-back-check.mjs --name "${{ steps.pkg.outputs.name }}" --version "${{ steps.pkg.outputs.version }}" --mode observe
+
       - name: Build the sdist and the wheel
         env:
           DIR: ${{ steps.pkg.outputs.dir }}
