@@ -117,3 +117,50 @@ describe("report (RPB-006)", () => {
     expect(classify(recordDecision(q.id, "approve", repeatBackPhrase(q), ev("none"), { by: "capt", now: T1, path }))).toBe("overrode");
   });
 });
+
+// @rule:RPB-007..009 — the signed approval and the CI check, both ways.
+import { approvalToken, newKeyPair, readToken } from "./repeat-back";
+// @ts-ignore — a zero-dependency .mjs, the copy CI runs
+import { checkApproval } from "../../scripts/repeat-back-check.mjs";
+
+describe("signed approval (RPB-007) and the CI check (RPB-008)", () => {
+  const keys = newKeyPair();
+  const approved = () => {
+    const q = recordRequest(ACT, ev("green"), T0, path);
+    const d = recordDecision(q.id, "approve", repeatBackPhrase(q), ev("green"), { by: "capt", now: T1, path });
+    return { q, d, token: approvalToken(q, d, keys.privatePem) };
+  };
+  const ship = { commit: ACT.commit, name: ACT.package, version: ACT.version, repo: ACT.repo };
+
+  it("only an approve is signed", () => {
+    const q = recordRequest(ACT, ev("green"), T0, path);
+    const d = recordDecision(q.id, "deny", repeatBackPhrase(q), ev("green"), { by: "capt", reason: "no", now: T1, path });
+    expect(() => approvalToken(q, d, keys.privatePem)).toThrow(/only an approve/);
+  });
+  it("the module and the CI script read the same token the same way", () => {
+    const { token, d } = approved();
+    const a = readToken(token, keys.publicPem);
+    expect(a.ok && a.payload.row).toBe(d.hash);
+    expect(checkApproval({ text: token, publicPem: keys.publicPem, ...ship }).ok).toBe(true);
+  });
+  it("passes the exact act, with git's tag message wrapped around it", () => {
+    const { token } = approved();
+    expect(checkApproval({ text: `release notes line\n\n${token}`, publicPem: keys.publicPem, ...ship }).ok).toBe(true);
+  });
+  it("refuses another commit, package, version or repo", () => {
+    const { token } = approved();
+    const t = (o: Record<string, string>) => checkApproval({ text: token, publicPem: keys.publicPem, ...ship, ...o });
+    expect(t({ commit: "b".repeat(40) }).why).toMatch(/approved commit/);
+    expect(t({ name: "@xshieldai/other" }).why).toMatch(/approved package/);
+    expect(t({ version: "2.30.1" }).why).toMatch(/approved version/);
+    expect(t({ repo: "someone/fork" }).why).toMatch(/approved for/);
+  });
+  it("refuses an altered payload, another key, no key, and no approval", () => {
+    const { token } = approved();
+    const other = newKeyPair();
+    expect(checkApproval({ text: token.replace('"2.30.0"', '"2.31.0"'), publicPem: keys.publicPem, ...ship, version: "2.31.0" }).why).toMatch(/signature/);
+    expect(checkApproval({ text: token, publicPem: other.publicPem, ...ship }).why).toMatch(/signature/);
+    expect(checkApproval({ text: token, publicPem: "", ...ship }).why).toMatch(/no public key/);
+    expect(checkApproval({ text: "v2.30.0", publicPem: keys.publicPem, ...ship }).why).toMatch(/no Repeat-back approval/);
+  });
+});

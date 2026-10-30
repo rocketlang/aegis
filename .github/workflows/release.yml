@@ -52,6 +52,11 @@ jobs:
           fi
           echo "tree clean at $(git rev-parse HEAD)"
 
+      # Repeat-back (RPB-008/009): the tag must carry a person's signed approval of this exact
+      # commit, package and version. OBSERVE until a person promotes it: change to --mode enforce.
+      - name: Repeat-back — the tag carries a signed approval of this exact release
+        run: node scripts/repeat-back-check.mjs --package-dir . --mode observe
+
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: 1.3.9

@@ -12,7 +12,7 @@
 // Same host (RPB-YK-002): the hash chain shows an edit; it does not stop a root process from
 // writing rows. Signing by the separate-account authority is the founder's change to make.
 
-import { createHash } from "crypto";
+import { createHash, createPrivateKey, createPublicKey, generateKeyPairSync, sign as edSign, verify as edVerify } from "crypto";
 import { appendFileSync, existsSync, mkdirSync, readFileSync } from "fs";
 import { dirname, join } from "path";
 
@@ -179,4 +179,51 @@ export function report(rows: Row[], since?: Date): Report {
   waits.sort((a, b) => a - b);
   const median = waits.length ? Math.round(waits[Math.floor((waits.length - 1) / 2)] * 10) / 10 : null;
   return { requests: reqs.length, decided, open: reqs.length - decided, counts, wait_minutes_median: median, overrides };
+}
+
+// ── P1b: the signed approval that travels in the release tag (RPB-007..009) ─────────────────────
+//
+// CI cannot read this box, so a yes is signed here and carried in the annotated tag; the release
+// workflow checks it against the public key pinned in the repo (scripts/repeat-back-check.mjs).
+// The signature covers the exact payload line, so CI needs no canonical form to check it.
+
+
+export const SIGNING_KEY_ENV = "AEGIS_REPEAT_BACK_KEY";
+export const signingKeyPath = (): string =>
+  process.env[SIGNING_KEY_ENV] || join(process.env.HOME || "/root", ".aegis", "repeat-back-signing.key");
+export const TOKEN_HEADER = "Repeat-back approval v1";
+
+export interface ApprovalPayload extends Act { id: string; decision: "approve"; decided_at: string; verdict: Verdict; by: string; row: string }
+
+export function newKeyPair(): { privatePem: string; publicPem: string } {
+  const { privateKey, publicKey } = generateKeyPairSync("ed25519");
+  return {
+    privatePem: privateKey.export({ type: "pkcs8", format: "pem" }).toString(),
+    publicPem: publicKey.export({ type: "spki", format: "pem" }).toString(),
+  };
+}
+
+// @rule:RPB-007 — only an approve is signed, and the token names the exact act and the decision row.
+export function approvalToken(req: RequestRow, d: DecisionRow, privatePem: string): string {
+  if (d.decision !== "approve" || d.id !== req.id) throw new Error("only an approve of this request is signed");
+  const payload: ApprovalPayload = {
+    id: req.id, repo: req.repo, package: req.package, version: req.version, commit: req.commit,
+    decision: "approve", decided_at: d.decided_at, verdict: d.evidence.verdict, by: d.by, row: d.hash,
+  };
+  const line = JSON.stringify(payload);
+  const sig = edSign(null, Buffer.from(line), createPrivateKey(privatePem)).toString("base64");
+  return `${TOKEN_HEADER}\n${line}\nsig:${sig}\n`;
+}
+
+/** Same check the CI script makes (scripts/repeat-back-check.mjs keeps its own copy, zero deps). */
+export function readToken(text: string, publicPem: string): { ok: true; payload: ApprovalPayload } | { ok: false; why: string } {
+  const lines = text.replace(/\r/g, "").split("\n").map((l) => l.trim()).filter(Boolean);
+  const at = lines.indexOf(TOKEN_HEADER);
+  if (at < 0 || lines.length < at + 3) return { ok: false, why: "no Repeat-back approval in the tag" };
+  const line = lines[at + 1]; const sigLine = lines[at + 2];
+  if (!sigLine.startsWith("sig:")) return { ok: false, why: "approval has no signature line" };
+  let good = false;
+  try { good = edVerify(null, Buffer.from(line), createPublicKey(publicPem), Buffer.from(sigLine.slice(4), "base64")); } catch { good = false; }
+  if (!good) return { ok: false, why: "signature does not verify against the pinned key" };
+  return { ok: true, payload: JSON.parse(line) };
 }

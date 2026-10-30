@@ -163,6 +163,11 @@ jobs:
           fi
           echo "tree clean at $(git rev-parse HEAD)"
 
+      # Repeat-back (RPB-008/009): the tag must carry a person's signed approval of this exact
+      # commit, package and version. OBSERVE until a person promotes it: change to --mode enforce.
+      - name: Repeat-back — the tag carries a signed approval of this exact release
+        run: node scripts/repeat-back-check.mjs --package-dir "${{ steps.pkg.outputs.dir }}" --mode observe
+
       # The shasum printed here is what a stranger gets from the same steps on a clean
       # checkout of the same commit. It is the number to compare with the registry listing.
       - name: Show what would ship

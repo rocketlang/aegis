@@ -95,10 +95,10 @@ Every release is asked for and decided on the record, before its tag is pushed:
 
 1. Commit the version bump and push it. Wait for CI on that commit.
 2. Whoever prepared it asks: `aegis repeat-back request --package @xshieldai/aegis --version <v> --commit <full sha>`
-3. The maintainer decides at their own terminal: `aegis repeat-back approve <id>` (typing back `package@version sha7`), or `deny <id> --reason "..."`. A no is kept like a yes.
-4. Only after an approve: push the tag `v<version>`.
+3. The maintainer decides at their own terminal: `aegis repeat-back approve <id>` (typing back `package@version sha7`), or `deny <id> --reason "..."`. A no is kept like a yes. An approve is signed with the Repeat-back key (made once with `aegis repeat-back keygen`; its public half is `.github/repeat-back.pub.pem`).
+4. Make the tag with the signed approval in it: `aegis repeat-back tag <id> --tag v<version>` (or `<package>-v<version>`), then push the tag.
 
-`aegis repeat-back report` shows, per decision, whether the person confirmed the CI, overrode it, or changed the outcome. This is a record, not yet a gate: the release workflow does not check it.
+The release workflows check the tag's approval against the pinned key (`scripts/repeat-back-check.mjs`): it must name this commit, package and version. The check runs in **observe** (warns) until it is switched to `--mode enforce`. `aegis repeat-back report` shows, per decision, whether the person confirmed the CI, overrode it, or changed the outcome.
 
 ---
 

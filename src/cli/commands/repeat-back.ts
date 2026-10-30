@@ -5,21 +5,27 @@
 // `aegis repeat-back request --package <name> --version <v> --commit <sha> [--repo owner/name]`
 // `aegis repeat-back approve <id>` | `deny <id> --reason "..."`   (a person, at a terminal)
 // `aegis repeat-back list` | `report [--since YYYY-MM-DD]` | `verify`   [--json on each]
+// `aegis repeat-back keygen`   (a person, once)  ·  `aegis repeat-back tag <id> --tag <name>`   (in the repo)
 //
 // The release record (RPB-001..006). The agent asks for one exact release; aegis reads the CI
 // verdict for that commit from GitHub. A person decides by typing the act back; the verdict is
-// read again at that moment and kept beside the decision, yes or no. Observe only: nothing is
-// refused at publish time yet (P1b, on the founder's word).
+// read again at that moment and kept beside the decision, yes or no. A yes is signed with the
+// Repeat-back key and carried in the annotated release tag; the release workflow checks it
+// (scripts/repeat-back-check.mjs), in observe until a person promotes it to enforce.
 //
 // Exit: 0 done · 2 refused (not repeated back, an agent session, no terminal, already decided) ·
 // 3 broke (bad arguments, GitHub unreadable, record chain broken).
 
 import { spawnSync } from "child_process";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "fs";
+import { dirname, join } from "path";
 import { createInterface } from "readline";
 import {
-  type CheckRun, type Evidence, RecordBroken, decisionFor, findRequest, readRecord, recordDecision,
-  recordPath, recordRequest, repeatBackPhrase, report, verdictOf,
+  type CheckRun, type Evidence, RecordBroken, approvalToken, decisionFor, findRequest, newKeyPair, readRecord,
+  recordDecision, recordPath, recordRequest, repeatBackPhrase, report, signingKeyPath, verdictOf,
 } from "../../kavach/repeat-back";
+
+const approvalsDir = (): string => join(dirname(recordPath()), "repeat-back-approvals");
 
 const flag = (args: string[], k: string): string | undefined => {
   const i = args.indexOf(k);
@@ -82,12 +88,49 @@ export default async function repeatBack(args: string[]): Promise<void> {
       for (const c of evidence.checks) process.stdout.write(`    ${c.conclusion ?? c.status}  ${c.name}\n`);
       if (evidence.verdict !== "green" && sub === "approve") process.stdout.write(`  NOTE: CI is not green; a yes now is recorded as an override.\n`);
       const typed = await ask(`\n  Repeat back to ${sub}: ${repeatBackPhrase(req!)}\n  > `);
+      let d;
       try {
-        const d = recordDecision(id, sub, typed, evidence, { by: process.env.SUDO_USER || process.env.USER || "person", reason: flag(args, "--reason") });
-        out(json ? d : `recorded: ${d.decision} ${repeatBackPhrase(req!)} on CI ${d.evidence.verdict} (${recordPath()})`);
+        d = recordDecision(id, sub, typed, evidence, { by: process.env.SUDO_USER || process.env.USER || "person", reason: flag(args, "--reason") });
       } catch (e) {
         refuse((e as Error).message);
       }
+      // @rule:RPB-007 — a yes is signed here, at the person's terminal, for the tag to carry.
+      let signed = "";
+      if (d!.decision === "approve") {
+        if (existsSync(signingKeyPath())) {
+          mkdirSync(approvalsDir(), { recursive: true });
+          writeFileSync(join(approvalsDir(), `${id}.txt`), approvalToken(req!, d!, readFileSync(signingKeyPath(), "utf8")), { mode: 0o600 });
+          signed = `\nsigned approval: ${join(approvalsDir(), `${id}.txt`)} — next: aegis repeat-back tag ${id} --tag <tag name>`;
+        } else signed = `\nNOT SIGNED: no Repeat-back key (${signingKeyPath()}); make one once with: aegis repeat-back keygen`;
+      }
+      out(json ? d : `recorded: ${d!.decision} ${repeatBackPhrase(req!)} on CI ${d!.evidence.verdict} (${recordPath()})${signed}`);
+    }
+
+    // @rule:RPB-007 — the key is a person's to make, once; the agent never holds the act of making it.
+    if (sub === "keygen") {
+      if (process.env.CLAUDE_CODE_SESSION_ID?.trim()) refuse("the Repeat-back key is made by a person at their own terminal");
+      if (existsSync(signingKeyPath())) refuse(`a key already exists at ${signingKeyPath()}; it is never overwritten`);
+      const { privatePem, publicPem } = newKeyPair();
+      mkdirSync(dirname(signingKeyPath()), { recursive: true });
+      writeFileSync(signingKeyPath(), privatePem, { mode: 0o600 });
+      out(`key made: ${signingKeyPath()} (mode 600)\npublic key, to pin in the repo as .github/repeat-back.pub.pem:\n${publicPem}`);
+    }
+
+    // The tag carries the signed approval; anyone may make it, only a person could have signed it.
+    if (sub === "tag") {
+      const id = args[1];
+      const tagName = flag(args, "--tag");
+      if (!id || !tagName) { process.stderr.write("usage: aegis repeat-back tag <id> --tag <tag name>   (run in the repo)\n"); process.exit(3); }
+      const rows = readRecord();
+      const req = findRequest(id, rows);
+      const d = decisionFor(id, rows);
+      if (!req) refuse(`no request ${id}`);
+      if (d?.decision !== "approve") refuse(`request ${id} is not approved${d ? ` (it was ${d.decision})` : " yet"}`);
+      const file = join(approvalsDir(), `${id}.txt`);
+      if (!existsSync(file)) refuse(`no signed approval for ${id} (${file}); was a key in place when it was approved?`);
+      const r = spawnSync("git", ["tag", "-a", tagName, req!.commit, "-F", file], { encoding: "utf8" });
+      if (r.status !== 0) throw new Error(`git tag failed: ${(r.stderr || "").trim()}`);
+      out(`tag ${tagName} made at ${req!.commit.slice(0, 7)}, carrying the signed approval for ${repeatBackPhrase(req!)}\nnext (a person): git push origin ${tagName}`);
     }
 
     if (sub === "list") {
@@ -120,7 +163,7 @@ export default async function repeatBack(args: string[]): Promise<void> {
       out(json ? { ok: true, rows: rows.length } : `record intact: ${rows.length} row(s), chain unbroken (${recordPath()})`);
     }
 
-    process.stderr.write("usage: aegis repeat-back request|approve|deny|list|report|verify  (see the header of src/cli/commands/repeat-back.ts)\n");
+    process.stderr.write("usage: aegis repeat-back request|approve|deny|tag|keygen|list|report|verify  (see the header of src/cli/commands/repeat-back.ts)\n");
     process.exit(3);
   } catch (e) {
     process.stderr.write(`${e instanceof RecordBroken ? "RECORD BROKEN" : "broke"}: ${(e as Error).message}\n`);
