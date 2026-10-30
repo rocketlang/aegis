@@ -89,6 +89,19 @@ See `src/monitor/providers/claude.ts` for the reference implementation.
 
 ---
 
+## Releasing: Repeat-back (RPB-001..006)
+
+Every release is asked for and decided on the record, before its tag is pushed:
+
+1. Commit the version bump and push it. Wait for CI on that commit.
+2. Whoever prepared it asks: `aegis repeat-back request --package @xshieldai/aegis --version <v> --commit <full sha>`
+3. The maintainer decides at their own terminal: `aegis repeat-back approve <id>` (typing back `package@version sha7`), or `deny <id> --reason "..."`. A no is kept like a yes.
+4. Only after an approve: push the tag `v<version>`.
+
+`aegis repeat-back report` shows, per decision, whether the person confirmed the CI, overrode it, or changed the outcome. This is a record, not yet a gate: the release workflow does not check it.
+
+---
+
 ## License
 
 By contributing, you agree your changes will be licensed under AGPL-3.0-only.
