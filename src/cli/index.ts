@@ -120,6 +120,8 @@ async function main() {
       return (await import("./commands/outward-mandate")).default(args);
     case "outward-send":
       return (await import("./commands/outward-send")).default(args);
+    case "gate-serve":
+      return (await import("./commands/gate-serve")).default(args);
     case "outward-decline":
       return (await import("./commands/outward-decline")).default(args);
     case "outward-record":
