@@ -180,10 +180,10 @@ export function checkAuthorityReply(
 }
 
 // The kind a row comes back with, as the authority stores it (core/ledger-authority.ts, record).
-const expectedKind = (k: string): string => (k === "override" || k === "bell-book" ? k : "refused");
+const expectedKind = (k: string): string => (k === "override" || k === "bell-book" || k === "revocation" ? k : "refused");
 
 /** Ask the authority to record a refusal. undefined = no authority configured. Never throws. */
-export function askAuthority(r: { gate: string; rule?: string | null; kind?: "refused" | "override" | "bell-book"; session?: string }): AuthorityAnswer | undefined {
+export function askAuthority(r: { gate: string; rule?: string | null; kind?: "refused" | "override" | "bell-book" | "revocation"; session?: string }): AuthorityAnswer | undefined {
   let pinned: string | null = null;
   try { pinned = pinnedLedgerKey(); } catch { pinned = "unreadable"; }
   const socket = ledgerSocket();
@@ -226,6 +226,25 @@ export function askAuthorityBellBook(rows: number, head: string): AuthorityAnswe
     return { error: "the authority does not sign bell-book rows (it is older than aegis 2.27.0, and would sign this as a refusal) — nothing was sent" };
   }
   return askAuthority({ gate: "bulkhead", rule: null, kind: "bell-book", session: `rows=${rows} head=${head}` })!;
+}
+
+/**
+ * Ask the authority to sign "a person revoked mandate <id>" as a row of its own kind (kavach/mandate.ts,
+ * revokeMandate). As with a bell-book row, an authority that does not know the kind would sign it as a
+ * REFUSAL, a false row for good; so it is asked first, and nothing is sent unless it says it knows the kind.
+ * The revocation itself never waits on this: the local revoked.jsonl line is written either way. Never throws.
+ */
+export function askAuthorityRevocation(mandateId: string): AuthorityAnswer {
+  if (!/^[A-Za-z0-9_-]{1,64}$/.test(mandateId)) return { error: "not a mandate id the ledger can carry (1-64 of A-Z a-z 0-9 _ -) — nothing was sent" };
+  const socket = ledgerSocket();
+  if (!socket) return { error: "no ledger authority is configured on this box (no socket, no pointer file)" };
+  let status: any;
+  try { status = askOnce(socket, { op: "ledger-status" }); } catch (e) { return { error: `authority could not be asked: ${(e as Error).message}` }; }
+  if (!status?.ok) return { error: `authority gave no status: ${String(status?.error ?? "no answer")}` };
+  if (status.value?.revocation !== true) {
+    return { error: "the authority does not sign revocation rows (it is older than this aegis, and would sign this as a refusal) — nothing was sent" };
+  }
+  return askAuthority({ gate: "mandate", rule: null, kind: "revocation", session: `mdr=${mandateId}` })!;
 }
 
 export function recordRefusal(r: { gate: string; rule?: string | null; kind?: "refused" | "override" }): boolean {

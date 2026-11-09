@@ -96,6 +96,13 @@ const clip = ledgerField;
 /** The one session a bell-book row may carry: the bell book's row count and the hash of its last row. */
 export const BELL_BOOK_SESSION = /^rows=[1-9][0-9]{0,11} head=[0-9a-f]{64}$/;
 
+/**
+ * The one session a revocation row may carry: the id of the mandate a person revoked (kavach/mandate.ts,
+ * revokeMandate). Who revoked it and why stay in the local revoked.jsonl beside the row's number: the key
+ * signs no free text of an asker's choosing. Fits the 80-character field.
+ */
+export const REVOCATION_SESSION = /^mdr=[A-Za-z0-9_-]{1,64}$/;
+
 export class LedgerAuthority {
   readonly ledgerPath: string;
   readonly publicKeyPath: string;
@@ -179,9 +186,14 @@ export class LedgerAuthority {
     if (ask.kind === "bell-book" && (ask.gate !== "bulkhead" || ask.rule !== undefined && ask.rule !== null || typeof ask.session !== "string" || !BELL_BOOK_SESSION.test(ask.session))) {
       throw new Error('a bell-book row has gate "bulkhead", no rule, and session "rows=<n> head=<64 hex>"');
     }
+    // A revocation row says only "a person revoked mandate <id>, and this authority saw it at ts". Held to its
+    // one shape for the same reason as a bell-book row.
+    if (ask.kind === "revocation" && (ask.gate !== "mandate" || ask.rule !== undefined && ask.rule !== null || typeof ask.session !== "string" || !REVOCATION_SESSION.test(ask.session))) {
+      throw new Error('a revocation row has gate "mandate", no rule, and session "mdr=<mandate id>"');
+    }
     const payload: LedgerPayload = {
       ts: this.now().toISOString(),
-      kind: ask.kind === "override" ? "override" : ask.kind === "bell-book" ? "bell-book" : "refused",
+      kind: ask.kind === "override" ? "override" : ask.kind === "bell-book" ? "bell-book" : ask.kind === "revocation" ? "revocation" : "refused",
       gate: clip(ask.gate, 80) ?? "unknown",
       rule: clip(ask.rule, 60),
       session: clip(ask.session, 80),
@@ -221,7 +233,7 @@ export class LedgerAuthority {
     rows: number; max_seq: number; public_key: string; ledger: string; source: string;
     verified_at_start: boolean; start_detail: string | null;
     witness: string | null; witness_holds: number | null;
-    receipts: true; bell_book: true;
+    receipts: true; bell_book: true; revocation: true;
   } {
     return {
       rows: this.rows.length,
@@ -239,6 +251,9 @@ export class LedgerAuthority {
       // Since 2.27.0 it signs bell-book rows as their own kind. An older one signs ANY kind but "override" as
       // a refusal, so the bulkhead asks here first and anchors nothing unless this field is true.
       bell_book: true,
+      // Since this field (added after aegis 2.29.1) it signs revocation rows as their own kind. An older one would sign a
+      // revocation as a REFUSAL, so revokeMandate asks here first and sends nothing unless this is true.
+      revocation: true,
     };
   }
 

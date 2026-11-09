@@ -37,7 +37,10 @@ export default async function mandate(args: string[]): Promise<void> {
     }
     if (revoked.has(m.mudrika_id)) { console.log(`${m.mudrika_id} was already revoked`); return; }
     const by = process.env.SUDO_USER ?? process.env.USER ?? "unknown";
-    revokeMandate(m.mudrika_id, by, rest.join(" "));
+    const { signed } = revokeMandate(m.mudrika_id, by, rest.join(" "));
+    console.log("seq" in signed
+      ? `signed onto the ledger as row ${signed.seq} (${signed.check === "verified" ? "verified under the pinned key" : "NOT CHECKED: no ledger key is pinned"}).`
+      : `NOT signed onto the ledger: ${signed.error}. The revocation still holds here (revoked.jsonl).`);
     console.log(`revoked ${m.mudrika_id} (${m.agent_id}). ${mandateEnforced(loadConfig())
       ? "This box enforces mandates: every later call in that flow is refused (GTP-022)."
       : "This box does not enforce mandates (enforcement.mode and kavach.mandate must both be \"enforce\"): later calls in that flow are recorded as revoked, not refused."}`);

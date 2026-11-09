@@ -26,6 +26,7 @@ import { randomBytes, timingSafeEqual } from "crypto";
 import { join } from "path";
 import { getAegisDir } from "../core/config";
 import { signWithMachineSecret } from "../kernel/mudrika";
+import { askAuthorityRevocation, type AuthorityAnswer } from "../core/refusal-ledger";
 
 export const MANDATE_TTL_SECONDS = 24 * 60 * 60;
 
@@ -234,11 +235,30 @@ export function flowEnvLine(sessionId: string, mandateId: string): string | null
   return FLOW_REF.test(`${sessionId}:${mandateId}`) ? `export AEGIS_FLOW='${sessionId}:${mandateId}'\n` : null;
 }
 
-/** A person's act (GTP-022). Appends; never edits or removes a line. */
-export function revokeMandate(id: string, by: string, reason = ""): void {
+/**
+ * A person's act (GTP-022). Appends; never edits or removes a line.
+ *
+ * Since 9 Nov 2026 the revocation is also signed onto the refusal ledger as a row of its own kind, so the
+ * evidence of it is a numbered, chained row the next anchor dates, not only a local line (founder's word:
+ * "sign revocations onto the ledger"). The local line is written whatever the authority answers (FP-010,
+ * the floor; each ask times out after 5 s, so a dead authority delays it, never stops it), and the line says
+ * which signed row carries it, or why none does. `askLedger` is for tests.
+ */
+export function revokeMandate(id: string, by: string, reason = "", askLedger: (id: string) => AuthorityAnswer = askAuthorityRevocation): { signed: AuthorityAnswer } {
   if (!SAFE_ID.test(id)) throw new Error(`not a mandate id: ${id}`);
   mandatesDir(true);
-  appendFileSync(revokedPath(), JSON.stringify({ mudrika_id: id, revoked_at: new Date().toISOString(), by, reason }) + "\n", { mode: 0o600 });
+  let signed: AuthorityAnswer;
+  try { signed = askLedger(id); } catch (e) { signed = { error: `authority could not be asked: ${(e as Error).message}` }; }
+  const line: Record<string, unknown> = { mudrika_id: id, revoked_at: new Date().toISOString(), by, reason };
+  if ("seq" in signed) {
+    line.authority_seq = signed.seq;
+    line.authority_check = signed.check;
+    if (signed.row_hash) line.authority_row_hash = signed.row_hash;
+  } else {
+    line.authority_error = signed.error;
+  }
+  appendFileSync(revokedPath(), JSON.stringify(line) + "\n", { mode: 0o600 });
+  return { signed };
 }
 
 export function listMandates(): Mandate[] {
