@@ -157,6 +157,18 @@ describe("§S4 the shield's own files are not writable through the tools it watc
     expect(isShieldOwnFile(`${H}/project/.aegis/notes.md`, ctx)).toBe(AEGIS === `${H}/project/.aegis`);
   });
 
+  it("SH-403: the frozen copies the gates and guards run from are its own (AOR-002); the working trees are not", () => {
+    for (const p of ["/opt/aegis-gates/current/src/cli/index.ts", "/opt/aegis-gates", "/opt/ankr-guards/current/git-guard.mjs",
+      "/opt/aegis-authority/current/src/cli/index.ts"]) {
+      expect(isShieldOwnFile(p, ctx)).toBe(true);
+      const r = detectPersistenceWrite(p, rules, ctx);
+      expect(r.rule_id).toBe("KAV-096");
+    }
+    for (const p of ["/opt/aegis-gates-notes/x", "/opt/other/x", "/root/aegis/src/cli/index.ts", "/root/.ankr/scripts/git-guard.mjs"]) {
+      expect(isShieldOwnFile(p, ctx)).toBe(false);
+    }
+  });
+
   it("SH-402: the Write and Edit tools", () => {
     for (const f of ["shield-rules.json", "config.json", "pre-tool-use.sh", "shield-state.json", "refusals.jsonl"]) {
       const r = detectPersistenceWrite(join(AEGIS, f), rules, ctx);
@@ -171,6 +183,8 @@ describe("§S4 the shield's own files are not writable through the tools it watc
     `chmod 000 ${A}/pre-tool-use.sh`, `cp /tmp/r.json ${A}/shield-rules.json`, `truncate -s 0 ${A}/refusals.jsonl`, `: > ${A}/shield-state.json`,
     `ln -sf /dev/null ${A}/shield-rules.json`, `cd ${A} && rm config.json`, `pushd ${A}; echo "{}" > shield-rules.json`, `echo '{}' > ~/.claude/settings.json`,
     `jq '.hooks={}' ~/.claude/settings.json > /tmp/s && mv /tmp/s ~/.claude/settings.json`,
+    `echo x > /opt/aegis-gates/current/src/cli/index.ts`, `rm -rf /opt/ankr-guards/current`, `ln -sfn /tmp/x /opt/aegis-gates/current`,
+    `cp /tmp/g.mjs /opt/ankr-guards/current/git-guard.mjs`, `sed -i 's/QUARANTINE/PASS/' /opt/aegis-gates/current/src/shield/injection-detector.ts`,
   ];
   for (const c of stopped) it(`SH-4xx stopped: ${c.replace(A, "<aegis>").slice(0, 60)}`, () => {
     const r = sh(c);

@@ -256,9 +256,15 @@ export function detectInjection(text: string, rules: ShieldRules): DetectionResu
  * (rules, configuration, hook script, state, ledgers) and the harness settings that wire
  * the hook. Built in: no rules file changes it.
  */
+export const FROZEN_DIRS = ["/opt/aegis-gates", "/opt/ankr-guards", "/opt/aegis-authority"];
+
 export function isShieldOwnFile(path: string, ctx?: PathContext): boolean {
   const dir = getAegisDir();
   if (path === dir || path.startsWith(dir + "/")) return true;
+  // AOR-002 (2026-11-09, founder: "frozen copy, go ahead"): the root-owned copies the gates and the guard
+  // hooks run from, and the authority's own copy. Development stays free in /root/aegis and .ankr/scripts;
+  // what runs is the frozen copy, and moving it forward is a person's act.
+  for (const frozen of FROZEN_DIRS) if (path === frozen || path.startsWith(frozen + "/")) return true;
   const home = ctx?.home || process.env.HOME || "/root";
   return path === join(home, ".claude", "settings.json") || path === join(home, ".claude", "settings.local.json");
 }
