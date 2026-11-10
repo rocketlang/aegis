@@ -50,6 +50,7 @@ class KavachCrewAICallback(KavachGateCallback):
         on_block: str = "raise",
         dry_run: bool = False,
         session_id: Optional[str] = None,
+        fail_open: bool = False,
     ):
         super().__init__(
             base_url=base_url,
@@ -58,6 +59,7 @@ class KavachCrewAICallback(KavachGateCallback):
             dry_run=dry_run,
             tool_name="crewai",
             session_id=session_id or f"crew-{uuid.uuid4().hex[:12]}",
+            fail_open=fail_open,
         )
 
 
@@ -81,21 +83,25 @@ class CrewAIBudgetGuard:
         base_url: str = "http://localhost:4850",
         token: Optional[str] = None,
         on_block: str = "raise",
+        fail_open: bool = False,
     ):
         if on_block not in ("raise", "warn"):
             raise ValueError("on_block must be 'raise' or 'warn'")
         self.client = AegisClient(base_url=base_url, token=token)
         self.on_block = on_block
+        self.fail_open = fail_open
 
     def _check_budget(self) -> None:
         # @rule:KOS-091 pre-flight: abort before crew starts if budget breached
         try:
             state = self.client.state()
-        except RuntimeError:
-            # AEGIS unreachable — fail open, let crew run
-            import warnings
-            warnings.warn("[CrewAIBudgetGuard] AEGIS unreachable — proceeding unguarded", stacklevel=3)
-            return
+        except RuntimeError as e:
+            # @rule:INF-ACP-001 AEGIS unreachable: refuse the kickoff unless fail_open was chosen explicitly
+            if self.fail_open:
+                import warnings
+                warnings.warn("[CrewAIBudgetGuard] AEGIS unreachable — proceeding unguarded (fail_open=True)", stacklevel=3)
+                return
+            raise RuntimeError(f"[CrewAIBudgetGuard] AEGIS unreachable — crew not started (fail closed): {e}") from e
 
         if state.get("breached", False):
             spent = state.get("daily_spent", 0.0)
@@ -125,6 +131,7 @@ def governed_kickoff(
     token: Optional[str] = None,
     on_block: str = "raise",
     inputs: Optional[Dict[str, Any]] = None,
+    fail_open: bool = False,
 ) -> Any:
     """One-liner: budget pre-check + run crew.kickoff().
 
@@ -138,5 +145,5 @@ def governed_kickoff(
 
         result = governed_kickoff(crew, aegis_url="http://localhost:4850", inputs={"topic": "safety"})
     """
-    guard = CrewAIBudgetGuard(base_url=aegis_url, token=token, on_block=on_block)
+    guard = CrewAIBudgetGuard(base_url=aegis_url, token=token, on_block=on_block, fail_open=fail_open)
     return guard.kickoff(crew, inputs=inputs)

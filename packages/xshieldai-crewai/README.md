@@ -4,7 +4,7 @@
 > - **Tests:** ⚠️ no pytest suite yet — planned in v1.1.0. See [PROOF-STACK.md](https://github.com/rocketlang/aegis/blob/main/PROOF-STACK.md).
 > - **Examples:** ✅ 1 runnable example: [examples/governed_crew.py](examples/governed_crew.py). Run against a local AEGIS instance on port 4850.
 > - **Live demo:** ⚠️ planned (Tier 3)
-> - **Phase-1 limits:** Both callback and budget guard fail OPEN if AEGIS is unreachable (so a KavachOS outage does not block the crew entirely). If you require fail-closed, wrap with explicit AEGIS health checks before `governed_kickoff()`.
+> - **Since 1.0.2 both callback and budget guard fail CLOSED:** if AEGIS is unreachable the tool call is refused and the crew is not started. Pass `fail_open=True` (to `KavachCrewAICallback`, `CrewAIBudgetGuard` or `governed_kickoff`) to keep the 1.0.1 behaviour.
 >
 > Behaviour is end-to-end testable today: start AEGIS, run the example crew, watch DAN-3/4 tool calls intercept and budget exhaustion halt kickoff. Automated pytest fixtures land in v1.1.0.
 
@@ -64,7 +64,7 @@ from `xshieldai-langchain` — it fires LangChain's `on_tool_start` hook, which 
 CrewAI's tool dispatch loop **before** any tool executes. Policy lives in AEGIS — the callback
 is a relay, not a policy engine.
 
-If AEGIS is unreachable, both the callback and the budget guard fail open (warn, continue)
+If AEGIS is unreachable, both the callback and the budget guard refuse (fail closed) unless `fail_open=True` was passed.
 so a KavachOS outage does not block the crew entirely.
 
 ## AEGIS server

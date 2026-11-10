@@ -148,6 +148,7 @@ class KavachGateCallback:
         dry_run: bool = False,
         tool_name: str = "langchain",
         session_id: Optional[str] = None,
+        fail_open: bool = False,
     ):
         """
         Args:
@@ -157,6 +158,9 @@ class KavachGateCallback:
             dry_run: Classify only — no notification, no polling.
             tool_name: Label appearing in audit records.
             session_id: Audit grouping key. Auto-generated per callback instance if not set.
+            fail_open: If AEGIS cannot be reached, ``False`` (default since 1.0.2) refuses the tool call
+                (raises KavachGateError); ``True`` lets it run unguarded with a warning. A guard that cannot
+                be asked does not answer "yes" unless you chose that explicitly.
         """
         if on_block not in ("raise", "warn"):
             raise ValueError("on_block must be 'raise' or 'warn'")
@@ -165,6 +169,7 @@ class KavachGateCallback:
         self.dry_run = dry_run
         self.tool_name = tool_name
         self.session_id = session_id or f"lc-{uuid.uuid4().hex[:12]}"
+        self.fail_open = fail_open
 
     # ---- LangChain BaseCallbackHandler interface (duck-typed) ----
 
@@ -192,12 +197,15 @@ class KavachGateCallback:
                 dry_run=self.dry_run,
             )
         except RuntimeError as e:
-            # Aegis unreachable — fail open (log only) to avoid blocking all tooling
-            import warnings
-            warnings.warn(f"[KavachGateCallback] Aegis unreachable — proceeding unguarded: {e}", stacklevel=2)
-            return
+            # @rule:INF-ACP-001 Aegis unreachable: refuse unless the caller chose fail_open explicitly
+            if self.fail_open:
+                import warnings
+                warnings.warn(f"[KavachGateCallback] Aegis unreachable — proceeding unguarded (fail_open=True): {e}", stacklevel=2)
+                return
+            raise KavachGateError(command=command, level=-1, reason=f"AEGIS unreachable — refused (fail closed): {e}") from e
 
-        if not result.get("allow", True):
+        # an answer without allow:true is not an allow
+        if result.get("allow") is not True:
             level = result.get("level", 0)
             reason = result.get("reason", "blocked")
             approval_id = result.get("approval_id")

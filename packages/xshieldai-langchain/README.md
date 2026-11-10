@@ -4,7 +4,7 @@
 > - **Tests:** ⚠️ no pytest suite yet — planned in v1.1.0. See [PROOF-STACK.md](https://github.com/rocketlang/aegis/blob/main/PROOF-STACK.md).
 > - **Examples:** ✅ 1 runnable example: [examples/governed_agent.py](examples/governed_agent.py). Run against a local AEGIS instance (`bun /root/aegis/src/dashboard/server.ts` on port 4850).
 > - **Live demo:** ⚠️ planned (Tier 3)
-> - **Phase-1 limits:** Callback fails open if AEGIS is unreachable (`KavachGateError` only raised on definitive DAN-3/4 block). If you require fail-closed, wrap with your own pre-flight `client.state()` check.
+> - **Since 1.0.2 the callback fails CLOSED:** if AEGIS is unreachable, or answers without `allow: true`, the tool call is refused (`KavachGateError`). Pass `fail_open=True` to keep the 1.0.1 behaviour (warn and run unguarded).
 >
 > Behaviour is end-to-end testable today: start AEGIS, run the example, fire a destructive prompt, watch the gate intercept. Automated pytest fixtures land in v1.1.0.
 
