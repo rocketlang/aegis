@@ -97,6 +97,14 @@ const clip = ledgerField;
 export const BELL_BOOK_SESSION = /^rows=[1-9][0-9]{0,11} head=[0-9a-f]{64}$/;
 
 /**
+ * The append-only books whose head may be checkpointed here: aegis Bulkhead's bell book (BLK-020), and the AEGIS
+ * Control Plane core's receipt chain (ACP-T5.6: its tip lands in this ledger, which is anchored daily in the public
+ * log, so a rewrite of the core's chain is detectable off-box). A named list, never a pattern: adding a book is a
+ * reviewed change to this line.
+ */
+export const BELL_BOOK_GATES: ReadonlySet<string> = new Set(["bulkhead", "acp-core"]);
+
+/**
  * The one session a revocation row may carry: the id of the mandate a person revoked (kavach/mandate.ts,
  * revokeMandate). Who revoked it and why stay in the local revoked.jsonl beside the row's number: the key
  * signs no free text of an asker's choosing. Fits the 80-character field.
@@ -183,8 +191,8 @@ export class LedgerAuthority {
     const t = this.tail();
     // A bell-book row (aegis Bulkhead, BLK-020) says only "this bell book stood at row N with head H". It is
     // never a refusal, so it is held to its one shape: an asker cannot use the kind to sign free text.
-    if (ask.kind === "bell-book" && (ask.gate !== "bulkhead" || ask.rule !== undefined && ask.rule !== null || typeof ask.session !== "string" || !BELL_BOOK_SESSION.test(ask.session))) {
-      throw new Error('a bell-book row has gate "bulkhead", no rule, and session "rows=<n> head=<64 hex>"');
+    if (ask.kind === "bell-book" && (typeof ask.gate !== "string" || !BELL_BOOK_GATES.has(ask.gate) || ask.rule !== undefined && ask.rule !== null || typeof ask.session !== "string" || !BELL_BOOK_SESSION.test(ask.session))) {
+      throw new Error(`a bell-book row has gate ${[...BELL_BOOK_GATES].map((g) => `"${g}"`).join(" or ")}, no rule, and session "rows=<n> head=<64 hex>"`);
     }
     // A revocation row says only "a person revoked mandate <id>, and this authority saw it at ts". Held to its
     // one shape for the same reason as a bell-book row.

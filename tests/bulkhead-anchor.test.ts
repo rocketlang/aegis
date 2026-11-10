@@ -74,6 +74,15 @@ describe("the authority's side — a bell-book row is its own kind, held to one 
     expect(() => la.record({ gate: "other", kind: "bell-book", session: `rows=3 head=${"a".repeat(64)}` })).toThrow();
     expect(() => la.record({ gate: "bulkhead", kind: "bell-book", session: `rows=0 head=${"a".repeat(64)}` })).toThrow();
   });
+  test("ACP-T5.6: the control-plane core's receipt chain may checkpoint its head too, held to the same one shape", () => {
+    const la = authority();
+    const row = la.record({ gate: "acp-core", kind: "bell-book", session: `rows=7 head=${"b".repeat(64)}` });
+    expect(row).toMatchObject({ kind: "bell-book", gate: "acp-core", rule: null });
+    expect(verifyLedgerRows(ledgerRows(la), la.publicKey).ok).toBe(true);
+    expect(() => la.record({ gate: "acp-core", kind: "bell-book", session: "rows=7 head=free text" })).toThrow();
+    expect(() => la.record({ gate: "acp-core", kind: "bell-book", rule: "ACP-017", session: `rows=7 head=${"b".repeat(64)}` })).toThrow();
+    expect(() => la.record({ gate: "acp-core-2", kind: "bell-book", session: `rows=7 head=${"b".repeat(64)}` })).toThrow();
+  });
   test("a refusal is unchanged (kind refused)", () => {
     expect(authority().record({ gate: "check-destructive", rule: "KAV-052" }).kind).toBe("refused");
   });
