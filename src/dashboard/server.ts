@@ -23,6 +23,8 @@ import { registerBitMaskOSRoutes } from "./routes/bitmaskos";
 import { registerAuthRoutes } from "../auth/routes";
 import { isPublicRoute } from "./public-routes";
 import { registerEnforcementRoutes } from "./routes/enforcement";
+import { registerVisitorRoutes } from "./routes/visitor";
+import { VISITOR_GATE_ROUTE, visitorTokenFor } from "../visitor/visitor";
 import { registerAseRoutes } from "./routes/ase";
 import { registerFlowRoutes } from "./routes/flows";
 import { registerMachineLawRoutes } from "./routes/machine-law";
@@ -135,6 +137,9 @@ if (config.dashboard.auth?.enabled) {
 
     // The adapters' token opens the gate audit and nothing else (2.19.0). See api-token.ts.
     if (route === API_TOKEN_ROUTE && apiTokenMatches(req.headers["authorization"] as string | undefined, config.dashboard.auth?.api_token)) return;
+    // A product's visitor token opens the visitor gate and nothing else (B2, 13 Nov 2026). Tokens are read fresh so a
+    // token the founder adds or removes takes effect without a restart.
+    if (route === VISITOR_GATE_ROUTE && visitorTokenFor(req.headers["authorization"] as string | undefined, (loadConfig() as any)?.visitor?.tokens)) return;
 
     const { valid } = verifySession(req.headers["cookie"] as string | undefined);
     if (!valid) {
@@ -409,6 +414,7 @@ registerBitMaskOSRoutes(app);
 registerAuthRoutes(app);
 // @rule:AEG-E-001 enforcement pilot — TIER-A only, shadow mode by default
 registerEnforcementRoutes(app);
+registerVisitorRoutes(app);
 // @rule:ASE-001 sealed session envelope — issued at every agent session birth
 registerAseRoutes(app);
 // @rule:KAV-SHT-001 machine law — lawful action map before agent planning
