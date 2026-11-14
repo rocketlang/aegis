@@ -216,7 +216,7 @@ function askOnce(socket: string, req: Record<string, unknown>): any {
  * would put a false refusal in the signed ledger for good; so it is asked first whether it knows the
  * kind, and nothing is sent unless it says so. Never throws.
  */
-export function askAuthorityBellBook(rows: number, head: string): AuthorityAnswer {
+export function askAuthorityBellBook(rows: number, head: string, gate: "bulkhead" | "acp-core" | "abot" = "bulkhead"): AuthorityAnswer {
   const socket = ledgerSocket();
   if (!socket) return { error: "no ledger authority is configured on this box (no socket, no pointer file)" };
   let status: any;
@@ -225,7 +225,7 @@ export function askAuthorityBellBook(rows: number, head: string): AuthorityAnswe
   if (status.value?.bell_book !== true) {
     return { error: "the authority does not sign bell-book rows (it is older than aegis 2.27.0, and would sign this as a refusal) — nothing was sent" };
   }
-  return askAuthority({ gate: "bulkhead", rule: null, kind: "bell-book", session: `rows=${rows} head=${head}` })!;
+  return askAuthority({ gate, rule: null, kind: "bell-book", session: `rows=${rows} head=${head}` })!; // gate: a book on BELL_BOOK_GATES (default bulkhead)
 }
 
 /**
