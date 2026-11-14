@@ -83,6 +83,15 @@ describe("the authority's side — a bell-book row is its own kind, held to one 
     expect(() => la.record({ gate: "acp-core", kind: "bell-book", rule: "ACP-017", session: `rows=7 head=${"b".repeat(64)}` })).toThrow();
     expect(() => la.record({ gate: "acp-core-2", kind: "bell-book", session: `rows=7 head=${"b".repeat(64)}` })).toThrow();
   });
+  test("ABOT-002: abot's evidence ledger may checkpoint its head, held to the same one shape", () => {
+    const la = authority();
+    const row = la.record({ gate: "abot", kind: "bell-book", session: `rows=7019 head=${"c".repeat(64)}` });
+    expect(row).toMatchObject({ kind: "bell-book", gate: "abot", rule: null });
+    expect(verifyLedgerRows(ledgerRows(la), la.publicKey).ok).toBe(true);
+    expect(() => la.record({ gate: "abot", kind: "bell-book", session: "rows=7019 head=free text" })).toThrow();
+    expect(() => la.record({ gate: "abot", kind: "bell-book", rule: "ABOT-002", session: `rows=1 head=${"c".repeat(64)}` })).toThrow();
+    expect(() => la.record({ gate: "abot-2", kind: "bell-book", session: `rows=1 head=${"c".repeat(64)}` })).toThrow();
+  });
   test("a refusal is unchanged (kind refused)", () => {
     expect(authority().record({ gate: "check-destructive", rule: "KAV-052" }).kind).toBe("refused");
   });

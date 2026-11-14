@@ -99,10 +99,12 @@ export const BELL_BOOK_SESSION = /^rows=[1-9][0-9]{0,11} head=[0-9a-f]{64}$/;
 /**
  * The append-only books whose head may be checkpointed here: aegis Bulkhead's bell book (BLK-020), and the AEGIS
  * Control Plane core's receipt chain (ACP-T5.6: its tip lands in this ledger, which is anchored daily in the public
- * log, so a rewrite of the core's chain is detectable off-box). A named list, never a pattern: adding a book is a
- * reviewed change to this line.
+ * log, so a rewrite of the core's chain is detectable off-box), and abot's evidence ledger (ABOT-002, founder
+ * 14 Nov 2026 "yes anchor checkpoints": each daily checkpoint's line count and last hash, so abot's observations of
+ * ANKR's own capability cannot be rewritten on this host unnoticed). A named list, never a pattern: adding a book is
+ * a reviewed change to this line.
  */
-export const BELL_BOOK_GATES: ReadonlySet<string> = new Set(["bulkhead", "acp-core"]);
+export const BELL_BOOK_GATES: ReadonlySet<string> = new Set(["bulkhead", "acp-core", "abot"]);
 
 /**
  * The one session a revocation row may carry: the id of the mandate a person revoked (kavach/mandate.ts,
