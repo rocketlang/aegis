@@ -90,6 +90,9 @@ function pathCues(path: string, project?: string): { strong: RegExp[]; weak: Reg
     const f = esc(folder);
     strong.push(new RegExp(`(?<![\\w.-])${f}\\/|\\b${f}\\s+(folder|directory|dir)\\b|\\b(folder|directory|dir)\\s+${f}\\b`, "i"));
     weak.push(new RegExp(`\\b${f}\\b`, "i"));
+    // a word that is only part of the folder name ("todos" of team-todos/) gestures at it (v3)
+    const fparts = words(folder).filter((w) => !GENERIC.has(w.toLowerCase()) && w.toLowerCase() !== folder.toLowerCase());
+    if (fparts.length) weak.push(new RegExp(`\\b(${fparts.map(esc).join("|")})\\b`, "i"));
   }
   const parts2 = words(stem).filter((w) => !GENERIC.has(w.toLowerCase()) && w.toLowerCase() !== stem.toLowerCase());
   if (parts2.length) weak.push(new RegExp(`\\b(${parts2.map(esc).join("|")})\\b`, "i"));
