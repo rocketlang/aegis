@@ -51,6 +51,12 @@ describe("one call against the declaration", () => {
       ["Bash", { command: "touch -r a.txt ~/demo-findings/2026-11-15/proj/a.txt" }], ["Bash", { command: "ls -la && git status" }]] as const)
       expect(call(n, i).outside).toEqual([]);
   });
+  it("drill findings (attribution drill): any JSON spacing, shell network use, python -c", async () => {
+    expect(call("Bash", { command: "curl -s https://example.com -o /dev/null" }).outside.join()).toContain("network use, declared none");
+    expect(call("Bash", { command: "ls && wget https://example.com/x" }).outside.join()).toContain("network use, declared none");
+    expect(call("Bash", { command: "echo curl is a word" }).outside.join()).not.toContain("network use");
+    expect(call("Bash", { command: "python3 -c \"open('/etc/x','w').write('1')\"" }).unchecked.join()).toContain("script body");
+  });
   it("what it cannot see is NOT CHECKED, never passed", () => {
     expect(call("Bash", { command: 'D="$X/out"; echo hi > "$D/f"' }).unchecked.join()).toContain("variable or quotes");
     expect(call("Bash", { command: "python3 -c \"open('/etc/x','w').write('1')\" " }).unchecked.length + call("Bash", { command: "node -e \"require('fs').writeFileSync('/etc/x','1')\"" }).unchecked.length).toBeGreaterThan(0);
@@ -108,6 +114,14 @@ describe("session windows and the report", () => {
   });
   afterAll(() => rmSync(dir, { recursive: true, force: true }));
 
+  it("reads log lines written with spaces after colons (valid JSON, never skipped)", async () => {
+    const f = join(dir, "projects", "p", "spaced.jsonl");
+    writeFileSync(f, [JSON.stringify(JSON.parse(user("go", 0)), null, 0).replace(/":/g, '": '), JSON.stringify(JSON.parse(tu("Skill", { skill: "demo" }, 1))).replace(/":/g, '": '), JSON.stringify(JSON.parse(tu("Bash", { command: "git push" }, 2))).replace(/":/g, '": ')].join("\n") + "\n");
+    const { needs } = loadNeeds(findNeedsFiles([join(dir, "skills")]));
+    const { windows } = await scanLogs([f], needs, T0 - 1);
+    expect(windows.length).toBe(1); expect(windows[0].outside.length).toBe(1);
+    rmSync(f);
+  });
   it("finds needs files in skill folders and installed plugins", () => {
     const f = findNeedsFiles([join(dir, "skills")], join(dir, "cache"));
     expect(f.map((x) => x.name).sort()).toEqual(["demo", "plug"]);

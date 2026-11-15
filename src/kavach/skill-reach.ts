@@ -197,7 +197,7 @@ export function bashChecks(cmd0: string, cwd: string | undefined, n: Compiled): 
     const p = abs(t);
     if (!inAny(p, n.write_paths)) hits.push(`bash: writes ${p}`);
   }
-  if (/\b(python3?|node|bun|perl|ruby)\b[^\n]*(\s-\s|\s-e\s|<<)/.test(cmd0) && /(open\([^)]*['"]w|writeFile|\.write\(|unlink|rmSync)/.test(cmd0)) unchecked.push("bash: a write inside a script body");
+  if (/\b(python3?|node|bun|perl|ruby)\b[^\n]*(\s-\s|\s-[ec]\s|<<)/.test(cmd0) && /(open\([^)]*['"]w|writeFile|\.write\(|unlink|rmSync)/.test(cmd0)) unchecked.push("bash: a write inside a script body");
   if (n.bash?.commit_paths_in_write_scope) {
     for (const s of segB) for (const m of s.matchAll(/^\s*git\s+(?:-C\s+(\S+)\s+)?(add|commit)\b(.*)$/g)) {
       const repoBase = m[1] ? abs(m[1]) : base; const rest = m[3].replace(/\s\d?>.*$|\s<.*$/, "");
@@ -247,6 +247,8 @@ export function checkCall(tu: { name: string; input?: any }, cwd: string | undef
       if (inp.command.includes(root) || (tail && new RegExp(`(^|[\\s'"=/~}])${tail.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(/|\\s|$|['"])`).test(inp.command))) out.outside.push(`Bash: names forbidden path ${root}`);
     }
     if (!n.outward_acts.includes("mail") && n.forbidRe.every((f) => f.why !== "outward mail")) out.unchecked.push("bash: no outward-mail rule declared");
+    // a network client run from the shell, when the skill declares no network use (WebFetch alone is not the only way out)
+    if (n.network === "none" && segments(blankQuotes(stripHeredocs(inp.command))).some((s) => /^(curl|wget|nc|ncat|telnet|ftp|sftp|scp|ssh|http|https|aria2c)\b/.test(s))) out.outside.push("Bash: network use, declared none");
   }
   const outward = OUTWARD.find((o) => o.re.test(name));
   if (outward && !n.outward_acts.includes(outward.act)) out.outside.push(`outward act not declared: ${outward.act} (${name})`);
@@ -292,7 +294,7 @@ export async function scanLogs(files: string[], needs: Record<string, Compiled>,
     try {
       const rl = createInterface({ input: createReadStream(fp), crlfDelay: Infinity });
       for await (const line of rl) {
-        if (!line.includes('"type":"user"') && !line.includes('"type":"assistant"')) continue;
+        if (!/"type"\s*:\s*"(user|assistant)"/.test(line)) continue; // any JSON spacing: a skipped line would be a silent pass
         let d: any; try { d = JSON.parse(line); } catch { continue; }
         const inRange = Date.parse(d.timestamp ?? "") >= since;
         if (d.type === "user" && !isToolResult(d.message?.content)) {
