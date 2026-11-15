@@ -41,16 +41,29 @@ export type Finding = { ts: string; what: string; authority?: Authority; evidenc
 // It is evidence for a person to judge, never "authorised": it never removes or softens OUTSIDE. Pasted text is
 // someone else's words and never counts. A negated mention ("don't push yet") is not a request.
 const NEG = /\b(don'?t|do not|never|no|not|without|avoid|stop)\b(\W+\w+){0,3}\W*$/i;
-type Cue = { act: RegExp; strong: RegExp[]; weak: RegExp[] };
+type Cue = { act: RegExp; strong: RegExp[]; weak: RegExp[]; typo: string[] };
 const CUES: Cue[] = [
-  { act: /git push|outward git/, strong: [/\bpush(es|ed|ing)?\b/i], weak: [/\b(ship|release|deploy|publish|upload|sync|remote|origin)\b/i] },
-  { act: /outward mail|act not declared: mail/, strong: [/\be-?mail(s|ed|ing)?\b/i, /\bmail(s|ed|ing)?\b/i, /\bsend\b/i], weak: [/\b(notify|inform|tell|loop|let \w+ know|share|circulate|update (the )?team)\b/i] },
-  { act: /network use|network write|tool not declared: Web(Fetch|Search)|outward act not declared: publish/, strong: [/https?:\/\/\S+/i, /\b(fetch|download|curl|wget|web|website|internet|online|url|look (it )?up)\b/i], weak: [/\b(latest|current|live|check (the )?site|external)\b/i] },
-  { act: /recursive delete/, strong: [/\b(delete|remove|clear|wipe|rm)\b/i], weak: [/\b(tidy|clean|reset|fresh|start over)\b/i] },
-  { act: /tool not declared: (Agent|Task)/, strong: [/\b(sub-?agents?|agents?|delegate|in parallel)\b/i], weak: [] },
+  { act: /git push|outward git/, strong: [/\bpush(es|ed|ing)?\b/i], weak: [/\b(ship|release|deploy|publish|upload|sync|remote|origin)\b/i], typo: ["push"] },
+  { act: /outward mail|act not declared: mail/, strong: [/\be-?mail(s|ed|ing)?\b/i, /\bsend(s|ing)?\b/i], weak: [/\b(notify|inform|tell|loop|let \w+ know|share|circulate|update (the )?team)\b/i], typo: ["send", "mail", "email"] },
+  { act: /network use|network write|tool not declared: Web(Fetch|Search)|outward act not declared: publish/, strong: [/https?:\/\/\S+/i, /\b(fetch(es|ed|ing)?|download(s|ed|ing)?|curl|wget|web|website|internet|online|url|look (it )?up)\b/i], weak: [/\b(latest|current|live|check (the )?site|external)\b/i], typo: ["fetch", "download", "curl", "wget"] },
+  { act: /recursive delete/, strong: [/\b(delet(e|es|ed|ing)|remov(e|es|ed|ing)|clear(s|ed|ing)?|wip(e|es|ed|ing)|rm)\b/i], weak: [/\b(tidy|clean|reset|fresh|start over)\b/i], typo: ["delete", "remove", "wipe", "clear"] },
+  { act: /tool not declared: (Agent|Task)/, strong: [/\b(sub-?agents?|agents?|delegate|in parallel)\b/i], weak: [], typo: [] },
 ];
 const words = (s: string) => s.replace(/\.[a-z0-9]{1,5}$/i, "").split(/[^A-Za-z0-9]+/).filter((w) => w.length >= 3);
-const GENERIC = new Set(["work", "acme", "home", "drill", "root", "tmp", "src", "file", "files", "notes", "the", "and"]);
+const GENERIC = new Set(["work", "home", "drill", "root", "tmp", "file", "files", "notes", "the", "and"]);
+// common words one letter from an action word: never read as a misspelling of it
+const REAL = new Set(["sent", "seed", "sand", "lend", "tend", "bend", "mend", "fend", "vend", "main", "nail", "sail", "rail", "tail", "hail", "fail", "mall", "maid", "jail", "pail", "wail", "bush", "rush", "posh", "gush", "lush", "mush", "hush", "pull", "wide", "wise", "wire", "wife", "ripe", "pipe", "wine", "clean", "cleat", "remote", "curt", "curb", "cure", "curd", "hurl", "purl", "furl", "burl", "fetcher"]);
+const esc = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+const lev1 = (a: string, b: string): boolean => {
+  if (a === b || Math.abs(a.length - b.length) > 1) return false;
+  let i = 0, j = 0, e = 0;
+  while (i < a.length && j < b.length) {
+    if (a[i] === b[j]) { i++; j++; continue; }
+    if (++e > 1) return false;
+    if (a.length > b.length) i++; else if (b.length > a.length) j++; else { i++; j++; }
+  }
+  return e + (a.length - i) + (b.length - j) === 1;
+};
 function findIn(text: string, re: RegExp): { hit: string; negated: boolean } | null {
   const g = new RegExp(re.source, re.flags.includes("g") ? re.flags : re.flags + "g");
   let first: { hit: string; negated: boolean } | null = null;
@@ -64,14 +77,30 @@ function findIn(text: string, re: RegExp): { hit: string; negated: boolean } | n
 }
 /** The person's own words: pasted blocks removed (someone else's text never counts). */
 export const ownWords = (prompt: string) => String(prompt ?? "").replace(/<pasted_content[^>]*>[\s\S]*?<\/pasted_content[^>]*>/g, " ").replace(/<pasted_content[\s\S]*$/, " ");
-export function authorityOf(finding: string, prompt: string, skillText = ""): { authority: Authority; evidence: string } {
+/** Path acts: the full file name (with or without extension) or the folder written as a folder names the target
+ *  (strong); a word that is only part of the file name, or the bare folder word, only gestures at it (weak). */
+function pathCues(path: string, project?: string): { strong: RegExp[]; weak: RegExp[] } {
+  const parts = path.split("/").filter(Boolean); const base = parts[parts.length - 1] ?? "";
+  const m = /^(.*?)(\.[A-Za-z0-9]{1,5})?$/.exec(base)!; const stem = m[1], ext = m[2] ?? "";
+  const folder = parts.length >= 2 ? parts[parts.length - 2] : "";
+  const inRoot = project !== undefined && resolve(project) === "/" + parts.slice(0, -1).join("/");
+  const strong: RegExp[] = [], weak: RegExp[] = [];
+  if (stem.length >= 3 && !GENERIC.has(stem.toLowerCase())) strong.push(new RegExp(`(?<![\\w.-])${esc(stem)}(${esc(ext)})?(?![\\w-])`, "i"));
+  if (folder && !inRoot && !GENERIC.has(folder.toLowerCase())) {
+    const f = esc(folder);
+    strong.push(new RegExp(`(?<![\\w.-])${f}\\/|\\b${f}\\s+(folder|directory|dir)\\b|\\b(folder|directory|dir)\\s+${f}\\b`, "i"));
+    weak.push(new RegExp(`\\b${f}\\b`, "i"));
+  }
+  const parts2 = words(stem).filter((w) => !GENERIC.has(w.toLowerCase()) && w.toLowerCase() !== stem.toLowerCase());
+  if (parts2.length) weak.push(new RegExp(`\\b(${parts2.map(esc).join("|")})\\b`, "i"));
+  return { strong, weak };
+}
+export function authorityOf(finding: string, prompt: string, skillText = "", project?: string): { authority: Authority; evidence: string } {
   const own = ownWords(prompt);
   const cue = CUES.find((c) => c.act.test(finding));
-  // a path act: the file or folder it touches, named by its own words (README, docs, config ...)
   const pm = /(?:writes|reads|forbidden path|git (?:add|commit)) (\/\S+)/.exec(finding);
-  const pathRes = pm ? (() => { const parts = pm[1].split("/").filter(Boolean); const tail = parts.slice(-2).flatMap(words).filter((w) => !GENERIC.has(w.toLowerCase()));
-    return tail.length ? [new RegExp(`\\b(${tail.map((w) => w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|")})\\b`, "i")] : []; })() : [];
-  const strong = [...(cue?.strong ?? []), ...pathRes], weak = cue?.weak ?? [];
+  const pc = pm ? pathCues(pm[1], project) : { strong: [], weak: [] };
+  const strong = [...(cue?.strong ?? []), ...pc.strong], weak = [...(cue?.weak ?? []), ...pc.weak];
   const quote = (s: string) => `«${s.length > 80 ? s.slice(0, 77) + "..." : s}»`;
   let negated: string | null = null;
   for (const [src, label] of [[own, "person"], [skillText, "skill"]] as const) {
@@ -79,6 +108,13 @@ export function authorityOf(finding: string, prompt: string, skillText = ""): { 
   }
   if (negated) return { authority: "none found", evidence: `the prompt names it only to rule it out: ${quote(negated)}` };
   for (const re of weak) { const f = findIn(own, re); if (f && !f.negated) return { authority: "unclear", evidence: `prompt only gestures at it: ${quote(f.hit)}` }; }
+  // a one-letter misspelling of the action word ("dend" for "send") gestures at it; never enough for "person"
+  for (const tok of own.match(/[A-Za-z]{4,}/g) ?? []) {
+    const lw = tok.toLowerCase();
+    if (REAL.has(lw)) continue;
+    const base = (cue?.typo ?? []).find((b) => lev1(lw, b));
+    if (base) { const f = findIn(own, new RegExp(`\\b${esc(tok)}\\b`)); if (f && !f.negated) return { authority: "unclear", evidence: `prompt has "${tok}", one letter from "${base}": ${quote(f.hit)}` }; }
+  }
   return { authority: "none found", evidence: "neither the prompt nor SKILL.md names this act" };
 }
 const skillTextCache = new Map<string, string>();
@@ -368,11 +404,11 @@ export async function scanLogs(files: string[], needs: Record<string, Compiled>,
             if (!a || !inRange) continue;
             a.calls++;
             const r = checkCall(c, d.cwd, expandNeeds(needs[a.skill], { project: d.cwd, skill: a.dir }));
-            for (const o of r.outside) a.outside.push({ ts: d.timestamp, what: o, ...authorityOf(o, a.prompt, skillTextOf(a.dir)) });
+            for (const o of r.outside) a.outside.push({ ts: d.timestamp, what: o, ...authorityOf(o, a.prompt, skillTextOf(a.dir), d.cwd) });
             for (const u of r.unchecked) a.unchecked.push({ ts: d.timestamp, what: u });
             const vd = verdictOf(d.timestamp, c.name, r);
             // a third candidate policy: refuse a hard act only when nothing named it (authority "none found")
-            vd.hardNoAuthority = r.outside.some((o) => isHard(o) && authorityOf(o, a.prompt, skillTextOf(a.dir)).authority === "none found");
+            vd.hardNoAuthority = r.outside.some((o) => isHard(o) && authorityOf(o, a.prompt, skillTextOf(a.dir), d.cwd).authority === "none found");
             a.verdicts.push(vd);
           }
         }
