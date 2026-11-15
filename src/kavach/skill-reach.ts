@@ -122,8 +122,24 @@ export function authorityOf(finding: string, prompt: string, skillText = "", pro
 }
 const skillTextCache = new Map<string, string>();
 const skillTextOf = (dir: string) => { if (!skillTextCache.has(dir)) { let t = ""; try { t = readFileSync(join(dir, "SKILL.md"), "utf8").replace(/^---\n[\s\S]*?\n---\n?/, ""); } catch { /* none */ } skillTextCache.set(dir, t); } return skillTextCache.get(dir)!; };
-export type Verdict = { ts: string; tool: string; strict: boolean; hard: boolean; undecidable: boolean; reasons: string[]; hardNoAuthority?: boolean };
-export type Window = { skill: string; dir: string; file: string; session: string; start: string; prompt: string; calls: number; outside: Finding[]; unchecked: Finding[]; verdicts: Verdict[] };
+export type Verdict = { ts: string; tool: string; strict: boolean; hard: boolean; undecidable: boolean; reasons: string[]; hardNoAuthority?: boolean;
+  /** observation only: the host's id for this tool call, and what kind of thing each finding records */
+  call_id?: string; kinds?: FindingKind[]; not_checked?: string[] };
+/** What a finding records, described, not judged (a decider maps kinds to answers; this module never does). */
+export type FindingKind = "forbidden-path" | "outward-act" | "shell-rule" | "network" | "write-elsewhere" | "read-elsewhere" | "tool-undeclared";
+export function kindOf(finding: string): FindingKind {
+  if (/forbidden path/.test(finding)) return "forbidden-path";
+  if (/outward act not declared/.test(finding)) return "outward-act";
+  if (/network use|network write/.test(finding)) return "network";
+  if (/^bash: (writes |git (add|commit))|: writes /.test(finding)) return "write-elsewhere";
+  if (/: reads /.test(finding)) return "read-elsewhere";
+  if (/tool not declared/.test(finding)) return "tool-undeclared";
+  return "shell-rule"; // a bash.forbid rule's why
+}
+/** How the calls of a window were tied to the skill: a host-stamped invocation id (exact), or the session window
+ *  opened by the Skill call and closed by the next prompt (inferred: no end marker). Prompt words are never used. */
+export type Invocation = { id: string; basis: "invocation-id" | "session-window" };
+export type Window = { skill: string; dir: string; file: string; session: string; start: string; prompt: string; calls: number; outside: Finding[]; unchecked: Finding[]; verdicts: Verdict[]; invocation?: Invocation };
 
 // ---- would refuse (a governor's verdict, computed and printed, NEVER applied) ---------------------------------
 // Two policies a governor could run while a skill is active, so a person can count what each would have refused
@@ -380,7 +396,9 @@ export async function scanLogs(files: string[], needs: Record<string, Compiled>,
   for (const fp of files) {
     let active: Window | null = null; let lastPrompt = "";
     const close = () => { if (active && active.calls) windows.push(active); active = null; };
-    const open = (skill: string, dir: string, d: any) => { close(); active = { skill, dir, file: fp, session: d.sessionId, start: d.timestamp, prompt: lastPrompt, calls: 0, outside: [], unchecked: [], verdicts: [] }; };
+    const open = (skill: string, dir: string, d: any, startId?: string) => { close(); active = { skill, dir, file: fp, session: d.sessionId, start: d.timestamp, prompt: lastPrompt, calls: 0, outside: [], unchecked: [], verdicts: [],
+      // Claude Code logs carry no id that ties later calls to the skill: the window is inferred, whatever started it
+      invocation: { id: startId ?? d.uuid ?? `${d.sessionId}@${d.timestamp}`, basis: "session-window" } }; };
     try {
       const rl = createInterface({ input: createReadStream(fp), crlfDelay: Infinity });
       for await (const line of rl) {
@@ -400,7 +418,7 @@ export async function scanLogs(files: string[], needs: Record<string, Compiled>,
             if (c.type !== "tool_use") continue;
             if (c.name === "Skill") {
               const sk = skillOfTool(c.input?.skill, needs);
-              if (sk && (active as Window | null)?.skill !== sk) { open(sk, needs[sk].dir, d); continue; }
+              if (sk && (active as Window | null)?.skill !== sk) { open(sk, needs[sk].dir, d, c.id); continue; }
               close(); continue; // another skill takes over (or the same one again): stop attributing to this one
             }
             const a = active as Window | null;
@@ -412,6 +430,7 @@ export async function scanLogs(files: string[], needs: Record<string, Compiled>,
             const vd = verdictOf(d.timestamp, c.name, r);
             // a third candidate policy: refuse a hard act only when nothing named it (authority "none found")
             vd.hardNoAuthority = r.outside.some((o) => isHard(o) && authorityOf(o, a.prompt, skillTextOf(a.dir), d.cwd).authority === "none found");
+            vd.call_id = c.id; vd.kinds = r.outside.map(kindOf); vd.not_checked = r.unchecked;
             a.verdicts.push(vd);
           }
         }
