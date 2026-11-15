@@ -109,7 +109,7 @@ describe("askAuthorityRevocation against a socket that answers like an older aut
 describe.skipIf(unsafe)("revokeMandate writes the local line either way, and names the signed row", () => {
   test("with an authority that knows the kind: the line carries the row's number and hash; the ledger holds the row", () => {
     const la = authority();
-    const m = M.ensureMandateForSession("sess-R1", { trustMask: 1, scopeKey: "aegis" }).mandate!;
+    const m = M.ensureMandateForSession("sess-R1", { trustMask: 1, scopeKey: "aegis", principal: "owner:test" }).mandate!;
     const { signed } = M.revokeMandate(m.mudrika_id, "person", "test", askVia(la));
     expect(signed).toMatchObject({ seq: 1, check: "verified" });
     expect(M.judgeMandate(m)).toBe("revoked");
@@ -121,11 +121,11 @@ describe.skipIf(unsafe)("revokeMandate writes the local line either way, and nam
   });
 
   test("with no authority, or one that refuses: still revoked, and the line says why it is unsigned", () => {
-    const m = M.ensureMandateForSession("sess-R2", { trustMask: 1, scopeKey: "aegis" }).mandate!;
+    const m = M.ensureMandateForSession("sess-R2", { trustMask: 1, scopeKey: "aegis", principal: "owner:test" }).mandate!;
     const { signed } = M.revokeMandate(m.mudrika_id, "person", "", () => ({ error: "no ledger authority is configured on this box" }));
     expect(signed).toHaveProperty("error");
     expect(M.judgeMandate(m)).toBe("revoked");
-    const m3 = M.ensureMandateForSession("sess-R3", { trustMask: 1, scopeKey: "aegis" }).mandate!;
+    const m3 = M.ensureMandateForSession("sess-R3", { trustMask: 1, scopeKey: "aegis", principal: "owner:test" }).mandate!;
     M.revokeMandate(m3.mudrika_id, "person", "", () => { throw new Error("boom"); });
     expect(M.judgeMandate(m3)).toBe("revoked");
     const lines = readFileSync(join(getAegisDir(), "mandates", "revoked.jsonl"), "utf-8").trim().split("\n").map((l) => JSON.parse(l));
