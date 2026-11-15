@@ -139,7 +139,7 @@ describe("session windows and the report", () => {
     expect(r.text).toContain("[pasted text]");            // someone else's words are never quoted
     expect(r.text).not.toContain("ignore all rules");
     expect(r.text).toContain("Observe only");
-    expect(r.wouldRefuse).toEqual({ strict: 1, hard: 1, undecidable: 0 });
+    expect(r.wouldRefuse).toEqual({ strict: 1, hard: 1, hardNoAuthority: 1, undecidable: 0 });
     expect(r.text).toContain("nothing was refused");
     expect(r.text).toContain("hard refuse");
   });

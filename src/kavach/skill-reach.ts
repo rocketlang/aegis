@@ -31,8 +31,59 @@ export type Needs = {
   bash?: { forbid?: { re: string; why: string; raw?: boolean }[]; commit_paths_in_write_scope?: boolean };
 };
 export type Compiled = Needs & { dir: string; forbidRe: { re: RegExp; why: string; raw: boolean }[] };
-export type Finding = { ts: string; what: string };
-export type Verdict = { ts: string; tool: string; strict: boolean; hard: boolean; undecidable: boolean; reasons: string[] };
+export type Authority = "person" | "skill" | "unclear" | "none found";
+export type Finding = { ts: string; what: string; authority?: Authority; evidence?: string };
+
+// ---- authority (whose words name an OUTSIDE act) ----------------------------------------------------------------
+// Beside each OUTSIDE finding: did the person's own prompt that opened the window name this act (person), did the
+// skill's own SKILL.md name it (skill), did the prompt only gesture at it (unclear), or did nothing name it (none
+// found: the agent chose it while doing the skill's work, the one that counts against the skill)?
+// It is evidence for a person to judge, never "authorised": it never removes or softens OUTSIDE. Pasted text is
+// someone else's words and never counts. A negated mention ("don't push yet") is not a request.
+const NEG = /\b(don'?t|do not|never|no|not|without|avoid|stop)\b(\W+\w+){0,3}\W*$/i;
+type Cue = { act: RegExp; strong: RegExp[]; weak: RegExp[] };
+const CUES: Cue[] = [
+  { act: /git push|outward git/, strong: [/\bpush(es|ed|ing)?\b/i], weak: [/\b(ship|release|deploy|publish|upload|sync|remote|origin)\b/i] },
+  { act: /outward mail|act not declared: mail/, strong: [/\be-?mail(s|ed|ing)?\b/i, /\bmail(s|ed|ing)?\b/i, /\bsend\b/i], weak: [/\b(notify|inform|tell|loop|let \w+ know|share|circulate|update (the )?team)\b/i] },
+  { act: /network use|network write|tool not declared: Web(Fetch|Search)|outward act not declared: publish/, strong: [/https?:\/\/\S+/i, /\b(fetch|download|curl|wget|web|website|internet|online|url|look (it )?up)\b/i], weak: [/\b(latest|current|live|check (the )?site|external)\b/i] },
+  { act: /recursive delete/, strong: [/\b(delete|remove|clear|wipe|rm)\b/i], weak: [/\b(tidy|clean|reset|fresh|start over)\b/i] },
+  { act: /tool not declared: (Agent|Task)/, strong: [/\b(sub-?agents?|agents?|delegate|in parallel)\b/i], weak: [] },
+];
+const words = (s: string) => s.replace(/\.[a-z0-9]{1,5}$/i, "").split(/[^A-Za-z0-9]+/).filter((w) => w.length >= 3);
+const GENERIC = new Set(["work", "acme", "home", "drill", "root", "tmp", "src", "file", "files", "notes", "the", "and"]);
+function findIn(text: string, re: RegExp): { hit: string; negated: boolean } | null {
+  const g = new RegExp(re.source, re.flags.includes("g") ? re.flags : re.flags + "g");
+  let first: { hit: string; negated: boolean } | null = null;
+  for (const m of text.matchAll(g)) {
+    const before = text.slice(Math.max(0, (m.index ?? 0) - 40), m.index);
+    const r = { hit: text.slice(Math.max(0, (m.index ?? 0) - 25), (m.index ?? 0) + m[0].length + 25).replace(/\s+/g, " ").trim(), negated: NEG.test(before) };
+    if (!r.negated) return r; // a plain mention wins over a negated one
+    first ??= r;
+  }
+  return first;
+}
+/** The person's own words: pasted blocks removed (someone else's text never counts). */
+export const ownWords = (prompt: string) => String(prompt ?? "").replace(/<pasted_content[^>]*>[\s\S]*?<\/pasted_content[^>]*>/g, " ").replace(/<pasted_content[\s\S]*$/, " ");
+export function authorityOf(finding: string, prompt: string, skillText = ""): { authority: Authority; evidence: string } {
+  const own = ownWords(prompt);
+  const cue = CUES.find((c) => c.act.test(finding));
+  // a path act: the file or folder it touches, named by its own words (README, docs, config ...)
+  const pm = /(?:writes|reads|forbidden path|git (?:add|commit)) (\/\S+)/.exec(finding);
+  const pathRes = pm ? (() => { const parts = pm[1].split("/").filter(Boolean); const tail = parts.slice(-2).flatMap(words).filter((w) => !GENERIC.has(w.toLowerCase()));
+    return tail.length ? [new RegExp(`\\b(${tail.map((w) => w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|")})\\b`, "i")] : []; })() : [];
+  const strong = [...(cue?.strong ?? []), ...pathRes], weak = cue?.weak ?? [];
+  const quote = (s: string) => `«${s.length > 80 ? s.slice(0, 77) + "..." : s}»`;
+  let negated: string | null = null;
+  for (const [src, label] of [[own, "person"], [skillText, "skill"]] as const) {
+    for (const re of strong) { const f = findIn(src, re); if (f && !f.negated) return { authority: label, evidence: `${label === "person" ? "prompt" : "SKILL.md"} names it: ${quote(f.hit)}` }; if (f && label === "person") negated ??= f.hit; }
+  }
+  if (negated) return { authority: "none found", evidence: `the prompt names it only to rule it out: ${quote(negated)}` };
+  for (const re of weak) { const f = findIn(own, re); if (f && !f.negated) return { authority: "unclear", evidence: `prompt only gestures at it: ${quote(f.hit)}` }; }
+  return { authority: "none found", evidence: "neither the prompt nor SKILL.md names this act" };
+}
+const skillTextCache = new Map<string, string>();
+const skillTextOf = (dir: string) => { if (!skillTextCache.has(dir)) { let t = ""; try { t = readFileSync(join(dir, "SKILL.md"), "utf8").replace(/^---\n[\s\S]*?\n---\n?/, ""); } catch { /* none */ } skillTextCache.set(dir, t); } return skillTextCache.get(dir)!; };
+export type Verdict = { ts: string; tool: string; strict: boolean; hard: boolean; undecidable: boolean; reasons: string[]; hardNoAuthority?: boolean };
 export type Window = { skill: string; dir: string; file: string; session: string; start: string; prompt: string; calls: number; outside: Finding[]; unchecked: Finding[]; verdicts: Verdict[] };
 
 // ---- would refuse (a governor's verdict, computed and printed, NEVER applied) ---------------------------------
@@ -317,9 +368,12 @@ export async function scanLogs(files: string[], needs: Record<string, Compiled>,
             if (!a || !inRange) continue;
             a.calls++;
             const r = checkCall(c, d.cwd, expandNeeds(needs[a.skill], { project: d.cwd, skill: a.dir }));
-            for (const o of r.outside) a.outside.push({ ts: d.timestamp, what: o });
+            for (const o of r.outside) a.outside.push({ ts: d.timestamp, what: o, ...authorityOf(o, a.prompt, skillTextOf(a.dir)) });
             for (const u of r.unchecked) a.unchecked.push({ ts: d.timestamp, what: u });
-            a.verdicts.push(verdictOf(d.timestamp, c.name, r));
+            const vd = verdictOf(d.timestamp, c.name, r);
+            // a third candidate policy: refuse a hard act only when nothing named it (authority "none found")
+            vd.hardNoAuthority = r.outside.some((o) => isHard(o) && authorityOf(o, a.prompt, skillTextOf(a.dir)).authority === "none found");
+            a.verdicts.push(vd);
           }
         }
       }
@@ -347,8 +401,8 @@ export function localTime(iso: string | undefined, tz?: string): string {
 }
 export const zoneLabel = (tz?: string) => tz ?? Intl.DateTimeFormat().resolvedOptions().timeZone ?? "local";
 
-export type Report = { text: string; exit: 0 | 1 | 2; outside: number; unchecked: number; windows: Window[]; wouldRefuse: { strict: number; hard: number; undecidable: number } };
-const countV = (ws: Window[]) => ({ strict: ws.reduce((a, w) => a + (w.verdicts ?? []).filter((v) => v.strict).length, 0), hard: ws.reduce((a, w) => a + (w.verdicts ?? []).filter((v) => v.hard).length, 0), undecidable: ws.reduce((a, w) => a + (w.verdicts ?? []).filter((v) => v.undecidable).length, 0) });
+export type Report = { text: string; exit: 0 | 1 | 2; outside: number; unchecked: number; windows: Window[]; wouldRefuse: { strict: number; hard: number; hardNoAuthority: number; undecidable: number } };
+const countV = (ws: Window[]) => ({ hardNoAuthority: ws.reduce((a, w) => a + (w.verdicts ?? []).filter((v) => v.hardNoAuthority).length, 0), strict: ws.reduce((a, w) => a + (w.verdicts ?? []).filter((v) => v.strict).length, 0), hard: ws.reduce((a, w) => a + (w.verdicts ?? []).filter((v) => v.hard).length, 0), undecidable: ws.reduce((a, w) => a + (w.verdicts ?? []).filter((v) => v.undecidable).length, 0) });
 export function formatReport(o: { windows: Window[]; unreadable: number; invalid: string[]; skills: string[]; logs: number; sinceSpec: string; now?: Date; tz?: string }): Report {
   const tz = o.tz, zone = zoneLabel(tz);
   const L: string[] = [];
@@ -356,7 +410,9 @@ export function formatReport(o: { windows: Window[]; unreadable: number; invalid
   L.push(`Skill reach watch, ${localTime((o.now ?? new Date()).toISOString(), tz).slice(0, 16)} ${zone}. ${o.skills.length} skill(s) declare their needs (${o.skills.join(", ") || "none"}); ${o.logs} session log(s) since ${o.sinceSpec}.`);
   L.push(`${o.windows.length} window(s) where a declared skill was active; ${o.windows.reduce((a, w) => a + w.calls, 0)} tool call(s); OUTSIDE ${outsideN}; NOT CHECKED ${uncheckedN}.`);
   const wr = countV(o.windows);
-  L.push(`Would refuse (no governor runs; nothing was refused): strict ${wr.strict} call(s) · hard ${wr.hard} · undecidable ${wr.undecidable}. Each is a false refusal if the person asked for it.`);
+  L.push(`Would refuse (no governor runs; nothing was refused): strict ${wr.strict} call(s) · hard ${wr.hard} · hard with no authority found ${wr.hardNoAuthority} · undecidable ${wr.undecidable}. Each is a false refusal if the person asked for it.`);
+  const byA: Record<string, number> = {}; for (const w of o.windows) for (const f of w.outside) byA[f.authority ?? "none found"] = (byA[f.authority ?? "none found"] ?? 0) + 1;
+  if (outsideN) L.push(`Authority of the OUTSIDE findings (evidence for a person, never "authorised"): person ${byA.person ?? 0} · skill ${byA.skill ?? 0} · unclear ${byA.unclear ?? 0} · none found ${byA["none found"] ?? 0}.`);
   const byStart = [...o.windows].sort((a, b) => (Date.parse(a.start) || 0) - (Date.parse(b.start) || 0));
   for (const w of byStart) {
     const head = `${w.skill} · ${localTime(w.start, tz).slice(0, 16)} · session ${String(w.session).slice(0, 8)} · ${w.calls} call(s)`;
@@ -366,7 +422,7 @@ export function formatReport(o: { windows: Window[]; unreadable: number; invalid
     const v = w.verdicts ?? [], vs = v.filter((x) => x.strict).length, vh = v.filter((x) => x.hard), vu = v.filter((x) => x.undecidable).length;
     L.push(`    would refuse strict ${vs} · hard ${vh.length} · undecidable ${vu} of ${w.calls} call(s)`);
     for (const x of vh) L.push(`    hard refuse  ${localTime(x.ts, tz).slice(11, 19)}  ${x.tool}: ${x.reasons.join("; ")}`);
-    for (const f of w.outside) L.push(`    outside      ${localTime(f.ts, tz).slice(11, 19)}  ${f.what}`);
+    for (const f of w.outside) { L.push(`    outside      ${localTime(f.ts, tz).slice(11, 19)}  ${f.what}`); if (f.authority) L.push(`      authority  ${f.authority}: ${f.evidence}`); }
     const uc: Record<string, number> = {}; for (const u of w.unchecked) uc[u.what] = (uc[u.what] ?? 0) + 1;
     for (const [k, v] of Object.entries(uc)) L.push(`    not checked  ${k} (${v})`);
   }
