@@ -5,7 +5,7 @@ import { describe, it, expect, beforeAll, afterAll } from "bun:test";
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from "fs";
 import { join } from "path";
 import { tmpdir, homedir } from "os";
-import { validateNeeds, findNeedsFiles, loadNeeds, scanLogs, formatReport, checkCall, compileNeeds, expandNeeds, quotePrompt, verdictOf, isHard, type Needs } from "../src/kavach/skill-reach";
+import { validateNeeds, findNeedsFiles, loadNeeds, scanLogs, formatReport, checkCall, compileNeeds, expandNeeds, quotePrompt, kindOf, type Needs } from "../src/kavach/skill-reach";
 
 const base: Needs = {
   schema: "skill-needs-v1", skill: "demo", act: "local-write", network: "none",
@@ -63,23 +63,16 @@ describe("one call against the declaration", () => {
   });
 });
 
-describe("would refuse (computed, never applied)", () => {
-  const v = (name: string, input: Record<string, unknown>) => verdictOf("t", name, call(name, input));
-  it("hard: forbidden path, outward act, a bash.forbid rule, undeclared network", () => {
-    expect(v("Read", { file_path: homedir() + "/.secret-store/k" })).toMatchObject({ strict: true, hard: true });
-    expect(v("Bash", { command: "git push origin main" })).toMatchObject({ strict: true, hard: true });
-    expect(v("WebFetch", { url: "https://x" })).toMatchObject({ strict: true, hard: true });     // network none
-    expect(v("SendMessage", { to: "x" })).toMatchObject({ strict: true, hard: true });           // outward act
-  });
-  it("strict only: a write or read elsewhere, an undeclared tool", () => {
-    expect(v("Write", { file_path: "/etc/passwd" })).toMatchObject({ strict: true, hard: false });
-    expect(v("Bash", { command: "cp a.txt /elsewhere/" })).toMatchObject({ strict: true, hard: false });
-    expect(v("Grep", { pattern: "x" })).toMatchObject({ strict: true, hard: false });             // tool not declared
-    expect(isHard("bash: git commit /x/y")).toBe(false);
-  });
-  it("declared work is never refused; unseen work is undecidable, not allowed", () => {
-    expect(v("Write", { file_path: P + "/out/r.md" })).toMatchObject({ strict: false, hard: false, undecidable: false });
-    expect(v("Bash", { command: 'echo hi > "$D/f"' })).toMatchObject({ strict: false, hard: false, undecidable: true });
+describe("call records describe, never decide", () => {
+  const rec = (name: string, input: Record<string, unknown>) => call(name, input).outside.map(kindOf);
+  it("each finding is described by its kind", () => {
+    expect(rec("Read", { file_path: homedir() + "/.secret-store/k" })).toContain("forbidden-path");
+    expect(rec("Bash", { command: "git push origin main" })).toContain("shell-rule");
+    expect(rec("WebFetch", { url: "https://x" })).toContain("network");
+    expect(rec("SendMessage", { to: "x" })).toContain("outward-act");
+    expect(rec("Write", { file_path: "/etc/passwd" })).toEqual(["write-elsewhere"]);
+    expect(rec("Grep", { pattern: "x" })).toEqual(["tool-undeclared"]);
+    expect(rec("Write", { file_path: P + "/out/r.md" })).toEqual([]);
   });
 });
 
@@ -139,9 +132,8 @@ describe("session windows and the report", () => {
     expect(r.text).toContain("[pasted text]");            // someone else's words are never quoted
     expect(r.text).not.toContain("ignore all rules");
     expect(r.text).toContain("Observe only");
-    expect(r.wouldRefuse).toEqual({ strict: 1, hard: 1, hardNoAuthority: 1, undecidable: 0 });
-    expect(r.text).toContain("nothing was refused");
-    expect(r.text).toContain("hard refuse");
+    expect(windows[0].call_log.map((c) => c.kinds)).toEqual([["shell-rule"], []]);
+    expect(r.text).not.toContain("would refuse");
   });
 
   it("exit codes: 0 all inside, 2 when only NOT CHECKED or invalid", () => {

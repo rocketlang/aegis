@@ -122,9 +122,9 @@ export function authorityOf(finding: string, prompt: string, skillText = "", pro
 }
 const skillTextCache = new Map<string, string>();
 const skillTextOf = (dir: string) => { if (!skillTextCache.has(dir)) { let t = ""; try { t = readFileSync(join(dir, "SKILL.md"), "utf8").replace(/^---\n[\s\S]*?\n---\n?/, ""); } catch { /* none */ } skillTextCache.set(dir, t); } return skillTextCache.get(dir)!; };
-export type Verdict = { ts: string; tool: string; strict: boolean; hard: boolean; undecidable: boolean; reasons: string[]; hardNoAuthority?: boolean;
-  /** observation only: the host's id for this tool call, and what kind of thing each finding records */
-  call_id?: string; kinds?: FindingKind[]; not_checked?: string[] };
+/** One tool call inside a skill window, described for a decider: what it was, the host's id for it, and what each
+ *  finding records. Observation only: this module computes no answer for it (the governor's core does). */
+export type CallRecord = { ts: string; tool: string; call_id?: string; outside: string[]; kinds: FindingKind[]; not_checked: string[] };
 /** What a finding records, described, not judged (a decider maps kinds to answers; this module never does). */
 export type FindingKind = "forbidden-path" | "outward-act" | "shell-rule" | "network" | "write-elsewhere" | "read-elsewhere" | "tool-undeclared";
 export function kindOf(finding: string): FindingKind {
@@ -139,28 +139,7 @@ export function kindOf(finding: string): FindingKind {
 /** How the calls of a window were tied to the skill: a host-stamped invocation id (exact), or the session window
  *  opened by the Skill call and closed by the next prompt (inferred: no end marker). Prompt words are never used. */
 export type Invocation = { id: string; basis: "invocation-id" | "session-window" };
-export type Window = { skill: string; dir: string; file: string; session: string; start: string; prompt: string; calls: number; outside: Finding[]; unchecked: Finding[]; verdicts: Verdict[]; invocation?: Invocation };
-
-// ---- would refuse (a governor's verdict, computed and printed, NEVER applied) ---------------------------------
-// Two policies a governor could run while a skill is active, so a person can count what each would have refused
-// (and how many of those the person had asked for) before any enforce ruling:
-//   strict  refuse any call outside the declaration
-//   hard    refuse only a forbidden path, an undeclared outward act, a forbidden shell command (bash.forbid) or
-//           undeclared network use; a write or read elsewhere and an undeclared tool are logged, not refused
-//   undecidable  nothing outside, but something NOT CHECKED: a governor could not decide from what it can read
-// A governor that refuses changes what the agent does next; this counts only the calls the logs hold.
-// This is a measurement of two candidate policies, not a decision engine. If a governor is ever built, the policy
-// belongs in the one decision core that already governs agents (the control plane), and this column should then
-// print that core's verdict in shadow, never a second judgement of its own.
-export function isHard(finding: string): boolean {
-  if (/forbidden path|outward act not declared|network use, declared none/.test(finding)) return true;
-  if (/^bash: /.test(finding) && !/^bash: (writes |git (add|commit))/.test(finding)) return true; // a bash.forbid rule's why
-  return false;
-}
-export function verdictOf(ts: string, tool: string, r: { outside: string[]; unchecked: string[] }): Verdict {
-  const hardR = r.outside.filter(isHard);
-  return { ts, tool, strict: r.outside.length > 0, hard: hardR.length > 0, undecidable: !r.outside.length && r.unchecked.length > 0, reasons: hardR.length ? hardR : r.outside };
-}
+export type Window = { skill: string; dir: string; file: string; session: string; start: string; prompt: string; calls: number; outside: Finding[]; unchecked: Finding[]; call_log: CallRecord[]; invocation?: Invocation };
 
 const HOME = homedir();
 
@@ -396,7 +375,7 @@ export async function scanLogs(files: string[], needs: Record<string, Compiled>,
   for (const fp of files) {
     let active: Window | null = null; let lastPrompt = "";
     const close = () => { if (active && active.calls) windows.push(active); active = null; };
-    const open = (skill: string, dir: string, d: any, startId?: string) => { close(); active = { skill, dir, file: fp, session: d.sessionId, start: d.timestamp, prompt: lastPrompt, calls: 0, outside: [], unchecked: [], verdicts: [],
+    const open = (skill: string, dir: string, d: any, startId?: string) => { close(); active = { skill, dir, file: fp, session: d.sessionId, start: d.timestamp, prompt: lastPrompt, calls: 0, outside: [], unchecked: [], call_log: [],
       // Claude Code logs carry no id that ties later calls to the skill: the window is inferred, whatever started it
       invocation: { id: startId ?? d.uuid ?? `${d.sessionId}@${d.timestamp}`, basis: "session-window" } }; };
     try {
@@ -427,11 +406,7 @@ export async function scanLogs(files: string[], needs: Record<string, Compiled>,
             const r = checkCall(c, d.cwd, expandNeeds(needs[a.skill], { project: d.cwd, skill: a.dir }));
             for (const o of r.outside) a.outside.push({ ts: d.timestamp, what: o, ...authorityOf(o, a.prompt, skillTextOf(a.dir), d.cwd) });
             for (const u of r.unchecked) a.unchecked.push({ ts: d.timestamp, what: u });
-            const vd = verdictOf(d.timestamp, c.name, r);
-            // a third candidate policy: refuse a hard act only when nothing named it (authority "none found")
-            vd.hardNoAuthority = r.outside.some((o) => isHard(o) && authorityOf(o, a.prompt, skillTextOf(a.dir), d.cwd).authority === "none found");
-            vd.call_id = c.id; vd.kinds = r.outside.map(kindOf); vd.not_checked = r.unchecked;
-            a.verdicts.push(vd);
+            a.call_log.push({ ts: d.timestamp, tool: c.name, call_id: c.id, outside: r.outside, kinds: r.outside.map(kindOf), not_checked: r.unchecked });
           }
         }
       }
@@ -459,16 +434,13 @@ export function localTime(iso: string | undefined, tz?: string): string {
 }
 export const zoneLabel = (tz?: string) => tz ?? Intl.DateTimeFormat().resolvedOptions().timeZone ?? "local";
 
-export type Report = { text: string; exit: 0 | 1 | 2; outside: number; unchecked: number; windows: Window[]; wouldRefuse: { strict: number; hard: number; hardNoAuthority: number; undecidable: number } };
-const countV = (ws: Window[]) => ({ hardNoAuthority: ws.reduce((a, w) => a + (w.verdicts ?? []).filter((v) => v.hardNoAuthority).length, 0), strict: ws.reduce((a, w) => a + (w.verdicts ?? []).filter((v) => v.strict).length, 0), hard: ws.reduce((a, w) => a + (w.verdicts ?? []).filter((v) => v.hard).length, 0), undecidable: ws.reduce((a, w) => a + (w.verdicts ?? []).filter((v) => v.undecidable).length, 0) });
+export type Report = { text: string; exit: 0 | 1 | 2; outside: number; unchecked: number; windows: Window[] };
 export function formatReport(o: { windows: Window[]; unreadable: number; invalid: string[]; skills: string[]; logs: number; sinceSpec: string; now?: Date; tz?: string }): Report {
   const tz = o.tz, zone = zoneLabel(tz);
   const L: string[] = [];
   const outsideN = o.windows.reduce((a, w) => a + w.outside.length, 0), uncheckedN = o.windows.reduce((a, w) => a + w.unchecked.length, 0);
   L.push(`Skill reach watch, ${localTime((o.now ?? new Date()).toISOString(), tz).slice(0, 16)} ${zone}. ${o.skills.length} skill(s) declare their needs (${o.skills.join(", ") || "none"}); ${o.logs} session log(s) since ${o.sinceSpec}.`);
   L.push(`${o.windows.length} window(s) where a declared skill was active; ${o.windows.reduce((a, w) => a + w.calls, 0)} tool call(s); OUTSIDE ${outsideN}; NOT CHECKED ${uncheckedN}.`);
-  const wr = countV(o.windows);
-  L.push(`Would refuse (no governor runs; nothing was refused): strict ${wr.strict} call(s) · hard ${wr.hard} · hard with no authority found ${wr.hardNoAuthority} · undecidable ${wr.undecidable}. Each is a false refusal if the person asked for it.`);
   const byA: Record<string, number> = {}; for (const w of o.windows) for (const f of w.outside) byA[f.authority ?? "none found"] = (byA[f.authority ?? "none found"] ?? 0) + 1;
   if (outsideN) L.push(`Authority of the OUTSIDE findings (evidence for a person, never "authorised"): person ${byA.person ?? 0} · skill ${byA.skill ?? 0} · unclear ${byA.unclear ?? 0} · none found ${byA["none found"] ?? 0}.`);
   const byStart = [...o.windows].sort((a, b) => (Date.parse(a.start) || 0) - (Date.parse(b.start) || 0));
@@ -477,9 +449,6 @@ export function formatReport(o: { windows: Window[]; unreadable: number; invalid
     if (!w.outside.length && !w.unchecked.length) { L.push(`INSIDE       ${head}`); continue; }
     L.push(`${w.outside.length ? "OUTSIDE     " : "NOT CHECKED "} ${head}`);
     L.push(`    opened by    ${quotePrompt(w.prompt)} (quoted for a person to judge; the watcher does not)`);
-    const v = w.verdicts ?? [], vs = v.filter((x) => x.strict).length, vh = v.filter((x) => x.hard), vu = v.filter((x) => x.undecidable).length;
-    L.push(`    would refuse strict ${vs} · hard ${vh.length} · undecidable ${vu} of ${w.calls} call(s)`);
-    for (const x of vh) L.push(`    hard refuse  ${localTime(x.ts, tz).slice(11, 19)}  ${x.tool}: ${x.reasons.join("; ")}`);
     for (const f of w.outside) { L.push(`    outside      ${localTime(f.ts, tz).slice(11, 19)}  ${f.what}`); if (f.authority) L.push(`      authority  ${f.authority}: ${f.evidence}`); }
     const uc: Record<string, number> = {}; for (const u of w.unchecked) uc[u.what] = (uc[u.what] ?? 0) + 1;
     for (const [k, v] of Object.entries(uc)) L.push(`    not checked  ${k} (${v})`);
@@ -489,5 +458,5 @@ export function formatReport(o: { windows: Window[]; unreadable: number; invalid
   L.push("Observe only: blocks nothing, changes nothing. A window runs from the skill's start to the next prompt, so work the");
   L.push("same prompt asked for besides the skill is counted against it. Subagent logs and writes inside script bodies are not read.");
   const exit = outsideN ? 1 : (uncheckedN || o.invalid.length || o.unreadable) ? 2 : 0;
-  return { text: L.join("\n") + "\n", exit, outside: outsideN, unchecked: uncheckedN, windows: o.windows, wouldRefuse: wr };
+  return { text: L.join("\n") + "\n", exit, outside: outsideN, unchecked: uncheckedN, windows: o.windows };
 }

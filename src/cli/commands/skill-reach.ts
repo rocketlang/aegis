@@ -47,7 +47,7 @@ export default async function skillReach(args: string[]): Promise<void> {
     const { windows, unreadable } = await scanLogs(files, needs, since);
     const r = formatReport({ windows, unreadable, invalid, skills: Object.keys(needs), logs: files.length, sinceSpec, tz: val("--tz") });
     const out = args.includes("--json")
-      ? JSON.stringify({ outside: r.outside, not_checked: r.unchecked, would_refuse: { ...r.wouldRefuse, applied: false }, invalid, unreadable, windows: r.windows.map(({ file: _f, prompt: _p, ...w }) => w), observe_only: true }, null, 2) + "\n"
+      ? JSON.stringify({ outside: r.outside, not_checked: r.unchecked, decision: "none: an observer computes no answer; a decider maps each call_log kind to one", invalid, unreadable, windows: r.windows.map(({ file: _f, prompt: _p, ...w }) => w), observe_only: true }, null, 2) + "\n"
       : r.text;
     const outFile = val("--out");
     if (outFile) writeFileSync(outFile, out);
