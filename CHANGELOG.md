@@ -6,10 +6,33 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [2.30.0] — 2026-11-15
+
 ### Added
 
 - **`aegis skill-reach` (observe only).** A skill describes the work; the host grants the access. A skill can carry a `SKILL.needs.json` (schema `skill-needs-v1`) beside its `SKILL.md`, declaring the tools it uses, where it reads and writes (portable `{project}` `{skill}` `{home}` `{tmp}` paths), paths it must never touch, network use, outward acts and shell commands it may not run. `aegis skill-reach [--since 48h] [--json]` reads Claude Code session logs and, for each window in which such a skill was active, lists every call outside that declaration. Needs files are found in `~/.claude/skills/<name>/` and in installed plugins. `--validate` checks the files only. It blocks nothing. A line stays OUTSIDE even when the person's prompt asked for the act; the prompt is quoted (pasted text never) for a person to judge. Not seen: subagent logs; a write inside a script body is reported NOT CHECKED, never passed. A window runs from the skill's start to the next prompt, so other work from the same prompt is counted against the skill. Exit codes: 0 all inside, 1 at least one OUTSIDE, 2 none outside but something not checked or a needs file invalid, 3 broke.
 - **`aegis skill-reach --json` describes each call for a decider, and decides nothing.** Each window carries a `call_log`: per tool call, the host's call id, the findings, a `kind` for each (forbidden-path, outward-act, shell-rule, network, write-elsewhere, read-elsewhere, tool-undeclared) and what could not be checked; and an `invocation` saying how the calls were tied to the skill (`session-window`: inferred from the Skill call; Claude Code logs carry no host-stamped skill invocation id). An earlier unreleased draft printed its own would-refuse estimate; it is removed, because the answer belongs to a governor's decision core, not to the observer.
+- **Visitor scope.** Visiting principals are held to a scope, a daily budget and a kill switch, on their own table; a per-product token opens only the visitor gate route; a principal never sets its own scope.
+- **`aegis gate-serve`.** Runs the frozen hook checks as their own user for a thin client (`aegis-gate-client`), with a name allowlist.
+- **Repeat-back release record and gate.** `aegis repeat-back request|approve|deny|list|report|verify|tag`: each release is asked for and decided on a hash-chained record before its tag; an approval is signed at the person's terminal and carried in the annotated tag; the release workflows check it against the pinned public key (observe mode: they warn).
+- **`aegis cost --by-repo`.** Spend credited to the git repositories each session's messages touched, not to the folder it started in.
+- **Dashboard trend chart** over 7, 30 or 90 days, messages or cost (`/api/trend?days=`).
+- **Night-time activity alert.** One alert per session per night (window configurable), saying whether a person typed lately.
+- **Annotation coverage script** for enforcement points (an `@rule:` on or near each refusal); every check hook now cites its rule.
+- **Red-team agent traps, third arm** (aegis plus a blind walk); the per-call model timeout is a setting (`AGENT_TRAPS_CALL_TIMEOUT_MS`).
+
+### Changed
+
+- **Ledger authority:** bell-book rows are also accepted from the gates `acp-core` and `abot` (a named list, one fixed shape), and `askAuthorityBellBook` takes the book's gate after the same status check.
+- **Mandate revocations** are signed onto the refusal ledger as a row kind of their own (`mdr=<id>`, no free text), asked only of an authority that says it knows the kind.
+- **Shield:** the frozen copies the gates and guard hooks run from are the shield's own files.
+- **Monitor:** Codex reasoning tokens counted once; Codex records name their real model and stop charging cached input twice; read positions survive a restart; a session's first records are counted even when its file is found late.
+
+### Fixed
+
+- Two test files leaned on the development machine (a config directory, an approvers file) and failed on a clean CI runner; they now set up what they need. CI had been red since 9 Nov 2026 on the revocation-ledger test.
+
+The Python packages `xshieldai-langchain` and `xshieldai-crewai` 1.0.2 (fail closed when AEGIS is unreachable) are released separately by their own workflow.
 
 ## [2.29.1] — 2026-10-26
 
