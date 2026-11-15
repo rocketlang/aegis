@@ -57,6 +57,6 @@ export default async function skillReach(args: string[]): Promise<void> {
     process.stderr.write(`aegis skill-reach broke: ${(e as Error).message}\n`);
     code = 3;
   } finally {
-    process.exit(code);
+    process.exitCode = code; // not process.exit(): a piped stdout must drain first (a report over 64 KB was cut off)
   }
 }
