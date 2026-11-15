@@ -30,7 +30,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
-- Two test files leaned on the development machine (a config directory, an approvers file) and failed on a clean CI runner; they now set up what they need. CI had been red since 9 Nov 2026 on the revocation-ledger test.
+- Three test files leaned on the development machine (a config directory, an approvers file, and `$HOME` as proof of the real home folder when an earlier test file had already moved it) and failed on a clean CI runner; they now set up or look up what they need. CI had been red since 9 Nov 2026.
 
 The Python packages `xshieldai-langchain` and `xshieldai-crewai` 1.0.2 (fail closed when AEGIS is unreachable) are released separately by their own workflow.
 

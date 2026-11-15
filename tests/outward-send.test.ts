@@ -4,10 +4,12 @@
 // modules are imported only after HOME is set, so the box's own ~/.aegis is never read or written.
 import { describe, it, expect } from "bun:test";
 import { mkdtempSync } from "fs";
-import { tmpdir } from "os";
+import { tmpdir, userInfo } from "os";
 import { join } from "path";
 
-const REAL_HOME = process.env.HOME;
+// The account's own home, from the system, not $HOME: an earlier test file may have moved $HOME to its
+// scratch folder already (and loaded outward there), so $HOME here is not proof of the real one.
+const REAL_HOME = (() => { try { return userInfo().homedir; } catch { return undefined; } })() ?? process.env.HOME;
 const HOME = mkdtempSync(join(process.env.TMPDIR ?? tmpdir(), "outward-send-"));
 process.env.HOME = HOME;
 delete process.env.AEGIS_APPROVER_CONSUME_SOCKET;
