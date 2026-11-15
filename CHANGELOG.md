@@ -4,6 +4,12 @@ All notable changes to AEGIS will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [Unreleased]
+
+### Added
+
+- **`aegis skill-reach` (observe only).** A skill describes the work; the host grants the access. A skill can carry a `SKILL.needs.json` (schema `skill-needs-v1`) beside its `SKILL.md`, declaring the tools it uses, where it reads and writes (portable `{project}` `{skill}` `{home}` `{tmp}` paths), paths it must never touch, network use, outward acts and shell commands it may not run. `aegis skill-reach [--since 48h] [--json]` reads Claude Code session logs and, for each window in which such a skill was active, lists every call outside that declaration. Needs files are found in `~/.claude/skills/<name>/` and in installed plugins. `--validate` checks the files only. It blocks nothing. A line stays OUTSIDE even when the person's prompt asked for the act; the prompt is quoted (pasted text never) for a person to judge. Not seen: subagent logs; a write inside a script body is reported NOT CHECKED, never passed. A window runs from the skill's start to the next prompt, so other work from the same prompt is counted against the skill. Exit codes: 0 all inside, 1 at least one OUTSIDE, 2 none outside but something not checked or a needs file invalid, 3 broke.
+
 ## [2.29.1] — 2026-10-26
 
 ### Fixed

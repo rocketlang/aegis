@@ -128,6 +128,8 @@ async function main() {
       return (await import("./commands/outward-record")).default(args);
     case "touched":
       return (await import("./commands/touched")).default(args);
+    case "skill-reach":
+      return (await import("./commands/skill-reach")).default(args);
     case "ci-audit":
       return (await import("./commands/ci-audit")).default(args);
     case "rehearse-chain":
@@ -168,6 +170,7 @@ Commands:
   check-shield        Hook: LakshmanRekha injection/exfil/credential detection on Bash/Read/Write/Edit
   approve-destructive [code]  A PERSON approves one refused destructive command, once (no code: list)
   ledger-pin --from <key>     AS ROOT: pin the ledger authority's public key for every gate on this box
+  skill-reach [--since 48h]   Observe: each skill's tool calls against its SKILL.needs.json (exit 1 = OUTSIDE)
   rules status                Compare the installed destructive rules with this package's (exit 1 = differs)
   rules update [--dry]        A PERSON brings the installed rules up to this package's; their own are kept
   check-anumati       Hook: permissive layer — may the PLANT obey, in its current state? (exit 0=ok, 2=refuse)
